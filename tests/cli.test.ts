@@ -43,7 +43,7 @@ describe('terminal screen', () => {
     expect(text).toContain('Last word: I +1');
     expect(text).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10');
     expect(text).toContain('[2] *Buy a letter   cost 25');
-    expect(text).toContain('[3] *Buy a monkey (you have 1)   cost 50');
+    expect(text).toContain('[3]  Buy a monkey: unlocks when you own 13 letters');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
   });

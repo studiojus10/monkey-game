@@ -67,9 +67,13 @@ export function monkeyCost(owned: number): number {
   return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
 }
 
+export function monkeysUnlocked(state: GameState): boolean {
+  return state.letters.length >= monkeyShop.unlockLetters;
+}
+
 export function buyMonkey(state: GameState): boolean {
   const cost = monkeyCost(state.monkeys.length);
-  if (state.letters.length === 0 || state.currency < cost) return false;
+  if (!monkeysUnlocked(state) || state.currency < cost) return false;
   state.currency -= cost;
   state.monkeys.push(createMonkey());
   return true;

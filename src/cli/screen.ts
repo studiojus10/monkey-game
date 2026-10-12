@@ -1,5 +1,5 @@
-import { letterValues, startingLetters, theme } from '../game/config';
-import { letterCost, lettersPerSecond, monkeyCost, typingUpgradeCost } from '../game/logic';
+import { letterValues, monkeyShop, startingLetters, theme } from '../game/config';
+import { letterCost, lettersPerSecond, monkeyCost, monkeysUnlocked, typingUpgradeCost } from '../game/logic';
 import { wordPoints } from '../game/words';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
@@ -71,7 +71,9 @@ export function renderScreen(state: GameState, message = ''): string {
     ...(unownedLetters(state).length > 0
       ? [`  [2] ${mark(nextLetter)}Buy a letter   cost ${formatNumber(nextLetter)}`]
       : []),
-    `  [3] ${mark(nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   cost ${formatNumber(nextMonkey)}`,
+    monkeysUnlocked(state)
+      ? `  [3] ${mark(nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   cost ${formatNumber(nextMonkey)}`
+      : `  [3]  Buy a monkey: unlocks when you own ${monkeyShop.unlockLetters} letters`,
     '',
     `[space] ${theme.pokeAction}   [1-3] buy (* = affordable)   [s] save   [r] reset   [q] quit`,
     '',

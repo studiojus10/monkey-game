@@ -8,6 +8,7 @@ import {
   buyFasterTyping,
   buyLetter,
   buyMonkey,
+  monkeysUnlocked,
   chooseFirstLetter,
   letterCost,
   poke,
@@ -96,7 +97,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       message = letterPickPrompt(state);
     }
   } else if (str === '3') {
-    if (!buyMonkey(state)) message = `Not enough ${theme.currency}.`;
+    if (!monkeysUnlocked(state)) message = 'More monkeys unlock later.';
+    else if (!buyMonkey(state)) message = `Not enough ${theme.currency}.`;
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;

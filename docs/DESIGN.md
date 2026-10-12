@@ -68,7 +68,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 
 ## Monkeys
 
-- You start with **one monkey**. More monkeys are bought with points; each costs more than the last (starting guess: 50, ×1.4 each) **(default)**. The screen shows the first 10 monkey lines and sums up the rest.
+- You start with **one monkey**. More monkeys are a **late-game** upgrade: they unlock once you own about half the alphabet (13 letters), and are priced for that stage (starting guess: 5M points, ×1.4 each). The screen shows the first 10 monkey lines and sums up the rest.
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
 
@@ -150,7 +150,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 
 1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one slow monkey types it on screen, each word scores 1, and "Faster typing" is for sale. Builds the word matcher with tests.
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
-3. **More monkeys.** A monkey shop, one line per monkey on screen, offline progress by simulation.
+3. **More monkeys.** A monkey shop that unlocks at 13 letters, one line per monkey on screen, offline progress by simulation.
 4. **Typewriter keys.** Heavier letter keys, combination keys and word keys in the shop.
 5. **Combos.** Chains, the 30-letter line and carriage return, combo shown per monkey.
 6. **Pick a play.** Play choice at the start, the script view, words checked off across the script, line bonuses.

@@ -37,9 +37,14 @@ export const letterShop = {
   costGrowth: 3,
 };
 
-/** You start with one monkey; the n-th one you buy costs baseCost x costGrowth^(n-1). */
+/**
+ * You start with one monkey. More monkeys are a late upgrade: they unlock
+ * once you own unlockLetters letters, and the n-th one you buy costs
+ * baseCost x costGrowth^(n-1). baseCost sits near the price of the 14th letter.
+ */
 export const monkeyShop = {
-  baseCost: 50,
+  unlockLetters: 13,
+  baseCost: 5_000_000,
   costGrowth: 1.4,
 };
 

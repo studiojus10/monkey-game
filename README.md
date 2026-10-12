@@ -27,7 +27,7 @@ npm start
 - **A monkey** at a typewriter, typing random letters from the letters you own. It starts slow, one letter every 2 seconds.
 - **Your first letter**: A or I, since it has to be a word on its own. Every word the monkey types scores (sum of Scrabble-style letter values) × length, so `I` is 1, `IT` is 4 and `ZAP` is 42. Scored words show in capitals and skipped letters in lower case.
 - **More letters**, bought with points, so longer words become possible. Words come from the public-domain ENABLE list in `data/words.txt`, plus A and I.
-- **More monkeys**, each typing its own line. The first 10 are shown under the title.
+- **More monkeys**, a late upgrade that unlocks once you own 13 letters. Each types its own line. The first 10 are shown under the title.
 - **Faster typing**, bought with points: each level makes the monkey type 25% faster and costs more than the last.
 - **Autosave** to `save.json` every 10 seconds and on quit. Set `IDLE_SAVE=path/to/file.json` to use a different file, which is handy for testing from a fresh start.
 - **Offline progress**: the monkeys keep typing while you're away, up to 8 hours.

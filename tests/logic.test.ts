@@ -147,6 +147,8 @@ describe('monkeys', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.currency = monkeyCost(1);
+    expect(buyMonkey(s)).toBe(false); // locked until enough letters
+    s.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(0, monkeyShop.unlockLetters);
     expect(monkeyCost(1)).toBe(monkeyShop.baseCost);
     expect(buyMonkey(s)).toBe(true);
     expect(s.monkeys).toHaveLength(2);
