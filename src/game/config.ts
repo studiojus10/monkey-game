@@ -1,51 +1,38 @@
 // All player-facing names and balance numbers live here so the game can be
-// reskinned or rebalanced without touching the logic.
+// reskinned or rebalanced without touching the logic. See docs/DESIGN.md.
 
 export const theme = {
-  title: 'Idle Game',
+  title: 'Infinite Monkeys',
   currency: 'Points',
-  clickAction: 'Collect',
+  pokeAction: 'Poke the monkey',
 };
 
-export interface GeneratorDef {
-  id: string;
-  name: string;
-  baseCost: number;
-  costGrowth: number; // cost multiplier per owned unit
-  production: number; // currency per second per unit
-}
+/** The player's first letter has to be a word on its own. */
+export const startingLetters = ['A', 'I'];
 
-export const generators: GeneratorDef[] = [
-  { id: 'worker', name: 'Worker', baseCost: 10, costGrowth: 1.15, production: 0.5 },
-  { id: 'workshop', name: 'Workshop', baseCost: 100, costGrowth: 1.15, production: 4 },
-];
+/**
+ * Words that can score. For now only the one-letter words; the real word
+ * list arrives with the letter shop.
+ */
+export const words = ['A', 'I'];
 
-export interface UpgradeDef {
-  id: string;
-  name: string;
-  description: string;
-  cost: number;
-  effect: { kind: 'clickMultiplier' | 'productionMultiplier'; value: number };
-}
+/** Scrabble-style letter values; a word scores (sum of values) x length. */
+export const letterValues: Record<string, number> = {
+  A: 1, E: 1, I: 1, O: 1, U: 1, L: 1, N: 1, S: 1, T: 1, R: 1,
+  D: 2, G: 2,
+  B: 3, C: 3, M: 3, P: 3,
+  F: 4, H: 4, V: 4, W: 4, Y: 4,
+  K: 5,
+  J: 8, X: 8,
+  Q: 10, Z: 10,
+};
 
-export const upgrades: UpgradeDef[] = [
-  {
-    id: 'better-tools',
-    name: 'Better Tools',
-    description: 'Clicks are worth 2x.',
-    cost: 50,
-    effect: { kind: 'clickMultiplier', value: 2 },
-  },
-  {
-    id: 'efficiency',
-    name: 'Efficiency',
-    description: 'All generators produce 2x.',
-    cost: 500,
-    effect: { kind: 'productionMultiplier', value: 2 },
-  },
-];
+export const monkey = {
+  lettersPerSecond: 2,
+};
 
-export const baseClickValue = 1;
+/** Letters per typewriter line on screen. */
+export const lineWidth = 30;
 
 // Offline progress is capped so a long absence doesn't break balance.
 export const maxOfflineSeconds = 8 * 60 * 60;

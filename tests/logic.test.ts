@@ -1,65 +1,72 @@
 import { describe, expect, it } from 'vitest';
-import { generators, maxOfflineSeconds } from '../src/game/config';
-import {
-  applyOfflineProgress,
-  buyGenerator,
-  buyUpgrade,
-  click,
-  clickValue,
-  generatorCost,
-  productionPerSecond,
-  tick,
-} from '../src/game/logic';
+import { lineWidth, maxOfflineSeconds, monkey } from '../src/game/config';
+import { applyOfflineProgress, chooseFirstLetter, poke, tick, typeLetter } from '../src/game/logic';
 import { createInitialState } from '../src/game/state';
 
-const worker = generators[0];
+const rng = () => 0;
 
-describe('core loop', () => {
-  it('clicking earns currency', () => {
+describe('first letter', () => {
+  it('can be A or I, and only once', () => {
     const s = createInitialState(0);
-    click(s);
+    expect(chooseFirstLetter(s, 'z')).toBe(false);
+    expect(chooseFirstLetter(s, 'i')).toBe(true);
+    expect(chooseFirstLetter(s, 'a')).toBe(false);
+    expect(s.letters).toEqual(['I']);
+  });
+
+  it('the monkey does not type before a letter is picked', () => {
+    const s = createInitialState(0);
+    tick(s, 10, rng);
+    poke(s, rng);
+    expect(s.currency).toBe(0);
+    expect(s.monkeys[0].line).toEqual([]);
+  });
+});
+
+describe('typing', () => {
+  it('each one-letter word scores 1 point', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'a');
+    typeLetter(s, 0, rng);
+    typeLetter(s, 0, rng);
+    expect(s.currency).toBe(2);
+    expect(s.totalEarned).toBe(2);
+    expect(s.wordsTyped).toBe(2);
+    expect(s.lastWord).toBe('A');
+    expect(s.monkeys[0].line).toEqual([
+      { text: 'A', scored: true },
+      { text: 'A', scored: true },
+    ]);
+  });
+
+  it('poking types one extra letter', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    poke(s, rng);
     expect(s.currency).toBe(1);
-    expect(s.totalEarned).toBe(1);
   });
 
-  it('cannot buy a generator without enough currency', () => {
+  it('monkeys type over time, carrying over partial letters', () => {
     const s = createInitialState(0);
-    expect(buyGenerator(s, worker.id)).toBe(false);
-    expect(s.generators[worker.id]).toBeUndefined();
+    chooseFirstLetter(s, 'i');
+    tick(s, 10, rng);
+    expect(s.currency).toBe(10 * monkey.lettersPerSecond);
+    tick(s, 0.25 / monkey.lettersPerSecond, rng);
+    tick(s, 0.75 / monkey.lettersPerSecond, rng);
+    expect(s.currency).toBe(10 * monkey.lettersPerSecond + 1);
   });
 
-  it('buying a generator spends currency and raises the next cost', () => {
+  it('starts a fresh line when the line is full', () => {
     const s = createInitialState(0);
-    s.currency = 1000;
-    const first = generatorCost(worker, 0);
-    expect(buyGenerator(s, worker.id)).toBe(true);
-    expect(s.currency).toBe(1000 - first);
-    expect(generatorCost(worker, 1)).toBeGreaterThan(first);
+    chooseFirstLetter(s, 'i');
+    for (let i = 0; i < lineWidth + 1; i++) typeLetter(s, 0, rng);
+    expect(s.monkeys[0].line).toHaveLength(1);
   });
 
-  it('generators produce over time', () => {
+  it('offline typing is credited and capped', () => {
     const s = createInitialState(0);
-    s.generators[worker.id] = 2;
-    tick(s, 10);
-    expect(s.currency).toBeCloseTo(worker.production * 2 * 10);
-  });
-
-  it('upgrades apply once and multiply output', () => {
-    const s = createInitialState(0);
-    s.currency = 10_000;
-    s.generators[worker.id] = 1;
-    const baseRate = productionPerSecond(s);
-    expect(buyUpgrade(s, 'better-tools')).toBe(true);
-    expect(buyUpgrade(s, 'better-tools')).toBe(false);
-    expect(clickValue(s)).toBe(2);
-    expect(buyUpgrade(s, 'efficiency')).toBe(true);
-    expect(productionPerSecond(s)).toBe(baseRate * 2);
-  });
-
-  it('offline progress is credited and capped', () => {
-    const s = createInitialState(0);
-    s.generators[worker.id] = 1;
-    const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000);
-    expect(earned).toBeCloseTo(worker.production * maxOfflineSeconds);
+    chooseFirstLetter(s, 'i');
+    const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
+    expect(earned).toBe(maxOfflineSeconds * monkey.lettersPerSecond);
   });
 });
