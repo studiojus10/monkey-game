@@ -97,12 +97,34 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   m.pending = readLetter(dictionaryFor(state), m.pending, letter, events);
   for (const e of events) {
     if (e.kind === 'word') {
-      earn(state, wordPoints(e.text));
+      const paid = scoreInChain(m, e.text);
+      earn(state, paid);
       state.wordsTyped++;
       state.lastWord = e.text;
+      state.lastWordPoints = paid;
+    } else {
+      m.chainWords = [];
+      m.chainPoints = 0;
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
+}
+
+/** The combo multiplier: how many different words are in the chain. */
+export function comboMultiplier(m: MonkeyState): number {
+  return Math.max(1, m.chainWords.length);
+}
+
+/**
+ * Adds a word to the monkey's chain and returns what it pays: whatever
+ * brings the chain's total up to (sum of its word points) x (different words).
+ * A repeated word joins the chain but doesn't raise the multiplier.
+ */
+function scoreInChain(m: MonkeyState, word: string): number {
+  const before = m.chainPoints * m.chainWords.length;
+  if (!m.chainWords.includes(word)) m.chainWords.push(word);
+  m.chainPoints += wordPoints(word);
+  return m.chainPoints * m.chainWords.length - before;
 }
 
 /** The player pokes the first monkey into typing one extra letter. */

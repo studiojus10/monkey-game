@@ -160,7 +160,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one slow monkey types it on screen, each word scores 1, and "Faster typing" is for sale. Builds the word matcher with tests.
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
 3. **More monkeys.** A monkey shop that unlocks at 13 letters, one line per monkey on screen, offline progress by simulation.
-4. **Combos.** Chains and the different-words multiplier, combo shown per monkey.
+4. **Combos.** Chains and the different-words multiplier, combo shown per monkey. (Built.)
 5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, big line rewards.
 6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking later.
 7. **Word slots.** Buy slots, set and change their words, aimed at specific lines. Scene and act milestones.

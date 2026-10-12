@@ -1,6 +1,12 @@
 import { letterValues, monkeyShop, startingLetters, theme } from '../game/config';
-import { letterCost, lettersPerSecond, monkeyCost, monkeysUnlocked, typingUpgradeCost } from '../game/logic';
-import { wordPoints } from '../game/words';
+import {
+  comboMultiplier,
+  letterCost,
+  lettersPerSecond,
+  monkeyCost,
+  monkeysUnlocked,
+  typingUpgradeCost,
+} from '../game/logic';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
 
@@ -65,7 +71,7 @@ export function renderScreen(state: GameState, message = ''): string {
   lines.push(
     ...state.monkeys
       .slice(0, maxMonkeyLines)
-      .map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s)  ${renderLine(m)}`),
+      .map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s) x${comboMultiplier(m)}  ${renderLine(m)}`),
     ...(state.monkeys.length > maxMonkeyLines
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),
@@ -74,7 +80,7 @@ export function renderScreen(state: GameState, message = ''): string {
     `Letters: ${state.letters.join(' ')}`,
     '',
     `Words typed: ${formatNumber(state.wordsTyped)}` +
-      (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(wordPoints(state.lastWord))}` : ''),
+      (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
     '',
     'Shop',
     `  [1] ${mark(cost)}Faster typing (level ${state.typingLevel}): ` +

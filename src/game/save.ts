@@ -32,6 +32,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
             .map((seg) => ({ text: seg.text, scored: !!seg.scored }))
         : [],
       progress: num(m?.progress, 0),
+      chainWords: Array.isArray(m?.chainWords)
+        ? m.chainWords.filter((w): w is string => typeof w === 'string')
+        : [],
+      chainPoints: num(m?.chainPoints, 0),
     });
     const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey) : [];
     return {
@@ -44,6 +48,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       typingLevel: Math.max(0, Math.floor(num(s.typingLevel, 0))),
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
+      lastWordPoints: num(s.lastWordPoints, 0),
       lastSaved: num(s.lastSaved, now),
     };
   } catch {

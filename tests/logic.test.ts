@@ -5,6 +5,7 @@ import {
   buyFasterTyping,
   buyLetter,
   buyMonkey,
+  comboMultiplier,
   monkeyCost,
   letterCost,
   setWordList,
@@ -133,8 +134,8 @@ describe('buying letters', () => {
       const seq = [0, 0.9, 0.9, 0];
       const next = () => seq[n++];
       for (let i = 0; i < 4; i++) typeLetter(s, 0, next);
-      // I T -> IT (4); T I -> TI (4)
-      expect(s.currency).toBe(8);
+      // I T -> IT (4); T I -> TI (4), two different words back to back: (4 + 4) x 2
+      expect(s.currency).toBe(16);
       expect(s.monkeys[0].line.map((x) => x.text)).toEqual(['IT', 'TI']);
     } finally {
       setWordList([]);
@@ -176,5 +177,45 @@ describe('monkeys', () => {
     // With only I, every letter is a 1-point word.
     expect(earned / letters).toBeCloseTo(1, 3);
     expect(s.wordsTyped / letters).toBeCloseTo(1, 3);
+  });
+});
+
+describe('combos', () => {
+  const letters = ['C', 'A', 'T', 'Z', 'P', 'X'];
+  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
+    for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
+  };
+
+  it('multiplies a chain by its number of different words', () => {
+    setWordList(['CAT', 'ZAP']);
+    try {
+      const s = createInitialState(0);
+      s.letters = [...letters];
+      const m = s.monkeys[0];
+      typeAll(s, 'CAT');
+      expect(s.currency).toBe(15);
+      typeAll(s, 'ZAP');
+      expect(s.lastWordPoints).toBe(99); // (15 + 42) x 2 = 114
+      expect(comboMultiplier(m)).toBe(2);
+      typeAll(s, 'CAT');
+      expect(s.lastWordPoints).toBe(30); // repeat: (15 + 42 + 15) x 2 = 144
+      expect(comboMultiplier(m)).toBe(2);
+      expect(s.currency).toBe(144);
+      typeAll(s, 'X');
+      expect(comboMultiplier(m)).toBe(1);
+      expect(m.chainPoints).toBe(0);
+      typeAll(s, 'ZAP');
+      expect(s.lastWordPoints).toBe(42);
+    } finally {
+      setWordList([]);
+    }
+  });
+
+  it('only I never builds a combo', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    for (let i = 0; i < 50; i++) typeLetter(s, 0, rng);
+    expect(comboMultiplier(s.monkeys[0])).toBe(1);
+    expect(s.currency).toBe(50);
   });
 });
