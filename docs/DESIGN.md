@@ -162,4 +162,5 @@ Each step is a small pull request that you can play with `npm start` before the 
 
 - **Play completion reward.** Not decided yet; it should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
 - **Line rules.** Should a later upgrade or prestige layer also reward lines typed *verbatim and in order* as a rare jackpot?
+- **Monkey unlock.** For now more monkeys unlock at 13 letters. Justin wants this revisited later and made more interesting than a letter count.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.
