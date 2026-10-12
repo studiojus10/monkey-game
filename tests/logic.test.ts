@@ -39,6 +39,7 @@ import {
   buySection,
   chooseStarterScene,
   departmentChoices,
+  dictionaryFor,
   departmentGenres,
   departmentPicks,
   monkeyGenre,
@@ -88,6 +89,25 @@ describe('typing', () => {
       { text: 'A', scored: true },
       { text: 'A', scored: true },
     ]);
+  });
+
+  it('runs of one letter (AA, AAA, MM) are never words, even if the word list has them', () => {
+    try {
+      setWordList(['AA', 'AAA', 'MM', 'AM']);
+      const s = createInitialState(0);
+      chooseFirstLetter(s, 'a');
+      s.letters.push('M');
+      expect(dictionaryFor(s).isWord('AA')).toBe(false);
+      expect(dictionaryFor(s).isWord('AAA')).toBe(false);
+      expect(dictionaryFor(s).isWord('MM')).toBe(false);
+      expect(dictionaryFor(s).isWord('AM')).toBe(true);
+      for (let i = 0; i < 3; i++) typeLetter(s, 0, rng); // AAA: A, A, and an A that may still become AM
+      expect(s.wordsTyped).toBe(2);
+      expect(s.lastWord).toBe('A');
+      expect(s.monkeys[0].pending).toBe('A');
+    } finally {
+      setWordList([]);
+    }
   });
 
   it('poking types one extra letter', () => {

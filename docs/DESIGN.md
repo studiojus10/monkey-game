@@ -23,7 +23,7 @@ This is the design every build step works toward. Items marked **(default)** are
 
 ### What counts as a word
 
-The dictionary is a public-domain English word list (ENABLE, about 173k words) plus **A** and **I** (which Scrabble-style lists leave out) plus every word in the play you chose, so "thou", "doth" and "Polonius" count **(default)**. Words are compared as lowercase letters only; apostrophes and punctuation are dropped ("'tis" becomes `tis`, "o'er" becomes `oer`).
+The dictionary is a public-domain English word list (ENABLE, about 173k words) plus **A** and **I** (which Scrabble-style lists leave out) plus every word in the play you chose, so "thou", "doth" and "Polonius" count **(default)**. Runs of a single letter (AA, AAA, MM) never count, even though the list has AA and MM **(decided)**. Words are compared as lowercase letters only; apostrophes and punctuation are dropped ("'tis" becomes `tis`, "o'er" becomes `oer`).
 
 At any moment only words spellable with your owned letters matter. The game keeps a prefix tree of those words and rebuilds it when you buy a letter.
 

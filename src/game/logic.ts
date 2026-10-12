@@ -305,6 +305,11 @@ function ownedLines(state: GameState, genre: Genre | undefined): { byLetters: Ma
   return entry;
 }
 
+/** A run of one letter, like AA, AAA or MM: never a word, though the word list has AA and MM. */
+function isOneLetterRun(word: string): boolean {
+  return /^(.)\1+$/.test(word);
+}
+
 /**
  * The dictionary for the player's current letters plus the words of a
  * department's owned scenes (which always count), rebuilt only when they change.
@@ -313,7 +318,8 @@ export function dictionaryFor(state: GameState, genre = departmentGenres(state)[
   const key = [...state.letters].sort().join('') + '|' + state.owned.join('|');
   let entry = cached.get(genre ?? '');
   if (entry?.key !== key) {
-    entry = { key, dict: new Dictionary([...wordList, ...ownedLines(state, genre).words], state.letters) };
+    const words = [...wordList, ...ownedLines(state, genre).words].filter((w) => !isOneLetterRun(w));
+    entry = { key, dict: new Dictionary(words, state.letters) };
     cached.set(genre ?? '', entry);
   }
   return entry.dict;
