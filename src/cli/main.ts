@@ -88,6 +88,7 @@ let scriptCursor = 0;
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
+let shopOpen = false; // the shop starts closed; space opens and closes it
 let showingSlots = false;
 let selectedSlot = 0; // index into state.slots
 let slotDept = 0; // index into departmentGenres(state)
@@ -127,7 +128,7 @@ function draw() {
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message);
+        : renderScreen(state, message, shopOpen);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -387,8 +388,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
-  } else if (key.name === 'space') {
+  } else if (key.name === 'return' || key.name === 'enter') {
     poke(state);
+  } else if (key.name === 'space') {
+    shopOpen = !shopOpen;
+  } else if (!shopOpen && str && /^[1-6aug]$/.test(str)) {
+    message = 'Open the shop with [space] first.';
   } else if (str === '1') {
     if (!buyFasterTyping(state)) message = `Not enough ${theme.currency}.`;
   } else if (str === '2' && unownedLetters(state).length > 0) {

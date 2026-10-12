@@ -109,7 +109,7 @@ export function departmentPrompt(state: GameState): string {
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = ''): string {
+export function renderScreen(state: GameState, message = '', shopOpen = false): string {
   const lines = [`=== ${theme.title} ===`, ''];
 
   if (state.owned.length === 0 && state.departments.length === 0) {
@@ -162,12 +162,6 @@ export function renderScreen(state: GameState, message = ''): string {
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
   const speed = monkeySpeed(state);
-  const nextSpeed = monkeySpeed(state, state.typingLevel + 1);
-  const cost = typingUpgradeCost(state.typingLevel);
-  const nextLetter = letterCost(state.letters.length);
-  const nextMonkey = nextMonkeyCost(state);
-  const nextCap = capRaiseCost(state.comboCapLevel);
-  const mark = (have: number, price: number) => (have >= price ? '*' : ' ');
   const shown = state.monkeys.slice(0, maxMonkeyLines);
   // Pad names and multipliers so every monkey's text starts in the same column.
   // With more than one department, each monkey's line starts with its department's initial.
@@ -194,6 +188,24 @@ export function renderScreen(state: GameState, message = ''): string {
     ...lastMilestoneText(state),
     ...pinnedText(state),
     '',
+    ...(shopOpen ? shopLines(state) : []),
+    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
+    '',
+    message,
+  );
+  return lines.join('\n');
+}
+
+/** The shop, shown while it is open. */
+function shopLines(state: GameState): string[] {
+  const speed = monkeySpeed(state);
+  const nextSpeed = monkeySpeed(state, state.typingLevel + 1);
+  const cost = typingUpgradeCost(state.typingLevel);
+  const nextLetter = letterCost(state.letters.length);
+  const nextMonkey = nextMonkeyCost(state);
+  const nextCap = capRaiseCost(state.comboCapLevel);
+  const mark = (have: number, price: number) => (have >= price ? '*' : ' ');
+  return [
     'Shop',
     `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
       `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`,
@@ -223,11 +235,7 @@ export function renderScreen(state: GameState, message = ''): string {
         ? [`       Next department opens at ${nextDepartmentAt(state)} monkeys`]
         : []),
     '',
-    `[space] ${theme.pokeAction}   [1-6] buy (* = affordable)   [p] script, pins & scenes   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
-    '',
-    message,
-  );
-  return lines.join('\n');
+  ];
 }
 
 /** Ordinal for a chain position: 1st, 2nd, 3rd, 4th, ... */

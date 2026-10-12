@@ -75,7 +75,7 @@ describe('terminal screen', () => {
     s.lastWord = 'I';
     s.lastWordPoints = 1;
     s.monkeys[0].line = [{ text: 'I', scored: true }];
-    const text = renderScreen(s, 'hello');
+    const text = renderScreen(s, 'hello', true);
     expect(text).toContain('\x1b[1m1.23K Points\x1b[22m   0 Sentences   0 Lines'); // points in bold
     expect(text).toContain('Letters: I');
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
@@ -87,6 +87,16 @@ describe('terminal screen', () => {
     expect(plain(text)).toContain('[4]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
+  });
+
+  it('keeps the shop closed until space opens it', () => {
+    const s = started();
+    const closed = plain(renderScreen(s));
+    expect(closed).not.toContain('Faster typing');
+    expect(closed).toContain('[enter] pet the monkey   [space] open the shop');
+    const open = plain(renderScreen(s, '', true));
+    expect(open).toContain('Faster typing');
+    expect(open).toContain('[space] close the shop   [1-6] buy');
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -194,7 +204,7 @@ describe('buying scenes in the script browser', () => {
 
 describe('bold prices', () => {
   it('bolds every price in the shop', () => {
-    const text = renderScreen(started());
+    const text = renderScreen(started(), '', true);
     expect(text).toContain('cost \x1b[1m10\x1b[22m Points'); // faster typing
     expect(text).toContain('cost \x1b[1m10\x1b[22m Lines'); // a monkey
   });
@@ -202,7 +212,7 @@ describe('bold prices', () => {
   it('shows affordable prices in green and the rest in the normal color', () => {
     const s = started();
     s.currency = 20;
-    const text = renderScreen(s);
+    const text = renderScreen(s, '', true);
     expect(text).toContain('cost \x1b[32m\x1b[1m10\x1b[22m\x1b[39m Points'); // faster typing: affordable
     expect(text).toContain('cost \x1b[1m25\x1b[22m Points'); // a letter: not yet
   });
@@ -210,7 +220,7 @@ describe('bold prices', () => {
 
 describe('typewriter keys menu', () => {
   it('is locked in the shop until you own enough letters', () => {
-    expect(renderScreen(started())).toContain('[5]  Typewriter keys: unlock when you own 13 letters');
+    expect(renderScreen(started(), '', true)).toContain('[5]  Typewriter keys: unlock when you own 13 letters');
   });
 
   it('lists heavier letters and the keys you can buy', () => {
@@ -218,7 +228,7 @@ describe('typewriter keys menu', () => {
     s.letters = 'ABDEGHILNORST'.split('');
     s.heavy.E = 2;
     s.keys.push('TH');
-    expect(renderScreen(s)).toContain('[5]  Typewriter keys...');
+    expect(renderScreen(s, '', true)).toContain('[5]  Typewriter keys...');
     const text = plain(renderKeysMenu(s));
     expect(text).toContain('E+2 ');
     expect(text).toContain('Owned: TH');

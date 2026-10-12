@@ -4,7 +4,7 @@
 export const theme = {
   title: 'Infinite Monkeys',
   currency: 'Points',
-  pokeAction: 'Pet the monkey',
+  pokeAction: 'pet the monkey',
 };
 
 /** The player's first letter has to be a word on its own. */
@@ -172,7 +172,7 @@ export const managers = {
 };
 
 /** Letters per typewriter line on screen. */
-export const lineWidth = 30;
+export const lineWidth = 60;
 
 /**
  * Word slots, a late upgrade bought with Lines once you own unlockLetters
