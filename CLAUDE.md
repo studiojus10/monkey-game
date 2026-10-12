@@ -2,6 +2,8 @@
 
 Idle/incremental game, currently a text-based terminal game. TypeScript on Node (run with tsx, no build step), Vitest for tests. A browser front end may be added later, so game logic must stay independent of the terminal.
 
+The game being built is "Infinite Monkeys"; the full design and build plan are in `docs/DESIGN.md`. Read it before adding gameplay.
+
 ## Commands
 
 - `npm start` – play in the terminal (`IDLE_SAVE=/tmp/x.json npm start` for a throwaway save)
