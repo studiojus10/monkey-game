@@ -1,5 +1,14 @@
-import { extraWords, letterShop, lineWidth, maxOfflineSeconds, startingLetters, typing } from './config';
-import type { GameState, MonkeyState, Segment } from './state';
+import {
+  extraWords,
+  letterShop,
+  lineWidth,
+  maxOfflineLetters,
+  maxOfflineSeconds,
+  monkeyShop,
+  startingLetters,
+  typing,
+} from './config';
+import { createMonkey, type GameState, type MonkeyState, type Segment } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -50,6 +59,19 @@ export function buyLetter(state: GameState, letter: string): boolean {
   if (state.currency < cost) return false;
   state.currency -= cost;
   state.letters.push(l);
+  return true;
+}
+
+/** Cost of the next monkey, given how many you have. */
+export function monkeyCost(owned: number): number {
+  return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
+}
+
+export function buyMonkey(state: GameState): boolean {
+  const cost = monkeyCost(state.monkeys.length);
+  if (state.letters.length === 0 || state.currency < cost) return false;
+  state.currency -= cost;
+  state.monkeys.push(createMonkey());
   return true;
 }
 
@@ -113,10 +135,22 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
   });
 }
 
-/** Credits typing for time spent away. Returns the points earned. */
+/**
+ * Credits typing for time spent away. Returns the points earned. Long
+ * absences with many monkeys simulate only the first maxOfflineLetters
+ * letters and scale up the points and words from those.
+ */
 export function applyOfflineProgress(state: GameState, now: number, rng: Rng = Math.random): number {
   const seconds = Math.min(Math.max(0, (now - state.lastSaved) / 1000), maxOfflineSeconds);
+  const letters = seconds * lettersPerSecond(state.typingLevel) * state.monkeys.length;
+  const simulated = Math.min(1, maxOfflineLetters / Math.max(letters, 1));
   const before = state.currency;
-  tick(state, seconds, rng);
+  const wordsBefore = state.wordsTyped;
+  tick(state, seconds * simulated, rng);
+  const scale = 1 / simulated - 1;
+  if (scale > 0) {
+    earn(state, (state.currency - before) * scale);
+    state.wordsTyped += Math.round((state.wordsTyped - wordsBefore) * scale);
+  }
   return state.currency - before;
 }

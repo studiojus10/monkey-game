@@ -1,5 +1,5 @@
 import { letterValues, startingLetters, theme } from '../game/config';
-import { letterCost, lettersPerSecond, typingUpgradeCost } from '../game/logic';
+import { letterCost, lettersPerSecond, monkeyCost, typingUpgradeCost } from '../game/logic';
 import { wordPoints } from '../game/words';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
@@ -11,6 +11,9 @@ import { formatNumber } from '../format';
 export function renderLine(m: MonkeyState): string {
   return m.line.map((s) => (s.scored ? s.text : s.text.toLowerCase())).join('') + m.pending + '_';
 }
+
+/** Monkey lines shown on screen; the rest are summarized in one line. */
+export const maxMonkeyLines = 10;
 
 export function unownedLetters(state: GameState): string[] {
   return Object.keys(letterValues)
@@ -46,9 +49,15 @@ export function renderScreen(state: GameState, message = ''): string {
   const nextSpeed = lettersPerSecond(state.typingLevel + 1);
   const cost = typingUpgradeCost(state.typingLevel);
   const nextLetter = letterCost(state.letters.length);
+  const nextMonkey = monkeyCost(state.monkeys.length);
   const mark = (price: number) => (state.currency >= price ? '*' : ' ');
   lines.push(
-    ...state.monkeys.map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s)  ${renderLine(m)}`),
+    ...state.monkeys
+      .slice(0, maxMonkeyLines)
+      .map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s)  ${renderLine(m)}`),
+    ...(state.monkeys.length > maxMonkeyLines
+      ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
+      : []),
     '',
     `${formatNumber(state.currency)} ${theme.currency}`,
     `Letters: ${state.letters.join(' ')}`,
@@ -62,8 +71,9 @@ export function renderScreen(state: GameState, message = ''): string {
     ...(unownedLetters(state).length > 0
       ? [`  [2] ${mark(nextLetter)}Buy a letter   cost ${formatNumber(nextLetter)}`]
       : []),
+    `  [3] ${mark(nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   cost ${formatNumber(nextMonkey)}`,
     '',
-    `[space] ${theme.pokeAction}   [1-2] buy (* = affordable)   [s] save   [r] reset   [q] quit`,
+    `[space] ${theme.pokeAction}   [1-3] buy (* = affordable)   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );

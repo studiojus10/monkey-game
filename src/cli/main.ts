@@ -7,6 +7,7 @@ import {
   applyOfflineProgress,
   buyFasterTyping,
   buyLetter,
+  buyMonkey,
   chooseFirstLetter,
   letterCost,
   poke,
@@ -94,6 +95,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       pickingLetter = true;
       message = letterPickPrompt(state);
     }
+  } else if (str === '3') {
+    if (!buyMonkey(state)) message = `Not enough ${theme.currency}.`;
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;

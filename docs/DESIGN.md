@@ -68,7 +68,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 
 ## Monkeys
 
-- You start with **one monkey**. More monkeys are bought with points; each costs more than the last (starting guess ×1.15 each) **(default)**.
+- You start with **one monkey**. More monkeys are bought with points; each costs more than the last (starting guess: 50, ×1.4 each) **(default)**. The screen shows the first 10 monkey lines and sums up the rest.
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
 

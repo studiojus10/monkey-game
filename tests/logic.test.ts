@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { letterShop, lineWidth, maxOfflineSeconds, typing } from '../src/game/config';
+import { letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, monkeyShop, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
   buyLetter,
+  buyMonkey,
+  monkeyCost,
   letterCost,
   setWordList,
   chooseFirstLetter,
@@ -13,7 +15,7 @@ import {
   typeLetter,
   typingUpgradeCost,
 } from '../src/game/logic';
-import { createInitialState } from '../src/game/state';
+import { createInitialState, createMonkey } from '../src/game/state';
 
 const rng = () => 0;
 
@@ -137,5 +139,40 @@ describe('buying letters', () => {
     } finally {
       setWordList([]);
     }
+  });
+});
+
+describe('monkeys', () => {
+  it('buying a monkey adds a typist and raises the next price', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.currency = monkeyCost(1);
+    expect(monkeyCost(1)).toBe(monkeyShop.baseCost);
+    expect(buyMonkey(s)).toBe(true);
+    expect(s.monkeys).toHaveLength(2);
+    expect(s.currency).toBe(0);
+    expect(buyMonkey(s)).toBe(false);
+    expect(monkeyCost(2)).toBeGreaterThan(monkeyCost(1));
+  });
+
+  it('every monkey types its own line', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.monkeys.push(createMonkey(), createMonkey());
+    tick(s, 10, rng);
+    expect(s.currency).toBe(3 * 10 * typing.baseLettersPerSecond);
+    for (const m of s.monkeys) expect(m.line).toHaveLength(10 * typing.baseLettersPerSecond);
+  });
+
+  it('long absences with many monkeys are estimated past the simulation limit', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.monkeys = Array.from({ length: 100 }, createMonkey);
+    const letters = 100 * maxOfflineSeconds * typing.baseLettersPerSecond;
+    expect(letters).toBeGreaterThan(maxOfflineLetters);
+    const earned = applyOfflineProgress(s, maxOfflineSeconds * 1000, rng);
+    // With only I, every letter is a 1-point word.
+    expect(earned / letters).toBeCloseTo(1, 3);
+    expect(s.wordsTyped / letters).toBeCloseTo(1, 3);
   });
 });

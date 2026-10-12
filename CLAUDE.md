@@ -21,7 +21,7 @@ src/
     config.ts      theme strings + balance data (letters, letter values, letter and typing costs, offline cap)
     state.ts       GameState and MonkeyState shapes, createInitialState()
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
-    logic.ts       setWordList, chooseFirstLetter, buyLetter, typeLetter, poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
+    logic.ts       setWordList, chooseFirstLetter, buyLetter, buyMonkey, typeLetter, poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     main.ts        entry: loads data/words.txt into setWordList(), loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave

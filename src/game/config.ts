@@ -37,6 +37,12 @@ export const letterShop = {
   costGrowth: 3,
 };
 
+/** You start with one monkey; the n-th one you buy costs baseCost x costGrowth^(n-1). */
+export const monkeyShop = {
+  baseCost: 50,
+  costGrowth: 1.4,
+};
+
 export const typing = {
   baseLettersPerSecond: 0.5,
   speedPerLevel: 1.25,
@@ -49,3 +55,7 @@ export const lineWidth = 30;
 
 // Offline progress is capped so a long absence doesn't break balance.
 export const maxOfflineSeconds = 8 * 60 * 60;
+
+// Offline time is simulated letter by letter up to this many letters; beyond
+// that, the rest is estimated from the simulated part so loading stays quick.
+export const maxOfflineLetters = 200_000;

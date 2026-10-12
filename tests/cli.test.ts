@@ -3,10 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
-import { letterPickPrompt, renderLine, renderScreen } from '../src/cli/screen';
+import { letterPickPrompt, maxMonkeyLines, renderLine, renderScreen } from '../src/cli/screen';
 import { chooseFirstLetter } from '../src/game/logic';
 import { load, save } from '../src/game/save';
-import { createInitialState } from '../src/game/state';
+import { createInitialState, createMonkey } from '../src/game/state';
 
 describe('file storage', () => {
   it('saves and loads through a file, and clears it', () => {
@@ -43,6 +43,7 @@ describe('terminal screen', () => {
     expect(text).toContain('Last word: I +1');
     expect(text).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10');
     expect(text).toContain('[2] *Buy a letter   cost 25');
+    expect(text).toContain('[3] *Buy a monkey (you have 1)   cost 50');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
   });
@@ -68,5 +69,17 @@ describe('letter picking', () => {
     expect(prompt).not.toContain('A(1)');
     expect(prompt).toContain('B(3)');
     expect(prompt).toContain('Z(10)');
+  });
+});
+
+describe('many monkeys', () => {
+  it('shows the first few lines and sums up the rest', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.monkeys = Array.from({ length: maxMonkeyLines + 5 }, createMonkey);
+    const text = renderScreen(s);
+    expect(text).toContain(`M-${maxMonkeyLines}(`);
+    expect(text).not.toContain(`M-${maxMonkeyLines + 1}(`);
+    expect(text).toContain('...and 5 more monkeys typing');
   });
 });
