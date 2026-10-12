@@ -1,6 +1,5 @@
 import { createInitialState, type GameState } from './state';
 
-export const SAVE_KEY = 'idle-game-save';
 const SAVE_VERSION = 1;
 
 interface SaveFile {
@@ -34,15 +33,18 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
   }
 }
 
-export function save(state: GameState, storage: Storage = localStorage, now = Date.now()): void {
+/** Where a save lives. The terminal uses a file; a browser front end could use localStorage. */
+export interface SaveStorage {
+  read(): string | null;
+  write(data: string): void;
+  clear(): void;
+}
+
+export function save(state: GameState, storage: SaveStorage, now = Date.now()): void {
   state.lastSaved = now;
-  storage.setItem(SAVE_KEY, serialize(state));
+  storage.write(serialize(state));
 }
 
-export function load(storage: Storage = localStorage, now = Date.now()): GameState {
-  return deserialize(storage.getItem(SAVE_KEY), now);
-}
-
-export function wipe(storage: Storage = localStorage): void {
-  storage.removeItem(SAVE_KEY);
+export function load(storage: SaveStorage, now = Date.now()): GameState {
+  return deserialize(storage.read(), now);
 }

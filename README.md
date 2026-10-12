@@ -1,27 +1,37 @@
 # Idle Game
 
-A small idle/incremental browser game built with TypeScript and Vite. The theme is deliberately neutral so it can be reskinned.
+A small idle/incremental game that runs in your terminal, written in TypeScript. The theme is deliberately neutral so it can be reskinned.
 
-## What's in it
-
-- **Currency** you earn by clicking.
-- **Generators** that produce currency every second; each one costs more than the last.
-- **Upgrades** that multiply click value or generator output.
-- **Autosave** to `localStorage` every 10 seconds and when the tab closes.
-- **Offline progress**: production is credited for time away, capped at 8 hours.
-
-## Running it
+## Playing
 
 Requires Node 22.12 or newer.
 
 ```bash
 npm install
-npm run dev        # start the dev server at http://localhost:5173
-npm test           # run unit tests
-npm run build      # typecheck and build to dist/
-npm run preview    # serve the production build
+npm start
 ```
 
-## Changing the game
+| Key | Action |
+| --- | --- |
+| `space` or `c` | Collect currency |
+| `1`–`9` | Buy the numbered generator or upgrade (`*` marks what you can afford) |
+| `s` | Save now |
+| `r` | Reset progress (asks to confirm) |
+| `q` or `Ctrl+C` | Save and quit |
 
-Names and balance numbers are all in [`src/game/config.ts`](src/game/config.ts). Rename the currency, add a generator, or tweak costs there; the UI picks the changes up automatically.
+## What's in it
+
+- **Currency** you earn by pressing space.
+- **Generators** that produce currency every second; each one costs more than the last.
+- **Upgrades** that multiply click value or generator output.
+- **Autosave** to `save.json` every 10 seconds and on quit. Set `IDLE_SAVE=path/to/file.json` to use a different file, which is handy for testing from a fresh start.
+- **Offline progress**: production is credited for time away, capped at 8 hours.
+
+## Development
+
+```bash
+npm test           # run unit tests
+npm run typecheck  # type-check without running
+```
+
+Names and balance numbers are all in [`src/game/config.ts`](src/game/config.ts). Rename the currency, add a generator, or tweak costs there; the terminal screen picks the changes up automatically.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatNumber } from '../src/ui/format';
+import { formatNumber } from '../src/format';
 
 describe('formatNumber', () => {
   it.each([
