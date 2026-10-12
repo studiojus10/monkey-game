@@ -42,6 +42,9 @@ const testPlay = {
   ] as [number, number, string, string][],
 };
 
+/** Drops ANSI styling (bold prices and counters) so layout can be checked as plain text. */
+const plain = (text: string) => text.replace(/\x1b\[\d+m/g, '');
+
 /** A state past the opening choices: the test play and the letter I. */
 function started() {
   setPlays([testPlay]);
@@ -73,15 +76,15 @@ describe('terminal screen', () => {
     s.lastWordPoints = 1;
     s.monkeys[0].line = [{ text: 'I', scored: true }];
     const text = renderScreen(s, 'hello');
-    expect(text).toContain('1.23K Points   0 Sentences   0 Lines');
+    expect(text).toContain('\x1b[1m1.23K Points\x1b[22m   0 Sentences   0 Lines'); // points in bold
     expect(text).toContain('Letters: I');
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
     expect(text.split('\n')[2]).toBe('M-1(0.50/s) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
-    expect(text).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10 Points');
-    expect(text).toContain('[2] *Buy a letter   cost 25 Points');
-    expect(text).toContain('[3]  Buy a monkey (you have 1)   cost 10 Lines');
-    expect(text).toContain('[4]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
+    expect(plain(text)).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10 Points');
+    expect(plain(text)).toContain('[2] *Buy a letter   cost 25 Points');
+    expect(plain(text)).toContain('[3]  Buy a monkey (you have 1)   cost 10 Lines');
+    expect(plain(text)).toContain('[4]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
   });
@@ -178,7 +181,7 @@ describe('buying scenes in the script browser', () => {
   it('shows unowned scenes with prices, and locked genres', () => {
     const s = started();
     s.owned = ['test:1.1'];
-    const text = renderScript(s, 'test', 1);
+    const text = plain(renderScript(s, 'test', 1));
     expect(text).toContain('-- Act 1, scene 2 (1 lines, not owned) --');
     expect(text).toContain('Ay, my lord.   (not owned)');
     expect(text).toContain('[b] this scene 80 Points'); // AYMYLORD is 8 letters
@@ -186,6 +189,14 @@ describe('buying scenes in the script browser', () => {
     s.departments = [];
     s.owned = [];
     expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
+  });
+});
+
+describe('bold prices', () => {
+  it('bolds every price in the shop', () => {
+    const text = renderScreen(started());
+    expect(text).toContain('cost \x1b[1m10\x1b[22m Points'); // faster typing
+    expect(text).toContain('cost \x1b[1m10\x1b[22m Lines'); // a monkey
   });
 });
 
@@ -200,7 +211,7 @@ describe('typewriter keys menu', () => {
     s.heavy.E = 2;
     s.keys.push('TH');
     expect(renderScreen(s)).toContain('[5]  Typewriter keys...');
-    const text = renderKeysMenu(s);
+    const text = plain(renderKeysMenu(s));
     expect(text).toContain('E+2 ');
     expect(text).toContain('Owned: TH');
     expect(keyChoices(s)).not.toContain('TH');
@@ -226,7 +237,7 @@ describe('word slots on screen', () => {
     const s = started();
     s.lines = 2;
     s.slots = [{ position: 3, word: 'FRIEND', on: true }];
-    const text = renderSlotsMenu(s, 0, null);
+    const text = plain(renderSlotsMenu(s, 0, null));
     expect(text).toContain('> [1] 3rd  word: FRIEND           ON');
     expect(text).toContain('[b]  buy a slot   cost 6 Lines');
     expect(renderSlotsMenu(s, 0, 'FRI')).toContain('word: FRI_');

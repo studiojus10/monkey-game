@@ -170,7 +170,7 @@ export function renderScreen(state: GameState, message = ''): string {
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),
     '',
-    `${formatNumber(state.currency)} ${theme.currency}   ${formatNumber(state.sentences)} Sentences   ` +
+    `${bold(`${formatNumber(state.currency)} ${theme.currency}`)}   ${formatNumber(state.sentences)} Sentences   ` +
       `${formatNumber(state.lines)} Lines`,
     `Letters: ${state.letters.join(' ')}`,
     `Script: ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned, ` +
@@ -185,14 +185,14 @@ export function renderScreen(state: GameState, message = ''): string {
     '',
     'Shop',
     `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
-      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${formatNumber(cost)} ${theme.currency}`,
+      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${bold(formatNumber(cost))} ${theme.currency}`,
     ...(unownedLetters(state).length > 0
-      ? [`  [2] ${mark(state.currency, nextLetter)}Buy a letter   cost ${formatNumber(nextLetter)} ${theme.currency}`]
+      ? [`  [2] ${mark(state.currency, nextLetter)}Buy a letter   cost ${bold(formatNumber(nextLetter))} ${theme.currency}`]
       : []),
     `  [3] ${mark(state.lines, nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   ` +
-      `cost ${formatNumber(nextMonkey)} Lines`,
+      `cost ${bold(formatNumber(nextMonkey))} Lines`,
     `  [4] ${mark(state.sentences, nextCap)}Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   ` +
-      `cost ${formatNumber(nextCap)} Sentences`,
+      `cost ${bold(formatNumber(nextCap))} Sentences`,
     keysUnlocked(state)
       ? `  [5]  Typewriter keys...`
       : `  [5]  Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters`,
@@ -241,7 +241,7 @@ export function renderSlotsMenu(state: GameState, selected: number, typing: stri
     '',
     ...(rows.length > 0 ? rows : ['  No slots yet.']),
     '',
-    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${formatNumber(next)} Lines`] : []),
+    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${bold(formatNumber(next))} Lines`] : []),
     typing !== null
       ? 'Type the word, [enter] to set it, [esc] to cancel'
       : '[1-9] select   [w] set word   [o] on/off   [left/right] move position   [esc] back',
@@ -262,18 +262,18 @@ export function renderKeysMenu(state: GameState, message = ''): string {
   return [
     '=== Typewriter keys ===',
     '',
-    `${formatNumber(state.currency)} ${theme.currency}`,
+    bold(`${formatNumber(state.currency)} ${theme.currency}`),
     '',
     'Heavier keys: press a letter you own to make it come up more often.',
     '  ' +
       state.letters
-        .map((l) => `${mark(heavierCost(state, l))}${l}${state.heavy[l] ? `+${state.heavy[l]}` : ''} ${formatNumber(heavierCost(state, l))}`)
+        .map((l) => `${mark(heavierCost(state, l))}${l}${state.heavy[l] ? `+${state.heavy[l]}` : ''} ${bold(formatNumber(heavierCost(state, l)))}`)
         .join('   '),
     '',
     'Combination and word keys: each types its whole text in one keystroke.',
     ...keyChoices(state).map((k, i) => {
       const kind = typewriterKeys.words.includes(k) ? 'word' : 'combination';
-      return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${formatNumber(keyCost(state, k))} ${theme.currency}`;
+      return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${bold(formatNumber(keyCost(state, k)))} ${theme.currency}`;
     }),
     ...(keyChoices(state).length === 0 ? ['  None available. Buy letters to unlock more.'] : []),
     `  Owned: ${owned}`,
@@ -382,7 +382,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   }
   const sc = sceneOf(play, at)!;
   const price = (label: string, n: number) =>
-    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${formatNumber(n)} ${theme.currency}`;
+    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${bold(formatNumber(n))} ${theme.currency}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
     `=== ${play.title} (${genreNames[play.genre]}${locked ? ', locked' : ''}) ===   ` +
