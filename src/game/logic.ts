@@ -1,16 +1,26 @@
-import { lineWidth, maxOfflineSeconds, startingLetters, typing, words } from './config';
+import { extraWords, letterShop, lineWidth, maxOfflineSeconds, startingLetters, typing } from './config';
 import type { GameState, MonkeyState, Segment } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
 
+let wordList: readonly string[] = extraWords;
 let cached: { key: string; dict: Dictionary } | undefined;
+
+/**
+ * Sets the words that can score. The front end loads the word list and hands
+ * it over here, so the game logic never touches the file system.
+ */
+export function setWordList(list: readonly string[]): void {
+  wordList = [...list, ...extraWords];
+  cached = undefined;
+}
 
 /** The dictionary for the player's current letters, rebuilt only when they change. */
 export function dictionaryFor(state: GameState): Dictionary {
   const key = [...state.letters].sort().join('');
-  if (cached?.key !== key) cached = { key, dict: new Dictionary(words, state.letters) };
+  if (cached?.key !== key) cached = { key, dict: new Dictionary(wordList, state.letters) };
   return cached.dict;
 }
 
@@ -23,6 +33,22 @@ function earn(state: GameState, amount: number): void {
 export function chooseFirstLetter(state: GameState, letter: string): boolean {
   const l = letter.toUpperCase();
   if (state.letters.length > 0 || !startingLetters.includes(l)) return false;
+  state.letters.push(l);
+  return true;
+}
+
+/** Cost of the next letter, given how many you own. */
+export function letterCost(owned: number): number {
+  return Math.ceil(letterShop.baseCost * Math.pow(letterShop.costGrowth, Math.max(0, owned - 1)));
+}
+
+/** Buys a letter you don't own yet. */
+export function buyLetter(state: GameState, letter: string): boolean {
+  const l = letter.toUpperCase();
+  const cost = letterCost(state.letters.length);
+  if (state.letters.length === 0 || !/^[A-Z]$/.test(l) || state.letters.includes(l)) return false;
+  if (state.currency < cost) return false;
+  state.currency -= cost;
   state.letters.push(l);
   return true;
 }

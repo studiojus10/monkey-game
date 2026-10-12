@@ -11,10 +11,10 @@ export const theme = {
 export const startingLetters = ['A', 'I'];
 
 /**
- * Words that can score. For now only the one-letter words; the real word
- * list arrives with the letter shop.
+ * Words added on top of the main word list (data/words.txt, the public-domain
+ * ENABLE list), which leaves out one-letter words.
  */
-export const words = ['A', 'I'];
+export const extraWords = ['A', 'I'];
 
 /** Scrabble-style letter values; a word scores (sum of values) x length. */
 export const letterValues: Record<string, number> = {
@@ -31,6 +31,12 @@ export const letterValues: Record<string, number> = {
  * Monkeys start slow; each "Faster typing" level multiplies their speed.
  * Level n costs upgradeBaseCost x upgradeCostGrowth^n.
  */
+/** The n-th letter you buy (after your free first one) costs baseCost x costGrowth^(n-1). */
+export const letterShop = {
+  baseCost: 25,
+  costGrowth: 3,
+};
+
 export const typing = {
   baseLettersPerSecond: 0.5,
   speedPerLevel: 1.25,

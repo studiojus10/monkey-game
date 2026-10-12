@@ -32,7 +32,7 @@ A stream has no spaces, so the game reads it left to right and always prefers th
 
 - A word scores as soon as it is certain it can't grow into a longer word. That happens either when the next letter rules a longer word out, or straight away when no longer word is spellable with your letters at all. (Example: with only **I**, every I scores immediately. With **I, T, G**, the stream `IG` scores `I` when the G arrives; `IT` scores as soon as it is typed, because nothing longer starting with IT can be spelled.)
 - Letters left over after a scored word are read again from the start, so a letter that could begin the next word is never lost **(default)**.
-- A letter that can't begin any word is **skipped**. Skipped letters are shown dimmed.
+- A letter that can't begin any word is **skipped**. On screen, the line has no spaces; scored words show in capitals and skipped letters in lower case.
 
 The exact algorithm, per monkey:
 

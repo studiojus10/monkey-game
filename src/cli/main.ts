@@ -1,15 +1,28 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { theme } from '../game/config';
-import { applyOfflineProgress, buyFasterTyping, chooseFirstLetter, poke, tick } from '../game/logic';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import {
+  applyOfflineProgress,
+  buyFasterTyping,
+  buyLetter,
+  chooseFirstLetter,
+  letterCost,
+  poke,
+  setWordList,
+  tick,
+} from '../game/logic';
 import { load, save } from '../game/save';
 import { createInitialState } from '../game/state';
 import { formatNumber } from '../format';
 import { fileStorage } from './fileStorage';
-import { renderScreen } from './screen';
+import { letterPickPrompt, renderScreen, unownedLetters } from './screen';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
+
+setWordList(loadWordList());
 
 const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
 const storage = fileStorage(savePath);
@@ -19,6 +32,16 @@ const offline = applyOfflineProgress(state, Date.now());
 let message =
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
 let confirmingReset = false;
+let pickingLetter = false;
+
+/** Reads data/words.txt: one lowercase word per line. */
+function loadWordList(): string[] {
+  const path = fileURLToPath(new URL('../../data/words.txt', import.meta.url));
+  return readFileSync(path, 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((w) => w.toUpperCase());
+}
 
 function draw() {
   // Clear the screen and move the cursor home, then redraw.
@@ -48,6 +71,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (pickingLetter) {
+    pickingLetter = false;
+    const letter = str?.toUpperCase() ?? '';
+    message = buyLetter(state, letter) ? `You bought ${letter}.` : 'No letter bought.';
+    return draw();
+  }
+
   message = '';
   if (key.name === 'q') {
     return quit();
@@ -57,6 +87,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     poke(state);
   } else if (str === '1') {
     if (!buyFasterTyping(state)) message = `Not enough ${theme.currency}.`;
+  } else if (str === '2' && unownedLetters(state).length > 0) {
+    if (state.currency < letterCost(state.letters.length)) {
+      message = `Not enough ${theme.currency}.`;
+    } else {
+      pickingLetter = true;
+      message = letterPickPrompt(state);
+    }
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;

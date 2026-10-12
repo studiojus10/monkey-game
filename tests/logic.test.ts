@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { lineWidth, maxOfflineSeconds, typing } from '../src/game/config';
+import { letterShop, lineWidth, maxOfflineSeconds, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
+  buyLetter,
+  letterCost,
+  setWordList,
   chooseFirstLetter,
   lettersPerSecond,
   poke,
@@ -95,5 +98,44 @@ describe('faster typing', () => {
     expect(lettersPerSecond(1)).toBe(typing.baseLettersPerSecond * typing.speedPerLevel);
     tick(s, 8, rng);
     expect(s.currency).toBe(Math.floor(8 * lettersPerSecond(1)));
+  });
+});
+
+describe('buying letters', () => {
+  it('costs more for each letter you own', () => {
+    expect(letterCost(1)).toBe(letterShop.baseCost);
+    expect(letterCost(2)).toBe(letterShop.baseCost * letterShop.costGrowth);
+  });
+
+  it('adds a new letter for points, once', () => {
+    const s = createInitialState(0);
+    expect(buyLetter(s, 't')).toBe(false); // no first letter yet
+    chooseFirstLetter(s, 'i');
+    s.currency = letterCost(1) * 10;
+    expect(buyLetter(s, 'I')).toBe(false);
+    expect(buyLetter(s, '!')).toBe(false);
+    expect(buyLetter(s, 't')).toBe(true);
+    expect(s.letters).toEqual(['I', 'T']);
+    expect(s.currency).toBe(letterCost(1) * 9);
+    expect(buyLetter(s, 'T')).toBe(false);
+  });
+
+  it('longer words become possible and score more', () => {
+    setWordList(['IT', 'TI']);
+    try {
+      const s = createInitialState(0);
+      chooseFirstLetter(s, 'i');
+      s.letters.push('T');
+      let n = 0;
+      // rng picks I (index 0) or T (index 1) to type I T T I.
+      const seq = [0, 0.9, 0.9, 0];
+      const next = () => seq[n++];
+      for (let i = 0; i < 4; i++) typeLetter(s, 0, next);
+      // I T -> IT (4); T I -> TI (4)
+      expect(s.currency).toBe(8);
+      expect(s.monkeys[0].line.map((x) => x.text)).toEqual(['IT', 'TI']);
+    } finally {
+      setWordList([]);
+    }
   });
 });

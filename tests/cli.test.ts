@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
-import { renderLine, renderScreen } from '../src/cli/screen';
+import { letterPickPrompt, renderLine, renderScreen } from '../src/cli/screen';
 import { chooseFirstLetter } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState } from '../src/game/state';
@@ -39,9 +39,10 @@ describe('terminal screen', () => {
     const text = renderScreen(s, 'hello');
     expect(text).toContain('1.23K Points');
     expect(text).toContain('Letters: I');
-    expect(text.split('\n')[2]).toBe('M-1(0.50/s)  I _');
+    expect(text.split('\n')[2]).toBe('M-1(0.50/s)  I_');
     expect(text).toContain('Last word: I +1');
     expect(text).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10');
+    expect(text).toContain('[2] *Buy a letter   cost 25');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
   });
@@ -55,6 +56,17 @@ describe('terminal screen', () => {
       ],
       progress: 0,
     });
-    expect(line).toBe('CAT x IT_');
+    expect(line).toBe('CATxIT_');
+  });
+});
+
+describe('letter picking', () => {
+  it('lists the letters you can still buy with their values', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'a');
+    const prompt = letterPickPrompt(s);
+    expect(prompt).not.toContain('A(1)');
+    expect(prompt).toContain('B(3)');
+    expect(prompt).toContain('Z(10)');
   });
 });
