@@ -762,7 +762,7 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
   }
 }
 
-/** The player pokes the first monkey into typing one extra letter. */
+/** The player pets the first monkey into typing one extra letter. */
 export function poke(state: GameState, rng: Rng = Math.random): void {
   const i = state.monkeys.findIndex((m) => !m.manager);
   if (i >= 0) typeLetter(state, i, rng);

@@ -4,7 +4,7 @@
 export const theme = {
   title: 'Infinite Monkeys',
   currency: 'Points',
-  pokeAction: 'Poke the monkey',
+  pokeAction: 'Pet the monkey',
 };
 
 /** The player's first letter has to be a word on its own. */

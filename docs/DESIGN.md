@@ -73,7 +73,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
 - The player can name each monkey when buying it, or later with `n`; unnamed monkeys show as M-1, M-2, ...
 - Each monkey works in one [department](#departments).
-- Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
+- Pressing **space** pets your first monkey into typing one extra letter immediately, so the early game has something to do.
 
 ### Typewriter keys: shaping the odds
 

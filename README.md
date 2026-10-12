@@ -15,7 +15,7 @@ npm start
 | --- | --- |
 | `1`–`3` | Pick your first department (genre), then a free first scene (start of the game only) |
 | `a` or `i` | Pick your first letter (start of the game only) |
-| `space` | Poke the monkey into typing an extra letter |
+| `space` | Pet the monkey into typing an extra letter |
 | `1` | Buy "Faster typing" (`*` marks what you can afford) |
 | `2` | Buy a letter, then press the letter you want |
 | `3` | Buy another monkey (costs Lines): pick its department if more than one has room, then type its name (`enter` keeps M-2, M-3, ...) |
