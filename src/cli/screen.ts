@@ -52,6 +52,13 @@ export function renderLine(m: MonkeyState): string {
 }
 
 const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
+const green = (s: string) => `\x1b[32m${s}\x1b[39m`;
+
+/** A price in bold: green when you can afford it, the terminal's normal text color when you can't. */
+export function price(cost: number, have: number): string {
+  const text = bold(formatNumber(cost));
+  return have >= cost ? green(text) : text;
+}
 
 /** Monkey lines shown on screen; the rest are summarized in one line. */
 export const maxMonkeyLines = 10;
@@ -185,14 +192,14 @@ export function renderScreen(state: GameState, message = ''): string {
     '',
     'Shop',
     `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
-      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${bold(formatNumber(cost))} ${theme.currency}`,
+      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`,
     ...(unownedLetters(state).length > 0
-      ? [`  [2] ${mark(state.currency, nextLetter)}Buy a letter   cost ${bold(formatNumber(nextLetter))} ${theme.currency}`]
+      ? [`  [2] ${mark(state.currency, nextLetter)}Buy a letter   cost ${price(nextLetter, state.currency)} ${theme.currency}`]
       : []),
     `  [3] ${mark(state.lines, nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   ` +
-      `cost ${bold(formatNumber(nextMonkey))} Lines`,
+      `cost ${price(nextMonkey, state.lines)} Lines`,
     `  [4] ${mark(state.sentences, nextCap)}Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   ` +
-      `cost ${bold(formatNumber(nextCap))} Sentences`,
+      `cost ${price(nextCap, state.sentences)} Sentences`,
     keysUnlocked(state)
       ? `  [5]  Typewriter keys...`
       : `  [5]  Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters`,
@@ -241,7 +248,7 @@ export function renderSlotsMenu(state: GameState, selected: number, typing: stri
     '',
     ...(rows.length > 0 ? rows : ['  No slots yet.']),
     '',
-    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${bold(formatNumber(next))} Lines`] : []),
+    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
     typing !== null
       ? 'Type the word, [enter] to set it, [esc] to cancel'
       : '[1-9] select   [w] set word   [o] on/off   [left/right] move position   [esc] back',
@@ -267,13 +274,13 @@ export function renderKeysMenu(state: GameState, message = ''): string {
     'Heavier keys: press a letter you own to make it come up more often.',
     '  ' +
       state.letters
-        .map((l) => `${mark(heavierCost(state, l))}${l}${state.heavy[l] ? `+${state.heavy[l]}` : ''} ${bold(formatNumber(heavierCost(state, l)))}`)
+        .map((l) => `${mark(heavierCost(state, l))}${l}${state.heavy[l] ? `+${state.heavy[l]}` : ''} ${price(heavierCost(state, l), state.currency)}`)
         .join('   '),
     '',
     'Combination and word keys: each types its whole text in one keystroke.',
     ...keyChoices(state).map((k, i) => {
       const kind = typewriterKeys.words.includes(k) ? 'word' : 'combination';
-      return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${bold(formatNumber(keyCost(state, k)))} ${theme.currency}`;
+      return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${price(keyCost(state, k), state.currency)} ${theme.currency}`;
     }),
     ...(keyChoices(state).length === 0 ? ['  None available. Buy letters to unlock more.'] : []),
     `  Owned: ${owned}`,
@@ -381,8 +388,8 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${slotHighlight(state, line.text)}${status}`);
   }
   const sc = sceneOf(play, at)!;
-  const price = (label: string, n: number) =>
-    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${bold(formatNumber(n))} ${theme.currency}`;
+  const section = (label: string, n: number) =>
+    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${price(n, state.currency)} ${theme.currency}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
     `=== ${play.title} (${genreNames[play.genre]}${locked ? ', locked' : ''}) ===   ` +
@@ -395,11 +402,11 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     locked
       ? `Open a ${genreNames[play.genre]} department to buy these.`
       : play.genre === 'sonnet'
-        ? `Buy  [b] ${price('this sonnet', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[w] ${price('all the sonnets', sectionPrice(state, play))}   (* = affordable)`
-        : `Buy  [b] ${price('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[a] ${price(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
-          `[w] ${price('whole play', sectionPrice(state, play))}   (* = affordable)`,
+        ? `Buy  [b] ${section('this sonnet', sectionPrice(state, play, sc.act, sc.key))}   ` +
+          `[w] ${section('all the sonnets', sectionPrice(state, play))}   (* = affordable)`
+        : `Buy  [b] ${section('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
+          `[a] ${section(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
+          `[w] ${section('whole play', sectionPrice(state, play))}   (* = affordable)`,
     '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] next play   [enter] pin/unpin',
     '[f] next shortest line within reach   [esc] back to the typewriters',
     '',

@@ -198,6 +198,14 @@ describe('bold prices', () => {
     expect(text).toContain('cost \x1b[1m10\x1b[22m Points'); // faster typing
     expect(text).toContain('cost \x1b[1m10\x1b[22m Lines'); // a monkey
   });
+
+  it('shows affordable prices in green and the rest in the normal color', () => {
+    const s = started();
+    s.currency = 20;
+    const text = renderScreen(s);
+    expect(text).toContain('cost \x1b[32m\x1b[1m10\x1b[22m\x1b[39m Points'); // faster typing: affordable
+    expect(text).toContain('cost \x1b[1m25\x1b[22m Points'); // a letter: not yet
+  });
 });
 
 describe('typewriter keys menu', () => {
