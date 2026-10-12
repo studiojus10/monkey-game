@@ -627,7 +627,10 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
     events.push({ kind: 'word', text: slot });
     m.pending = '';
   } else {
-    for (const letter of pressKey(state, rng)) m.pending = readLetter(dict, m.pending, letter, events);
+    for (const letter of pressKey(state, rng)) {
+      state.stats.letters[letter] = (state.stats.letters[letter] ?? 0) + 1;
+      m.pending = readLetter(dict, m.pending, letter, events);
+    }
   }
   for (const e of events) {
     if (e.kind === 'word') {
@@ -636,6 +639,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
       state.wordsTyped++;
       state.lastWord = e.text;
       state.lastWordPoints = paid;
+      countWord(state, m, e.text, paid, !!slot && e.text === slot);
       checkPlayLines(state, m);
     } else {
       m.chainWords = [];
@@ -645,6 +649,19 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
+}
+
+/** Records a scored word in the statistics. Slot words count their letters as typed here. */
+function countWord(state: GameState, m: MonkeyState, word: string, paid: number, fromSlot: boolean): void {
+  const st = state.stats;
+  if (fromSlot) for (const l of word) st.letters[l] = (st.letters[l] ?? 0) + 1;
+  st.words[word] = (st.words[word] ?? 0) + 1;
+  if (word.length > st.longestWord.length) st.longestWord = word;
+  if (paid > st.bestWordPoints) {
+    st.bestWord = word;
+    st.bestWordPoints = paid;
+  }
+  st.longestChain = Math.max(st.longestChain, m.chainLength);
 }
 
 /** The combo multiplier: how many different long words are in the chain, up to the cap. */
@@ -698,12 +715,17 @@ function typedLine(state: GameState, matches: Pin[], m: MonkeyState): void {
   const verse = play.genre === 'sonnet';
   const sentence = !verse && line.words.length >= lineRewards.sentenceMinWords;
   if (sentence) state.sentences++;
+  state.stats.linesTyped++;
+  const longest = state.stats.longestLine;
+  const longestLetters = longest ? (plays.get(longest.play)?.lines[longest.index]?.letters.length ?? 0) : 0;
+  if (line.letters.length > longestLetters) state.stats.longestLine = { play: play.id, index: pick.index };
   let points = 0;
   if (fresh) {
     (state.completed[play.id] ??= []).push(fresh.index);
     state.lines += verse ? sonnetRewards.linesPerLine : 1;
     points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state) * managerMultiplier(state, m);
     earn(state, points);
+    state.stats.bestLinePoints = Math.max(state.stats.bestLinePoints, points);
   }
   state.lastLine = { play: play.id, index: pick.index, firstTime: !!fresh, points, sentence };
   if (fresh) {
@@ -765,7 +787,9 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
 /** The player pets the first monkey into typing one extra letter. */
 export function poke(state: GameState, rng: Rng = Math.random): void {
   const i = state.monkeys.findIndex((m) => !m.manager);
-  if (i >= 0) typeLetter(state, i, rng);
+  if (i < 0 || state.letters.length === 0) return;
+  state.stats.pets++;
+  typeLetter(state, i, rng);
 }
 
 /** Monkeys working in a department (managers included). */
@@ -894,6 +918,7 @@ export function buyFasterTyping(state: GameState): boolean {
 
 export function tick(state: GameState, seconds: number, rng: Rng = Math.random): void {
   if (seconds <= 0 || state.letters.length === 0) return;
+  state.stats.secondsTyping += seconds;
   manage(state);
   state.monkeys.forEach((m, i) => {
     if (m.manager) return;

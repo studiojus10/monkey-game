@@ -15,7 +15,8 @@ import {
   renderSlotsMenu,
   slotHighlight,
 } from '../src/cli/screen';
-import { chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
+import { dictionaryRowFor, renderDictionary, renderStats } from '../src/cli/stats';
+import { typeLetter, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -260,5 +261,31 @@ describe('word slots on screen', () => {
     expect(text).toContain('[b]  buy a slot   cost 6 Lines');
     expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word: FRI_');
     expect(ordinal(1) + ordinal(2) + ordinal(11) + ordinal(22)).toBe('1st2nd11th22nd');
+  });
+});
+
+describe('statistics and dictionary', () => {
+  it('shows totals, records, letter counts and the most spelled words', () => {
+    const s = started();
+    for (let i = 0; i < 3; i++) typeLetter(s, 0, () => 0);
+    const text = renderStats(s);
+    expect(text).toContain('Letters typed:      3');
+    expect(text).toContain('Words spelled:      3 (1 different)');
+    expect(text).toContain('Longest word:       I (1 letters)');
+    expect(text).toContain('Longest line:       "I." (Test Play 1.1, 1 letters)');
+    expect(text).toContain('  I 3');
+    expect(text).toContain('   1. I                x3');
+  });
+
+  it('lists every word spelled from A to Z with its count, and jumps to a letter', () => {
+    const s = started();
+    expect(renderDictionary(s, 0)).toContain('No words yet');
+    s.stats.words = { ZAP: 1, CAT: 4, ALE: 2, MOO: 1, BEE: 3 };
+    const text = renderDictionary(s, 0);
+    expect(text).toContain('5 words spelled');
+    expect(text.split('\n')[2].split(/\s{2,}/)).toEqual(['ALE x2', 'BEE x3', 'CAT x4', 'MOO x1']);
+    expect(text.split('\n')[3]).toBe('ZAP x1');
+    expect(dictionaryRowFor(s, 'z')).toBe(1);
+    expect(dictionaryRowFor(s, 'b')).toBe(0);
   });
 });

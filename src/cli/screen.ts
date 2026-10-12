@@ -189,7 +189,7 @@ export function renderScreen(state: GameState, message = '', shopOpen = false): 
     ...pinnedText(state),
     '',
     ...(shopOpen ? shopLines(state) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );

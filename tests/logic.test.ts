@@ -119,6 +119,21 @@ describe('typing', () => {
     }
   });
 
+  it('keeps statistics on letters, words, chains and pets', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    poke(s, rng);
+    for (let i = 0; i < 3; i++) typeLetter(s, 0, rng);
+    tick(s, 2, rng);
+    expect(s.stats.pets).toBe(1);
+    expect(s.stats.letters).toEqual({ I: 5 });
+    expect(s.stats.words).toEqual({ I: 5 });
+    expect(s.stats.longestWord).toBe('I');
+    expect(s.stats.bestWord).toBe('I');
+    expect(s.stats.longestChain).toBe(5);
+    expect(s.stats.secondsTyping).toBe(2);
+  });
+
   it('poking types one extra letter', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');

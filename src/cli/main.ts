@@ -67,6 +67,7 @@ import {
   scriptPageSize,
   unownedLetters,
 } from './screen';
+import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -88,6 +89,9 @@ let scriptCursor = 0;
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
+let showingStats = false;
+let showingDictionary = false;
+let dictionaryRow = 0;
 let shopOpen = false; // the shop starts closed; space opens and closes it
 let showingSlots = false;
 let selectedSlot = 0; // index into state.slots
@@ -122,7 +126,11 @@ function loadPlays(): PlayData[] {
 
 function draw() {
   // Clear the screen and move the cursor home, then redraw.
-  const screen = showingScript
+  const screen = showingStats
+    ? renderStats(state)
+    : showingDictionary
+      ? renderDictionary(state, dictionaryRow)
+      : showingScript
     ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message)
     : showingKeys
       ? renderKeysMenu(state, message)
@@ -358,6 +366,30 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingStats || showingDictionary) {
+    const maxRow = Math.max(0, Math.ceil(dictionaryWords(state).length / dictionaryColumns) - dictionaryPageRows);
+    if (key.name === 'escape' || key.name === 'q') {
+      showingStats = showingDictionary = false;
+    } else if (showingStats && str === 'w') {
+      showingStats = false;
+      showingDictionary = true;
+    } else if (showingDictionary && str === 't') {
+      showingDictionary = false;
+      showingStats = true;
+    } else if (showingDictionary && key.name === 'up') {
+      dictionaryRow = Math.max(0, Math.min(dictionaryRow, maxRow) - 1);
+    } else if (showingDictionary && key.name === 'down') {
+      dictionaryRow = Math.min(maxRow, dictionaryRow + 1);
+    } else if (showingDictionary && key.name === 'pageup') {
+      dictionaryRow = Math.max(0, Math.min(dictionaryRow, maxRow) - dictionaryPageRows);
+    } else if (showingDictionary && key.name === 'pagedown') {
+      dictionaryRow = Math.min(maxRow, dictionaryRow + dictionaryPageRows);
+    } else if (showingDictionary && str && /^[a-z]$/i.test(str)) {
+      dictionaryRow = Math.min(maxRow, dictionaryRowFor(state, str));
+    }
+    return draw();
+  }
+
   if (showingKeys) {
     message = '';
     if (key.name === 'escape' || key.name === 'q') {
@@ -453,6 +485,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (key.name === 'p') {
     showingScript = true;
+  } else if (str === 't') {
+    showingStats = true;
+  } else if (str === 'w') {
+    showingDictionary = true;
+    dictionaryRow = 0;
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;

@@ -25,6 +25,8 @@ npm start
 | `5` | Typewriter keys menu (once you own 13 letters): press a letter to make it heavier, `1`–`9` to buy a key, `esc` to go back |
 | `6` | Word slots menu (once you own 13 letters), per department (`tab` switches): `b` buys a slot (costs Lines), `w` sets its word, `o` switches it on or off, left/right move its position |
 | `p` | Script browser: arrows scroll by line and scene, `tab` switches play, `b`/`a`/`w` buy the scene/act/whole play under the cursor, `enter` pins a line to the home screen (up to 5), `f` jumps to the next shortest line within reach, `esc` goes back |
+| `t` | Statistics: time typing, letters typed per letter, words spelled, longest word and chain, longest line written, most spelled words; `w` switches to the dictionary, `esc` goes back |
+| `w` | Dictionary: every word your monkeys have spelled, A to Z, with how many times; up/down (or page up/down) scroll, a letter jumps to it, `t` switches to statistics, `esc` goes back |
 | `g` | Open a new department (at 10 monkeys, then 20, and the Sonnets at 30); each holds up to 10 typing monkeys plus a manager |
 | `d` | Move a monkey to its next department |
 | `m` | Promote a monkey to manager (department of 6+ monkeys) or send one back to typing; a manager pins the next reachable line and fills your word slots |

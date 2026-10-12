@@ -82,7 +82,27 @@ export interface GameState {
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
   lastWordPoints: number; // what it paid, combo included
+  stats: Stats;
   lastSaved: number; // epoch ms
+}
+
+/** Lifetime statistics, for the statistics page. They never affect play. */
+export interface Stats {
+  letters: Record<string, number>; // letter -> times typed
+  words: Record<string, number>; // word -> times spelled
+  longestWord: string;
+  bestWord: string; // the single word that paid the most points
+  bestWordPoints: number;
+  longestChain: number; // most words in one unbroken chain
+  linesTyped: number; // play lines typed, repeats included
+  longestLine: Pin | null; // the longest play line written (by letters)
+  bestLinePoints: number; // the biggest first-time line payout
+  pets: number; // times the player petted a monkey
+  secondsTyping: number; // time the monkeys have been at work, offline included
+}
+
+export function createStats(): Stats {
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, secondsTyping: 0 };
 }
 
 export function createMonkey(): MonkeyState {
@@ -117,6 +137,7 @@ export function createInitialState(now = Date.now()): GameState {
     wordsTyped: 0,
     lastWord: '',
     lastWordPoints: 0,
+    stats: createStats(),
     lastSaved: now,
   };
 }

@@ -1,4 +1,4 @@
-import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin } from './state';
+import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
 // Version 2 had one chosen play (`play`) and pins as line numbers in it; it
@@ -73,6 +73,30 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
             bonus: num(ms.bonus, 0),
           }
         : null;
+    const counts = (v: unknown, key: RegExp) =>
+      Object.fromEntries(
+        Object.entries(v && typeof v === 'object' ? v : {}).filter(
+          ([k, n]) => key.test(k) && typeof n === 'number' && Number.isInteger(n) && n > 0,
+        ),
+      ) as Record<string, number>;
+    const st: Partial<Stats> = s.stats && typeof s.stats === 'object' ? s.stats : {};
+    const ll = st.longestLine;
+    const stats: Stats = {
+      letters: counts(st.letters, /^[A-Z]$/),
+      words: counts(st.words, /^[A-Z]+$/),
+      longestWord: /^[A-Z]*$/.test(str(st.longestWord)) ? str(st.longestWord) : '',
+      bestWord: /^[A-Z]*$/.test(str(st.bestWord)) ? str(st.bestWord) : '',
+      bestWordPoints: Math.max(0, num(st.bestWordPoints, 0)),
+      longestChain: Math.max(0, Math.floor(num(st.longestChain, 0))),
+      linesTyped: Math.max(0, Math.floor(num(st.linesTyped, 0))),
+      longestLine:
+        ll && typeof ll.play === 'string' && Number.isInteger(ll.index) && ll.index >= 0
+          ? { play: ll.play, index: ll.index }
+          : null,
+      bestLinePoints: Math.max(0, num(st.bestLinePoints, 0)),
+      pets: Math.max(0, Math.floor(num(st.pets, 0))),
+      secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
+    };
     const oldPlay = file.version === 2 ? str(s.play) : '';
     const pinned = (Array.isArray(s.pinned) ? (s.pinned as unknown[]) : [])
       .map((p) => (typeof p === 'number' ? { play: oldPlay, index: p } : (p as Pin)))
@@ -114,6 +138,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastWordPoints: num(s.lastWordPoints, 0),
+      stats,
       lastSaved: num(s.lastSaved, now),
     };
   } catch {
