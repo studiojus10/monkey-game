@@ -1,5 +1,5 @@
 import { startingLetters, theme } from '../game/config';
-import { lettersPerSecond } from '../game/logic';
+import { lettersPerSecond, typingUpgradeCost } from '../game/logic';
 import { wordPoints } from '../game/words';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
@@ -31,17 +31,24 @@ export function renderScreen(state: GameState, message = ''): string {
     return lines.join('\n');
   }
 
+  const speed = lettersPerSecond(state.typingLevel);
+  const nextSpeed = lettersPerSecond(state.typingLevel + 1);
+  const cost = typingUpgradeCost(state.typingLevel);
   lines.push(
     `${formatNumber(state.currency)} ${theme.currency}`,
     `Letters: ${state.letters.join(' ')}`,
     '',
-    `Monkeys (${state.monkeys.length}), each typing ${formatNumber(lettersPerSecond())} letters/sec`,
+    `Monkeys (${state.monkeys.length}), each typing ${speed.toFixed(2)} letters/sec`,
     ...state.monkeys.map((m, i) => `  ${i + 1}  ${renderLine(m)}`),
     '',
     `Words typed: ${formatNumber(state.wordsTyped)}` +
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(wordPoints(state.lastWord))}` : ''),
     '',
-    `[space] ${theme.pokeAction}   [s] save   [r] reset   [q] quit`,
+    'Shop',
+    `  [1] ${state.currency >= cost ? '*' : ' '}Faster typing (level ${state.typingLevel}): ` +
+      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${formatNumber(cost)}`,
+    '',
+    `[space] ${theme.pokeAction}   [1] buy (* = affordable)   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );

@@ -41,6 +41,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
         : [],
       monkeys: monkeys.length > 0 ? monkeys : [createMonkey()],
+      typingLevel: Math.max(0, Math.floor(num(s.typingLevel, 0))),
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastSaved: num(s.lastSaved, now),

@@ -15,14 +15,16 @@ npm start
 | --- | --- |
 | `a` or `i` | Pick your first letter (start of the game only) |
 | `space` | Poke the monkey into typing an extra letter |
+| `1` | Buy "Faster typing" (`*` marks it when you can afford it) |
 | `s` | Save now |
 | `r` | Reset progress (asks to confirm) |
 | `q` or `Ctrl+C` | Save and quit |
 
 ## What's in it
 
-- **A monkey** at a typewriter, typing 2 random letters a second from the letters you own.
+- **A monkey** at a typewriter, typing random letters from the letters you own. It starts slow, one letter every 2 seconds.
 - **Your first letter**: A or I, since it has to be a word on its own. Every word the monkey types scores points; for now each one-letter word is worth 1.
+- **Faster typing**, bought with points: each level makes the monkey type 25% faster and costs more than the last.
 - **Autosave** to `save.json` every 10 seconds and on quit. Set `IDLE_SAVE=path/to/file.json` to use a different file, which is handy for testing from a fresh start.
 - **Offline progress**: the monkey keeps typing while you're away, up to 8 hours.
 

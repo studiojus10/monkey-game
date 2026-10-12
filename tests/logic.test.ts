@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { lineWidth, maxOfflineSeconds, monkey } from '../src/game/config';
-import { applyOfflineProgress, chooseFirstLetter, poke, tick, typeLetter } from '../src/game/logic';
+import { lineWidth, maxOfflineSeconds, typing } from '../src/game/config';
+import {
+  applyOfflineProgress,
+  buyFasterTyping,
+  chooseFirstLetter,
+  lettersPerSecond,
+  poke,
+  tick,
+  typeLetter,
+  typingUpgradeCost,
+} from '../src/game/logic';
 import { createInitialState } from '../src/game/state';
 
 const rng = () => 0;
@@ -50,10 +59,10 @@ describe('typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     tick(s, 10, rng);
-    expect(s.currency).toBe(10 * monkey.lettersPerSecond);
-    tick(s, 0.25 / monkey.lettersPerSecond, rng);
-    tick(s, 0.75 / monkey.lettersPerSecond, rng);
-    expect(s.currency).toBe(10 * monkey.lettersPerSecond + 1);
+    expect(s.currency).toBe(10 * typing.baseLettersPerSecond);
+    tick(s, 0.25 / typing.baseLettersPerSecond, rng);
+    tick(s, 0.75 / typing.baseLettersPerSecond, rng);
+    expect(s.currency).toBe(10 * typing.baseLettersPerSecond + 1);
   });
 
   it('starts a fresh line when the line is full', () => {
@@ -67,6 +76,24 @@ describe('typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
-    expect(earned).toBe(maxOfflineSeconds * monkey.lettersPerSecond);
+    expect(earned).toBe(maxOfflineSeconds * typing.baseLettersPerSecond);
+  });
+});
+
+describe('faster typing', () => {
+  it('costs points, speeds monkeys up and gets pricier', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    const cost = typingUpgradeCost(0);
+    s.currency = cost - 1;
+    expect(buyFasterTyping(s)).toBe(false);
+    s.currency = cost;
+    expect(buyFasterTyping(s)).toBe(true);
+    expect(s.currency).toBe(0);
+    expect(s.typingLevel).toBe(1);
+    expect(typingUpgradeCost(1)).toBeGreaterThan(cost);
+    expect(lettersPerSecond(1)).toBe(typing.baseLettersPerSecond * typing.speedPerLevel);
+    tick(s, 8, rng);
+    expect(s.currency).toBe(Math.floor(8 * lettersPerSecond(1)));
   });
 });

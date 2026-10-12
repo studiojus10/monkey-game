@@ -21,7 +21,7 @@ src/
     config.ts      theme strings + balance data (letters, word list, letter values, typing speed, offline cap)
     state.ts       GameState and MonkeyState shapes, createInitialState()
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
-    logic.ts       chooseFirstLetter, typeLetter, poke, tick, offline progress (random source injectable as rng)
+    logic.ts       chooseFirstLetter, typeLetter, poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     main.ts        entry: loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave

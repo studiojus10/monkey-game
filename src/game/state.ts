@@ -15,6 +15,7 @@ export interface GameState {
   totalEarned: number;
   letters: string[]; // owned letters; empty until the player picks one
   monkeys: MonkeyState[];
+  typingLevel: number; // "Faster typing" upgrades bought
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
   lastSaved: number; // epoch ms
@@ -30,6 +31,7 @@ export function createInitialState(now = Date.now()): GameState {
     totalEarned: 0,
     letters: [],
     monkeys: [createMonkey()],
+    typingLevel: 0,
     wordsTyped: 0,
     lastWord: '',
     lastSaved: now,

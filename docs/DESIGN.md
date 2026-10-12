@@ -69,7 +69,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 ## Monkeys
 
 - You start with **one monkey**. More monkeys are bought with points; each costs more than the last (starting guess ×1.15 each) **(default)**.
-- Every monkey types its own stream at a base speed (starting guess 2 letters per second), with upgrades that make monkeys type faster.
+- Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
 
 ### Typewriter keys: shaping the odds
@@ -148,9 +148,9 @@ The save gains: owned letters, the chosen play, which words are checked off, eac
 
 Each step is a small pull request that you can play with `npm start` before the next one starts.
 
-1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one monkey types it on screen and each word scores 1. Builds the word matcher with tests.
+1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one slow monkey types it on screen, each word scores 1, and "Faster typing" is for sale. Builds the word matcher with tests.
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
-3. **More monkeys.** A monkey shop, one line per monkey on screen, faster-typing upgrades, offline progress by simulation.
+3. **More monkeys.** A monkey shop, one line per monkey on screen, offline progress by simulation.
 4. **Typewriter keys.** Heavier letter keys, combination keys and word keys in the shop.
 5. **Combos.** Chains, the 30-letter line and carriage return, combo shown per monkey.
 6. **Pick a play.** Play choice at the start, the script view, words checked off across the script, line bonuses.

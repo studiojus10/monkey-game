@@ -1,4 +1,4 @@
-import { lineWidth, maxOfflineSeconds, monkey, startingLetters, words } from './config';
+import { lineWidth, maxOfflineSeconds, startingLetters, typing, words } from './config';
 import type { GameState, MonkeyState, Segment } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
@@ -58,14 +58,28 @@ export function poke(state: GameState, rng: Rng = Math.random): void {
   typeLetter(state, 0, rng);
 }
 
-export function lettersPerSecond(): number {
-  return monkey.lettersPerSecond;
+/** Letters per second for each monkey at a given "Faster typing" level. */
+export function lettersPerSecond(level: number): number {
+  return typing.baseLettersPerSecond * Math.pow(typing.speedPerLevel, level);
+}
+
+export function typingUpgradeCost(level: number): number {
+  return Math.ceil(typing.upgradeBaseCost * Math.pow(typing.upgradeCostGrowth, level));
+}
+
+/** Buys one level of "Faster typing". */
+export function buyFasterTyping(state: GameState): boolean {
+  const cost = typingUpgradeCost(state.typingLevel);
+  if (state.letters.length === 0 || state.currency < cost) return false;
+  state.currency -= cost;
+  state.typingLevel++;
+  return true;
 }
 
 export function tick(state: GameState, seconds: number, rng: Rng = Math.random): void {
   if (seconds <= 0 || state.letters.length === 0) return;
   state.monkeys.forEach((m, i) => {
-    m.progress += lettersPerSecond() * seconds;
+    m.progress += lettersPerSecond(state.typingLevel) * seconds;
     while (m.progress >= 1) {
       m.progress -= 1;
       typeLetter(state, i, rng);

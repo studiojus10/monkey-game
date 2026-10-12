@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { theme } from '../game/config';
-import { applyOfflineProgress, chooseFirstLetter, poke, tick } from '../game/logic';
+import { applyOfflineProgress, buyFasterTyping, chooseFirstLetter, poke, tick } from '../game/logic';
 import { load, save } from '../game/save';
 import { createInitialState } from '../game/state';
 import { formatNumber } from '../format';
@@ -55,6 +55,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (str) chooseFirstLetter(state, str);
   } else if (key.name === 'space') {
     poke(state);
+  } else if (str === '1') {
+    if (!buyFasterTyping(state)) message = `Not enough ${theme.currency}.`;
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;

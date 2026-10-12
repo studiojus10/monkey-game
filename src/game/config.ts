@@ -27,8 +27,15 @@ export const letterValues: Record<string, number> = {
   Q: 10, Z: 10,
 };
 
-export const monkey = {
-  lettersPerSecond: 2,
+/**
+ * Monkeys start slow; each "Faster typing" level multiplies their speed.
+ * Level n costs upgradeBaseCost x upgradeCostGrowth^n.
+ */
+export const typing = {
+  baseLettersPerSecond: 0.5,
+  speedPerLevel: 1.25,
+  upgradeBaseCost: 10,
+  upgradeCostGrowth: 1.5,
 };
 
 /** Letters per typewriter line on screen. */
