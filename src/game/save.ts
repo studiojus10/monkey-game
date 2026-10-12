@@ -1,7 +1,9 @@
-import { createInitialState, createMonkey, type GameState, type MonkeyState } from './state';
+import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
-const SAVE_VERSION = 2;
+// Version 2 had one chosen play (`play`) and pins as line numbers in it; it
+// loads as owning that whole play.
+const SAVE_VERSION = 3;
 
 interface SaveFile {
   version: number;
@@ -18,9 +20,9 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
   const fresh = createInitialState(now);
   if (!raw) return fresh;
   try {
-    const file = JSON.parse(raw) as { version?: number; state?: Partial<GameState> };
-    if (file.version !== SAVE_VERSION) return fresh;
-    const s: Partial<GameState> = file.state ?? {};
+    const file = JSON.parse(raw) as { version?: number; state?: Partial<GameState> & { play?: unknown } };
+    if (file.version !== SAVE_VERSION && file.version !== 2) return fresh;
+    const s: Partial<GameState> & { play?: unknown } = file.state ?? {};
     const num = (v: unknown, fallback: number) =>
       typeof v === 'number' && Number.isFinite(v) ? v : fallback;
     const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -28,6 +30,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       Array.isArray(v) ? v.filter((w): w is string => typeof w === 'string') : [];
     const monkey = (m: Partial<MonkeyState>): MonkeyState => ({
       name: str(m?.name),
+      department: str(m?.department),
       pending: str(m?.pending),
       line: Array.isArray(m?.line)
         ? m.line
@@ -55,20 +58,35 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const ms = s.lastMilestone;
     const lastMilestone =
       ms && ['scene', 'act', 'play'].includes(ms.kind) && typeof ms.play === 'string'
-        ? { kind: ms.kind, play: ms.play, act: num(ms.act, 0), scene: num(ms.scene, 0), sentences: num(ms.sentences, 0) }
+        ? {
+            kind: ms.kind,
+            play: ms.play,
+            act: num(ms.act, 0),
+            scene: num(ms.scene, 0),
+            sentences: num(ms.sentences, 0),
+            bonus: num(ms.bonus, 0),
+          }
         : null;
+    const oldPlay = file.version === 2 ? str(s.play) : '';
+    const pinned = (Array.isArray(s.pinned) ? (s.pinned as unknown[]) : [])
+      .map((p) => (typeof p === 'number' ? { play: oldPlay, index: p } : (p as Pin)))
+      .filter((p) => p && typeof p.play === 'string' && p.play && Number.isInteger(p.index) && p.index >= 0)
+      .map((p) => ({ play: p.play, index: p.index }));
     return {
       currency: num(s.currency, fresh.currency),
       totalEarned: num(s.totalEarned, fresh.totalEarned),
       sentences: num(s.sentences, 0),
       lines: num(s.lines, 0),
-      play: str(s.play),
+      departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy'].includes(g)),
+      owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,
       scenesDone: strings(s.scenesDone),
       actsDone: strings(s.actsDone),
       playsDone: strings(s.playsDone),
       lastMilestone,
-      pinned: Array.isArray(s.pinned) ? s.pinned.filter((i) => Number.isInteger(i) && i >= 0) : [],
+      pointsBonus: Math.max(0, num(s.pointsBonus, 0)),
+      speedBonus: Math.max(0, num(s.speedBonus, 0)),
+      pinned,
       lastLine,
       comboCapLevel: Math.max(0, Math.floor(num(s.comboCapLevel, 0))),
       heavy: Object.fromEntries(

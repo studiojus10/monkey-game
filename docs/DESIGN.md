@@ -10,7 +10,7 @@ This is the design every build step works toward. Items marked **(default)** are
 2. Whenever a real word shows up in a stream, you earn points for it.
 3. Points buy more letters (more possible words), more monkeys (more streams) and upgrades.
 4. Words typed back to back build a combo multiplier.
-5. You pick a Shakespeare play at the start. When a monkey types one of its lines word for word, the line is checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
+5. You open a department for one genre (comedies, histories or tragedies) and get one short scene free; more scenes, acts and whole plays are bought with points. When a monkey types one of its lines word for word, the line is checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
 6. Progression is deliberately slow. Later upgrades (typewriter keys, word slots) let you steer what gets typed so you can target specific lines.
 
 ## Letters
@@ -72,6 +72,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 - You start with **one monkey**. More monkeys are a **late-game** upgrade bought with [Lines](#currencies). (Starting guess: 10 Lines, ×2 each.) The screen shows the first 10 monkey lines and sums up the rest.
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
 - The player can name each monkey when buying it, or later with `n`; unnamed monkeys show as M-1, M-2, ...
+- Each monkey works in one [department](#departments).
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
 
 ### Typewriter keys: shaping the odds
@@ -109,7 +110,7 @@ Lines and Sentences are both rare, so the upgrades they buy can't be reached by 
 
 ## The play
 
-At the start you choose a **starter play**; more plays can be bought later (price and currency for the balance pass). Plays differ in length, which is effectively the difficulty. The starters are *Hamlet* (4,011 lines), *Macbeth* (2,384) and *A Midsummer Night's Dream* (2,160). Texts are the public-domain Moby Shakespeare as published by the MIT Shakespeare, stored in `data/plays/`.
+You don't start with a play. You open your first **department** (see below) and pick one of the three shortest scenes in its genre for free; everything else in the script is bought. Plays are *A Midsummer Night's Dream* (comedy, 2,160 lines), *Richard III* (history, 3,700), *Hamlet* (tragedy, 4,011) and *Macbeth* (tragedy, 2,384). Texts are the public-domain Moby Shakespeare as published by the MIT Shakespeare, stored in `data/plays/`.
 
 ### How lines get completed
 
@@ -138,15 +139,19 @@ Slots unlock later, alongside typewriter keys (starting guess: 13 letters owned)
 | Milestone | Reward |
 | --- | --- |
 | Line complete | A one-off points bonus that grows steeply with the line's size: (the line's word points) × (number of words)² **(default)**. A one- or two-word line pays a few times a normal word; a ten-word line pays a fortune |
-| Scene complete | +10% to all points, for good and stacking (3 scenes = ×1.3), plus Sentences: a quarter of the scene's line count, at least 1 **(default)** |
-| Act complete | Typing speed ×1.5 for good, stacking, plus a free monkey that doesn't raise the monkey price **(default)**. This may become the main way monkeys arrive |
-| Play complete | Unlocks the next play. The big reward is still open; see [Open questions](#open-questions) |
+| Scene complete | A permanent points bonus that scales with the scene's length: +0.1% per line (a 200-line scene adds +20%), plus Sentences: a quarter of its lines, at least 1 **(default)** |
+| Act complete | A permanent typing speed bonus that scales with the act's length: +0.05% per line (an 800-line act adds +40%), plus a free monkey for that genre's department that doesn't raise the monkey price **(default)** |
+| Play complete | Every scene and act bonus in it, which you've collected by then. The extra big reward is still open; see [Open questions](#open-questions) |
 
-Scenes are big (Hamlet's median scene is about 200 lines; Macbeth's smallest is 11), so these are long-term goals. The script browser shows each scene's progress in its heading. Milestone bonuses carry over to later plays.
+Bonuses add up (they're summed, not compounded), so the total depends only on what you finished, never on how it was bought: a play bought scene by scene ends with exactly the same bonuses as one bought whole **(decided)**. Scenes are big (Hamlet's median scene is about 200 lines; Macbeth's smallest is 11), so these are long-term goals. The script browser shows each scene's progress in its heading.
 
-### One play at a time
+### Buying the script
 
-You play one play at a time **(decided)**. You choose a starter play, and you can't start another until every line of the current one is written. Then `c` lets you pick any play you haven't finished; pins are cleared, and Lines, Sentences, letters, keys, slots and milestone bonuses all carry over. For now the next play is free; a price (in Lines, steep) may come back once more than three plays exist.
+Scenes, acts and whole plays are bought with points in the script browser **(decided)**. A scene costs 10 points per letter in its lines; an act costs its unowned scenes' total less 20%; a whole play its unowned scenes' total less 40% (starting guesses). Only lines of owned scenes can be written, pinned or count toward milestones.
+
+### Departments
+
+Each genre has a **department** **(decided)**. You open the first at the start, which picks your starting genre. The second opens once you have 10 monkeys (bought or earned), and the third once you have 20 more (30 in all); numbers are for the balance pass. You can only buy plays in genres you have a department for. Each monkey works in one department and only writes lines of plays in that department's genre, so with all three open you work on a comedy, a history and a tragedy at the same time. `d` moves a monkey to the next department; free monkeys from an act join that play's department; with more than one department, each monkey's line starts with its department's initial.
 
 ## Screen layout (terminal)
 
@@ -178,7 +183,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys. (Built.)
 6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking at 13 letters. (Built.)
 7. **Word slots.** Buy slots, set and change their words, switch them on and off, aimed at pinned lines. (Built, along with the script browser and pins.)
-8. **Milestones and the next play.** Scene and act rewards, one play at a time, choosing the next play once the current one is finished. (Built; the big play-completion reward is still open.)
+8. **Milestones, the script shop and departments.** Length-scaled scene and act rewards, buying scenes/acts/plays, genre departments opened by monkey count. (Built; the big play-completion reward is still open.)
 9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.
 
 ## Open questions
@@ -186,5 +191,5 @@ Each step is a small pull request that you can play with `npm start` before the 
 - **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
 - **Play completion reward.** Not decided yet; it should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
 - **Monkey price in Lines.** Starting guess: 10 Lines, ×2 each. For the balance pass.
-- **Buying more plays.** Decided for now: one play at a time, the next one free once the current play is finished. A Lines price may return when more plays are added.
+- **Department thresholds and script prices.** 10 and 30 monkeys, 10 points per letter, 20%/40% discounts are placeholders for the balance pass.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.

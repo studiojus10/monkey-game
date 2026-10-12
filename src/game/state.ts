@@ -6,6 +6,7 @@ export interface Segment {
 
 export interface MonkeyState {
   name: string; // player-given name; empty shows as M-<number>
+  department: string; // genre of the department it works in; empty = the first department
   pending: string; // letters that might still become a word
   line: Segment[]; // what's on the current typewriter line, for display
   progress: number; // fraction of the next letter typed so far
@@ -37,7 +38,14 @@ export interface Milestone {
   play: string;
   act: number;
   scene: number;
-  sentences: number; // Sentences paid (scenes only)
+  sentences: number; // Sentences paid (scenes)
+  bonus: number; // points bonus (scenes) or typing speed bonus (acts) it added, e.g. 0.2 = +20%
+}
+
+/** A line pinned to the home screen. */
+export interface Pin {
+  play: string;
+  index: number;
 }
 
 export interface GameState {
@@ -45,13 +53,16 @@ export interface GameState {
   totalEarned: number;
   sentences: number; // currency: every time a play line (3+ words) is typed
   lines: number; // currency: first completion of each play line
-  play: string; // active play id; empty until the player picks a starter play
+  departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
+  owned: string[]; // script bought: "play", "play:act" or "play:act.scene"; empty until the free starter scene
   completed: Record<string, number[]>; // play id -> completed line indices
   scenesDone: string[]; // finished scenes as "play:act.scene"
   actsDone: string[]; // finished acts as "play:act"
   playsDone: string[]; // finished play ids
   lastMilestone: Milestone | null;
-  pinned: number[]; // line indices of the active play pinned to the home screen
+  pointsBonus: number; // from finished scenes: points x (1 + pointsBonus)
+  speedBonus: number; // from finished acts: typing speed x (1 + speedBonus)
+  pinned: Pin[]; // lines pinned to the home screen
   lastLine: LastLine | null;
   comboCapLevel: number; // combo cap raises bought
   heavy: Record<string, number>; // letter -> heavier-key level
@@ -67,7 +78,7 @@ export interface GameState {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
+  return { name: '', department: '', pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
 }
 
 export function createInitialState(now = Date.now()): GameState {
@@ -76,12 +87,15 @@ export function createInitialState(now = Date.now()): GameState {
     totalEarned: 0,
     sentences: 0,
     lines: 0,
-    play: '',
+    departments: [],
+    owned: [],
     completed: {},
     scenesDone: [],
     actsDone: [],
     playsDone: [],
     lastMilestone: null,
+    pointsBonus: 0,
+    speedBonus: 0,
     pinned: [],
     lastLine: null,
     comboCapLevel: 0,

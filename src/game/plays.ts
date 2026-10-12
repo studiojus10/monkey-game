@@ -1,9 +1,13 @@
 import { wordPoints } from './words';
 
+export type Genre = 'comedy' | 'history' | 'tragedy';
+export const genres: Genre[] = ['comedy', 'history', 'tragedy'];
+
 /** A play as stored in data/plays/<id>.json: [act, scene, speaker, text] per line. */
 export interface PlayData {
   id: string;
   title: string;
+  genre?: Genre; // comedy if missing
   lines: [number, number, string, string][];
 }
 
@@ -17,10 +21,22 @@ export interface PlayLine {
   points: number; // sum of the words' points
 }
 
+/** A scene of a play: which lines it holds and how many letters they add up to. */
+export interface Scene {
+  act: number;
+  scene: number; // 0 is a prologue
+  key: string; // "act.scene", e.g. "1.2"
+  lines: number[]; // line indices, in order
+  letters: number; // letters to type in all its lines
+}
+
 export interface Play {
   id: string;
   title: string;
+  genre: Genre;
   lines: PlayLine[];
+  scenes: Scene[]; // in play order
+  acts: number[]; // act numbers, in play order
   /** Line indices by their letters; identical lines share an entry. */
   byLetters: Map<string, number[]>;
   /** Every word in the play, so they can score even if the word list lacks them. */
@@ -47,10 +63,26 @@ export function buildPlay(data: PlayData): Play {
     else byLetters.set(letters, [i]);
     return { act, scene, speaker, text, words: w, letters, points: w.reduce((n, x) => n + wordPoints(x), 0) };
   });
-  return { id: data.id, title: data.title, lines, byLetters, words, longestLine };
+  const scenes: Scene[] = [];
+  lines.forEach((l, i) => {
+    let sc = scenes.find((x) => x.act === l.act && x.scene === l.scene);
+    if (!sc) {
+      sc = { act: l.act, scene: l.scene, key: `${l.act}.${l.scene}`, lines: [], letters: 0 };
+      scenes.push(sc);
+    }
+    sc.lines.push(i);
+    sc.letters += l.letters.length;
+  });
+  const acts = [...new Set(scenes.map((sc) => sc.act))];
+  return { id: data.id, title: data.title, genre: genres.includes(data.genre!) ? data.genre! : 'comedy', lines, scenes, acts, byLetters, words, longestLine };
 }
 
 /** Where a line sits in the play, e.g. "1.2" for act 1, scene 2 (scene 0 is a prologue). */
 export function lineLocation(line: PlayLine): string {
   return line.scene === 0 ? `${line.act} prologue` : `${line.act}.${line.scene}`;
+}
+
+/** A scene's name for display, e.g. "Act 1, scene 2" or "Act 2 prologue". */
+export function sceneName(act: number, scene: number): string {
+  return scene === 0 ? `Act ${act} prologue` : `Act ${act}, scene ${scene}`;
 }

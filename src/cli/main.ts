@@ -3,22 +3,28 @@ import { emitKeypressEvents } from 'node:readline';
 import { maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { PlayData } from '../game/plays';
+import { sceneName, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   buyFasterTyping,
   buyLetter,
-  activePlay,
+  availablePlays,
+  buySection,
+  getPlay,
+  sceneOf,
+  starterScenes,
+  departmentPicks,
+  monkeyGenre,
+  moveMonkey,
+  openDepartment,
   buyCapRaise,
   buyHeavier,
   buyKey,
   buyMonkey,
-  chooseNextPlay,
-  nextPlayChoices,
   monkeyName,
   renameMonkey,
   buySlot,
-  chooseStarterPlay,
+  chooseStarterScene,
   chooseFirstLetter,
   keysUnlocked,
   moveSlot,
@@ -40,8 +46,9 @@ import { fileStorage } from './fileStorage';
 import {
   keyChoices,
   letterPickPrompt,
-  playChoices,
-  nextPlayPrompt,
+  departmentChoices,
+  genreNames,
+  departmentPrompt,
   renderKeysMenu,
   renderScreen,
   renderScript,
@@ -67,13 +74,15 @@ let confirmingReset = false;
 let pickingLetter = false;
 let showingScript = false;
 let scriptCursor = 0;
+let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
 let showingSlots = false;
 let selectedSlot = 0;
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
-let pickingNextPlay = false;
+let pickingDepartment = false;
+let pickingMonkeyToMove = false;
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
 
@@ -98,7 +107,7 @@ function loadPlays(): PlayData[] {
 function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript
-    ? renderScript(state, scriptCursor, message)
+    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message)
     : showingKeys
       ? renderKeysMenu(state, message)
       : showingSlots
@@ -158,6 +167,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (pickingMonkeyToMove) {
+    pickingMonkeyToMove = false;
+    const i = Number(str) - 1;
+    message =
+      str && /^[1-9]$/.test(str) && moveMonkey(state, i)
+        ? `${monkeyName(state, i)} now works in ${genreNames[monkeyGenre(state, state.monkeys[i])!]}.`
+        : 'No monkey moved. Moving needs a second department.';
+    return draw();
+  }
+
   if (pickingMonkeyToName) {
     pickingMonkeyToName = false;
     const i = Number(str) - 1;
@@ -166,10 +185,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingNextPlay) {
-    pickingNextPlay = false;
-    const play = nextPlayChoices(state)[Number(str) - 1];
-    message = play && chooseNextPlay(state, play.id) ? `Your monkeys turn to ${play.title}.` : 'No play chosen.';
+  if (pickingDepartment) {
+    pickingDepartment = false;
+    const g = departmentChoices(state)[Number(str) - 1];
+    message =
+      g && openDepartment(state, g)
+        ? `The ${genreNames[g]} department is open. Buy its scenes in the script ([p]) and move monkeys there with [d].`
+        : 'No department opened.';
     return draw();
   }
 
@@ -182,9 +204,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingScript) {
     message = '';
-    const play = activePlay(state);
+    const play = availablePlays()[scriptPlay];
     const last = (play?.lines.length ?? 1) - 1;
-    const sceneOf = (i: number) => (play ? `${play.lines[i].act}.${play.lines[i].scene}` : '');
+    const sceneKeyAt = (i: number) => (play ? `${play.lines[i].act}.${play.lines[i].scene}` : '');
     if (key.name === 'escape' || key.name === 'p') {
       showingScript = false;
     } else if (key.name === 'q') {
@@ -200,17 +222,36 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (key.name === 'left' && play) {
       // Start of this scene, or of the previous one if already there.
       let i = scriptCursor;
-      if (i > 0 && sceneOf(i - 1) !== sceneOf(i)) i--;
-      while (i > 0 && sceneOf(i - 1) === sceneOf(i)) i--;
+      if (i > 0 && sceneKeyAt(i - 1) !== sceneKeyAt(i)) i--;
+      while (i > 0 && sceneKeyAt(i - 1) === sceneKeyAt(i)) i--;
       scriptCursor = i;
     } else if (key.name === 'right' && play) {
       let i = scriptCursor;
-      while (i < last && sceneOf(i + 1) === sceneOf(i)) i++;
+      while (i < last && sceneKeyAt(i + 1) === sceneKeyAt(i)) i++;
       scriptCursor = Math.min(last, i + 1);
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
-      if (!togglePin(state, scriptCursor)) message = `You can pin up to ${maxPinnedLines} lines. Unpin one first.`;
+      if (play && !togglePin(state, play.id, scriptCursor)) {
+        message = getPlay(play.id) && sceneOf(play, scriptCursor) && state.pinned.length < maxPinnedLines
+          ? 'You can only pin lines from scenes you own.'
+          : `You can pin up to ${maxPinnedLines} lines. Unpin one first.`;
+      }
+    } else if (key.name === 'tab') {
+      scriptPlay = (scriptPlay + 1) % Math.max(1, availablePlays().length);
+      scriptCursor = 0;
+      findIndex = -1;
+    } else if (play && (str === 'b' || str === 'a' || str === 'w')) {
+      const sc = sceneOf(play, scriptCursor)!;
+      const [act, scene, what] =
+        str === 'b'
+          ? [sc.act, sc.key, `${play.title}, ${sceneName(sc.act, sc.scene)}`]
+          : str === 'a'
+            ? [sc.act, undefined, `${play.title}, Act ${sc.act}`]
+            : [undefined, undefined, play.title];
+      message = buySection(state, play.id, act, scene)
+        ? `You bought ${what}.`
+        : `Can't buy ${what}: it's owned already or you need more ${theme.currency}.`;
     } else if (key.name === 'f') {
-      const reachable = reachableLines(state);
+      const reachable = play ? reachableLines(state, play.id) : [];
       if (reachable.length === 0) message = 'No unwritten line is within reach yet. Buy more letters.';
       else {
         findIndex = (findIndex + 1) % reachable.length;
@@ -272,9 +313,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   message = '';
   if (key.name === 'q') {
     return quit();
-  } else if (!state.play) {
-    const play = playChoices()[Number(str) - 1];
-    if (play) chooseStarterPlay(state, play.id);
+  } else if (state.owned.length === 0 && state.departments.length === 0) {
+    const g = departmentChoices(state)[Number(str) - 1];
+    if (g) openDepartment(state, g);
+  } else if (state.owned.length === 0) {
+    const pick = starterScenes(state)[Number(str) - 1];
+    if (pick) {
+      chooseStarterScene(state, pick.play.id, pick.scene.key);
+      scriptPlay = Math.max(0, availablePlays().indexOf(pick.play));
+      scriptCursor = pick.scene.lines[0];
+    }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
   } else if (key.name === 'space') {
@@ -299,9 +347,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === '6') {
     if (slotsUnlocked(state)) showingSlots = true;
     else message = 'Word slots unlock later.';
-  } else if (str === 'c' && nextPlayChoices(state).length > 0) {
-    pickingNextPlay = true;
-    message = nextPlayPrompt(state);
+  } else if (str === 'g' && departmentPicks(state) > 0) {
+    pickingDepartment = true;
+    message = departmentPrompt(state);
+  } else if (str === 'd') {
+    if (state.monkeys.length === 1) message = 'You need more monkeys and departments first.';
+    else {
+      pickingMonkeyToMove = true;
+      message = `Move which monkey to its next department? Press 1-${Math.min(9, state.monkeys.length)}.`;
+    }
   } else if (str === 'n') {
     if (state.monkeys.length === 1) startNaming(0);
     else {

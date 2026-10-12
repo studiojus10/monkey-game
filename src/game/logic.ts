@@ -8,6 +8,8 @@ import {
   maxMonkeyNameLength,
   maxPinnedLines,
   milestones,
+  scriptShop,
+  departmentRules,
   maxOfflineSeconds,
   monkeyShop,
   startingLetters,
@@ -15,15 +17,15 @@ import {
   wordSlots,
   typing,
 } from './config';
-import { buildPlay, type Play, type PlayData, type PlayLine } from './plays';
-import { createMonkey, type GameState, type MonkeyState, type Segment } from './state';
+import { buildPlay, genres, type Genre, type Play, type PlayData, type Scene } from './plays';
+import { createMonkey, type GameState, type MonkeyState, type Pin, type Segment } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
 
 let wordList: readonly string[] = extraWords;
-let cached: { key: string; dict: Dictionary } | undefined;
+let cached = new Map<string, { key: string; dict: Dictionary }>();
 
 /**
  * Sets the words that can score. The front end loads the word list and hands
@@ -31,78 +33,189 @@ let cached: { key: string; dict: Dictionary } | undefined;
  */
 export function setWordList(list: readonly string[]): void {
   wordList = [...list, ...extraWords];
-  cached = undefined;
+  cached.clear();
 }
 
 const plays = new Map<string, Play>();
 let longestLine = 0;
 
-/** Registers the plays the player can choose from; the front end loads them. */
+/** Registers the plays whose scenes can be bought; the front end loads them. */
 export function setPlays(list: readonly PlayData[]): void {
   plays.clear();
   for (const data of list) plays.set(data.id, buildPlay(data));
   longestLine = Math.max(0, ...[...plays.values()].map((p) => p.longestLine));
-  cached = undefined;
+  cached.clear();
+  ownedCache.clear();
 }
 
 export function availablePlays(): Play[] {
   return [...plays.values()];
 }
 
-export function activePlay(state: GameState): Play | undefined {
-  return plays.get(state.play);
+export function getPlay(id: string): Play | undefined {
+  return plays.get(id);
 }
 
-/** Picks the starter play. Only allowed once. */
-export function chooseStarterPlay(state: GameState, id: string): boolean {
-  if (state.play || !plays.has(id)) return false;
-  state.play = id;
-  state.completed[id] ??= [];
+/** Whether the player owns a scene, directly or through its act or play. */
+export function ownsScene(state: GameState, play: string, sc: Scene): boolean {
+  return (
+    state.owned.includes(play) || state.owned.includes(`${play}:${sc.act}`) || state.owned.includes(`${play}:${sc.key}`)
+  );
+}
+
+/** The scene a line belongs to. */
+export function sceneOf(play: Play, index: number): Scene | undefined {
+  const l = play.lines[index];
+  return l && play.scenes.find((sc) => sc.act === l.act && sc.scene === l.scene);
+}
+
+export function ownsLine(state: GameState, play: Play, index: number): boolean {
+  const sc = sceneOf(play, index);
+  return !!sc && ownsScene(state, play.id, sc);
+}
+
+/**
+ * Genres with a department, in the order opened. (An old save that owns a
+ * play but opened no department counts that play's genre.)
+ */
+export function departmentGenres(state: GameState): Genre[] {
+  const list = state.departments.filter((g): g is Genre => genres.includes(g as Genre));
+  for (const k of state.owned) {
+    const g = plays.get(k.split(':')[0])?.genre;
+    if (g && !list.includes(g)) list.push(g);
+  }
+  return list;
+}
+
+/** Genres that have at least one play. */
+export function genresWithPlays(): Genre[] {
+  return genres.filter((g) => availablePlays().some((p) => p.genre === g));
+}
+
+/** How many more departments you may open now: one at the start, more as your monkeys grow. */
+export function departmentPicks(state: GameState): number {
+  const open = departmentGenres(state).length;
+  const locked = genresWithPlays().filter((g) => !departmentGenres(state).includes(g)).length;
+  const earned = departmentRules.monkeysToOpen.filter((n, i) => i === 0 || state.monkeys.length >= n).length;
+  return Math.max(0, Math.min(locked, earned - open));
+}
+
+/** Monkeys needed to open the next department, or 0 if none is left to open. */
+export function nextDepartmentAt(state: GameState): number {
+  const open = departmentGenres(state).length;
+  if (open >= genresWithPlays().length) return 0;
+  return departmentRules.monkeysToOpen[open] ?? 0;
+}
+
+/** Opens a department for a genre, if you've earned one. */
+export function openDepartment(state: GameState, genre: string): boolean {
+  const g = genresWithPlays().find((x) => x === genre);
+  if (!g || departmentPicks(state) === 0 || departmentGenres(state).includes(g)) return false;
+  state.departments.push(g);
   return true;
 }
 
-/** Whether every line of a play has been written. */
-export function playFinished(state: GameState, id: string): boolean {
-  const play = plays.get(id);
-  return !!play && (state.completed[id]?.length ?? 0) >= play.lines.length;
+/** The genre a monkey works in. */
+export function monkeyGenre(state: GameState, m: MonkeyState): Genre | undefined {
+  const open = departmentGenres(state);
+  return open.find((g) => g === m.department) ?? open[0];
 }
 
-/** Plays the player can move on to: none until the current play is finished. */
-export function nextPlayChoices(state: GameState): Play[] {
-  if (!playFinished(state, state.play)) return [];
-  return availablePlays().filter((p) => p.id !== state.play && !playFinished(state, p.id));
-}
-
-/** Switches to a new play once the current one is finished. Pins are cleared. */
-export function chooseNextPlay(state: GameState, id: string): boolean {
-  if (!nextPlayChoices(state).some((p) => p.id === id)) return false;
-  state.play = id;
-  state.completed[id] ??= [];
-  state.pinned = [];
+/** Moves a monkey to the next open department, round the list. */
+export function moveMonkey(state: GameState, index: number): boolean {
+  const m = state.monkeys[index];
+  const open = departmentGenres(state);
+  if (!m || open.length < 2) return false;
+  const at = open.indexOf(monkeyGenre(state, m)!);
+  m.department = open[(at + 1) % open.length];
   return true;
 }
 
-/** Lines written and total in one scene (act.scene) of a play. */
-export function sceneProgress(state: GameState, play: Play, act: number, scene: number): [number, number] {
+/** The free scenes offered at the start: the shortest scenes in your first genre. */
+export function starterScenes(state: GameState): { play: Play; scene: Scene }[] {
+  return availablePlays()
+    .filter((p) => departmentGenres(state)[0] === p.genre)
+    .flatMap((play) => play.scenes.map((scene) => ({ play, scene })))
+    .sort((a, b) => a.scene.letters - b.scene.letters || a.play.id.localeCompare(b.play.id))
+    .slice(0, scriptShop.starterScenes);
+}
+
+/** Takes the free starter scene. Only allowed once, before anything is owned. */
+export function chooseStarterScene(state: GameState, play: string, sceneKey: string): boolean {
+  const ok = starterScenes(state).some((x) => x.play.id === play && x.scene.key === sceneKey);
+  if (!ok || state.owned.length > 0) return false;
+  state.owned.push(`${play}:${sceneKey}`);
+  state.completed[play] ??= [];
+  return true;
+}
+
+/** Points price of one scene, before any discount. */
+export function scenePrice(sc: Scene): number {
+  return Math.ceil(scriptShop.pointsPerLetter * sc.letters);
+}
+
+/**
+ * What it costs to buy a scene, an act (sceneKey omitted) or a whole play
+ * (act omitted too): the unowned scenes' prices times the discount for that
+ * size. Returns 0 if everything in it is owned already.
+ */
+export function sectionPrice(state: GameState, play: Play, act?: number, sceneKey?: string): number {
+  const scenes = play.scenes.filter(
+    (sc) => (act === undefined || sc.act === act) && (sceneKey === undefined || sc.key === sceneKey),
+  );
+  const unowned = scenes.filter((sc) => !ownsScene(state, play.id, sc));
+  const discount =
+    sceneKey !== undefined ? 1 : act !== undefined ? scriptShop.actDiscount : scriptShop.playDiscount;
+  return Math.ceil(unowned.reduce((n, sc) => n + scenePrice(sc), 0) * discount);
+}
+
+/** Buys a scene, an act or a whole play with points. */
+export function buySection(state: GameState, playId: string, act?: number, sceneKey?: string): boolean {
+  const play = plays.get(playId);
+  if (!play || state.owned.length === 0 || !departmentGenres(state).includes(play.genre)) return false;
+  const exists = play.scenes.some(
+    (sc) => (act === undefined || sc.act === act) && (sceneKey === undefined || sc.key === sceneKey),
+  );
+  const price = sectionPrice(state, play, act, sceneKey);
+  if (!exists || price === 0 || state.currency < price) return false;
+  state.currency -= price;
+  const key = act === undefined ? playId : sceneKey === undefined ? `${playId}:${act}` : `${playId}:${sceneKey}`;
+  // Drop smaller purchases the new one covers.
+  state.owned = state.owned.filter((k) => !(key === playId ? k.startsWith(`${playId}:`) : k.startsWith(`${key}.`)));
+  state.owned.push(key);
+  state.completed[playId] ??= [];
+  return true;
+}
+
+/** Lines written and total in one scene. */
+export function sceneProgress(state: GameState, play: Play, sc: Scene): [number, number] {
   const done = new Set(state.completed[play.id] ?? []);
+  return [sc.lines.filter((i) => done.has(i)).length, sc.lines.length];
+}
+
+/** Lines written and total across everything owned. */
+export function ownedProgress(state: GameState): [number, number] {
   let written = 0;
   let total = 0;
-  play.lines.forEach((l, i) => {
-    if (l.act !== act || l.scene !== scene) return;
-    total++;
-    if (done.has(i)) written++;
-  });
+  for (const play of plays.values()) {
+    for (const sc of play.scenes) {
+      if (!ownsScene(state, play.id, sc)) continue;
+      const [w, t] = sceneProgress(state, play, sc);
+      written += w;
+      total += t;
+    }
+  }
   return [written, total];
 }
 
-/** Bonus on all points from finished scenes, e.g. 1.3 after three scenes. */
+/** Points earned are multiplied by this; finished scenes raise it. */
 export function pointsMultiplier(state: GameState): number {
-  return 1 + milestones.scenePointsBonus * state.scenesDone.length;
+  return 1 + state.pointsBonus;
 }
 
-/** Typing speed bonus from finished acts. */
+/** Typing speed is multiplied by this; finished acts raise it. */
 export function speedMultiplier(state: GameState): number {
-  return Math.pow(milestones.actSpeedMultiplier, state.actsDone.length);
+  return 1 + state.speedBonus;
 }
 
 /** Letters per second for each monkey, with "Faster typing" and act bonuses. */
@@ -110,17 +223,30 @@ export function monkeySpeed(state: GameState, level = state.typingLevel): number
   return lettersPerSecond(level) * speedMultiplier(state);
 }
 
-/** Pins or unpins a line of the active play. Returns false if the pin limit is reached. */
-export function togglePin(state: GameState, index: number): boolean {
-  const play = activePlay(state);
-  if (!play || index < 0 || index >= play.lines.length) return false;
-  const at = state.pinned.indexOf(index);
+/** Points bonus for finishing a scene, by its length. */
+export function sceneBonus(sc: Scene): number {
+  return milestones.scenePointsPerLine * sc.lines.length;
+}
+
+/** Typing speed bonus for finishing an act, by its length. */
+export function actBonus(play: Play, act: number): number {
+  return milestones.actSpeedPerLine * play.lines.filter((l) => l.act === act).length;
+}
+
+const samePin = (a: Pin, b: Pin) => a.play === b.play && a.index === b.index;
+
+/** Pins or unpins a line you own. Returns false if it isn't owned or the pin limit is reached. */
+export function togglePin(state: GameState, playId: string, index: number): boolean {
+  const play = plays.get(playId);
+  if (!play || !ownsLine(state, play, index)) return false;
+  const pin = { play: playId, index };
+  const at = state.pinned.findIndex((p) => samePin(p, pin));
   if (at >= 0) {
     state.pinned.splice(at, 1);
     return true;
   }
   if (state.pinned.length >= maxPinnedLines) return false;
-  state.pinned.push(index);
+  state.pinned.push(pin);
   return true;
 }
 
@@ -129,29 +255,60 @@ export function missingLetters(state: GameState, letters: string): string[] {
   return [...new Set(letters)].filter((c) => !state.letters.includes(c)).sort();
 }
 
-/** Unwritten lines of the active play you own every letter for, shortest first. */
-export function reachableLines(state: GameState): number[] {
-  const play = activePlay(state);
+/** Unwritten lines of a play that you own, with every letter they need, shortest first. */
+export function reachableLines(state: GameState, playId: string): number[] {
+  const play = plays.get(playId);
   if (!play) return [];
   const done = new Set(state.completed[play.id] ?? []);
   return play.lines
     .map((line, i) => ({ line, i }))
-    .filter(({ line, i }) => !done.has(i) && missingLetters(state, line.letters).length === 0)
+    .filter(
+      ({ line, i }) => !done.has(i) && ownsLine(state, play, i) && missingLetters(state, line.letters).length === 0,
+    )
     .sort((a, b) => a.line.letters.length - b.line.letters.length || a.i - b.i)
     .map(({ i }) => i);
 }
 
-/**
- * The dictionary for the player's current letters (and play, whose words
- * always count), rebuilt only when they change.
- */
-export function dictionaryFor(state: GameState): Dictionary {
-  const key = [...state.letters].sort().join('') + '|' + state.play;
-  if (cached?.key !== key) {
-    const playWords = activePlay(state)?.words ?? [];
-    cached = { key, dict: new Dictionary([...wordList, ...playWords], state.letters) };
+/** Owned lines of one genre by their letters, rebuilt when ownership changes. */
+let ownedCache = new Map<string, { key: string; byLetters: Map<string, Pin[]>; words: string[] }>();
+
+function ownedLines(state: GameState, genre: Genre | undefined): { byLetters: Map<string, Pin[]>; words: string[] } {
+  const key = state.owned.join('|');
+  let entry = ownedCache.get(genre ?? '');
+  if (entry?.key !== key) {
+    const byLetters = new Map<string, Pin[]>();
+    const words = new Set<string>();
+    for (const play of plays.values()) {
+      if (play.genre !== genre) continue;
+      for (const sc of play.scenes) {
+        if (!ownsScene(state, play.id, sc)) continue;
+        for (const index of sc.lines) {
+          const line = play.lines[index];
+          line.words.forEach((w) => words.add(w));
+          const list = byLetters.get(line.letters) ?? [];
+          list.push({ play: play.id, index });
+          byLetters.set(line.letters, list);
+        }
+      }
+    }
+    entry = { key, byLetters, words: [...words] };
+    ownedCache.set(genre ?? '', entry);
   }
-  return cached.dict;
+  return entry;
+}
+
+/**
+ * The dictionary for the player's current letters plus the words of a
+ * department's owned scenes (which always count), rebuilt only when they change.
+ */
+export function dictionaryFor(state: GameState, genre = departmentGenres(state)[0]): Dictionary {
+  const key = [...state.letters].sort().join('') + '|' + state.owned.join('|');
+  let entry = cached.get(genre ?? '');
+  if (entry?.key !== key) {
+    entry = { key, dict: new Dictionary([...wordList, ...ownedLines(state, genre).words], state.letters) };
+    cached.set(genre ?? '', entry);
+  }
+  return entry.dict;
 }
 
 function earn(state: GameState, amount: number): void {
@@ -335,7 +492,8 @@ export function buySlot(state: GameState): boolean {
 export function setSlotWord(state: GameState, slot: number, word: string): boolean {
   const s = state.slots[slot];
   const w = word.toUpperCase();
-  if (!s || !dictionaryFor(state).isWord(w)) return false;
+  const genresToCheck = departmentGenres(state).length > 0 ? departmentGenres(state) : [undefined];
+  if (!s || !genresToCheck.some((g) => dictionaryFor(state, g).isWord(w))) return false;
   s.word = w;
   return true;
 }
@@ -378,7 +536,7 @@ function dueSlot(state: GameState, m: MonkeyState, dict: Dictionary): string {
 export function typeLetter(state: GameState, index: number, rng: Rng = Math.random): void {
   const m = state.monkeys[index];
   if (!m || state.letters.length === 0) return;
-  const dict = dictionaryFor(state);
+  const dict = dictionaryFor(state, monkeyGenre(state, m));
   const events: ReadEvent[] = [];
   const slot = dueSlot(state, m, dict);
   if (slot) {
@@ -435,58 +593,69 @@ function scoreInChain(state: GameState, m: MonkeyState, word: string): number {
  * exact split into words doesn't matter.
  */
 function checkPlayLines(state: GameState, m: MonkeyState): void {
-  const play = activePlay(state);
-  if (!play) return;
+  const { byLetters } = ownedLines(state, monkeyGenre(state, m));
+  if (byLetters.size === 0) return;
   let letters = '';
   for (let k = m.chainRecent.length - 1; k >= 0; k--) {
     letters = m.chainRecent[k] + letters;
-    const indices = play.byLetters.get(letters);
-    if (indices) typedLine(state, play, indices);
+    const matches = byLetters.get(letters);
+    if (matches) typedLine(state, matches);
   }
 }
 
-/** Rewards typing a line: a Sentence every time; a Line and a bonus the first time. */
-function typedLine(state: GameState, play: Play, indices: number[]): void {
-  const done = (state.completed[play.id] ??= []);
-  const fresh = indices.find((i) => !done.includes(i));
-  const line = play.lines[fresh ?? indices[0]];
+/**
+ * Rewards typing a line: a Sentence every time; a Line and a bonus the first
+ * time. Identical lines (in any owned scene) are written one per typing.
+ */
+function typedLine(state: GameState, matches: Pin[]): void {
+  const fresh = matches.find((p) => !(state.completed[p.play] ?? []).includes(p.index));
+  const pick = fresh ?? matches[0];
+  const play = plays.get(pick.play)!;
+  const line = play.lines[pick.index];
   const sentence = line.words.length >= lineRewards.sentenceMinWords;
   if (sentence) state.sentences++;
   let points = 0;
-  if (fresh !== undefined) {
-    done.push(fresh);
+  if (fresh) {
+    (state.completed[play.id] ??= []).push(fresh.index);
     state.lines++;
     points = line.points * line.words.length ** 2 * pointsMultiplier(state);
     earn(state, points);
   }
-  state.lastLine = { play: play.id, index: fresh ?? indices[0], firstTime: fresh !== undefined, points, sentence };
-  if (fresh !== undefined) checkMilestones(state, play, line);
+  state.lastLine = { play: play.id, index: pick.index, firstTime: !!fresh, points, sentence };
+  if (fresh) checkMilestones(state, play, fresh.index);
 }
 
-/** After a new line, rewards its scene, act and play if they're now fully written. */
-function checkMilestones(state: GameState, play: Play, line: PlayLine): void {
+/**
+ * After a new line, rewards its scene, act and play if they're now fully
+ * written. Bonuses depend only on what was finished, never on how it was bought.
+ */
+function checkMilestones(state: GameState, play: Play, index: number): void {
   const done = new Set(state.completed[play.id] ?? []);
-  const all = (match: (l: PlayLine) => boolean) => play.lines.every((l, i) => !match(l) || done.has(i));
-  const { act, scene } = line;
-  if (!all((l) => l.act === act && l.scene === scene)) return;
-  const sceneKey = `${play.id}:${act}.${scene}`;
+  const finished = (sc: Scene) => sc.lines.every((i) => done.has(i));
+  const sc = sceneOf(play, index);
+  if (!sc || !finished(sc)) return;
+  const { act, scene } = sc;
+  const sceneKey = `${play.id}:${sc.key}`;
   if (!state.scenesDone.includes(sceneKey)) {
     state.scenesDone.push(sceneKey);
-    const size = play.lines.filter((l) => l.act === act && l.scene === scene).length;
-    const sentences = Math.max(1, Math.round(size * milestones.sceneSentencesPerLine));
+    const sentences = Math.max(1, Math.round(sc.lines.length * milestones.sceneSentencesPerLine));
+    const bonus = sceneBonus(sc);
     state.sentences += sentences;
-    state.lastMilestone = { kind: 'scene', play: play.id, act, scene, sentences };
+    state.pointsBonus += bonus;
+    state.lastMilestone = { kind: 'scene', play: play.id, act, scene, sentences, bonus };
   }
-  if (!all((l) => l.act === act)) return;
+  if (!play.scenes.filter((x) => x.act === act).every(finished)) return;
   const actKey = `${play.id}:${act}`;
   if (!state.actsDone.includes(actKey)) {
     state.actsDone.push(actKey);
-    for (let k = 0; k < milestones.actFreeMonkeys; k++) state.monkeys.push(createMonkey());
-    state.lastMilestone = { kind: 'act', play: play.id, act, scene: 0, sentences: 0 };
+    const bonus = actBonus(play, act);
+    state.speedBonus += bonus;
+    for (let k = 0; k < milestones.actFreeMonkeys; k++) state.monkeys.push({ ...createMonkey(), department: play.genre });
+    state.lastMilestone = { kind: 'act', play: play.id, act, scene: 0, sentences: 0, bonus };
   }
-  if (done.size >= play.lines.length && !state.playsDone.includes(play.id)) {
+  if (play.scenes.every(finished) && !state.playsDone.includes(play.id)) {
     state.playsDone.push(play.id);
-    state.lastMilestone = { kind: 'play', play: play.id, act: 0, scene: 0, sentences: 0 };
+    state.lastMilestone = { kind: 'play', play: play.id, act: 0, scene: 0, sentences: 0, bonus: 0 };
   }
 }
 

@@ -15,7 +15,7 @@ import {
   renderSlotsMenu,
   slotHighlight,
 } from '../src/cli/screen';
-import { chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin } from '../src/game/logic';
+import { chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -46,17 +46,20 @@ const testPlay = {
 function started() {
   setPlays([testPlay]);
   const s = createInitialState(0);
-  chooseStarterPlay(s, 'test');
+  s.departments = ['comedy'];
+  s.owned = ['test'];
   chooseFirstLetter(s, 'i');
   return s;
 }
 
 describe('terminal screen', () => {
-  it('asks for a starter play first, then the first letter', () => {
+  it('asks for a genre first, then a free scene, then the first letter', () => {
     setPlays([testPlay]);
     const s = createInitialState(0);
-    expect(renderScreen(s)).toContain('[1] Test Play (2 lines)');
-    chooseStarterPlay(s, 'test');
+    expect(renderScreen(s)).toContain('[1] Comedies: Test Play');
+    openDepartment(s, 'comedy');
+    expect(renderScreen(s)).toContain('[1] Test Play, Act 1, scene 1 (1 lines)');
+    chooseStarterScene(s, 'test', '1.1');
     const text = renderScreen(s);
     expect(text).toContain('[a] A    [i] I');
     expect(text).not.toContain('Points');
@@ -72,7 +75,7 @@ describe('terminal screen', () => {
     const text = renderScreen(s, 'hello');
     expect(text).toContain('1.23K Points   0 Sentences   0 Lines');
     expect(text).toContain('Letters: I');
-    expect(text).toContain('Test Play: 0 / 2 lines written');
+    expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
     expect(text.split('\n')[2]).toBe('M-1(0.50/s) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
     expect(text).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10 Points');
@@ -148,15 +151,16 @@ describe('many monkeys', () => {
 describe('script browser and pins', () => {
   it('shows a page of the play with scenes, the cursor and what each line needs', () => {
     const s = started();
-    let text = renderScript(s, 1);
-    expect(text).toContain('0 of 2 lines written   line 2');
+    let text = renderScript(s, 'test', 1);
+    expect(text).toContain('=== Test Play (Comedies) ===   0 of 2 lines written   line 2');
+    expect(text).toContain('[b] this scene: owned');
     expect(text).toContain('-- Act 1, scene 1 (0/1 written) --');
     expect(text).toContain('-- Act 1, scene 2 (0/1 written) --');
     expect(text).toContain('    HAMLET         I.   (within reach)');
     expect(text).toContain('>   POLONIUS       Ay, my lord.   (needs A D L M O R Y)');
     s.completed.test = [0];
-    togglePin(s, 1);
-    text = renderScript(s, 0);
+    togglePin(s, 'test', 1);
+    text = renderScript(s, 'test', 0);
     expect(text).toContain('>+  HAMLET         I.');
     expect(text).toContain('  @ POLONIUS       Ay, my lord.');
     expect(text).toContain('@ pinned (1/5)');
@@ -165,8 +169,23 @@ describe('script browser and pins', () => {
   it('shows pinned lines on the home screen', () => {
     const s = started();
     expect(renderScreen(s)).not.toContain('Pinned lines');
-    togglePin(s, 1);
-    expect(renderScreen(s)).toContain('@ 1.2 "Ay, my lord."   (needs A D L M O R Y)');
+    togglePin(s, 'test', 1);
+    expect(renderScreen(s)).toContain('@ Test Play 1.2 "Ay, my lord."   (needs A D L M O R Y)');
+  });
+});
+
+describe('buying scenes in the script browser', () => {
+  it('shows unowned scenes with prices, and locked genres', () => {
+    const s = started();
+    s.owned = ['test:1.1'];
+    const text = renderScript(s, 'test', 1);
+    expect(text).toContain('-- Act 1, scene 2 (1 lines, not owned) --');
+    expect(text).toContain('Ay, my lord.   (not owned)');
+    expect(text).toContain('[b] this scene 80 Points'); // AYMYLORD is 8 letters
+    expect(text).toContain('[a] Act 1 64 Points'); // only the unowned scene, less 20%
+    s.departments = [];
+    s.owned = [];
+    expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
   });
 });
 

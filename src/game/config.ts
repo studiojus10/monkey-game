@@ -94,17 +94,45 @@ export const typing = {
 };
 
 /**
- * Milestones for finishing every line of a scene or an act. Rewards are
- * permanent and stack across plays: each scene adds scenePointsBonus to all
- * points earned and pays Sentences (sceneSentencesPerLine per line in the
- * scene, at least 1); each act multiplies typing speed by actSpeedMultiplier
- * and adds actFreeMonkeys monkeys (which don't raise the monkey price).
+ * Milestones for writing every line of a scene, an act or a play. Rewards
+ * scale with length, are permanent, and add up: each scene adds
+ * scenePointsPerLine per line to the points bonus and pays
+ * sceneSentencesPerLine Sentences per line (at least 1); each act adds
+ * actSpeedPerLine per line to the typing speed bonus and brings
+ * actFreeMonkeys monkeys (which don't raise the monkey price). A play is
+ * all its scenes and acts, so finishing one has paid every bonus in it,
+ * however its parts were bought.
  */
 export const milestones = {
-  scenePointsBonus: 0.1,
+  scenePointsPerLine: 0.001, // a 200-line scene: +20% points
   sceneSentencesPerLine: 0.25,
-  actSpeedMultiplier: 1.5,
+  actSpeedPerLine: 0.0005, // an 800-line act: +40% typing speed
   actFreeMonkeys: 1,
+};
+
+/**
+ * The script shop, in points. You start with one free scene and buy the
+ * rest: a scene costs pointsPerLetter for each letter in its lines; an act
+ * or a whole play costs its unowned scenes' total times its discount.
+ * starterScenes is how many short scenes of your first department's genre
+ * are offered for free at the start.
+ */
+export const scriptShop = {
+  pointsPerLetter: 10,
+  actDiscount: 0.8,
+  playDiscount: 0.6,
+  starterScenes: 3,
+};
+
+/**
+ * Departments: one per genre (comedies, histories, tragedies). You open the
+ * first at the start; the n-th opens once you have monkeysToOpen[n-1]
+ * monkeys, bought or earned. Each monkey works in one department and only
+ * writes lines of plays in that department's genre, and only plays of a
+ * department's genre can be bought.
+ */
+export const departmentRules = {
+  monkeysToOpen: [0, 10, 30],
 };
 
 /** Letters per typewriter line on screen. */

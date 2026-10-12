@@ -23,8 +23,19 @@ describe('save/load', () => {
     expect(deserialize(old, 5)).toEqual(createInitialState(5));
   });
 
+  it('loads a version 2 save as owning its whole play, with pins kept', () => {
+    const old = JSON.stringify({ version: 2, state: { currency: 7, play: 'hamlet', pinned: [3, 9], letters: ['I'] } });
+    const s = deserialize(old, 5);
+    expect(s.owned).toEqual(['hamlet']);
+    expect(s.pinned).toEqual([
+      { play: 'hamlet', index: 3 },
+      { play: 'hamlet', index: 9 },
+    ]);
+    expect(s.currency).toBe(7);
+  });
+
   it('fills in missing fields', () => {
-    const s = deserialize(JSON.stringify({ version: 2, state: { currency: 7, letters: ['I', 'bad'] } }), 5);
+    const s = deserialize(JSON.stringify({ version: 3, state: { currency: 7, letters: ['I', 'bad'] } }), 5);
     expect(s.currency).toBe(7);
     expect(s.letters).toEqual(['I']);
     expect(s.monkeys).toEqual(createInitialState(5).monkeys);

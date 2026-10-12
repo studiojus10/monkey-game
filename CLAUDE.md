@@ -22,14 +22,14 @@ src/
     state.ts       GameState and MonkeyState shapes, createInitialState()
     plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
-    logic.ts       setWordList, setPlays, chooseStarterPlay, chooseFirstLetter, buyLetter, buyMonkey, renameMonkey, milestones (scene/act/play), chooseNextPlay, buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
+    logic.ts       setWordList, setPlays, departments, scene shop (buySection), chooseStarterScene, chooseFirstLetter, buyLetter, buyMonkey, renameMonkey, milestones (scene/act/play), buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave
     screen.ts      renderScreen() and renderScript() return screens as text (ANSI bold for the live part of a monkey line)
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line
-data/plays/        plays as { id, title, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare
+data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare
 scripts/           import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json
 tests/             unit tests for logic, save, formatting and the terminal screen
 ```

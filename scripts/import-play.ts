@@ -1,15 +1,15 @@
 // Converts a play page from the MIT Shakespeare (public-domain Moby text,
 // https://github.com/TheMITTech/shakespeare) into data/plays/<id>.json.
 //
-//   npx tsx scripts/import-play.ts <full.html> <id> "<Title>"
+//   npx tsx scripts/import-play.ts <full.html> <id> "<Title>" <comedy|history|tragedy>
 //
-// Output: { id, title, lines: [act, scene, speaker, text][] }
+// Output: { id, title, genre, lines: [act, scene, speaker, text][] }
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const [file, id, title] = process.argv.slice(2);
-if (!file || !id || !title) {
-  console.error('usage: tsx scripts/import-play.ts <full.html> <id> "<Title>"');
+const [file, id, title, genre] = process.argv.slice(2);
+if (!file || !id || !title || !['comedy', 'history', 'tragedy'].includes(genre)) {
+  console.error('usage: tsx scripts/import-play.ts <full.html> <id> "<Title>" <comedy|history|tragedy>');
   process.exit(1);
 }
 
@@ -26,5 +26,5 @@ for (const m of html.matchAll(tag)) {
   }
 }
 
-writeFileSync(`data/plays/${id}.json`, JSON.stringify({ id, title, lines }) + '\n');
+writeFileSync(`data/plays/${id}.json`, JSON.stringify({ id, title, genre, lines }) + '\n');
 console.log(`${title}: ${lines.length} lines`);

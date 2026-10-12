@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combo, letterShop, milestones, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
+import { combo, departmentRules, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
@@ -24,7 +24,6 @@ import {
   reachableLines,
   togglePin,
   capRaiseCost,
-  chooseStarterPlay,
   comboCap,
   comboMultiplier,
   monkeyCost,
@@ -37,11 +36,20 @@ import {
   tick,
   typeLetter,
   typingUpgradeCost,
-  chooseNextPlay,
+  buySection,
+  chooseStarterScene,
+  departmentGenres,
+  departmentPicks,
+  monkeyGenre,
+  moveMonkey,
+  nextDepartmentAt,
   monkeySpeed,
   nextMonkeyCost,
-  nextPlayChoices,
   pointsMultiplier,
+  sectionPrice,
+  starterScenes,
+  getPlay,
+  openDepartment,
 } from '../src/game/logic';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -300,9 +308,8 @@ describe('the play', () => {
     setWordList([]); // only the play's own words can score
     setPlays([play]);
     const s = createInitialState(0);
-    expect(chooseStarterPlay(s, 'nope')).toBe(false);
-    expect(chooseStarterPlay(s, 'test')).toBe(true);
-    expect(chooseStarterPlay(s, 'test')).toBe(false); // only once
+    s.owned = ['test'];
+    s.completed.test = [];
     s.letters = [...letters];
     return s;
   };
@@ -434,16 +441,17 @@ describe('pinned lines', () => {
     ]);
     try {
       const s = createInitialState(0);
-      chooseStarterPlay(s, 'p');
+      expect(togglePin(s, 'p', 0)).toBe(false); // not owned
+      s.owned = ['p'];
       chooseFirstLetter(s, 'i');
-      for (let i = 0; i < maxPinnedLines; i++) expect(togglePin(s, i)).toBe(true);
-      expect(togglePin(s, maxPinnedLines)).toBe(false);
-      expect(togglePin(s, 0)).toBe(true); // unpin
-      expect(s.pinned).not.toContain(0);
-      expect(togglePin(s, 999)).toBe(false);
+      for (let i = 0; i < maxPinnedLines; i++) expect(togglePin(s, 'p', i)).toBe(true);
+      expect(togglePin(s, 'p', maxPinnedLines)).toBe(false);
+      expect(togglePin(s, 'p', 0)).toBe(true); // unpin
+      expect(s.pinned.some((p) => p.index === 0)).toBe(false);
+      expect(togglePin(s, 'p', 999)).toBe(false);
       expect(missingLetters(s, 'AYME')).toEqual(['A', 'E', 'M', 'Y']);
       s.completed.p = [0];
-      expect(reachableLines(s)).toEqual([2, 4, 6]);
+      expect(reachableLines(s, 'p')).toEqual([2, 4, 6]);
     } finally {
       setPlays([]);
     }
@@ -542,10 +550,11 @@ describe('word slots', () => {
   });
 });
 
-describe('milestones and the next play', () => {
+describe('departments, the scene shop and milestones', () => {
   const one = {
     id: 'one',
     title: 'One',
+    genre: 'comedy' as const,
     lines: [
       [1, 1, 'A', 'Ay, my lord.'],
       [1, 2, 'B', 'No.'],
@@ -553,47 +562,147 @@ describe('milestones and the next play', () => {
       [2, 1, 'D', 'Normal.'],
     ] as [number, number, string, string][],
   };
-  const two = { id: 'two', title: 'Two', lines: [[1, 1, 'E', 'Zounds.']] as [number, number, string, string][] };
+  const two = {
+    id: 'two',
+    title: 'Two',
+    genre: 'tragedy' as const,
+    lines: [[1, 1, 'E', 'Nay, my lord.']] as [number, number, string, string][],
+  };
   const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
-  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
-    for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
+  const typeAll = (s: ReturnType<typeof createInitialState>, text: string, monkey = 0) => {
+    for (const ch of text) typeLetter(s, monkey, () => (letters.indexOf(ch) + 0.5) / letters.length);
   };
 
-  it('finishing scenes, acts and the play pays bonuses and unlocks the next play', () => {
+  it('starts with a department and a free scene from its genre', () => {
+    try {
+      setPlays([one, two]);
+      const s = createInitialState(0);
+      expect(departmentPicks(s)).toBe(1);
+      expect(openDepartment(s, 'tragedy')).toBe(true);
+      expect(openDepartment(s, 'comedy')).toBe(false); // the next one needs more monkeys
+      expect(starterScenes(s).map((x) => x.play.id)).toEqual(['two']);
+      expect(chooseStarterScene(s, 'one', '1.2')).toBe(false); // wrong genre
+      expect(chooseStarterScene(s, 'two', '1.1')).toBe(true);
+      expect(chooseStarterScene(s, 'two', '1.1')).toBe(false); // only once
+      expect(s.owned).toEqual(['two:1.1']);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('opens more departments as monkeys grow; each monkey writes only its own genre', () => {
     try {
       setWordList([]);
       setPlays([one, two]);
       const s = createInitialState(0);
-      chooseStarterPlay(s, 'one');
+      s.departments = ['comedy'];
+      s.owned = ['one', 'two'];
       s.letters = [...letters];
-      expect(chooseNextPlay(s, 'two')).toBe(false); // not until this play is finished
+      expect(departmentGenres(s)).toEqual(['comedy', 'tragedy']); // an owned play counts (old saves)
+      s.owned = ['one'];
+      expect(nextDepartmentAt(s)).toBe(departmentRules.monkeysToOpen[1]);
+      while (s.monkeys.length < departmentRules.monkeysToOpen[1]) s.monkeys.push(createMonkey());
+      expect(departmentPicks(s)).toBe(1);
+      expect(openDepartment(s, 'tragedy')).toBe(true);
+      expect(departmentPicks(s)).toBe(0);
+      s.owned = ['one', 'two'];
 
-      typeAll(s, 'AYMYLORD'); // all of scene 1.1
+      typeAll(s, 'NAYMYLORDX', 0); // monkey 0 is in comedies: the tragedy's line doesn't count
+      expect(s.completed.two ?? []).toEqual([]);
+      expect(moveMonkey(s, 0)).toBe(true);
+      expect(monkeyGenre(s, s.monkeys[0])).toBe('tragedy');
+      typeAll(s, 'NAYMYLORDX', 0);
+      expect(s.completed.two).toEqual([0]);
+      s.completed.one = [];
+      typeAll(s, 'AYMYLORDX', 0); // and now comedies don't
+      expect(s.completed.one).toEqual([]);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('prices scenes by letters, discounts acts and plays, and only sells open departments', () => {
+    try {
+      setPlays([one, two]);
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.owned = ['one:1.1'];
+      const play = getPlay('one')!;
+      expect(sectionPrice(s, play, 1, '1.1')).toBe(0); // owned
+      expect(sectionPrice(s, play, 1, '1.2')).toBe(6 * scriptShop.pointsPerLetter); // NO + LORD
+      expect(sectionPrice(s, play, 1)).toBe(Math.ceil(60 * scriptShop.actDiscount));
+      expect(sectionPrice(s, play)).toBe(Math.ceil((60 + 60) * scriptShop.playDiscount)); // + NORMAL
+      expect(buySection(s, 'one', 1)).toBe(false); // can't afford
+      s.currency = 1000;
+      expect(buySection(s, 'one', 1)).toBe(true);
+      expect(s.owned).toEqual(['one:1']); // the act covers the scene bought before
+      expect(s.currency).toBe(1000 - 48);
+      expect(buySection(s, 'one', 1)).toBe(false); // owned already
+      expect(buySection(s, 'two')).toBe(false); // no tragedies department
+      expect(buySection(s, 'one')).toBe(true);
+      expect(s.owned).toEqual(['one']);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('only owned scenes can be written', () => {
+    try {
+      setWordList([]);
+      setPlays([one]);
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.owned = ['one:2.1'];
+      s.letters = [...letters];
+      typeAll(s, 'AYMYLORDX'); // two lines of act 1, not owned
+      expect(s.completed.one ?? []).toEqual([]);
+      typeAll(s, 'NORMALX');
+      expect(s.completed.one).toEqual([3]);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('finishing scenes and acts pays bonuses that scale with length and add up however they were bought', () => {
+    const fresh = (owned: string[]) => {
+      setWordList([]);
+      setPlays([one, two]);
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.owned = owned;
+      s.letters = [...letters];
+      return s;
+    };
+    try {
+      const s = fresh(['one']);
+      typeAll(s, 'AYMYLORD'); // all of scene 1.1 (1 line)
       expect(s.scenesDone).toEqual(['one:1.1']);
       expect(s.sentences).toBe(1 + 1); // the line's Sentence + the scene's (at least 1)
       expect(s.lastMilestone?.kind).toBe('scene');
-      expect(pointsMultiplier(s)).toBeCloseTo(1 + milestones.scenePointsBonus);
+      expect(pointsMultiplier(s)).toBeCloseTo(1 + milestones.scenePointsPerLine);
 
       const cost = nextMonkeyCost(s);
       const speed = monkeySpeed(s);
-      typeAll(s, 'XNOXLORD'); // scene 1.2, which finishes act 1
+      typeAll(s, 'XNOXLORD'); // scene 1.2 (2 lines), which finishes act 1 (3 lines)
       expect(s.scenesDone).toEqual(['one:1.1', 'one:1.2']);
+      expect(pointsMultiplier(s)).toBeCloseTo(1 + 3 * milestones.scenePointsPerLine);
       expect(s.actsDone).toEqual(['one:1']);
       expect(s.lastMilestone?.kind).toBe('act');
       expect(s.monkeys).toHaveLength(1 + milestones.actFreeMonkeys);
+      expect(s.monkeys[1].department).toBe('comedy');
       expect(nextMonkeyCost(s)).toBe(cost); // free monkeys don't raise the price
-      expect(monkeySpeed(s)).toBeCloseTo(speed * milestones.actSpeedMultiplier);
-      expect(nextPlayChoices(s)).toEqual([]);
+      expect(monkeySpeed(s)).toBeCloseTo(speed * (1 + 3 * milestones.actSpeedPerLine));
 
       typeAll(s, 'XNORMALX'); // the last line: act 2 and the play
       expect(s.playsDone).toEqual(['one']);
       expect(s.lastMilestone?.kind).toBe('play');
-      expect(nextPlayChoices(s).map((p) => p.id)).toEqual(['two']);
-      s.pinned = [0];
-      expect(chooseNextPlay(s, 'two')).toBe(true);
-      expect(s.play).toBe('two');
-      expect(s.pinned).toEqual([]);
-      expect(s.scenesDone).toHaveLength(3); // bonuses carry over
+
+      // The same play bought scene by scene ends with exactly the same bonuses.
+      const t = fresh(['one:1.2', 'one:2.1', 'one:1.1']);
+      typeAll(t, 'NOXLORDXNORMALXAYMYLORDX');
+      expect(t.playsDone).toEqual(['one']);
+      expect(t.pointsBonus).toBeCloseTo(s.pointsBonus);
+      expect(t.speedBonus).toBeCloseTo(s.speedBonus);
     } finally {
       setPlays([]);
     }
