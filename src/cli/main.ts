@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type PlayData } from '../game/plays';
@@ -17,6 +17,8 @@ import {
   departmentPicks,
   monkeyGenre,
   moveMonkey,
+  toggleManager,
+  upgradeManager,
   openDepartment,
   buyCapRaise,
   buyHeavier,
@@ -49,6 +51,8 @@ import {
   letterPickPrompt,
   genreNames,
   departmentPrompt,
+  managerChoices,
+  managerUpgradePrompt,
   renderKeysMenu,
   renderScreen,
   renderScript,
@@ -83,6 +87,8 @@ let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingDepartment = false;
 let pickingMonkeyToMove = false;
+let pickingManager = false;
+let pickingManagerUpgrade = false;
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
 
@@ -163,6 +169,28 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (key.name === 'backspace') nameDraft = nameDraft.slice(0, -1);
       else if (str && /^[A-Za-z0-9 '-]$/.test(str) && nameDraft.length < maxMonkeyNameLength) nameDraft += str;
       message = namePrompt();
+    }
+    return draw();
+  }
+
+  if (pickingManagerUpgrade) {
+    pickingManagerUpgrade = false;
+    const i = managerChoices(state)[Number(str) - 1];
+    if (i === undefined) message = 'No manager upgraded.';
+    else message = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Lines.';
+    return draw();
+  }
+
+  if (pickingManager) {
+    pickingManager = false;
+    const i = Number(str) - 1;
+    const wasManager = !!state.monkeys[i]?.manager;
+    if (str && /^[1-9]$/.test(str) && toggleManager(state, i)) {
+      message = wasManager
+        ? `${monkeyName(state, i)} is back at the typewriter.`
+        : `${monkeyName(state, i)} is now a manager: it picks lines, pins them and fills your word slots.`;
+    } else {
+      message = `Promoting needs a department with more than ${managers.minDepartmentMonkeys} monkeys and no manager yet.`;
     }
     return draw();
   }
@@ -350,6 +378,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === 'g' && departmentPicks(state) > 0) {
     pickingDepartment = true;
     message = departmentPrompt(state);
+  } else if (str === 'u' && managerChoices(state).length > 0) {
+    pickingManagerUpgrade = true;
+    message = managerUpgradePrompt(state);
+  } else if (str === 'm') {
+    pickingManager = true;
+    message = `Promote which monkey to manager (or send a manager back to typing)? Press 1-${Math.min(9, state.monkeys.length)}.`;
   } else if (str === 'd') {
     if (state.monkeys.length === 1) message = 'You need more monkeys and departments first.';
     else {

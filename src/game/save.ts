@@ -31,6 +31,12 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const monkey = (m: Partial<MonkeyState>): MonkeyState => ({
       name: str(m?.name),
       department: str(m?.department),
+      manager: !!m?.manager,
+      managerLevel: Math.max(0, Math.floor(num(m?.managerLevel, 0))),
+      target:
+        m?.target && typeof m.target.play === 'string' && Number.isInteger(m.target.index)
+          ? { play: m.target.play, index: m.target.index }
+          : null,
       pending: str(m?.pending),
       line: Array.isArray(m?.line)
         ? m.line

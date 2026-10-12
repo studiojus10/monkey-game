@@ -25,6 +25,8 @@ npm start
 | `p` | Script browser: arrows scroll by line and scene, `tab` switches play, `b`/`a`/`w` buy the scene/act/whole play under the cursor, `enter` pins a line to the home screen (up to 5), `f` jumps to the next shortest line within reach, `esc` goes back |
 | `g` | Open a new department (at 10 monkeys, then 30, and the Sonnets at 60) |
 | `d` | Move a monkey to its next department |
+| `m` | Promote a monkey to manager (department of 6+ monkeys) or send one back to typing; a manager pins the next reachable line and fills your word slots |
+| `u` | Upgrade a manager: +0.1x points for its whole department (costs Lines) |
 | `n` | Name a monkey (pick which one with `1`–`9` if you have several) |
 | `s` | Save now |
 | `r` | Reset progress (asks to confirm) |

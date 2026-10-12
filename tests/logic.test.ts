@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combo, departmentRules, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
+import { combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
@@ -39,6 +39,11 @@ import {
   buySection,
   chooseStarterScene,
   departmentChoices,
+  manage,
+  managerMultiplier,
+  managerUpgradeCost,
+  toggleManager,
+  upgradeManager,
   dictionaryFor,
   departmentGenres,
   departmentPicks,
@@ -784,6 +789,108 @@ describe('the sonnet department', () => {
       expect(s.pointsBonus).toBe(0);
       expect(s.speedBonus).toBe(0);
       expect(s.monkeys).toHaveLength(1);
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
+describe('manager monkeys', () => {
+  const play = {
+    id: 'm',
+    title: 'M',
+    genre: 'comedy' as const,
+    lines: [
+      [1, 1, 'A', 'Zounds, my lord.'], // needs Z, U, S: out of reach
+      [1, 1, 'B', 'Ay, my lord.'],
+      [1, 1, 'C', 'No, my lord.'],
+    ] as [number, number, string, string][],
+  };
+  const setup = () => {
+    setWordList([]);
+    setPlays([play]);
+    const s = createInitialState(0);
+    s.departments = ['comedy'];
+    s.owned = ['m'];
+    s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N'];
+    return s;
+  };
+
+  it('can be promoted only in a department of more than 5 monkeys, one per department', () => {
+    try {
+      const s = setup();
+      while (s.monkeys.length < managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
+      expect(toggleManager(s, 0)).toBe(false);
+      s.monkeys.push(createMonkey());
+      expect(toggleManager(s, 0)).toBe(true);
+      expect(toggleManager(s, 1)).toBe(false); // the department already has one
+      expect(s.monkeys[0].manager).toBe(true);
+      expect(toggleManager(s, 0)).toBe(true); // back to typing
+      expect(s.monkeys[0].manager).toBe(false);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('upgrades cost Lines by department size and raise the points of every monkey in the department', () => {
+    try {
+      const s = setup();
+      while (s.monkeys.length <= managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
+      expect(upgradeManager(s, 0)).toBe(false); // not a manager
+      toggleManager(s, 0);
+      const cost = managerUpgradeCost(s, s.monkeys[0]);
+      expect(cost).toBe(managers.linesPerMonkey * s.monkeys.length);
+      s.currency = 1e12;
+      expect(upgradeManager(s, 0)).toBe(false); // points don't buy it
+      s.lines = cost;
+      expect(managerMultiplier(s, s.monkeys[1])).toBe(1);
+      expect(upgradeManager(s, 0)).toBe(true);
+      expect(s.lines).toBe(0);
+      expect(managerMultiplier(s, s.monkeys[1])).toBeCloseTo(1 + managers.bonusPerLevel);
+      expect(managerUpgradeCost(s, s.monkeys[0])).toBe(cost * managers.upgradeCostGrowth);
+
+      s.currency = 0;
+      s.slots = [];
+      const pick = (ch: string) => () => (s.letters.indexOf(ch) + 0.5) / s.letters.length;
+      s.monkeys[1] = createMonkey();
+      for (const ch of 'DAY') typeLetter(s, 1, pick(ch)); // no such word here: D is skipped, then AY
+      typeLetter(s, 1, pick('D')); // AY scores 10 x the bonus
+      expect(s.currency).toBeCloseTo(10 * (1 + managers.bonusPerLevel));
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it("pins the first reachable line, fills the word slots, doesn't type, and moves on when the line is written", () => {
+    try {
+      const s = setup();
+      while (s.monkeys.length <= managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
+      s.slots = [
+        { position: 1, word: '', on: false },
+        { position: 2, word: '', on: true },
+        { position: 4, word: 'NO', on: true },
+      ];
+      expect(toggleManager(s, 0)).toBe(true);
+      expect(s.monkeys[0].target).toEqual({ play: 'm', index: 1 }); // line 0 needs Z, U, S
+      expect(s.pinned).toEqual([{ play: 'm', index: 1 }]);
+      expect(s.slots).toEqual([
+        { position: 1, word: 'AY', on: true },
+        { position: 2, word: 'MY', on: true },
+        { position: 4, word: 'NO', on: false }, // the line has only 3 words
+      ]);
+
+      tick(s, 1, () => 0.99);
+      expect(s.monkeys[0].line).toEqual([]); // managers don't type
+      s.monkeys[1] = createMonkey();
+      const pick = (ch: string) => () => (s.letters.indexOf(ch) + 0.5) / s.letters.length;
+      typeLetter(s, 1, pick('X')); // slot 1: AY
+      typeLetter(s, 1, pick('X')); // slot 2: MY
+      for (const ch of 'LORD') typeLetter(s, 1, pick(ch));
+      expect(s.completed.m).toEqual([1]);
+      manage(s);
+      expect(s.monkeys[0].target).toEqual({ play: 'm', index: 2 });
+      expect(s.pinned).toEqual([{ play: 'm', index: 2 }]);
+      expect(s.slots[0].word).toBe('NO');
     } finally {
       setPlays([]);
     }

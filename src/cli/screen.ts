@@ -1,4 +1,4 @@
-import { letterValues, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   availablePlays,
@@ -6,6 +6,7 @@ import {
   departmentChoices,
   departmentGenres,
   monkeyGenre,
+  managerUpgradeCost,
   nextDepartmentAt,
   getPlay,
   capRaiseCost,
@@ -172,7 +173,7 @@ export function renderScreen(state: GameState, message = ''): string {
   const nameWidth = Math.max(...labels.map(([n]) => n.length));
   const comboWidth = Math.max(...labels.map(([, c]) => c.length));
   lines.push(
-    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${renderLine(m)}`),
+    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m)}`),
     ...(state.monkeys.length > maxMonkeyLines
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),
@@ -207,13 +208,16 @@ export function renderScreen(state: GameState, message = ''): string {
       ? `  [6]  Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)`
       : `  [6]  Word slots: unlock when you own ${wordSlots.unlockLetters} letters`,
     `  [p]  Buy scenes, acts and plays in the script (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})`,
+    ...(managerChoices(state).length > 0
+      ? [`  [u]  Upgrade a manager: +${managers.bonusPerLevel}x points for its whole department (costs Lines)`]
+      : []),
     ...(departmentPicks(state) > 0
       ? [`  [g]  Open a new department!`]
       : nextDepartmentAt(state) > 0
         ? [`       Next department opens at ${nextDepartmentAt(state)} monkeys`]
         : []),
     '',
-    `[space] ${theme.pokeAction}   [1-6] buy (* = affordable)   [p] script, pins & scenes   [n] name / [d] move a monkey   [s] save   [r] reset   [q] quit`,
+    `[space] ${theme.pokeAction}   [1-6] buy (* = affordable)   [p] script, pins & scenes   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );
@@ -289,6 +293,32 @@ export function renderKeysMenu(state: GameState, message = ''): string {
     '',
     message,
   ].join('\n');
+}
+
+/** What a manager shows instead of typing: the line it has its department aiming at. */
+function managerLine(m: MonkeyState): string {
+  const play = m.target && getPlay(m.target.play);
+  const line = play && m.target && play.lines[m.target.index];
+  const title = `MANAGER (department x${(1 + managers.bonusPerLevel * m.managerLevel).toFixed(1)})`;
+  return play && line
+    ? `${title}, aiming at ${play.title} ${lineLocation(line, play.genre)}`
+    : `${title}, waiting for a line your letters can spell`;
+}
+
+/** Managers by monkey index, for the upgrade menu (keys 1-9 in this order). */
+export function managerChoices(state: GameState): number[] {
+  return state.monkeys.flatMap((m, i) => (m.manager ? [i] : [])).slice(0, 9);
+}
+
+/** The prompt for upgrading a manager, with each one's next bonus and price. */
+export function managerUpgradePrompt(state: GameState): string {
+  const choices = managerChoices(state).map((i, k) => {
+    const m = state.monkeys[i];
+    const now = 1 + managers.bonusPerLevel * m.managerLevel;
+    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} ` +
+      `${price(managerUpgradeCost(state, m), state.lines)} Lines`;
+  });
+  return `Upgrade which manager? ${choices.join('   ')}   (any other key cancels)`;
 }
 
 /** How many scenes the player owns, across plays. */

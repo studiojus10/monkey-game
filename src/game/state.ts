@@ -7,6 +7,9 @@ export interface Segment {
 export interface MonkeyState {
   name: string; // player-given name; empty shows as M-<number>
   department: string; // genre of the department it works in; empty = the first department
+  manager: boolean; // a manager doesn't type; it picks its department's target line, pins it and fills word slots
+  target: Pin | null; // a manager's current target line
+  managerLevel: number; // manager upgrades bought; each raises its department's points
   pending: string; // letters that might still become a word
   line: Segment[]; // what's on the current typewriter line, for display
   progress: number; // fraction of the next letter typed so far
@@ -78,7 +81,7 @@ export interface GameState {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
 }
 
 export function createInitialState(now = Date.now()): GameState {

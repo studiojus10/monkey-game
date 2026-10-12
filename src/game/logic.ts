@@ -11,6 +11,7 @@ import {
   scriptShop,
   departmentRules,
   sonnetRewards,
+  managers,
   maxOfflineSeconds,
   monkeyShop,
   startingLetters,
@@ -134,6 +135,7 @@ export function moveMonkey(state: GameState, index: number): boolean {
   const m = state.monkeys[index];
   const open = departmentGenres(state);
   if (!m || open.length < 2) return false;
+  if (m.manager) toggleManager(state, index); // a manager moving departments goes back to typing
   const at = open.indexOf(monkeyGenre(state, m)!);
   m.department = open[(at + 1) % open.length];
   return true;
@@ -549,7 +551,7 @@ function dueSlot(state: GameState, m: MonkeyState, dict: Dictionary): string {
  */
 export function typeLetter(state: GameState, index: number, rng: Rng = Math.random): void {
   const m = state.monkeys[index];
-  if (!m || state.letters.length === 0) return;
+  if (!m || m.manager || state.letters.length === 0) return;
   const dict = dictionaryFor(state, monkeyGenre(state, m));
   const events: ReadEvent[] = [];
   const slot = dueSlot(state, m, dict);
@@ -562,7 +564,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   }
   for (const e of events) {
     if (e.kind === 'word') {
-      const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state);
+      const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state) * managerMultiplier(state, m);
       earn(state, paid);
       state.wordsTyped++;
       state.lastWord = e.text;
@@ -613,7 +615,7 @@ function checkPlayLines(state: GameState, m: MonkeyState): void {
   for (let k = m.chainRecent.length - 1; k >= 0; k--) {
     letters = m.chainRecent[k] + letters;
     const matches = byLetters.get(letters);
-    if (matches) typedLine(state, matches);
+    if (matches) typedLine(state, matches, m);
   }
 }
 
@@ -621,7 +623,7 @@ function checkPlayLines(state: GameState, m: MonkeyState): void {
  * Rewards typing a line: a Sentence every time; a Line and a bonus the first
  * time. Identical lines (in any owned scene) are written one per typing.
  */
-function typedLine(state: GameState, matches: Pin[]): void {
+function typedLine(state: GameState, matches: Pin[], m: MonkeyState): void {
   const fresh = matches.find((p) => !(state.completed[p.play] ?? []).includes(p.index));
   const pick = fresh ?? matches[0];
   const play = plays.get(pick.play)!;
@@ -633,11 +635,14 @@ function typedLine(state: GameState, matches: Pin[]): void {
   if (fresh) {
     (state.completed[play.id] ??= []).push(fresh.index);
     state.lines += verse ? sonnetRewards.linesPerLine : 1;
-    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state);
+    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state) * managerMultiplier(state, m);
     earn(state, points);
   }
   state.lastLine = { play: play.id, index: pick.index, firstTime: !!fresh, points, sentence };
-  if (fresh) checkMilestones(state, play, fresh.index);
+  if (fresh) {
+    checkMilestones(state, play, fresh.index);
+    if (state.monkeys.some((x) => x.manager)) manage(state); // managers move on right away
+  }
 }
 
 /**
@@ -688,7 +693,115 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
 
 /** The player pokes the first monkey into typing one extra letter. */
 export function poke(state: GameState, rng: Rng = Math.random): void {
-  typeLetter(state, 0, rng);
+  const i = state.monkeys.findIndex((m) => !m.manager);
+  if (i >= 0) typeLetter(state, i, rng);
+}
+
+/** Monkeys working in a department (managers included). */
+export function departmentMonkeys(state: GameState, genre: Genre | undefined): number[] {
+  return state.monkeys.flatMap((m, i) => (monkeyGenre(state, m) === genre ? [i] : []));
+}
+
+/** Whether a monkey can be promoted: its department is big enough and has no manager yet. */
+export function canPromote(state: GameState, index: number): boolean {
+  const m = state.monkeys[index];
+  if (!m || m.manager) return false;
+  const team = departmentMonkeys(state, monkeyGenre(state, m));
+  return team.length > managers.minDepartmentMonkeys && !team.some((i) => state.monkeys[i].manager);
+}
+
+/** A department's manager, if it has one. */
+export function managerOf(state: GameState, genre: Genre | undefined): MonkeyState | undefined {
+  return departmentMonkeys(state, genre)
+    .map((i) => state.monkeys[i])
+    .find((m) => m.manager);
+}
+
+/** Points multiplier from a monkey's department manager: x1 plus bonusPerLevel per upgrade. */
+export function managerMultiplier(state: GameState, m: MonkeyState): number {
+  const boss = managerOf(state, monkeyGenre(state, m));
+  return 1 + (boss ? managers.bonusPerLevel * boss.managerLevel : 0);
+}
+
+/** Lines price of a manager's next upgrade: grows with its department's size and each level. */
+export function managerUpgradeCost(state: GameState, m: MonkeyState): number {
+  const team = departmentMonkeys(state, monkeyGenre(state, m)).length;
+  return Math.ceil(managers.linesPerMonkey * team * Math.pow(managers.upgradeCostGrowth, m.managerLevel));
+}
+
+/** Upgrades a manager with Lines. */
+export function upgradeManager(state: GameState, index: number): boolean {
+  const m = state.monkeys[index];
+  if (!m?.manager) return false;
+  const cost = managerUpgradeCost(state, m);
+  if (state.lines < cost) return false;
+  state.lines -= cost;
+  m.managerLevel++;
+  return true;
+}
+
+/** Promotes a monkey to manager, or sends a manager back to typing. */
+export function toggleManager(state: GameState, index: number): boolean {
+  const m = state.monkeys[index];
+  if (!m) return false;
+  if (m.manager) {
+    m.manager = false;
+    if (m.target) unpin(state, m.target);
+    m.target = null;
+    return true;
+  }
+  if (!canPromote(state, index)) return false;
+  m.manager = true;
+  m.pending = '';
+  m.progress = 0;
+  manage(state);
+  return true;
+}
+
+function unpin(state: GameState, pin: Pin): void {
+  state.pinned = state.pinned.filter((p) => !samePin(p, pin));
+}
+
+/** The first unwritten line of a genre's owned scenes, in play order, that your letters can spell. */
+export function firstReachableLine(state: GameState, genre: Genre | undefined): Pin | null {
+  for (const play of plays.values()) {
+    if (play.genre !== genre) continue;
+    const index = reachableLines(state, play.id).sort((a, b) => a - b)[0];
+    if (index !== undefined) return { play: play.id, index };
+  }
+  return null;
+}
+
+/**
+ * Runs the managers: each keeps its department's target on the first
+ * reachable unwritten line, pins it, and (the first department's manager)
+ * fills the word slots with the line's words, by position.
+ */
+export function manage(state: GameState): void {
+  let slotsSet = false;
+  for (const genre of departmentGenres(state)) {
+    const boss = managerOf(state, genre);
+    if (!boss) continue;
+    const t = boss.target;
+    const done = t && (state.completed[t.play] ?? []).includes(t.index);
+    if (!t || done) {
+      if (t) unpin(state, t);
+      boss.target = firstReachableLine(state, genre);
+      if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
+        state.pinned.push(boss.target);
+      }
+    }
+    if (!slotsSet) {
+      // With no line in reach the slots go off, so typing is fully random again.
+      slotsSet = true;
+      const words = boss.target ? plays.get(boss.target.play)!.lines[boss.target.index].words : [];
+      for (const slot of state.slots) {
+        const word = words[slot.position - 1];
+        slot.word = word ?? slot.word;
+        slot.on = !!word;
+      }
+    }
+  }
 }
 
 /** Letters per second for each monkey at a given "Faster typing" level. */
@@ -711,7 +824,9 @@ export function buyFasterTyping(state: GameState): boolean {
 
 export function tick(state: GameState, seconds: number, rng: Rng = Math.random): void {
   if (seconds <= 0 || state.letters.length === 0) return;
+  manage(state);
   state.monkeys.forEach((m, i) => {
+    if (m.manager) return;
     m.progress += monkeySpeed(state) * seconds;
     while (m.progress >= 1) {
       m.progress -= 1;

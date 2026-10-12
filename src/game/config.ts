@@ -147,6 +147,26 @@ export const sonnetRewards = {
   linesPerSonnetLine: 1,
 };
 
+/**
+ * Manager monkeys: a department with more than minDepartmentMonkeys monkeys
+ * can promote one (at most one per department). A manager stops typing and
+ * instead keeps its department aimed at the first unwritten line it can
+ * spell with your letters: it pins that line and fills your word slots with
+ * its words. If several departments have managers, the first department's
+ * manager sets the word slots (there's one set of slots). Managers can be
+ * upgraded with Lines.
+ */
+export const managers = {
+  minDepartmentMonkeys: 5,
+  // Each upgrade adds bonusPerLevel to the points of every monkey in the
+  // manager's department (x1.1, x1.2, ...). Upgrades are deliberately very
+  // expensive, since one upgrades the whole department: the n-th costs
+  // linesPerMonkey Lines per monkey in the department x upgradeCostGrowth^(n-1).
+  bonusPerLevel: 0.1,
+  linesPerMonkey: 50,
+  upgradeCostGrowth: 2,
+};
+
 /** Letters per typewriter line on screen. */
 export const lineWidth = 30;
 

@@ -153,6 +153,15 @@ Scenes, acts and whole plays are bought with points in the script browser **(dec
 
 Each genre has a **department** **(decided)**. You open the first at the start, which picks your starting genre. The second opens once you have 10 monkeys (bought or earned), and the third once you have 20 more (30 in all); the [Sonnets department](#the-sonnets-department) opens last, at 60. Numbers are for the balance pass. You can only buy plays in genres you have a department for. Each monkey works in one department and only writes lines of plays in that department's genre, so with all three open you work on a comedy, a history and a tragedy at the same time. `d` moves a monkey to the next department; free monkeys from an act join that play's department; with more than one department, each monkey's line starts with its department's initial.
 
+### Manager monkeys (automation)
+
+For players who don't want to micromanage **(decided)**. A department with more than 5 monkeys can promote one to **manager** (`m`, one per department; `m` again sends it back to typing). A manager stops typing and instead:
+- picks the first unwritten line of its department's owned scenes, in play order, that your letters can spell, and pins it;
+- fills your word slots with that line's words by position (slots past the line's length switch off; with no line in reach all slots switch off, so typing is random again);
+- moves on to the next line as soon as one is written.
+
+There's one set of word slots, so with several managers the first department's manager sets them. Managers can be **upgraded** (`u`): each upgrade adds +0.1× to the points of every monkey in that department. Because one upgrade improves a whole department, they're very expensive: Lines, 50 per monkey in the department, doubling each level (starting guess).
+
 ### The Sonnets department
 
 A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a late way to earn more **Lines**. Verse lines run to a meter rather than ending at sentence breaks, so sonnets score differently:
