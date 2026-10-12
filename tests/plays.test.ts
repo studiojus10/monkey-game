@@ -28,7 +28,7 @@ describe('plays', () => {
   it('ships playable data files', () => {
     const dir = new URL('../data/plays/', import.meta.url);
     const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
-    expect(files.length).toBeGreaterThanOrEqual(4);
+    expect(files.length).toBeGreaterThanOrEqual(3);
     for (const f of files) {
       const data = JSON.parse(readFileSync(new URL(f, dir), 'utf8')) as PlayData;
       expect(data.id + '.json').toBe(f);

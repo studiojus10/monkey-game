@@ -108,7 +108,7 @@ Lines and Sentences are both rare, so the upgrades they buy can't be reached by 
 
 ## The play
 
-At the start you choose a **starter play**; more plays can be bought later (price and currency for the balance pass). Plays differ in length, which is effectively the difficulty. The starters are *Hamlet* (4,011 lines), *Romeo and Juliet* (3,093), *Macbeth* (2,384) and *A Midsummer Night's Dream* (2,160). Texts are the public-domain Moby Shakespeare as published by the MIT Shakespeare, stored in `data/plays/`.
+At the start you choose a **starter play**; more plays can be bought later (price and currency for the balance pass). Plays differ in length, which is effectively the difficulty. The starters are *Hamlet* (4,011 lines), *Macbeth* (2,384) and *A Midsummer Night's Dream* (2,160). Texts are the public-domain Moby Shakespeare as published by the MIT Shakespeare, stored in `data/plays/`.
 
 ### How lines get completed
 
