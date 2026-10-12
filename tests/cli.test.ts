@@ -39,7 +39,7 @@ describe('terminal screen', () => {
     const text = renderScreen(s, 'hello');
     expect(text).toContain('1.23K Points');
     expect(text).toContain('Letters: I');
-    expect(text.split('\n')[2]).toBe('M-1(0.50/s)  I_');
+    expect(text.split('\n')[2]).toBe('M-1(0.50/s)  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
     expect(text).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10');
     expect(text).toContain('[2] *Buy a letter   cost 25');
@@ -57,7 +57,17 @@ describe('terminal screen', () => {
       ],
       progress: 0,
     });
-    expect(line).toBe('CATxIT_');
+    expect(line).toBe('CATx\x1b[1mIT\x1b[22m_');
+  });
+
+  it('keeps the current run of words bold until a letter breaks it', () => {
+    const seg = (text: string, scored = true) => ({ text, scored });
+    const line = (segs: { text: string; scored: boolean }[], pending = '') =>
+      renderLine({ pending, line: segs, progress: 0 });
+    expect(line([seg('X', false), seg('CAT'), seg('ZAP')])).toBe('x\x1b[1mCATZAP\x1b[22m_');
+    expect(line([seg('CAT'), seg('X', false)])).toBe('CAT\x1b[1mx\x1b[22m_');
+    expect(line([seg('CAT'), seg('X', false)], 'Z')).toBe('CATx\x1b[1mZ\x1b[22m_');
+    expect(line([])).toBe('_');
   });
 });
 

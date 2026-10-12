@@ -7,10 +7,21 @@ import { formatNumber } from '../format';
 /**
  * A monkey's current line: scored words in capitals, skipped letters in
  * lower case, then any letters still waiting to become a word and a cursor.
+ * Uses ANSI bold, which every common terminal supports.
  */
 export function renderLine(m: MonkeyState): string {
-  return m.line.map((s) => (s.scored ? s.text : s.text.toLowerCase())).join('') + m.pending + '_';
+  const text = m.line.map((s) => (s.scored ? s.text : s.text.toLowerCase()));
+  // The live part is bold: the current run of back-to-back words plus any
+  // letters still forming a word. If the newest letter was skipped, just it.
+  let lastSkip = m.line.length - 1;
+  while (lastSkip >= 0 && m.line[lastSkip].scored) lastSkip--;
+  if (lastSkip === m.line.length - 1 && !m.pending) lastSkip--;
+  const settled = text.slice(0, lastSkip + 1).join('');
+  const live = text.slice(lastSkip + 1).join('') + m.pending;
+  return settled + (live ? bold(live) : '') + '_';
 }
+
+const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 
 /** Monkey lines shown on screen; the rest are summarized in one line. */
 export const maxMonkeyLines = 10;
