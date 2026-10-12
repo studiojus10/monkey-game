@@ -38,24 +38,35 @@ export const letterShop = {
 };
 
 /**
- * You start with one monkey. More monkeys are a late upgrade: they unlock
- * once you own unlockLetters letters, and the n-th one you buy costs
- * baseCost x costGrowth^(n-1). baseCost sits near the price of the 14th letter.
+ * You start with one monkey. More monkeys are a late upgrade paid in Lines
+ * (first-time line completions); the n-th one you buy costs
+ * baseCost x costGrowth^(n-1) Lines.
  */
 export const monkeyShop = {
-  unlockLetters: 13,
-  baseCost: 5_000_000,
-  costGrowth: 1.4,
+  baseCost: 10,
+  costGrowth: 2,
 };
 
 /**
  * Combos: only words at least minWordLength long raise the multiplier, and it
- * stops at maxMultiplier. (Raising the cap will be an upgrade bought with
- * Sentences.)
+ * stops at maxMultiplier plus one per cap raise. The n-th cap raise costs
+ * capRaiseBaseCost x capRaiseCostGrowth^n Sentences.
  */
 export const combo = {
   minWordLength: 4,
   maxMultiplier: 3,
+  capRaiseBaseCost: 1,
+  capRaiseCostGrowth: 2,
+};
+
+/**
+ * Typing a line of the play word for word: every time it pays a Sentence
+ * (lines of at least sentenceMinWords words only, so one-word lines can't be
+ * farmed); the first time it pays a Line and a points bonus of
+ * (the line's word points) x (number of words)^2.
+ */
+export const lineRewards = {
+  sentenceMinWords: 3,
 };
 
 export const typing = {

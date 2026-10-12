@@ -24,6 +24,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const num = (v: unknown, fallback: number) =>
       typeof v === 'number' && Number.isFinite(v) ? v : fallback;
     const str = (v: unknown) => (typeof v === 'string' ? v : '');
+    const strings = (v: unknown) =>
+      Array.isArray(v) ? v.filter((w): w is string => typeof w === 'string') : [];
     const monkey = (m: Partial<MonkeyState>): MonkeyState => ({
       pending: str(m?.pending),
       line: Array.isArray(m?.line)
@@ -32,15 +34,31 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
             .map((seg) => ({ text: seg.text, scored: !!seg.scored }))
         : [],
       progress: num(m?.progress, 0),
-      chainWords: Array.isArray(m?.chainWords)
-        ? m.chainWords.filter((w): w is string => typeof w === 'string')
-        : [],
+      chainWords: strings(m?.chainWords),
       chainPoints: num(m?.chainPoints, 0),
+      chainRecent: strings(m?.chainRecent),
     });
+    const completed: Record<string, number[]> = {};
+    if (s.completed && typeof s.completed === 'object') {
+      for (const [id, list] of Object.entries(s.completed)) {
+        if (Array.isArray(list)) completed[id] = list.filter((i) => Number.isInteger(i) && i >= 0);
+      }
+    }
+    const l = s.lastLine;
+    const lastLine =
+      l && typeof l.play === 'string' && Number.isInteger(l.index)
+        ? { play: l.play, index: l.index, firstTime: !!l.firstTime, points: num(l.points, 0), sentence: !!l.sentence }
+        : null;
     const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey) : [];
     return {
       currency: num(s.currency, fresh.currency),
       totalEarned: num(s.totalEarned, fresh.totalEarned),
+      sentences: num(s.sentences, 0),
+      lines: num(s.lines, 0),
+      play: str(s.play),
+      completed,
+      lastLine,
+      comboCapLevel: Math.max(0, Math.floor(num(s.comboCapLevel, 0))),
       letters: Array.isArray(s.letters)
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
         : [],

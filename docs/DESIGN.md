@@ -69,7 +69,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 
 ## Monkeys
 
-- You start with **one monkey**. More monkeys are a **late-game** upgrade bought with [Lines](#currencies). (Until Lines exist, the game unlocks them at 13 letters for 5M points as a stand-in.) The screen shows the first 10 monkey lines and sums up the rest.
+- You start with **one monkey**. More monkeys are a **late-game** upgrade bought with [Lines](#currencies). (Starting guess: 10 Lines, ×2 each.) The screen shows the first 10 monkey lines and sums up the rest.
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
 
@@ -101,14 +101,14 @@ Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is 
 ## Currencies
 
 - **Points** come from every word. They buy letters, typing speed and typewriter keys.
-- **Sentences** come from typing any line of the play word for word, every time, including lines already completed. They buy repeatable upgrades such as raising the combo cap.
+- **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy repeatable upgrades such as raising the combo cap.
 - **Lines** come from completing a line of the play for the **first** time: one per line, so the supply is limited by the play's length. They're the rarest currency and buy the biggest, permanent upgrades: new monkeys and word slots.
 
 Lines and Sentences are both rare, so the upgrades they buy can't be reached by grinding points. (Exact split of what each buys is for the balance pass.)
 
 ## The play
 
-At the start you choose a play. Plays differ in length, which is effectively the difficulty: for example *The Comedy of Errors* (shortest), *Macbeth*, *A Midsummer Night's Dream* and *Hamlet* (longest). Texts come from a public-domain edition (Moby Shakespeare / Project Gutenberg) and are stored in the repo as data.
+At the start you choose a **starter play**; more plays can be bought later (price and currency for the balance pass). Plays differ in length, which is effectively the difficulty. The starters are *Hamlet* (4,011 lines), *Romeo and Juliet* (3,093), *Macbeth* (2,384) and *A Midsummer Night's Dream* (2,160). Texts are the public-domain Moby Shakespeare as published by the MIT Shakespeare, stored in `data/plays/`.
 
 ### How lines get completed
 
@@ -170,7 +170,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
 3. **More monkeys.** A monkey shop that unlocks at 13 letters, one line per monkey on screen, offline progress by simulation.
 4. **Combos.** Chains and the multiplier (4+ letter words, capped at ×3), combo shown per monkey. (Built.)
-5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys.
+5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys. (Built.)
 6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking later.
 7. **Word slots.** Buy slots, set and change their words, aimed at specific lines. Scene and act milestones.
 8. **Finishing the play.** The big reward, once it's decided.
@@ -180,6 +180,6 @@ Each step is a small pull request that you can play with `npm start` before the 
 
 - **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
 - **Play completion reward.** Not decided yet; it should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
-- **Monkey price in Lines.** Monkeys move to Lines in step 5 (replacing the 13-letter unlock); how many Lines each costs is for the balance pass.
-- **Very short lines.** A one-word line like "No." would be typed constantly once you own its letters. They still pay a Line the first time, but they may need to be excluded from Sentences (e.g. Sentences only for lines of 3+ words).
+- **Monkey price in Lines.** Starting guess: 10 Lines, ×2 each. For the balance pass.
+- **Buying more plays.** Price, currency and whether progress carries between plays.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.

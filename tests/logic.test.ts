@@ -4,10 +4,15 @@ import {
   applyOfflineProgress,
   buyFasterTyping,
   buyLetter,
+  buyCapRaise,
   buyMonkey,
+  capRaiseCost,
+  chooseStarterPlay,
+  comboCap,
   comboMultiplier,
   monkeyCost,
   letterCost,
+  setPlays,
   setWordList,
   chooseFirstLetter,
   lettersPerSecond,
@@ -144,16 +149,16 @@ describe('buying letters', () => {
 });
 
 describe('monkeys', () => {
-  it('buying a monkey adds a typist and raises the next price', () => {
+  it('buying a monkey costs Lines and raises the next price', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.currency = monkeyCost(1);
-    expect(buyMonkey(s)).toBe(false); // locked until enough letters
-    s.letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(0, monkeyShop.unlockLetters);
+    s.currency = 1e12;
+    expect(buyMonkey(s)).toBe(false); // points don't buy monkeys
+    s.lines = monkeyCost(1);
     expect(monkeyCost(1)).toBe(monkeyShop.baseCost);
     expect(buyMonkey(s)).toBe(true);
     expect(s.monkeys).toHaveLength(2);
-    expect(s.currency).toBe(0);
+    expect(s.lines).toBe(0);
     expect(buyMonkey(s)).toBe(false);
     expect(monkeyCost(2)).toBeGreaterThan(monkeyCost(1));
   });
@@ -194,21 +199,21 @@ describe('combos', () => {
       const m = s.monkeys[0];
       typeAll(s, 'CAT');
       expect(s.lastWordPoints).toBe(15);
-      expect(comboMultiplier(m)).toBe(1); // too short to count
+      expect(comboMultiplier(s, m)).toBe(1); // too short to count
       typeAll(s, 'QUIZ');
       expect(s.lastWordPoints).toBe(88); // first long word: x1
       typeAll(s, 'ZANY');
-      expect(comboMultiplier(m)).toBe(2);
+      expect(comboMultiplier(s, m)).toBe(2);
       expect(s.lastWordPoints).toBe((15 + 88 + 64) * 2 - (15 + 88)); // 231
       typeAll(s, 'CAT');
       expect(s.lastWordPoints).toBe(30); // short word paid at x2
       typeAll(s, 'QUIZ');
-      expect(comboMultiplier(m)).toBe(2); // repeat doesn't count
+      expect(comboMultiplier(s, m)).toBe(2); // repeat doesn't count
       typeAll(s, 'QUAY');
       typeAll(s, 'ZETA');
-      expect(comboMultiplier(m)).toBe(combo.maxMultiplier);
+      expect(comboMultiplier(s, m)).toBe(combo.maxMultiplier);
       typeAll(s, 'X');
-      expect(comboMultiplier(m)).toBe(1);
+      expect(comboMultiplier(s, m)).toBe(1);
       expect(m.chainPoints).toBe(0);
     } finally {
       setWordList([]);
@@ -219,7 +224,101 @@ describe('combos', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     for (let i = 0; i < 50; i++) typeLetter(s, 0, rng);
-    expect(comboMultiplier(s.monkeys[0])).toBe(1);
+    expect(comboMultiplier(s, s.monkeys[0])).toBe(1);
     expect(s.currency).toBe(50);
+  });
+});
+
+describe('combo cap', () => {
+  it('is raised with Sentences', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    expect(comboCap(s)).toBe(combo.maxMultiplier);
+    expect(buyCapRaise(s)).toBe(false);
+    s.sentences = capRaiseCost(0);
+    expect(buyCapRaise(s)).toBe(true);
+    expect(s.sentences).toBe(0);
+    expect(comboCap(s)).toBe(combo.maxMultiplier + 1);
+    expect(capRaiseCost(1)).toBeGreaterThan(capRaiseCost(0));
+  });
+});
+
+describe('the play', () => {
+  const play = {
+    id: 'test',
+    title: 'Test',
+    lines: [
+      [1, 1, 'HAMLET', 'No.'],
+      [1, 2, 'POLONIUS', 'Ay, my lord.'],
+      [2, 1, 'HAMLET', 'No!'],
+    ] as [number, number, string, string][],
+  };
+  const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
+  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
+    for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
+  };
+  const setup = () => {
+    setWordList([]); // only the play's own words can score
+    setPlays([play]);
+    const s = createInitialState(0);
+    expect(chooseStarterPlay(s, 'nope')).toBe(false);
+    expect(chooseStarterPlay(s, 'test')).toBe(true);
+    expect(chooseStarterPlay(s, 'test')).toBe(false); // only once
+    s.letters = [...letters];
+    return s;
+  };
+
+  it('a line typed word for word pays a Line, a Sentence and a bonus the first time', () => {
+    try {
+      const s = setup();
+      typeAll(s, 'AYMYLORD');
+      expect(s.completed.test).toEqual([1]);
+      expect(s.lines).toBe(1);
+      expect(s.sentences).toBe(1);
+      // (AY 10 + MY 14 + LORD 20) x 3 words squared
+      expect(s.lastLine).toEqual({ play: 'test', index: 1, firstTime: true, points: 44 * 9, sentence: true });
+
+      typeAll(s, 'XAYMYLORD'); // again: a Sentence, but no Line or bonus
+      expect(s.lines).toBe(1);
+      expect(s.sentences).toBe(2);
+      expect(s.lastLine?.firstTime).toBe(false);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('short lines pay a Line but no Sentence, and identical lines are written one at a time', () => {
+    try {
+      const s = setup();
+      typeAll(s, 'NO');
+      expect(s.completed.test).toEqual([0]);
+      typeAll(s, 'XNO');
+      expect(s.completed.test).toEqual([0, 2]);
+      typeAll(s, 'XNO');
+      expect(s.lines).toBe(2);
+      expect(s.sentences).toBe(0);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('a line can end a longer chain', () => {
+    try {
+      const s = setup();
+      typeAll(s, 'MYLORDNO');
+      expect(s.completed.test).toEqual([0]);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('a skipped letter breaks a line', () => {
+    try {
+      const s = setup();
+      typeAll(s, 'AYMYXLORD');
+      expect(s.completed.test).toEqual([]);
+    } finally {
+      setPlays([]);
+    }
   });
 });

@@ -1,17 +1,20 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { theme } from '../game/config';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   buyFasterTyping,
   buyLetter,
+  buyCapRaise,
   buyMonkey,
-  monkeysUnlocked,
+  chooseStarterPlay,
   chooseFirstLetter,
   letterCost,
   poke,
+  setPlays,
   setWordList,
   tick,
 } from '../game/logic';
@@ -19,12 +22,13 @@ import { load, save } from '../game/save';
 import { createInitialState } from '../game/state';
 import { formatNumber } from '../format';
 import { fileStorage } from './fileStorage';
-import { letterPickPrompt, renderScreen, unownedLetters } from './screen';
+import { letterPickPrompt, playChoices, renderScreen, renderScript, unownedLetters } from './screen';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
 
 setWordList(loadWordList());
+setPlays(loadPlays());
 
 const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
 const storage = fileStorage(savePath);
@@ -35,6 +39,7 @@ let message =
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
 let confirmingReset = false;
 let pickingLetter = false;
+let showingScript = false;
 
 /** Reads data/words.txt: one lowercase word per line. */
 function loadWordList(): string[] {
@@ -45,9 +50,19 @@ function loadWordList(): string[] {
     .map((w) => w.toUpperCase());
 }
 
+/** Reads every data/plays/*.json. */
+function loadPlays(): PlayData[] {
+  const dir = fileURLToPath(new URL('../../data/plays/', import.meta.url));
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.json'))
+    .sort()
+    .map((f) => JSON.parse(readFileSync(dir + f, 'utf8')) as PlayData);
+}
+
 function draw() {
   // Clear the screen and move the cursor home, then redraw.
-  process.stdout.write('\x1b[2J\x1b[H' + renderScreen(state, message) + '\n');
+  const screen = showingScript ? renderScript(state) : renderScreen(state, message);
+  process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
 function quit() {
@@ -80,9 +95,18 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingScript) {
+    if (key.name === 'q') return quit();
+    showingScript = false;
+    return draw();
+  }
+
   message = '';
   if (key.name === 'q') {
     return quit();
+  } else if (!state.play) {
+    const play = playChoices()[Number(str) - 1];
+    if (play) chooseStarterPlay(state, play.id);
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
   } else if (key.name === 'space') {
@@ -97,8 +121,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       message = letterPickPrompt(state);
     }
   } else if (str === '3') {
-    if (!monkeysUnlocked(state)) message = 'More monkeys unlock later.';
-    else if (!buyMonkey(state)) message = `Not enough ${theme.currency}.`;
+    if (!buyMonkey(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
+  } else if (str === '4') {
+    if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
+  } else if (key.name === 'p') {
+    showingScript = true;
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;

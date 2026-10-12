@@ -1,6 +1,7 @@
 import {
   combo,
   extraWords,
+  lineRewards,
   letterShop,
   lineWidth,
   maxOfflineLetters,
@@ -9,6 +10,7 @@ import {
   startingLetters,
   typing,
 } from './config';
+import { buildPlay, type Play, type PlayData } from './plays';
 import { createMonkey, type GameState, type MonkeyState, type Segment } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
@@ -27,10 +29,43 @@ export function setWordList(list: readonly string[]): void {
   cached = undefined;
 }
 
-/** The dictionary for the player's current letters, rebuilt only when they change. */
+const plays = new Map<string, Play>();
+let longestLine = 0;
+
+/** Registers the plays the player can choose from; the front end loads them. */
+export function setPlays(list: readonly PlayData[]): void {
+  plays.clear();
+  for (const data of list) plays.set(data.id, buildPlay(data));
+  longestLine = Math.max(0, ...[...plays.values()].map((p) => p.longestLine));
+  cached = undefined;
+}
+
+export function availablePlays(): Play[] {
+  return [...plays.values()];
+}
+
+export function activePlay(state: GameState): Play | undefined {
+  return plays.get(state.play);
+}
+
+/** Picks the starter play. Only allowed once. */
+export function chooseStarterPlay(state: GameState, id: string): boolean {
+  if (state.play || !plays.has(id)) return false;
+  state.play = id;
+  state.completed[id] ??= [];
+  return true;
+}
+
+/**
+ * The dictionary for the player's current letters (and play, whose words
+ * always count), rebuilt only when they change.
+ */
 export function dictionaryFor(state: GameState): Dictionary {
-  const key = [...state.letters].sort().join('');
-  if (cached?.key !== key) cached = { key, dict: new Dictionary(wordList, state.letters) };
+  const key = [...state.letters].sort().join('') + '|' + state.play;
+  if (cached?.key !== key) {
+    const playWords = activePlay(state)?.words ?? [];
+    cached = { key, dict: new Dictionary([...wordList, ...playWords], state.letters) };
+  }
   return cached.dict;
 }
 
@@ -63,20 +98,33 @@ export function buyLetter(state: GameState, letter: string): boolean {
   return true;
 }
 
-/** Cost of the next monkey, given how many you have. */
+/** Cost in Lines of the next monkey, given how many you have. */
 export function monkeyCost(owned: number): number {
   return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
 }
 
-export function monkeysUnlocked(state: GameState): boolean {
-  return state.letters.length >= monkeyShop.unlockLetters;
-}
-
 export function buyMonkey(state: GameState): boolean {
   const cost = monkeyCost(state.monkeys.length);
-  if (!monkeysUnlocked(state) || state.currency < cost) return false;
-  state.currency -= cost;
+  if (state.letters.length === 0 || state.lines < cost) return false;
+  state.lines -= cost;
   state.monkeys.push(createMonkey());
+  return true;
+}
+
+/** Cost in Sentences of the next combo cap raise. */
+export function capRaiseCost(level: number): number {
+  return Math.ceil(combo.capRaiseBaseCost * Math.pow(combo.capRaiseCostGrowth, level));
+}
+
+export function comboCap(state: GameState): number {
+  return combo.maxMultiplier + state.comboCapLevel;
+}
+
+export function buyCapRaise(state: GameState): boolean {
+  const cost = capRaiseCost(state.comboCapLevel);
+  if (state.letters.length === 0 || state.sentences < cost) return false;
+  state.sentences -= cost;
+  state.comboCapLevel++;
   return true;
 }
 
@@ -98,22 +146,24 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   m.pending = readLetter(dictionaryFor(state), m.pending, letter, events);
   for (const e of events) {
     if (e.kind === 'word') {
-      const paid = scoreInChain(m, e.text);
+      const paid = scoreInChain(state, m, e.text);
       earn(state, paid);
       state.wordsTyped++;
       state.lastWord = e.text;
       state.lastWordPoints = paid;
+      checkPlayLines(state, m);
     } else {
       m.chainWords = [];
       m.chainPoints = 0;
+      m.chainRecent = [];
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
 }
 
 /** The combo multiplier: how many different long words are in the chain, up to the cap. */
-export function comboMultiplier(m: MonkeyState): number {
-  return Math.min(combo.maxMultiplier, Math.max(1, m.chainWords.length));
+export function comboMultiplier(state: GameState, m: MonkeyState): number {
+  return Math.min(comboCap(state), Math.max(1, m.chainWords.length));
 }
 
 /**
@@ -121,11 +171,49 @@ export function comboMultiplier(m: MonkeyState): number {
  * brings the chain's total up to (sum of its word points) x multiplier.
  * Short or repeated words join the chain but don't raise the multiplier.
  */
-function scoreInChain(m: MonkeyState, word: string): number {
-  const before = m.chainPoints * comboMultiplier(m);
+function scoreInChain(state: GameState, m: MonkeyState, word: string): number {
+  const before = m.chainPoints * comboMultiplier(state, m);
   if (word.length >= combo.minWordLength && !m.chainWords.includes(word)) m.chainWords.push(word);
   m.chainPoints += wordPoints(word);
-  return m.chainPoints * comboMultiplier(m) - before;
+  m.chainRecent.push(word);
+  let kept = m.chainRecent.reduce((n, w) => n + w.length, 0);
+  while (m.chainRecent.length > 1 && kept - m.chainRecent[0].length >= longestLine) {
+    kept -= m.chainRecent.shift()!.length;
+  }
+  return m.chainPoints * comboMultiplier(state, m) - before;
+}
+
+/**
+ * After a word lands, checks whether the chain now ends with a line of the
+ * play. Lines match on letters, starting and ending at word breaks, so the
+ * exact split into words doesn't matter.
+ */
+function checkPlayLines(state: GameState, m: MonkeyState): void {
+  const play = activePlay(state);
+  if (!play) return;
+  let letters = '';
+  for (let k = m.chainRecent.length - 1; k >= 0; k--) {
+    letters = m.chainRecent[k] + letters;
+    const indices = play.byLetters.get(letters);
+    if (indices) typedLine(state, play, indices);
+  }
+}
+
+/** Rewards typing a line: a Sentence every time; a Line and a bonus the first time. */
+function typedLine(state: GameState, play: Play, indices: number[]): void {
+  const done = (state.completed[play.id] ??= []);
+  const fresh = indices.find((i) => !done.includes(i));
+  const line = play.lines[fresh ?? indices[0]];
+  const sentence = line.words.length >= lineRewards.sentenceMinWords;
+  if (sentence) state.sentences++;
+  let points = 0;
+  if (fresh !== undefined) {
+    done.push(fresh);
+    state.lines++;
+    points = line.points * line.words.length ** 2;
+    earn(state, points);
+  }
+  state.lastLine = { play: play.id, index: fresh ?? indices[0], firstTime: fresh !== undefined, points, sentence };
 }
 
 /** The player pokes the first monkey into typing one extra letter. */

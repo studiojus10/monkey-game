@@ -1,12 +1,16 @@
-import { letterValues, monkeyShop, startingLetters, theme } from '../game/config';
+import { letterValues, startingLetters, theme } from '../game/config';
 import {
+  activePlay,
+  availablePlays,
+  capRaiseCost,
+  comboCap,
   comboMultiplier,
   letterCost,
   lettersPerSecond,
   monkeyCost,
-  monkeysUnlocked,
   typingUpgradeCost,
 } from '../game/logic';
+import { lineLocation, type Play, type PlayLine } from '../game/plays';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
 
@@ -44,9 +48,31 @@ export function letterPickPrompt(state: GameState): string {
   return `Press the letter to buy, any other key cancels. Values: ${choices.join(' ')}`;
 }
 
+/** Exact counts with thousands separators, e.g. 4,011. */
+const count = (n: number) => n.toLocaleString('en-US');
+
+/** The starter-play menu: keys 1-9 map to plays in this order. */
+export function playChoices(): Play[] {
+  return availablePlays().slice(0, 9);
+}
+
 /** Renders the whole game screen as plain text. */
 export function renderScreen(state: GameState, message = ''): string {
   const lines = [`=== ${theme.title} ===`, ''];
+
+  if (!state.play) {
+    lines.push(
+      'Somewhere, infinite monkeys are trying to write Shakespeare.',
+      'Choose the starter play your monkeys will work toward:',
+      '',
+      ...playChoices().map((p, i) => `  [${i + 1}] ${p.title} (${count(p.lines.length)} lines)`),
+      '',
+      '[q] quit',
+      '',
+      message,
+    );
+    return lines.join('\n');
+  }
 
   if (state.letters.length === 0) {
     lines.push(
@@ -62,39 +88,94 @@ export function renderScreen(state: GameState, message = ''): string {
     return lines.join('\n');
   }
 
+  const play = activePlay(state);
+  const done = state.completed[state.play]?.length ?? 0;
   const speed = lettersPerSecond(state.typingLevel);
   const nextSpeed = lettersPerSecond(state.typingLevel + 1);
   const cost = typingUpgradeCost(state.typingLevel);
   const nextLetter = letterCost(state.letters.length);
   const nextMonkey = monkeyCost(state.monkeys.length);
-  const mark = (price: number) => (state.currency >= price ? '*' : ' ');
+  const nextCap = capRaiseCost(state.comboCapLevel);
+  const mark = (have: number, price: number) => (have >= price ? '*' : ' ');
   lines.push(
     ...state.monkeys
       .slice(0, maxMonkeyLines)
-      .map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s) x${comboMultiplier(m)}  ${renderLine(m)}`),
+      .map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s) x${comboMultiplier(state, m)}  ${renderLine(m)}`),
     ...(state.monkeys.length > maxMonkeyLines
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),
     '',
-    `${formatNumber(state.currency)} ${theme.currency}`,
+    `${formatNumber(state.currency)} ${theme.currency}   ${formatNumber(state.sentences)} Sentences   ` +
+      `${formatNumber(state.lines)} Lines`,
     `Letters: ${state.letters.join(' ')}`,
+    play ? `${play.title}: ${count(done)} / ${count(play.lines.length)} lines written` : '',
     '',
     `Words typed: ${formatNumber(state.wordsTyped)}` +
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
+    ...lastLineText(state),
     '',
     'Shop',
-    `  [1] ${mark(cost)}Faster typing (level ${state.typingLevel}): ` +
-      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${formatNumber(cost)}`,
+    `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
+      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${formatNumber(cost)} ${theme.currency}`,
     ...(unownedLetters(state).length > 0
-      ? [`  [2] ${mark(nextLetter)}Buy a letter   cost ${formatNumber(nextLetter)}`]
+      ? [`  [2] ${mark(state.currency, nextLetter)}Buy a letter   cost ${formatNumber(nextLetter)} ${theme.currency}`]
       : []),
-    monkeysUnlocked(state)
-      ? `  [3] ${mark(nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   cost ${formatNumber(nextMonkey)}`
-      : `  [3]  Buy a monkey: unlocks when you own ${monkeyShop.unlockLetters} letters`,
+    `  [3] ${mark(state.lines, nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   ` +
+      `cost ${formatNumber(nextMonkey)} Lines`,
+    `  [4] ${mark(state.sentences, nextCap)}Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   ` +
+      `cost ${formatNumber(nextCap)} Sentences`,
     '',
-    `[space] ${theme.pokeAction}   [1-3] buy (* = affordable)   [s] save   [r] reset   [q] quit`,
+    `[space] ${theme.pokeAction}   [1-4] buy (* = affordable)   [p] script   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );
   return lines.join('\n');
+}
+
+function lastLineText(state: GameState): string[] {
+  const l = state.lastLine;
+  const line = l && availablePlays().find((p) => p.id === l.play)?.lines[l.index];
+  if (!l || !line) return [];
+  const rewards = [
+    ...(l.firstTime ? [`+${formatNumber(l.points)} ${theme.currency}`, '+1 Line'] : ['already written']),
+    ...(l.sentence ? ['+1 Sentence'] : []),
+  ];
+  return [`* A monkey wrote a line! "${line.text}" (${lineLocation(line)})  ${rewards.join(', ')}`];
+}
+
+/** How many lines the script view lists in each section. */
+export const scriptListLength = 8;
+
+/**
+ * The script view: progress through the play, the latest lines written, and
+ * the shortest unwritten lines you already own the letters for.
+ */
+export function renderScript(state: GameState): string {
+  const play = activePlay(state);
+  if (!play) return 'No play chosen yet.';
+  const done = state.completed[play.id] ?? [];
+  const owned = new Set(state.letters);
+  const doneSet = new Set(done);
+  const reachable = play.lines
+    .map((line, i) => ({ line, i }))
+    .filter(({ line, i }) => !doneSet.has(i) && [...line.letters].every((c) => owned.has(c)))
+    .sort((a, b) => a.line.letters.length - b.line.letters.length)
+    .slice(0, scriptListLength);
+  const show = (line: PlayLine) =>
+    `  ${lineLocation(line).padEnd(11)} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${line.text}`;
+  return [
+    `=== ${play.title} ===`,
+    '',
+    `${count(done.length)} of ${count(play.lines.length)} lines written`,
+    '',
+    'Latest lines written',
+    ...(done.length > 0
+      ? done.slice(-scriptListLength).reverse().map((i) => show(play.lines[i]))
+      : ['  None yet.']),
+    '',
+    'Shortest lines you have the letters for',
+    ...(reachable.length > 0 ? reachable.map(({ line }) => show(line)) : ['  None yet. Buy more letters.']),
+    '',
+    '[p] back to the typewriters',
+  ].join('\n');
 }
