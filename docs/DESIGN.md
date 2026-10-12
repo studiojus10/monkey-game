@@ -116,7 +116,7 @@ A line counts only when a monkey actually types it: its words back to back, in o
 
 - A *line* is a line as printed in the script (one line of verse, or one line of prose). Punctuation and spaces are ignored.
 - Matching uses the letters across the chain's words, not where the word breaks fell, so `TOBE` read as `TO` + `BE` or split some other way still counts as "to be".
-- A completed line is checked off in the script, and the script view shows the current scene with completed lines marked.
+- A completed line is checked off in the script. The script browser scrolls through the play by line and scene, shows what letters each line still needs, and lets the player **pin** up to 5 lines to the home screen as targets.
 
 By pure chance this is very rare: a specific 30-letter line turns up roughly once in 10^42 letters. That's intended. Early on, only very short lines are realistically possible ("No.", "Ay, my lord."), and only once you own their letters, so completing one is a rare, special event: it's celebrated on screen and checked off in the script, but it pays only a modest bonus so it doesn't speed up the early game. Longer lines need word slots, and that's where line rewards become huge.
 

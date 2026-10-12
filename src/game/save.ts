@@ -57,6 +57,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       lines: num(s.lines, 0),
       play: str(s.play),
       completed,
+      pinned: Array.isArray(s.pinned) ? s.pinned.filter((i) => Number.isInteger(i) && i >= 0) : [],
       lastLine,
       comboCapLevel: Math.max(0, Math.floor(num(s.comboCapLevel, 0))),
       heavy: Object.fromEntries(

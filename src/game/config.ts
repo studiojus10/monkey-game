@@ -96,6 +96,9 @@ export const typing = {
 /** Letters per typewriter line on screen. */
 export const lineWidth = 30;
 
+/** How many play lines can be pinned to the home screen. */
+export const maxPinnedLines = 5;
+
 // Offline progress is capped so a long absence doesn't break balance.
 export const maxOfflineSeconds = 8 * 60 * 60;
 

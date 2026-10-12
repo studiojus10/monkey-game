@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { theme } from '../game/config';
+import { maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { PlayData } from '../game/plays';
@@ -8,6 +8,7 @@ import {
   applyOfflineProgress,
   buyFasterTyping,
   buyLetter,
+  activePlay,
   buyCapRaise,
   buyHeavier,
   buyKey,
@@ -17,9 +18,11 @@ import {
   keysUnlocked,
   letterCost,
   poke,
+  reachableLines,
   setPlays,
   setWordList,
   tick,
+  togglePin,
 } from '../game/logic';
 import { load, save } from '../game/save';
 import { createInitialState } from '../game/state';
@@ -32,6 +35,7 @@ import {
   renderKeysMenu,
   renderScreen,
   renderScript,
+  scriptPageSize,
   unownedLetters,
 } from './screen';
 
@@ -51,6 +55,8 @@ let message =
 let confirmingReset = false;
 let pickingLetter = false;
 let showingScript = false;
+let scriptCursor = 0;
+let findIndex = -1;
 let showingKeys = false;
 
 /** Reads data/words.txt: one lowercase word per line. */
@@ -74,7 +80,7 @@ function loadPlays(): PlayData[] {
 function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript
-    ? renderScript(state)
+    ? renderScript(state, scriptCursor, message)
     : showingKeys
       ? renderKeysMenu(state, message)
       : renderScreen(state, message);
@@ -112,8 +118,42 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingScript) {
-    if (key.name === 'q') return quit();
-    showingScript = false;
+    message = '';
+    const play = activePlay(state);
+    const last = (play?.lines.length ?? 1) - 1;
+    const sceneOf = (i: number) => (play ? `${play.lines[i].act}.${play.lines[i].scene}` : '');
+    if (key.name === 'escape' || key.name === 'p') {
+      showingScript = false;
+    } else if (key.name === 'q') {
+      return quit();
+    } else if (key.name === 'up' || key.name === 'k') {
+      scriptCursor = Math.max(0, scriptCursor - 1);
+    } else if (key.name === 'down' || key.name === 'j') {
+      scriptCursor = Math.min(last, scriptCursor + 1);
+    } else if (key.name === 'pageup') {
+      scriptCursor = Math.max(0, scriptCursor - scriptPageSize);
+    } else if (key.name === 'pagedown') {
+      scriptCursor = Math.min(last, scriptCursor + scriptPageSize);
+    } else if (key.name === 'left' && play) {
+      // Start of this scene, or of the previous one if already there.
+      let i = scriptCursor;
+      if (i > 0 && sceneOf(i - 1) !== sceneOf(i)) i--;
+      while (i > 0 && sceneOf(i - 1) === sceneOf(i)) i--;
+      scriptCursor = i;
+    } else if (key.name === 'right' && play) {
+      let i = scriptCursor;
+      while (i < last && sceneOf(i + 1) === sceneOf(i)) i++;
+      scriptCursor = Math.min(last, i + 1);
+    } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+      if (!togglePin(state, scriptCursor)) message = `You can pin up to ${maxPinnedLines} lines. Unpin one first.`;
+    } else if (key.name === 'f') {
+      const reachable = reachableLines(state);
+      if (reachable.length === 0) message = 'No unwritten line is within reach yet. Buy more letters.';
+      else {
+        findIndex = (findIndex + 1) % reachable.length;
+        scriptCursor = reachable[findIndex];
+      }
+    }
     return draw();
   }
 

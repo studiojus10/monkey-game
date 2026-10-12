@@ -21,7 +21,7 @@ npm start
 | `3` | Buy another monkey (costs Lines) |
 | `4` | Raise the combo cap (costs Sentences) |
 | `5` | Typewriter keys menu (once you own 13 letters): press a letter to make it heavier, `1`–`9` to buy a key, `esc` to go back |
-| `p` | Show the script: lines written so far and the shortest ones you have the letters for |
+| `p` | Script browser: arrows scroll by line and scene, `enter` pins a line to the home screen (up to 5), `f` jumps to the next shortest line within reach, `esc` goes back |
 | `s` | Save now |
 | `r` | Reset progress (asks to confirm) |
 | `q` or `Ctrl+C` | Save and quit |

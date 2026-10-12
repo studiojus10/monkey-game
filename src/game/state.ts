@@ -29,6 +29,7 @@ export interface GameState {
   lines: number; // currency: first completion of each play line
   play: string; // active play id; empty until the player picks a starter play
   completed: Record<string, number[]>; // play id -> completed line indices
+  pinned: number[]; // line indices of the active play pinned to the home screen
   lastLine: LastLine | null;
   comboCapLevel: number; // combo cap raises bought
   heavy: Record<string, number>; // letter -> heavier-key level
@@ -54,6 +55,7 @@ export function createInitialState(now = Date.now()): GameState {
     lines: 0,
     play: '',
     completed: {},
+    pinned: [],
     lastLine: null,
     comboCapLevel: 0,
     heavy: {},

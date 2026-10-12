@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combo, letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, monkeyShop, typewriterKeys, typing } from '../src/game/config';
+import { combo, letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
@@ -13,6 +13,9 @@ import {
   keyCost,
   keyboard,
   keysUnlocked,
+  missingLetters,
+  reachableLines,
+  togglePin,
   capRaiseCost,
   chooseStarterPlay,
   comboCap,
@@ -387,6 +390,33 @@ describe('typewriter keys', () => {
       expect(s.monkeys[0].line.map((x) => x.text)).toEqual(['AB']);
     } finally {
       setWordList([]);
+    }
+  });
+});
+
+describe('pinned lines', () => {
+  it('pin and unpin up to the limit, and know what each line needs', () => {
+    setPlays([
+      {
+        id: 'p',
+        title: 'P',
+        lines: Array.from({ length: maxPinnedLines + 2 }, (_, i): [number, number, string, string] => [1, 1, 'X', i % 2 ? 'Ay me.' : 'I.']),
+      },
+    ]);
+    try {
+      const s = createInitialState(0);
+      chooseStarterPlay(s, 'p');
+      chooseFirstLetter(s, 'i');
+      for (let i = 0; i < maxPinnedLines; i++) expect(togglePin(s, i)).toBe(true);
+      expect(togglePin(s, maxPinnedLines)).toBe(false);
+      expect(togglePin(s, 0)).toBe(true); // unpin
+      expect(s.pinned).not.toContain(0);
+      expect(togglePin(s, 999)).toBe(false);
+      expect(missingLetters(s, 'AYME')).toEqual(['A', 'E', 'M', 'Y']);
+      s.completed.p = [0];
+      expect(reachableLines(s)).toEqual([2, 4, 6]);
+    } finally {
+      setPlays([]);
     }
   });
 });

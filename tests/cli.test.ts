@@ -12,7 +12,7 @@ import {
   renderScreen,
   renderScript,
 } from '../src/cli/screen';
-import { chooseFirstLetter, chooseStarterPlay, setPlays } from '../src/game/logic';
+import { chooseFirstLetter, chooseStarterPlay, setPlays, togglePin } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -131,19 +131,28 @@ describe('many monkeys', () => {
   });
 });
 
-describe('script view', () => {
-  it('shows progress, written lines and the shortest lines within reach', () => {
+describe('script browser and pins', () => {
+  it('shows a page of the play with scenes, the cursor and what each line needs', () => {
     const s = started();
-    let text = renderScript(s);
-    expect(text).toContain('0 of 2 lines written');
-    expect(text).toContain('1.1         HAMLET         I.');
-    expect(text).not.toContain('Ay, my lord.'); // needs letters you don't own
+    let text = renderScript(s, 1);
+    expect(text).toContain('0 of 2 lines written   line 2');
+    expect(text).toContain('-- Act 1, scene 1 --');
+    expect(text).toContain('-- Act 1, scene 2 --');
+    expect(text).toContain('    HAMLET         I.   (within reach)');
+    expect(text).toContain('>   POLONIUS       Ay, my lord.   (needs A D L M O R Y)');
     s.completed.test = [0];
-    s.letters.push('A', 'Y', 'M', 'L', 'O', 'R', 'D');
-    text = renderScript(s);
-    expect(text).toContain('1 of 2 lines written');
-    expect(text.indexOf('I.')).toBeLessThan(text.indexOf('Shortest'));
-    expect(text).toContain('POLONIUS       Ay, my lord.');
+    togglePin(s, 1);
+    text = renderScript(s, 0);
+    expect(text).toContain('>+  HAMLET         I.');
+    expect(text).toContain('  @ POLONIUS       Ay, my lord.');
+    expect(text).toContain('@ pinned (1/5)');
+  });
+
+  it('shows pinned lines on the home screen', () => {
+    const s = started();
+    expect(renderScreen(s)).not.toContain('Pinned lines');
+    togglePin(s, 1);
+    expect(renderScreen(s)).toContain('@ 1.2 "Ay, my lord."   (needs A D L M O R Y)');
   });
 });
 

@@ -5,6 +5,7 @@ import {
   letterShop,
   lineWidth,
   maxOfflineLetters,
+  maxPinnedLines,
   maxOfflineSeconds,
   monkeyShop,
   startingLetters,
@@ -55,6 +56,37 @@ export function chooseStarterPlay(state: GameState, id: string): boolean {
   state.play = id;
   state.completed[id] ??= [];
   return true;
+}
+
+/** Pins or unpins a line of the active play. Returns false if the pin limit is reached. */
+export function togglePin(state: GameState, index: number): boolean {
+  const play = activePlay(state);
+  if (!play || index < 0 || index >= play.lines.length) return false;
+  const at = state.pinned.indexOf(index);
+  if (at >= 0) {
+    state.pinned.splice(at, 1);
+    return true;
+  }
+  if (state.pinned.length >= maxPinnedLines) return false;
+  state.pinned.push(index);
+  return true;
+}
+
+/** Letters a line needs that you don't own yet. */
+export function missingLetters(state: GameState, letters: string): string[] {
+  return [...new Set(letters)].filter((c) => !state.letters.includes(c)).sort();
+}
+
+/** Unwritten lines of the active play you own every letter for, shortest first. */
+export function reachableLines(state: GameState): number[] {
+  const play = activePlay(state);
+  if (!play) return [];
+  const done = new Set(state.completed[play.id] ?? []);
+  return play.lines
+    .map((line, i) => ({ line, i }))
+    .filter(({ line, i }) => !done.has(i) && missingLetters(state, line.letters).length === 0)
+    .sort((a, b) => a.line.letters.length - b.line.letters.length || a.i - b.i)
+    .map(({ i }) => i);
 }
 
 /**

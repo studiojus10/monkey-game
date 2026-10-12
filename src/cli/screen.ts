@@ -1,4 +1,4 @@
-import { letterValues, startingLetters, theme, typewriterKeys } from '../game/config';
+import { letterValues, maxPinnedLines, startingLetters, theme, typewriterKeys } from '../game/config';
 import {
   activePlay,
   availableKeys,
@@ -11,10 +11,11 @@ import {
   keysUnlocked,
   letterCost,
   lettersPerSecond,
+  missingLetters,
   monkeyCost,
   typingUpgradeCost,
 } from '../game/logic';
-import { lineLocation, type Play, type PlayLine } from '../game/plays';
+import { lineLocation, type Play } from '../game/plays';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
 
@@ -117,6 +118,7 @@ export function renderScreen(state: GameState, message = ''): string {
     `Words typed: ${formatNumber(state.wordsTyped)}` +
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
     ...lastLineText(state),
+    ...pinnedText(state),
     '',
     'Shop',
     `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
@@ -132,7 +134,7 @@ export function renderScreen(state: GameState, message = ''): string {
       ? `  [5]  Typewriter keys...`
       : `  [5]  Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters`,
     '',
-    `[space] ${theme.pokeAction}   [1-5] buy (* = affordable)   [p] script   [s] save   [r] reset   [q] quit`,
+    `[space] ${theme.pokeAction}   [1-5] buy (* = affordable)   [p] script & pins   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );
@@ -184,39 +186,60 @@ function lastLineText(state: GameState): string[] {
   return [`* A monkey wrote a line! "${line.text}" (${lineLocation(line)})  ${rewards.join(', ')}`];
 }
 
-/** How many lines the script view lists in each section. */
-export const scriptListLength = 8;
+/** How many play lines the script browser shows at once. */
+export const scriptPageSize = 15;
+
+function lineStatus(state: GameState, index: number, letters: string): string {
+  if (state.completed[state.play]?.includes(index)) return 'written';
+  const missing = missingLetters(state, letters);
+  return missing.length > 0 ? `needs ${missing.join(' ')}` : 'within reach';
+}
 
 /**
- * The script view: progress through the play, the latest lines written, and
- * the shortest unwritten lines you already own the letters for.
+ * The script browser: a page of the play around the cursor, with scene
+ * headings, marks for written (+) and pinned (@) lines, and what each needs.
  */
-export function renderScript(state: GameState): string {
+export function renderScript(state: GameState, cursor: number, message = ''): string {
   const play = activePlay(state);
   if (!play) return 'No play chosen yet.';
   const done = state.completed[play.id] ?? [];
-  const owned = new Set(state.letters);
-  const doneSet = new Set(done);
-  const reachable = play.lines
-    .map((line, i) => ({ line, i }))
-    .filter(({ line, i }) => !doneSet.has(i) && [...line.letters].every((c) => owned.has(c)))
-    .sort((a, b) => a.line.letters.length - b.line.letters.length)
-    .slice(0, scriptListLength);
-  const show = (line: PlayLine) =>
-    `  ${lineLocation(line).padEnd(11)} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${line.text}`;
+  const at = Math.max(0, Math.min(cursor, play.lines.length - 1));
+  const first = Math.max(0, Math.min(at - Math.floor(scriptPageSize / 2), play.lines.length - scriptPageSize));
+  const rows: string[] = [];
+  for (let i = first; i < Math.min(first + scriptPageSize, play.lines.length); i++) {
+    const line = play.lines[i];
+    const prev = play.lines[i - 1];
+    if (i === first || prev.act !== line.act || prev.scene !== line.scene) {
+      rows.push(`  -- ${line.scene === 0 ? `Act ${line.act}, prologue` : `Act ${line.act}, scene ${line.scene}`} --`);
+    }
+    const marks = (i === at ? '>' : ' ') + (done.includes(i) ? '+' : ' ') + (state.pinned.includes(i) ? '@' : ' ');
+    const status = done.includes(i) ? '' : `   (${lineStatus(state, i, line.letters)})`;
+    rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${line.text}${status}`);
+  }
   return [
-    `=== ${play.title} ===`,
+    `=== ${play.title} ===   ${count(done.length)} of ${count(play.lines.length)} lines written   ` +
+      `line ${count(at + 1)}`,
     '',
-    `${count(done.length)} of ${count(play.lines.length)} lines written`,
+    ...rows,
     '',
-    'Latest lines written',
-    ...(done.length > 0
-      ? done.slice(-scriptListLength).reverse().map((i) => show(play.lines[i]))
-      : ['  None yet.']),
+    `+ written   @ pinned (${state.pinned.length}/${maxPinnedLines})`,
+    '[up/down] line   [left/right] scene   [pgup/pgdn] page   [enter] pin/unpin',
+    '[f] next shortest line within reach   [esc] back to the typewriters',
     '',
-    'Shortest lines you have the letters for',
-    ...(reachable.length > 0 ? reachable.map(({ line }) => show(line)) : ['  None yet. Buy more letters.']),
-    '',
-    '[p] back to the typewriters',
+    message,
   ].join('\n');
+}
+
+/** Pinned lines for the home screen, with what each still needs. */
+function pinnedText(state: GameState): string[] {
+  const play = activePlay(state);
+  if (!play || state.pinned.length === 0) return [];
+  return [
+    '',
+    'Pinned lines',
+    ...state.pinned.map((i) => {
+      const line = play.lines[i];
+      return `  @ ${lineLocation(line)} "${line.text}"   (${lineStatus(state, i, line.letters)})`;
+    }),
+  ];
 }
