@@ -88,13 +88,13 @@ Each monkey types on a line **30 letters** wide **(default)**. When the line is 
 
 ## Combos
 
-Words typed back to back on the same monkey's line form a chain. A chain of *N* words is worth the sum of those words' points **× N**: two in a row is double, three in a row is triple, and so on.
+Words typed back to back on the same monkey's line form a chain. The chain's multiplier is the number of **different** words in it: two different words in a row is double, three is triple, and so on. The whole chain is worth the sum of its words' points × the multiplier.
 
-- Only words of **two or more letters** build the chain. One-letter words still score their own points but neither add to the chain nor break it **(default)**. Without this, owning only "I" would make every letter a word and the multiplier would grow forever.
+- **A repeated word doesn't raise the multiplier.** It still joins the chain and is paid at the current multiplier, but only a word that isn't already in the chain counts toward it. With only "I", the multiplier stays at ×1; with A and I it tops out at ×2; with I and T (words `I` and `IT`) it also tops out at ×2. The multiplier only gets big once you own enough letters for real variety.
 - A **skipped letter** or a **carriage return** breaks the chain.
-- Points are paid as the chain grows: when the *k*-th word lands, you receive whatever brings the chain's total up to (sum of its words) × *k*.
+- Points are paid as the chain grows: when a word lands, you receive whatever brings the chain's total up to (sum of its words) × (different words so far).
 
-Example: `CAT` (15) then `ZAP` (42) back to back pays 15, then 99 more, for a chain total of (15 + 42) × 2 = 114.
+Example: `CAT` (15) then `ZAP` (42) back to back pays 15, then 99 more, for a chain total of (15 + 42) × 2 = 114. If another `CAT` follows, the multiplier stays ×2 and the chain becomes (15 + 42 + 15) × 2 = 144, paying 30 more.
 
 ## The play
 
