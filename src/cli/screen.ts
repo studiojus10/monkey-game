@@ -15,6 +15,7 @@ import {
   slotCost,
   slotsUnlocked,
   monkeyCost,
+  monkeyName,
   typingUpgradeCost,
 } from '../game/logic';
 import { lineLocation, type Play } from '../game/plays';
@@ -22,12 +23,12 @@ import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
 
 /**
- * A monkey's current line: scored words in capitals, skipped letters in
- * lower case, then any letters still waiting to become a word and a cursor.
+ * A monkey's current line, all capitals: scored words and skipped letters,
+ * then any letters still waiting to become a word and a cursor.
  * Uses ANSI bold, which every common terminal supports.
  */
 export function renderLine(m: MonkeyState): string {
-  const text = m.line.map((s) => (s.scored ? s.text : s.text.toLowerCase()));
+  const text = m.line.map((s) => s.text.toUpperCase());
   // The live part is bold: the current run of back-to-back words plus any
   // letters still forming a word. If the newest letter was skipped, just it.
   let lastSkip = m.line.length - 1;
@@ -104,10 +105,13 @@ export function renderScreen(state: GameState, message = ''): string {
   const nextMonkey = monkeyCost(state.monkeys.length);
   const nextCap = capRaiseCost(state.comboCapLevel);
   const mark = (have: number, price: number) => (have >= price ? '*' : ' ');
+  const shown = state.monkeys.slice(0, maxMonkeyLines);
+  // Pad names and multipliers so every monkey's text starts in the same column.
+  const labels = shown.map((m, i) => [`${monkeyName(state, i)}(${speed.toFixed(2)}/s)`, `x${comboMultiplier(state, m)}`]);
+  const nameWidth = Math.max(...labels.map(([n]) => n.length));
+  const comboWidth = Math.max(...labels.map(([, c]) => c.length));
   lines.push(
-    ...state.monkeys
-      .slice(0, maxMonkeyLines)
-      .map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s) x${comboMultiplier(state, m)}  ${renderLine(m)}`),
+    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${renderLine(m)}`),
     ...(state.monkeys.length > maxMonkeyLines
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),
@@ -139,7 +143,7 @@ export function renderScreen(state: GameState, message = ''): string {
       ? `  [6]  Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)`
       : `  [6]  Word slots: unlock when you own ${wordSlots.unlockLetters} letters`,
     '',
-    `[space] ${theme.pokeAction}   [1-6] buy (* = affordable)   [p] script & pins   [s] save   [r] reset   [q] quit`,
+    `[space] ${theme.pokeAction}   [1-6] buy (* = affordable)   [p] script & pins   [n] name a monkey   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );

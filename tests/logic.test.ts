@@ -9,6 +9,8 @@ import {
   buyHeavier,
   buyKey,
   buyMonkey,
+  monkeyName,
+  renameMonkey,
   buySlot,
   heavierCost,
   keyCost,
@@ -176,6 +178,19 @@ describe('monkeys', () => {
     expect(s.lines).toBe(0);
     expect(buyMonkey(s)).toBe(false);
     expect(monkeyCost(2)).toBeGreaterThan(monkeyCost(1));
+  });
+
+  it('monkeys can be named, and fall back to M-<number>', () => {
+    const s = createInitialState(0);
+    s.monkeys.push(createMonkey());
+    expect(monkeyName(s, 1)).toBe('M-2');
+    expect(renameMonkey(s, 1, '  Bubbles  the  Great ')).toBe(false); // too long once trimmed
+    expect(renameMonkey(s, 1, ' Bubbles ')).toBe(true);
+    expect(monkeyName(s, 1)).toBe('Bubbles');
+    expect(renameMonkey(s, 1, 'Bad*Name')).toBe(false);
+    expect(renameMonkey(s, 5, 'Nobody')).toBe(false);
+    expect(renameMonkey(s, 1, '')).toBe(true);
+    expect(monkeyName(s, 1)).toBe('M-2');
   });
 
   it('every monkey types its own line', () => {

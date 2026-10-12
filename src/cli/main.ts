@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { maxPinnedLines, theme } from '../game/config';
+import { maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { PlayData } from '../game/plays';
@@ -13,6 +13,8 @@ import {
   buyHeavier,
   buyKey,
   buyMonkey,
+  monkeyName,
+  renameMonkey,
   buySlot,
   chooseStarterPlay,
   chooseFirstLetter,
@@ -67,6 +69,9 @@ let showingKeys = false;
 let showingSlots = false;
 let selectedSlot = 0;
 let slotWordDraft: string | null = null;
+let pickingMonkeyToName = false;
+let namingMonkey = -1; // index of the monkey being named, or -1
+let nameDraft = '';
 
 /** Reads data/words.txt: one lowercase word per line. */
 function loadWordList(): string[] {
@@ -106,6 +111,16 @@ function quit() {
   process.exit(0);
 }
 
+function namePrompt(): string {
+  return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for M-${namingMonkey + 1})`;
+}
+
+function startNaming(index: number) {
+  namingMonkey = index;
+  nameDraft = state.monkeys[index].name;
+  message = namePrompt();
+}
+
 function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
   if (key.ctrl && key.name === 'c') return quit();
 
@@ -118,6 +133,32 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else {
       message = 'Reset cancelled.';
     }
+    return draw();
+  }
+
+  if (namingMonkey >= 0) {
+    if (key.name === 'escape') {
+      namingMonkey = -1;
+      message = 'Name unchanged.';
+    } else if (key.name === 'return' || key.name === 'enter') {
+      const i = namingMonkey;
+      namingMonkey = -1;
+      message = renameMonkey(state, i, nameDraft)
+        ? `Say hello to ${monkeyName(state, i)}.`
+        : `Names can use letters, numbers, spaces, - and ' (up to ${maxMonkeyNameLength}).`;
+    } else {
+      if (key.name === 'backspace') nameDraft = nameDraft.slice(0, -1);
+      else if (str && /^[A-Za-z0-9 '-]$/.test(str) && nameDraft.length < maxMonkeyNameLength) nameDraft += str;
+      message = namePrompt();
+    }
+    return draw();
+  }
+
+  if (pickingMonkeyToName) {
+    pickingMonkeyToName = false;
+    const i = Number(str) - 1;
+    if (str && /^[1-9]$/.test(str) && i < state.monkeys.length) startNaming(i);
+    else message = 'No monkey renamed.';
     return draw();
   }
 
@@ -237,7 +278,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       message = letterPickPrompt(state);
     }
   } else if (str === '3') {
-    if (!buyMonkey(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
+    if (buyMonkey(state)) startNaming(state.monkeys.length - 1);
+    else message = 'Not enough Lines. Lines come from writing lines of the play.';
   } else if (str === '4') {
     if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
   } else if (str === '5') {
@@ -246,6 +288,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === '6') {
     if (slotsUnlocked(state)) showingSlots = true;
     else message = 'Word slots unlock later.';
+  } else if (str === 'n') {
+    if (state.monkeys.length === 1) startNaming(0);
+    else {
+      pickingMonkeyToName = true;
+      message = `Name which monkey? Press 1-${Math.min(9, state.monkeys.length)}.`;
+    }
   } else if (key.name === 'p') {
     showingScript = true;
   } else if (key.name === 's') {

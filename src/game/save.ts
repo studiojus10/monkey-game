@@ -27,6 +27,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const strings = (v: unknown) =>
       Array.isArray(v) ? v.filter((w): w is string => typeof w === 'string') : [];
     const monkey = (m: Partial<MonkeyState>): MonkeyState => ({
+      name: str(m?.name),
       pending: str(m?.pending),
       line: Array.isArray(m?.line)
         ? m.line

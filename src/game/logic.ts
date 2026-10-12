@@ -5,6 +5,7 @@ import {
   letterShop,
   lineWidth,
   maxOfflineLetters,
+  maxMonkeyNameLength,
   maxPinnedLines,
   maxOfflineSeconds,
   monkeyShop,
@@ -142,6 +143,23 @@ export function buyMonkey(state: GameState): boolean {
   if (state.letters.length === 0 || state.lines < cost) return false;
   state.lines -= cost;
   state.monkeys.push(createMonkey());
+  return true;
+}
+
+/** Display name of a monkey: its given name, or M-<number>. */
+export function monkeyName(state: GameState, index: number): string {
+  return state.monkeys[index]?.name || `M-${index + 1}`;
+}
+
+/**
+ * Names monkey `index`. Letters, digits, spaces, - and ' only, up to maxMonkeyNameLength;
+ * an empty name goes back to M-<number>. Returns false if the name isn't allowed.
+ */
+export function renameMonkey(state: GameState, index: number, name: string): boolean {
+  const m = state.monkeys[index];
+  const clean = name.trim().replace(/\s+/g, ' ');
+  if (!m || clean.length > maxMonkeyNameLength || !/^[A-Za-z0-9 '-]*$/.test(clean)) return false;
+  m.name = clean;
   return true;
 }
 

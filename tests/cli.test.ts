@@ -15,7 +15,7 @@ import {
   renderSlotsMenu,
   slotHighlight,
 } from '../src/cli/screen';
-import { chooseFirstLetter, chooseStarterPlay, setPlays, togglePin } from '../src/game/logic';
+import { chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -89,7 +89,7 @@ describe('terminal screen', () => {
     expect(renderScreen(s)).toContain('A monkey wrote a line! "Ay, my lord." (1.2)  +396 Points, +1 Line, +1 Sentence');
   });
 
-  it('shows skipped letters in lower case and pending letters before the cursor', () => {
+  it('shows every letter in capitals, with pending letters before the cursor', () => {
     const line = renderLine({
       ...createMonkey(),
       pending: 'IT',
@@ -98,16 +98,27 @@ describe('terminal screen', () => {
         { text: 'X', scored: false },
       ],
     });
-    expect(line).toBe('CATx\x1b[1mIT\x1b[22m_');
+    expect(line).toBe('CATX\x1b[1mIT\x1b[22m_');
+  });
+
+  it('starts every monkey line in the same column, whatever the names', () => {
+    const s = started();
+    s.monkeys.push(createMonkey(), createMonkey());
+    renameMonkey(s, 1, 'Bartholomew');
+    s.monkeys[2].chainWords = ['ZZZZ', 'YYYY']; // pretend x3 vs x1
+    const rows = renderScreen(s).split('\n').filter((r) => r.endsWith('_'));
+    expect(rows).toHaveLength(3);
+    expect(rows[1].startsWith('Bartholomew(')).toBe(true);
+    expect(new Set(rows.map((r) => r.indexOf('_'))).size).toBe(1);
   });
 
   it('keeps the current run of words bold until a letter breaks it', () => {
     const seg = (text: string, scored = true) => ({ text, scored });
     const line = (segs: { text: string; scored: boolean }[], pending = '') =>
       renderLine({ ...createMonkey(), pending, line: segs });
-    expect(line([seg('X', false), seg('CAT'), seg('ZAP')])).toBe('x\x1b[1mCATZAP\x1b[22m_');
-    expect(line([seg('CAT'), seg('X', false)])).toBe('CAT\x1b[1mx\x1b[22m_');
-    expect(line([seg('CAT'), seg('X', false)], 'Z')).toBe('CATx\x1b[1mZ\x1b[22m_');
+    expect(line([seg('X', false), seg('CAT'), seg('ZAP')])).toBe('X\x1b[1mCATZAP\x1b[22m_');
+    expect(line([seg('CAT'), seg('X', false)])).toBe('CAT\x1b[1mX\x1b[22m_');
+    expect(line([seg('CAT'), seg('X', false)], 'Z')).toBe('CATX\x1b[1mZ\x1b[22m_');
     expect(line([])).toBe('_');
   });
 });

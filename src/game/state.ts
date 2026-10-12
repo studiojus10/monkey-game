@@ -5,6 +5,7 @@ export interface Segment {
 }
 
 export interface MonkeyState {
+  name: string; // player-given name; empty shows as M-<number>
   pending: string; // letters that might still become a word
   line: Segment[]; // what's on the current typewriter line, for display
   progress: number; // fraction of the next letter typed so far
@@ -53,7 +54,7 @@ export interface GameState {
 }
 
 export function createMonkey(): MonkeyState {
-  return { pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
+  return { name: '', pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
 }
 
 export function createInitialState(now = Date.now()): GameState {

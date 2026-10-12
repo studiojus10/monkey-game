@@ -112,6 +112,9 @@ export const wordSlots = {
 /** How many play lines can be pinned to the home screen. */
 export const maxPinnedLines = 5;
 
+/** Longest name a player can give a monkey. */
+export const maxMonkeyNameLength = 12;
+
 // Offline progress is capped so a long absence doesn't break balance.
 export const maxOfflineSeconds = 8 * 60 * 60;
 

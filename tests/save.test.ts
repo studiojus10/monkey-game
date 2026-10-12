@@ -9,6 +9,7 @@ describe('save/load', () => {
     chooseFirstLetter(s, 'i');
     typeLetter(s, 0, () => 0);
     s.monkeys[0].progress = 0.5;
+    s.monkeys[0].name = 'Bubbles';
     expect(deserialize(serialize(s))).toEqual(s);
   });
 

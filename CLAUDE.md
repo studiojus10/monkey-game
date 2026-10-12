@@ -22,7 +22,7 @@ src/
     state.ts       GameState and MonkeyState shapes, createInitialState()
     plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
-    logic.ts       setWordList, setPlays, chooseStarterPlay, chooseFirstLetter, buyLetter, buyMonkey, buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
+    logic.ts       setWordList, setPlays, chooseStarterPlay, chooseFirstLetter, buyLetter, buyMonkey, renameMonkey, buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave

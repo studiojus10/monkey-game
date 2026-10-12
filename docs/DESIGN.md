@@ -33,7 +33,7 @@ A stream has no spaces, so the game reads it left to right and always prefers th
 
 - A word scores as soon as it is certain it can't grow into a longer word. That happens either when the next letter rules a longer word out, or straight away when no longer word is spellable with your letters at all. (Example: with only **I**, every I scores immediately. With **I, T, G**, the stream `IG` scores `I` when the G arrives; `IT` scores as soon as it is typed, because nothing longer starting with IT can be spelled.)
 - Letters left over after a scored word are read again from the start, so a letter that could begin the next word is never lost **(default)**.
-- A letter that can't begin any word is **skipped**. On screen, the line has no spaces; scored words show in capitals and skipped letters in lower case.
+- A letter that can't begin any word is **skipped**. On screen, the line has no spaces and every letter is a capital; the live run of words is bold.
 
 The exact algorithm, per monkey:
 
@@ -71,6 +71,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 
 - You start with **one monkey**. More monkeys are a **late-game** upgrade bought with [Lines](#currencies). (Starting guess: 10 Lines, ×2 each.) The screen shows the first 10 monkey lines and sums up the rest.
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
+- The player can name each monkey when buying it, or later with `n`; unnamed monkeys show as M-1, M-2, ...
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
 
 ### Typewriter keys: shaping the odds
@@ -144,20 +145,17 @@ Slots unlock later, alongside typewriter keys (starting guess: 13 letters owned)
 ## Screen layout (terminal)
 
 ```
-INFINITE MONKEYS                       Points: 12.4K   (+38/s)
-Letters: A E I N T S R                 Play: Hamlet  3% (112 / 3,960 lines)
+=== Infinite Monkeys ===
 
-Monkeys (4)
- 1  TEA SNARE it x s i             combo x3
- 2  ...
-Recent words: SNARE +225  TEA +27  IT +4
+M-1(0.50/s)         x1  ITIEANTISSSOI_
+Bartholomew(0.50/s) x3  INTEEETSITAONAIEIN_
+Jo(0.50/s)          x1  INAENEATSTTNIET_
 
-Shop
- [1] Letter (pick one)   1.2K    [2] Monkey   340    [3] Faster typing   2K
-[space] poke  [p] script  [s] save  [q] quit
+1.2K Points   4 Sentences   12 Lines
+...
 ```
 
-Scored words are highlighted, skipped letters dimmed. `p` toggles a script view of the current scene.
+Monkey lines sit right under the title. Each starts with the monkey's name (M-1, M-2, ... until the player names it, up to 12 characters), its speed and its combo multiplier, padded so every monkey's text starts in the same column and the lines read as one block. Letters are always capitals; the live run of words is bold. `p` opens the script browser.
 
 ## Saves and offline progress
 
