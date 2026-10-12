@@ -35,11 +35,10 @@ export function renderScreen(state: GameState, message = ''): string {
   const nextSpeed = lettersPerSecond(state.typingLevel + 1);
   const cost = typingUpgradeCost(state.typingLevel);
   lines.push(
+    ...state.monkeys.map((m, i) => `M-${i + 1}(${speed.toFixed(2)}/s)  ${renderLine(m)}`),
+    '',
     `${formatNumber(state.currency)} ${theme.currency}`,
     `Letters: ${state.letters.join(' ')}`,
-    '',
-    `Monkeys (${state.monkeys.length}), each typing ${speed.toFixed(2)} letters/sec`,
-    ...state.monkeys.map((m, i) => `  ${i + 1}  ${renderLine(m)}`),
     '',
     `Words typed: ${formatNumber(state.wordsTyped)}` +
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(wordPoints(state.lastWord))}` : ''),

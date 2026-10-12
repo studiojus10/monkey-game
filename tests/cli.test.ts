@@ -39,7 +39,7 @@ describe('terminal screen', () => {
     const text = renderScreen(s, 'hello');
     expect(text).toContain('1.23K Points');
     expect(text).toContain('Letters: I');
-    expect(text).toContain('  1  I _');
+    expect(text.split('\n')[2]).toBe('M-1(0.50/s)  I _');
     expect(text).toContain('Last word: I +1');
     expect(text).toContain('[1] *Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10');
     expect(text).toContain('[q] quit');
