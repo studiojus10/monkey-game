@@ -125,14 +125,26 @@ export const scriptShop = {
 };
 
 /**
- * Departments: one per genre (comedies, histories, tragedies). You open the
- * first at the start; the n-th opens once you have monkeysToOpen[n-1]
- * monkeys, bought or earned. Each monkey works in one department and only
+ * Departments: one per genre (comedies, histories, tragedies, and last the
+ * Sonnets). You open the first at the start; the n-th opens once you have
+ * monkeysToOpen[n-1] monkeys, bought or earned. Each monkey works in one department and only
  * writes lines of plays in that department's genre, and only plays of a
  * department's genre can be bought.
  */
 export const departmentRules = {
-  monkeysToOpen: [0, 10, 30],
+  monkeysToOpen: [0, 10, 30, 60],
+};
+
+/**
+ * The sonnet department, opened last (after all three play genres). Verse
+ * lines aren't sentences, so sonnets pay mostly in Lines: linesPerLine for
+ * each new line written (no Sentences), a smaller points bonus (line word
+ * points x words, not words squared), and finishing a sonnet pays
+ * linesPerSonnetLine Lines per line in it instead of scene and act bonuses.
+ */
+export const sonnetRewards = {
+  linesPerLine: 2,
+  linesPerSonnetLine: 1,
 };
 
 /** Letters per typewriter line on screen. */

@@ -10,6 +10,7 @@ import {
   milestones,
   scriptShop,
   departmentRules,
+  sonnetRewards,
   maxOfflineSeconds,
   monkeyShop,
   startingLetters,
@@ -17,7 +18,7 @@ import {
   wordSlots,
   typing,
 } from './config';
-import { buildPlay, genres, type Genre, type Play, type PlayData, type Scene } from './plays';
+import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createMonkey, type GameState, type MonkeyState, type Pin, type Segment } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
@@ -107,10 +108,17 @@ export function nextDepartmentAt(state: GameState): number {
   return departmentRules.monkeysToOpen[open] ?? 0;
 }
 
+/** Genres you could open a department for next: the play genres first, the Sonnets last. */
+export function departmentChoices(state: GameState): Genre[] {
+  const unopened = genresWithPlays().filter((g) => !departmentGenres(state).includes(g));
+  const plays = unopened.filter((g) => playGenres.includes(g));
+  return plays.length > 0 ? plays : unopened;
+}
+
 /** Opens a department for a genre, if you've earned one. */
 export function openDepartment(state: GameState, genre: string): boolean {
-  const g = genresWithPlays().find((x) => x === genre);
-  if (!g || departmentPicks(state) === 0 || departmentGenres(state).includes(g)) return false;
+  const g = departmentChoices(state).find((x) => x === genre);
+  if (!g || departmentPicks(state) === 0) return false;
   state.departments.push(g);
   return true;
 }
@@ -612,13 +620,14 @@ function typedLine(state: GameState, matches: Pin[]): void {
   const pick = fresh ?? matches[0];
   const play = plays.get(pick.play)!;
   const line = play.lines[pick.index];
-  const sentence = line.words.length >= lineRewards.sentenceMinWords;
+  const verse = play.genre === 'sonnet';
+  const sentence = !verse && line.words.length >= lineRewards.sentenceMinWords;
   if (sentence) state.sentences++;
   let points = 0;
   if (fresh) {
     (state.completed[play.id] ??= []).push(fresh.index);
-    state.lines++;
-    points = line.points * line.words.length ** 2 * pointsMultiplier(state);
+    state.lines += verse ? sonnetRewards.linesPerLine : 1;
+    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state);
     earn(state, points);
   }
   state.lastLine = { play: play.id, index: pick.index, firstTime: !!fresh, points, sentence };
@@ -636,6 +645,18 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
   if (!sc || !finished(sc)) return;
   const { act, scene } = sc;
   const sceneKey = `${play.id}:${sc.key}`;
+  if (play.genre === 'sonnet') {
+    if (state.scenesDone.includes(sceneKey)) return;
+    state.scenesDone.push(sceneKey);
+    const lines = sc.lines.length * sonnetRewards.linesPerSonnetLine;
+    state.lines += lines;
+    state.lastMilestone = { kind: 'sonnet', play: play.id, act, scene, sentences: 0, bonus: lines };
+    if (play.scenes.every(finished)) {
+      state.playsDone.push(play.id);
+      state.lastMilestone = { kind: 'play', play: play.id, act: 0, scene: 0, sentences: 0, bonus: 0 };
+    }
+    return;
+  }
   if (!state.scenesDone.includes(sceneKey)) {
     state.scenesDone.push(sceneKey);
     const sentences = Math.max(1, Math.round(sc.lines.length * milestones.sceneSentencesPerLine));

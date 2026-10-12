@@ -1,9 +1,9 @@
-import { letterValues, maxPinnedLines, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { letterValues, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   availablePlays,
   departmentPicks,
-  genresWithPlays,
+  departmentChoices,
   departmentGenres,
   monkeyGenre,
   nextDepartmentAt,
@@ -72,12 +72,12 @@ export function letterPickPrompt(state: GameState): string {
 const count = (n: number) => n.toLocaleString('en-US');
 
 /** Genre names for display. */
-export const genreNames: Record<Genre, string> = { comedy: 'Comedies', history: 'Histories', tragedy: 'Tragedies' };
-
-/** Genres you can unlock now, in menu order (keys 1-3). */
-export function departmentChoices(state: GameState): Genre[] {
-  return genresWithPlays().filter((g) => !departmentGenres(state).includes(g));
-}
+export const genreNames: Record<Genre, string> = {
+  comedy: 'Comedies',
+  history: 'Histories',
+  tragedy: 'Tragedies',
+  sonnet: 'Sonnets',
+};
 
 function genreMenu(state: GameState): string[] {
   return departmentChoices(state).map(
@@ -297,9 +297,10 @@ function scenesOwned(state: GameState): number {
 
 /** Permanent bonuses from finished scenes and acts, once there are any. */
 function milestoneSummary(state: GameState): string[] {
-  if (state.scenesDone.length === 0) return [];
+  const scenesDone = state.scenesDone.filter((k) => getPlay(k.split(':')[0])?.genre !== 'sonnet').length;
+  if (scenesDone === 0) return [];
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  const scenes = `Bonuses: points +${pct(state.pointsBonus)} (${plural(state.scenesDone.length, 'scene')} finished)`;
+  const scenes = `Bonuses: points +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`;
   const acts =
     state.actsDone.length === 0
       ? ''
@@ -313,10 +314,11 @@ function lastMilestoneText(state: GameState): string[] {
   if (!ms || !play) return [];
   if (ms.kind === 'scene') {
     return [
-      `* ${sceneName(ms.act, ms.scene)} of ${play.title} finished! Points +${pct(ms.bonus)} for good, ` +
+      `* ${sceneName(ms.act, ms.scene, play.genre)} of ${play.title} finished! Points +${pct(ms.bonus)} for good, ` +
         `+${count(ms.sentences)} Sentences`,
     ];
   }
+  if (ms.kind === 'sonnet') return [`* Sonnet ${ms.act} finished! +${count(ms.bonus)} Lines`];
   if (ms.kind === 'act') {
     return [
       `* Act ${ms.act} of ${play.title} finished! Typing +${pct(ms.bonus)} for good, ` +
@@ -328,13 +330,15 @@ function lastMilestoneText(state: GameState): string[] {
 
 function lastLineText(state: GameState): string[] {
   const l = state.lastLine;
-  const line = l && getPlay(l.play)?.lines[l.index];
-  if (!l || !line) return [];
+  const play = l && getPlay(l.play);
+  const line = l && play?.lines[l.index];
+  if (!l || !play || !line) return [];
+  const lines = play.genre === 'sonnet' ? sonnetRewards.linesPerLine : 1;
   const rewards = [
-    ...(l.firstTime ? [`+${formatNumber(l.points)} ${theme.currency}`, '+1 Line'] : ['already written']),
+    ...(l.firstTime ? [`+${formatNumber(l.points)} ${theme.currency}`, `+${lines} Line${lines === 1 ? '' : 's'}`] : ['already written']),
     ...(l.sentence ? ['+1 Sentence'] : []),
   ];
-  return [`* A monkey wrote a line! "${line.text}" (${lineLocation(line)})  ${rewards.join(', ')}`];
+  return [`* A monkey wrote a line! "${line.text}" (${lineLocation(line, play.genre)})  ${rewards.join(', ')}`];
 }
 
 /** How many play lines the script browser shows at once. */
@@ -370,7 +374,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
       const status = ownsScene(state, play.id, sc)
         ? `${count(w)}/${count(total)} written${w === total ? ', finished' : ''}`
         : `${count(total)} lines, not owned`;
-      rows.push(`  -- ${sceneName(sc.act, sc.scene)} (${status}) --`);
+      rows.push(`  -- ${sceneName(sc.act, sc.scene, play.genre)} (${status}) --`);
     }
     const marks = (i === at ? '>' : ' ') + (done.includes(i) ? '+' : ' ') + (pinned(i) ? '@' : ' ');
     const status = done.includes(i) ? '' : `   (${lineStatus(state, play, i)})`;
@@ -390,9 +394,12 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     `+ written   @ pinned (${state.pinned.length}/${maxPinnedLines})`,
     locked
       ? `Open a ${genreNames[play.genre]} department to buy these.`
-      : `Buy  [b] ${price('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
-      `[a] ${price(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
-      `[w] ${price('whole play', sectionPrice(state, play))}   (* = affordable)`,
+      : play.genre === 'sonnet'
+        ? `Buy  [b] ${price('this sonnet', sectionPrice(state, play, sc.act, sc.key))}   ` +
+          `[w] ${price('all the sonnets', sectionPrice(state, play))}   (* = affordable)`
+        : `Buy  [b] ${price('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
+          `[a] ${price(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
+          `[w] ${price('whole play', sectionPrice(state, play))}   (* = affordable)`,
     '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] next play   [enter] pin/unpin',
     '[f] next shortest line within reach   [esc] back to the typewriters',
     '',
@@ -421,7 +428,7 @@ function pinnedText(state: GameState): string[] {
     const play = getPlay(p.play);
     const line = play?.lines[p.index];
     if (!play || !line) return [];
-    return [`  @ ${play.title} ${lineLocation(line)} "${slotHighlight(state, line.text)}"   (${lineStatus(state, play, p.index)})`];
+    return [`  @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text)}"   (${lineStatus(state, play, p.index)})`];
   });
   return rows.length === 0 ? [] : ['', 'Pinned lines', ...rows];
 }

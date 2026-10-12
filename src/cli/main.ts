@@ -13,6 +13,7 @@ import {
   getPlay,
   sceneOf,
   starterScenes,
+  departmentChoices,
   departmentPicks,
   monkeyGenre,
   moveMonkey,
@@ -46,7 +47,6 @@ import { fileStorage } from './fileStorage';
 import {
   keyChoices,
   letterPickPrompt,
-  departmentChoices,
   genreNames,
   departmentPrompt,
   renderKeysMenu,
@@ -190,7 +190,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const g = departmentChoices(state)[Number(str) - 1];
     message =
       g && openDepartment(state, g)
-        ? `The ${genreNames[g]} department is open. Buy its scenes in the script ([p]) and move monkeys there with [d].`
+        ? `The ${genreNames[g]} department is open. Buy in the script ([p]) and move monkeys there with [d].`
         : 'No department opened.';
     return draw();
   }
@@ -239,11 +239,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       scriptPlay = (scriptPlay + 1) % Math.max(1, availablePlays().length);
       scriptCursor = 0;
       findIndex = -1;
-    } else if (play && (str === 'b' || str === 'a' || str === 'w')) {
+    } else if (play && (str === 'b' || (str === 'a' && play.genre !== 'sonnet') || str === 'w')) {
       const sc = sceneOf(play, scriptCursor)!;
       const [act, scene, what] =
         str === 'b'
-          ? [sc.act, sc.key, `${play.title}, ${sceneName(sc.act, sc.scene)}`]
+          ? [sc.act, sc.key, `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`]
           : str === 'a'
             ? [sc.act, undefined, `${play.title}, Act ${sc.act}`]
             : [undefined, undefined, play.title];

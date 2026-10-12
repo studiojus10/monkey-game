@@ -57,7 +57,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey) : [];
     const ms = s.lastMilestone;
     const lastMilestone =
-      ms && ['scene', 'act', 'play'].includes(ms.kind) && typeof ms.play === 'string'
+      ms && ['scene', 'act', 'play', 'sonnet'].includes(ms.kind) && typeof ms.play === 'string'
         ? {
             kind: ms.kind,
             play: ms.play,
@@ -77,7 +77,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       totalEarned: num(s.totalEarned, fresh.totalEarned),
       sentences: num(s.sentences, 0),
       lines: num(s.lines, 0),
-      departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy'].includes(g)),
+      departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,
       scenesDone: strings(s.scenesDone),

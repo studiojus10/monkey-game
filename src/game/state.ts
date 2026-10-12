@@ -34,12 +34,12 @@ export interface LastLine {
 
 /** The most recent scene, act or play finished, for display. */
 export interface Milestone {
-  kind: 'scene' | 'act' | 'play';
+  kind: 'scene' | 'act' | 'play' | 'sonnet';
   play: string;
   act: number;
   scene: number;
   sentences: number; // Sentences paid (scenes)
-  bonus: number; // points bonus (scenes) or typing speed bonus (acts) it added, e.g. 0.2 = +20%
+  bonus: number; // points bonus (scenes) or typing speed bonus (acts) it added, e.g. 0.2 = +20%; Lines paid (sonnets)
 }
 
 /** A line pinned to the home screen. */

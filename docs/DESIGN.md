@@ -151,16 +151,17 @@ Scenes, acts and whole plays are bought with points in the script browser **(dec
 
 ### Departments
 
-Each genre has a **department** **(decided)**. You open the first at the start, which picks your starting genre. The second opens once you have 10 monkeys (bought or earned), and the third once you have 20 more (30 in all); numbers are for the balance pass. You can only buy plays in genres you have a department for. Each monkey works in one department and only writes lines of plays in that department's genre, so with all three open you work on a comedy, a history and a tragedy at the same time. `d` moves a monkey to the next department; free monkeys from an act join that play's department; with more than one department, each monkey's line starts with its department's initial.
+Each genre has a **department** **(decided)**. You open the first at the start, which picks your starting genre. The second opens once you have 10 monkeys (bought or earned), and the third once you have 20 more (30 in all); the [Sonnets department](#the-sonnets-department) opens last, at 60. Numbers are for the balance pass. You can only buy plays in genres you have a department for. Each monkey works in one department and only writes lines of plays in that department's genre, so with all three open you work on a comedy, a history and a tragedy at the same time. `d` moves a monkey to the next department; free monkeys from an act join that play's department; with more than one department, each monkey's line starts with its department's initial.
 
-### Poetry department (planned, not built)
+### The Sonnets department
 
-A late-game fourth department for Shakespeare's poetry (the Sonnets, *Venus and Adonis*, ...) **(planned)**, mainly as a late way to earn more **Lines**. Poems aren't plays: lines run to a fixed meter rather than ending at sentence breaks, so scoring differs:
-- Poems are bought whole (a sonnet is 14 lines) rather than by scene or act.
-- Each verse line written pays Lines (starting guess: 2, instead of 1) and only a small points bonus; no Sentences, since verse lines are often not complete sentences.
-- Finishing a poem pays a lump of Lines (starting guess: one per line in the poem) instead of scene or act bonuses.
-- It unlocks after the three genre departments (starting guess: at 60 monkeys).
-- Poems still need importing; the MIT Shakespeare has the Sonnets and the narrative poems.
+A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a late way to earn more **Lines**. Verse lines run to a meter rather than ending at sentence breaks, so sonnets score differently:
+- It opens only after all three play departments, at 60 monkeys (starting guess).
+- Sonnets are bought one at a time (10 points per letter, like scenes) or all 154 at once at the whole-play discount. There are no acts.
+- Each new verse line written pays 2 Lines and a smaller points bonus (line word points × words, not words²). No Sentences, since verse lines often aren't complete sentences.
+- Finishing a sonnet pays 1 Line per line in it (14 for most) instead of scene and act bonuses; sonnets give no points or speed bonus and no free monkey.
+- The text is the MIT Shakespeare's Sonnets, converted with `scripts/import-sonnets.ts` (stored like a play, one sonnet per "act"). The source runs two lines together in sonnets 7 and 93, so those have 13 lines; 99 has 15 and 126 has 12, as Shakespeare wrote them.
+- Other poems (*Venus and Adonis*, *The Rape of Lucrece*, ...) could join this department later.
 
 ## Screen layout (terminal)
 
@@ -192,13 +193,13 @@ Each step is a small pull request that you can play with `npm start` before the 
 5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys. (Built.)
 6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking at 13 letters. (Built.)
 7. **Word slots.** Buy slots, set and change their words, switch them on and off, aimed at pinned lines. (Built, along with the script browser and pins.)
-8. **Milestones, the script shop and departments.** Length-scaled scene and act rewards, buying scenes/acts/plays, genre departments opened by monkey count. (Built; the big play-completion reward is still open.)
+8. **Milestones, the script shop and departments.** Length-scaled scene and act rewards, buying scenes/acts/plays, genre departments opened by monkey count, and the Sonnets department. (Built; the big play-completion reward is still open, to decide later.)
 9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.
 
 ## Open questions
 
 - **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
-- **Play completion reward.** Not decided yet; it should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
+- **Play completion reward.** Not decided yet; Justin will decide later (2026-10-12). It should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
 - **Monkey price in Lines.** Starting guess: 10 Lines, ×2 each. For the balance pass.
 - **Department thresholds and script prices.** 10 and 30 monkeys, 10 points per letter, 20%/40% discounts are placeholders for the balance pass.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.

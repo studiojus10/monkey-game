@@ -30,7 +30,7 @@ src/
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line
 data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare
-scripts/           import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json
+scripts/           import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json; import-sonnets.ts builds data/plays/sonnets.json
 tests/             unit tests for logic, save, formatting and the terminal screen
 ```
 

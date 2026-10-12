@@ -23,7 +23,7 @@ npm start
 | `5` | Typewriter keys menu (once you own 13 letters): press a letter to make it heavier, `1`–`9` to buy a key, `esc` to go back |
 | `6` | Word slots menu (once you own 13 letters): `b` buys a slot (costs Lines), `w` sets its word, `o` switches it on or off, left/right move its position |
 | `p` | Script browser: arrows scroll by line and scene, `tab` switches play, `b`/`a`/`w` buy the scene/act/whole play under the cursor, `enter` pins a line to the home screen (up to 5), `f` jumps to the next shortest line within reach, `esc` goes back |
-| `g` | Open a new department (at 10 monkeys, then 30) |
+| `g` | Open a new department (at 10 monkeys, then 30, and the Sonnets at 60) |
 | `d` | Move a monkey to its next department |
 | `n` | Name a monkey (pick which one with `1`–`9` if you have several) |
 | `s` | Save now |
@@ -38,7 +38,7 @@ npm start
 - **More letters**, bought with points, so longer words become possible. Words come from the public-domain ENABLE list in `data/words.txt`, plus A and I.
 - **The script**: you start by opening a department for comedies, histories or tragedies and taking one short scene free. More scenes, acts (20% off) and whole plays (40% off) cost points. Plays: A Midsummer Night's Dream, Richard III, Hamlet, Macbeth. When a monkey types one of its lines word for word (spaces and punctuation don't matter), the line is written into your script. The first time pays a **Line** and a points bonus that grows steeply with the line's length; lines of 3+ words also pay a **Sentence** every time. Texts are the public-domain Moby Shakespeare via [the MIT Shakespeare](https://github.com/TheMITTech/shakespeare), converted with `scripts/import-play.ts`.
 - **Milestones**: writing every line of a scene gives a permanent points bonus (bigger for longer scenes) and some Sentences; finishing an act gives a permanent typing speed bonus (bigger for longer acts) and a free monkey. Bonuses add up the same however you bought the scenes.
-- **Departments**: one per genre. The second opens at 10 monkeys and the third at 30; each monkey only writes plays of its department's genre.
+- **Departments**: one per genre. The second opens at 10 monkeys and the third at 30; each monkey only writes plays of its department's genre. A fourth, the **Sonnets**, opens last at 60: verse lines pay 2 Lines each, and a finished sonnet pays a Line per line in it.
 - **More monkeys**, bought with Lines. Each types its own line and can be named. The first 10 are shown under the title, their text lined up in one column.
 - **Typewriter keys**, once you own 13 letters: heavier letters come up more often, and combination keys (`TH`, `ING`, `QU`, ...) and word keys (`THE`, `AND`, `LORD`, ...) type their whole text in one keystroke. Only useful keys are offered; a test showed junk clusters dilute the pool, while good keys roughly double points per keystroke.
 - **Word slots**, once you own 13 letters, bought with Lines: each locks one position in a chain to a word you choose ("3rd word: FRIEND"), typed as a finished word. Switch slots off any time for fully random typing. Pinned lines show slot words in bold where they match.

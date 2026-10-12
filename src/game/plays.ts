@@ -1,7 +1,9 @@
 import { wordPoints } from './words';
 
-export type Genre = 'comedy' | 'history' | 'tragedy';
-export const genres: Genre[] = ['comedy', 'history', 'tragedy'];
+export type Genre = 'comedy' | 'history' | 'tragedy' | 'sonnet';
+export const genres: Genre[] = ['comedy', 'history', 'tragedy', 'sonnet'];
+/** The play genres; the sonnet department opens only after all of these. */
+export const playGenres: Genre[] = ['comedy', 'history', 'tragedy'];
 
 /** A play as stored in data/plays/<id>.json: [act, scene, speaker, text] per line. */
 export interface PlayData {
@@ -77,12 +79,17 @@ export function buildPlay(data: PlayData): Play {
   return { id: data.id, title: data.title, genre: genres.includes(data.genre!) ? data.genre! : 'comedy', lines, scenes, acts, byLetters, words, longestLine };
 }
 
-/** Where a line sits in the play, e.g. "1.2" for act 1, scene 2 (scene 0 is a prologue). */
-export function lineLocation(line: PlayLine): string {
+/** Where a line sits in the play, e.g. "1.2" for act 1, scene 2 (scene 0 is a prologue), or "Sonnet 18". */
+export function lineLocation(line: PlayLine, genre?: Genre): string {
+  if (genre === 'sonnet') return `Sonnet ${line.act}`;
   return line.scene === 0 ? `${line.act} prologue` : `${line.act}.${line.scene}`;
 }
 
-/** A scene's name for display, e.g. "Act 1, scene 2" or "Act 2 prologue". */
-export function sceneName(act: number, scene: number): string {
+/**
+ * A scene's name for display, e.g. "Act 1, scene 2" or "Act 2 prologue".
+ * The Sonnets are stored one per act, so there it's "Sonnet 18".
+ */
+export function sceneName(act: number, scene: number, genre?: Genre): string {
+  if (genre === 'sonnet') return `Sonnet ${act}`;
   return scene === 0 ? `Act ${act} prologue` : `Act ${act}, scene ${scene}`;
 }

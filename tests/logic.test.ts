@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combo, departmentRules, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
+import { combo, departmentRules, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
@@ -38,6 +38,7 @@ import {
   typingUpgradeCost,
   buySection,
   chooseStarterScene,
+  departmentChoices,
   departmentGenres,
   departmentPicks,
   monkeyGenre,
@@ -703,6 +704,66 @@ describe('departments, the scene shop and milestones', () => {
       expect(t.playsDone).toEqual(['one']);
       expect(t.pointsBonus).toBeCloseTo(s.pointsBonus);
       expect(t.speedBonus).toBeCloseTo(s.speedBonus);
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
+describe('the sonnet department', () => {
+  const comedy = { id: 'c', title: 'C', genre: 'comedy' as const, lines: [[1, 1, 'A', 'No.']] as [number, number, string, string][] };
+  const tragedy = { id: 't', title: 'T', genre: 'tragedy' as const, lines: [[1, 1, 'A', 'Lo.']] as [number, number, string, string][] };
+  const sonnets = {
+    id: 'sonnets',
+    title: 'The Sonnets',
+    genre: 'sonnet' as const,
+    lines: [
+      [1, 1, '', 'Ay, my lord.'],
+      [1, 1, '', 'Nay, my lord.'],
+      [2, 1, '', 'Normal.'],
+    ] as [number, number, string, string][],
+  };
+  const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
+  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
+    for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
+  };
+
+  it('opens only after every play genre, at the last monkey threshold', () => {
+    try {
+      setPlays([comedy, tragedy, sonnets]);
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      while (s.monkeys.length < departmentRules.monkeysToOpen[1]) s.monkeys.push(createMonkey());
+      expect(departmentChoices(s)).toEqual(['tragedy']);
+      expect(openDepartment(s, 'sonnet')).toBe(false);
+      expect(openDepartment(s, 'tragedy')).toBe(true);
+      expect(departmentChoices(s)).toEqual(['sonnet']);
+      expect(openDepartment(s, 'sonnet')).toBe(false); // not enough monkeys yet
+      while (s.monkeys.length < departmentRules.monkeysToOpen[2]) s.monkeys.push(createMonkey());
+      expect(openDepartment(s, 'sonnet')).toBe(true);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('pays Lines for verse lines and finished sonnets, with no Sentences or scene bonuses', () => {
+    try {
+      setWordList([]);
+      setPlays([sonnets]);
+      const s = createInitialState(0);
+      s.departments = ['sonnet'];
+      s.owned = ['sonnets'];
+      s.letters = [...letters];
+      typeAll(s, 'AYMYLORDX');
+      expect(s.lines).toBe(sonnetRewards.linesPerLine);
+      expect(s.sentences).toBe(0);
+      expect(s.lastLine?.points).toBe((10 + 14 + 20) * 3); // word points x words, not squared
+      typeAll(s, 'NAYMYLORDX'); // finishes sonnet 1 (2 lines)
+      expect(s.lines).toBe(2 * sonnetRewards.linesPerLine + 2 * sonnetRewards.linesPerSonnetLine);
+      expect(s.lastMilestone?.kind).toBe('sonnet');
+      expect(s.pointsBonus).toBe(0);
+      expect(s.speedBonus).toBe(0);
+      expect(s.monkeys).toHaveLength(1);
     } finally {
       setPlays([]);
     }
