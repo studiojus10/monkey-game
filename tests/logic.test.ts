@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, monkeyShop, typing } from '../src/game/config';
+import { combo, letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, monkeyShop, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
@@ -124,7 +124,7 @@ describe('buying letters', () => {
   });
 
   it('longer words become possible and score more', () => {
-    setWordList(['IT', 'TI']);
+    setWordList(['IT', 'TI']); // two-letter words: no combo
     try {
       const s = createInitialState(0);
       chooseFirstLetter(s, 'i');
@@ -134,8 +134,8 @@ describe('buying letters', () => {
       const seq = [0, 0.9, 0.9, 0];
       const next = () => seq[n++];
       for (let i = 0; i < 4; i++) typeLetter(s, 0, next);
-      // I T -> IT (4); T I -> TI (4), two different words back to back: (4 + 4) x 2
-      expect(s.currency).toBe(16);
+      // I T -> IT (4); T I -> TI (4)
+      expect(s.currency).toBe(8);
       expect(s.monkeys[0].line.map((x) => x.text)).toEqual(['IT', 'TI']);
     } finally {
       setWordList([]);
@@ -181,31 +181,35 @@ describe('monkeys', () => {
 });
 
 describe('combos', () => {
-  const letters = ['C', 'A', 'T', 'Z', 'P', 'X'];
+  const letters = ['C', 'A', 'T', 'Q', 'U', 'I', 'Z', 'N', 'Y', 'E', 'X'];
   const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
     for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
   };
 
-  it('multiplies a chain by its number of different words', () => {
-    setWordList(['CAT', 'ZAP']);
+  it('multiplies a chain by its number of different long words, up to the cap', () => {
+    setWordList(['CAT', 'QUIZ', 'ZANY', 'QUAY', 'ZETA']);
     try {
       const s = createInitialState(0);
       s.letters = [...letters];
       const m = s.monkeys[0];
       typeAll(s, 'CAT');
-      expect(s.currency).toBe(15);
-      typeAll(s, 'ZAP');
-      expect(s.lastWordPoints).toBe(99); // (15 + 42) x 2 = 114
+      expect(s.lastWordPoints).toBe(15);
+      expect(comboMultiplier(m)).toBe(1); // too short to count
+      typeAll(s, 'QUIZ');
+      expect(s.lastWordPoints).toBe(88); // first long word: x1
+      typeAll(s, 'ZANY');
       expect(comboMultiplier(m)).toBe(2);
+      expect(s.lastWordPoints).toBe((15 + 88 + 64) * 2 - (15 + 88)); // 231
       typeAll(s, 'CAT');
-      expect(s.lastWordPoints).toBe(30); // repeat: (15 + 42 + 15) x 2 = 144
-      expect(comboMultiplier(m)).toBe(2);
-      expect(s.currency).toBe(144);
+      expect(s.lastWordPoints).toBe(30); // short word paid at x2
+      typeAll(s, 'QUIZ');
+      expect(comboMultiplier(m)).toBe(2); // repeat doesn't count
+      typeAll(s, 'QUAY');
+      typeAll(s, 'ZETA');
+      expect(comboMultiplier(m)).toBe(combo.maxMultiplier);
       typeAll(s, 'X');
       expect(comboMultiplier(m)).toBe(1);
       expect(m.chainPoints).toBe(0);
-      typeAll(s, 'ZAP');
-      expect(s.lastWordPoints).toBe(42);
     } finally {
       setWordList([]);
     }

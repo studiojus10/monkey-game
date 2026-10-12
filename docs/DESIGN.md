@@ -69,7 +69,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 
 ## Monkeys
 
-- You start with **one monkey**. More monkeys are a **late-game** upgrade: they unlock once you own about half the alphabet (13 letters), and are priced for that stage (starting guess: 5M points, ×1.4 each). The screen shows the first 10 monkey lines and sums up the rest.
+- You start with **one monkey**. More monkeys are a **late-game** upgrade bought with [Sentences](#currencies). (Until Sentences exist, the game unlocks them at 13 letters for 5M points as a stand-in.) The screen shows the first 10 monkey lines and sums up the rest.
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
 
@@ -89,13 +89,19 @@ Each monkey's line on screen is **30 letters** wide **(default)**. When it's ful
 
 ## Combos
 
-Words typed back to back on the same monkey's line form a chain. The chain's multiplier is the number of **different** words in it: two different words in a row is double, three is triple, and so on. The whole chain is worth the sum of its words' points × the multiplier.
+Words typed back to back on the same monkey's line form a chain. The whole chain is worth the sum of its words' points × its multiplier.
 
-- **A repeated word doesn't raise the multiplier.** It still joins the chain and is paid at the current multiplier, but only a word that isn't already in the chain counts toward it. With only "I", the multiplier stays at ×1; with A and I it tops out at ×2; with I and T (words `I` and `IT`) it also tops out at ×2. The multiplier only gets big once you own enough letters for real variety.
+- **Only long, different words raise the multiplier.** Each word of **4+ letters** that isn't already in the chain adds one to the multiplier. Shorter words and repeats still join the chain and are paid at the current multiplier, but don't raise it. This keeps the early game slow, when short words are all you can make.
+- **The multiplier is capped**, starting at **×3**. Raising the cap is an upgrade bought with [Sentences](#currencies).
 - A **skipped letter** breaks the chain.
-- Points are paid as the chain grows: when a word lands, you receive whatever brings the chain's total up to (sum of its words) × (different words so far).
+- Points are paid as the chain grows: when a word lands, you receive whatever brings the chain's total up to (sum of its words) × multiplier.
 
-Example: `CAT` (15) then `ZAP` (42) back to back pays 15, then 99 more, for a chain total of (15 + 42) × 2 = 114. If another `CAT` follows, the multiplier stays ×2 and the chain becomes (15 + 42 + 15) × 2 = 144, paying 30 more.
+Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is the first long word, still ×1. `ZANY` (64) makes it ×2, so the chain total becomes (15 + 88 + 64) × 2 = 334 and ZANY pays 231. Another `CAT` pays 30 (15 at ×2). A repeated `QUIZ` doesn't raise the multiplier.
+
+## Currencies
+
+- **Points** come from every word. They buy letters, typing speed and typewriter keys.
+- **Sentences** come only from completing a line of the play (one per line). They buy the big, game-shaping upgrades: raising the combo cap, word slots and new monkeys. Since lines are rare, these can't be bought by grinding points.
 
 ## The play
 
@@ -160,8 +166,8 @@ Each step is a small pull request that you can play with `npm start` before the 
 1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one slow monkey types it on screen, each word scores 1, and "Faster typing" is for sale. Builds the word matcher with tests.
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
 3. **More monkeys.** A monkey shop that unlocks at 13 letters, one line per monkey on screen, offline progress by simulation.
-4. **Combos.** Chains and the different-words multiplier, combo shown per monkey. (Built.)
-5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, big line rewards.
+4. **Combos.** Chains and the multiplier (4+ letter words, capped at ×3), combo shown per monkey. (Built.)
+5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences currency, and Sentences buying combo-cap raises and monkeys.
 6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking later.
 7. **Word slots.** Buy slots, set and change their words, aimed at specific lines. Scene and act milestones.
 8. **Finishing the play.** The big reward, once it's decided.
@@ -171,5 +177,5 @@ Each step is a small pull request that you can play with `npm start` before the 
 
 - **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
 - **Play completion reward.** Not decided yet; it should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
-- **Monkey unlock.** For now more monkeys unlock at 13 letters. Justin wants this revisited later and made more interesting than a letter count.
+- **Monkey price in Sentences.** Monkeys move to Sentences in step 5 (replacing the 13-letter unlock); how many Sentences each costs is for the balance pass.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.

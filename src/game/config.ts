@@ -48,6 +48,16 @@ export const monkeyShop = {
   costGrowth: 1.4,
 };
 
+/**
+ * Combos: only words at least minWordLength long raise the multiplier, and it
+ * stops at maxMultiplier. (Raising the cap will be an upgrade bought with
+ * Sentences.)
+ */
+export const combo = {
+  minWordLength: 4,
+  maxMultiplier: 3,
+};
+
 export const typing = {
   baseLettersPerSecond: 0.5,
   speedPerLevel: 1.25,

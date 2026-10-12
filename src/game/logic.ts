@@ -1,4 +1,5 @@
 import {
+  combo,
   extraWords,
   letterShop,
   lineWidth,
@@ -110,21 +111,21 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   }
 }
 
-/** The combo multiplier: how many different words are in the chain. */
+/** The combo multiplier: how many different long words are in the chain, up to the cap. */
 export function comboMultiplier(m: MonkeyState): number {
-  return Math.max(1, m.chainWords.length);
+  return Math.min(combo.maxMultiplier, Math.max(1, m.chainWords.length));
 }
 
 /**
  * Adds a word to the monkey's chain and returns what it pays: whatever
- * brings the chain's total up to (sum of its word points) x (different words).
- * A repeated word joins the chain but doesn't raise the multiplier.
+ * brings the chain's total up to (sum of its word points) x multiplier.
+ * Short or repeated words join the chain but don't raise the multiplier.
  */
 function scoreInChain(m: MonkeyState, word: string): number {
-  const before = m.chainPoints * m.chainWords.length;
-  if (!m.chainWords.includes(word)) m.chainWords.push(word);
+  const before = m.chainPoints * comboMultiplier(m);
+  if (word.length >= combo.minWordLength && !m.chainWords.includes(word)) m.chainWords.push(word);
   m.chainPoints += wordPoints(word);
-  return m.chainPoints * m.chainWords.length - before;
+  return m.chainPoints * comboMultiplier(m) - before;
 }
 
 /** The player pokes the first monkey into typing one extra letter. */
