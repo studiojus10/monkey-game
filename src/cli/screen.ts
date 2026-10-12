@@ -189,7 +189,7 @@ export function renderScreen(state: GameState, message = '', shopOpen = false): 
     ...pinnedText(state),
     '',
     ...(shopOpen ? shopLines(state) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );
@@ -204,7 +204,7 @@ function shopLines(state: GameState): string[] {
   const nextLetter = letterCost(state.letters.length);
   const nextMonkey = nextMonkeyCost(state);
   const nextCap = capRaiseCost(state.comboCapLevel);
-  const mark = (have: number, price: number) => (have >= price ? '*' : ' ');
+  const mark = (have: number, price: number) => (have >= price ? '★' : ' ');
   return [
     'Shop',
     `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
@@ -275,7 +275,7 @@ export function renderSlotsMenu(
     ...(managed ? ["This department's manager sets these slots for you."] : []),
     ...(rows.length > 0 ? rows : ['  No slots yet.']),
     '',
-    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
+    ...(canBuy ? [`[b] ${state.lines >= next ? '★' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
     typing !== null
       ? 'Type the word, [enter] to set it, [esc] to cancel'
       : `[1-9] select   [w] set word   [o] on/off   [left/right] move position${many ? '   [tab] next department' : ''}   [esc] back`,
@@ -291,7 +291,7 @@ export function keyChoices(state: GameState): string[] {
 
 /** The typewriter keys menu: heavier letters, then combination and word keys. */
 export function renderKeysMenu(state: GameState, message = ''): string {
-  const mark = (price: number) => (state.currency >= price ? '*' : ' ');
+  const mark = (price: number) => (state.currency >= price ? '★' : ' ');
   const owned = state.keys.length > 0 ? state.keys.join(' ') : 'none yet';
   return [
     '=== Typewriter keys ===',
@@ -312,7 +312,7 @@ export function renderKeysMenu(state: GameState, message = ''): string {
     ...(keyChoices(state).length === 0 ? ['  None available. Buy letters to unlock more.'] : []),
     `  Owned: ${owned}`,
     '',
-    '[esc] back   (* = affordable)',
+    '[esc] back   (★ = affordable)',
     '',
     message,
   ].join('\n');
@@ -444,7 +444,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   }
   const sc = sceneOf(play, at)!;
   const section = (label: string, n: number) =>
-    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${price(n, state.currency)} ${theme.currency}`;
+    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '★' : ''}${price(n, state.currency)} ${theme.currency}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
     `=== ${play.title} (${genreNames[play.genre]}${locked ? ', locked' : ''}) ===   ` +
@@ -458,10 +458,10 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
       ? `Open a ${genreNames[play.genre]} department to buy these.`
       : play.genre === 'sonnet'
         ? `Buy  [b] ${section('this sonnet', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[w] ${section('all the sonnets', sectionPrice(state, play))}   (* = affordable)`
+          `[w] ${section('all the sonnets', sectionPrice(state, play))}   (★ = affordable)`
         : `Buy  [b] ${section('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
           `[a] ${section(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
-          `[w] ${section('whole play', sectionPrice(state, play))}   (* = affordable)`,
+          `[w] ${section('whole play', sectionPrice(state, play))}   (★ = affordable)`,
     '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] next play   [enter] pin/unpin',
     '[f] next shortest line within reach   [esc] back to the typewriters',
     '',

@@ -17,7 +17,7 @@ npm start
 | `a` or `i` | Pick your first letter (start of the game only) |
 | `enter` | Pet the monkey into typing an extra letter |
 | `space` | Open or close the shop (closed at the start); `1`–`6`, `a`, `u` and `g` work while it is open |
-| `1` | Buy "Faster typing" (`*` marks what you can afford) |
+| `1` | Buy "Faster typing" (★ marks what you can afford) |
 | `2` | Buy a letter, then press the letter you want |
 | `3` | Buy another monkey (costs Lines): pick its department if more than one has room, then type its name (`enter` keeps M-2, M-3, ...) |
 | `a` | Assign a monkey earned from an act to a department |
