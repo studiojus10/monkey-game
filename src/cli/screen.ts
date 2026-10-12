@@ -1,4 +1,4 @@
-import { letterValues, maxPinnedLines, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { letterValues, maxPinnedLines, milestones, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   activePlay,
   availableKeys,
@@ -10,11 +10,15 @@ import {
   keyCost,
   keysUnlocked,
   letterCost,
-  lettersPerSecond,
+  monkeySpeed,
+  nextMonkeyCost,
+  nextPlayChoices,
+  pointsMultiplier,
+  sceneProgress,
+  speedMultiplier,
   missingLetters,
   slotCost,
   slotsUnlocked,
-  monkeyCost,
   monkeyName,
   typingUpgradeCost,
 } from '../game/logic';
@@ -98,11 +102,11 @@ export function renderScreen(state: GameState, message = ''): string {
 
   const play = activePlay(state);
   const done = state.completed[state.play]?.length ?? 0;
-  const speed = lettersPerSecond(state.typingLevel);
-  const nextSpeed = lettersPerSecond(state.typingLevel + 1);
+  const speed = monkeySpeed(state);
+  const nextSpeed = monkeySpeed(state, state.typingLevel + 1);
   const cost = typingUpgradeCost(state.typingLevel);
   const nextLetter = letterCost(state.letters.length);
-  const nextMonkey = monkeyCost(state.monkeys.length);
+  const nextMonkey = nextMonkeyCost(state);
   const nextCap = capRaiseCost(state.comboCapLevel);
   const mark = (have: number, price: number) => (have >= price ? '*' : ' ');
   const shown = state.monkeys.slice(0, maxMonkeyLines);
@@ -120,10 +124,12 @@ export function renderScreen(state: GameState, message = ''): string {
       `${formatNumber(state.lines)} Lines`,
     `Letters: ${state.letters.join(' ')}`,
     play ? `${play.title}: ${count(done)} / ${count(play.lines.length)} lines written` : '',
+    ...milestoneSummary(state),
     '',
     `Words typed: ${formatNumber(state.wordsTyped)}` +
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
     ...lastLineText(state),
+    ...lastMilestoneText(state),
     ...pinnedText(state),
     '',
     'Shop',
@@ -142,6 +148,7 @@ export function renderScreen(state: GameState, message = ''): string {
     slotsUnlocked(state)
       ? `  [6]  Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)`
       : `  [6]  Word slots: unlock when you own ${wordSlots.unlockLetters} letters`,
+    ...(nextPlayChoices(state).length > 0 ? [`  [c]  Choose your next play`] : []),
     '',
     `[space] ${theme.pokeAction}   [1-6] buy (* = affordable)   [p] script & pins   [n] name a monkey   [s] save   [r] reset   [q] quit`,
     '',
@@ -221,6 +228,38 @@ export function renderKeysMenu(state: GameState, message = ''): string {
   ].join('\n');
 }
 
+/** Permanent bonuses from finished scenes and acts, once there are any. */
+function milestoneSummary(state: GameState): string[] {
+  if (state.scenesDone.length === 0) return [];
+  const scenes = `${state.scenesDone.length} scene${state.scenesDone.length === 1 ? '' : 's'} finished ` +
+    `(x${pointsMultiplier(state).toFixed(1)} points)`;
+  const acts = state.actsDone.length === 0 ? '' :
+    `   ${state.actsDone.length} act${state.actsDone.length === 1 ? '' : 's'} finished (x${speedMultiplier(state).toFixed(2)} speed)`;
+  return [scenes + acts];
+}
+
+function lastMilestoneText(state: GameState): string[] {
+  const ms = state.lastMilestone;
+  const play = ms && availablePlays().find((p) => p.id === ms.play);
+  if (!ms || !play) return [];
+  if (ms.kind === 'scene') {
+    const where = ms.scene === 0 ? `Act ${ms.act} prologue` : `Act ${ms.act}, scene ${ms.scene}`;
+    return [`* ${where} of ${play.title} finished! Points +${Math.round(milestones.scenePointsBonus * 100)}% for good, ` +
+      `+${count(ms.sentences)} Sentences`];
+  }
+  if (ms.kind === 'act') {
+    return [`* Act ${ms.act} of ${play.title} finished! Typing x${milestones.actSpeedMultiplier} for good, ` +
+      `and a new monkey joined ([n] to name it)`];
+  }
+  return [`* ${play.title} is finished!` + (nextPlayChoices(state).length > 0 ? ' Press [c] to choose your next play.' : '')];
+}
+
+/** The next-play prompt: keys 1-9 map to these plays. */
+export function nextPlayPrompt(state: GameState): string {
+  const choices = nextPlayChoices(state).slice(0, 9).map((p, i) => `[${i + 1}] ${p.title} (${count(p.lines.length)} lines)`);
+  return `Choose your next play: ${choices.join('   ')}   (any other key cancels)`;
+}
+
 function lastLineText(state: GameState): string[] {
   const l = state.lastLine;
   const line = l && availablePlays().find((p) => p.id === l.play)?.lines[l.index];
@@ -256,7 +295,9 @@ export function renderScript(state: GameState, cursor: number, message = ''): st
     const line = play.lines[i];
     const prev = play.lines[i - 1];
     if (i === first || prev.act !== line.act || prev.scene !== line.scene) {
-      rows.push(`  -- ${line.scene === 0 ? `Act ${line.act}, prologue` : `Act ${line.act}, scene ${line.scene}`} --`);
+      const [written, total] = sceneProgress(state, play, line.act, line.scene);
+      const name = line.scene === 0 ? `Act ${line.act}, prologue` : `Act ${line.act}, scene ${line.scene}`;
+      rows.push(`  -- ${name} (${count(written)}/${count(total)} written${written === total ? ', finished' : ''}) --`);
     }
     const marks = (i === at ? '>' : ' ') + (done.includes(i) ? '+' : ' ') + (state.pinned.includes(i) ? '@' : ' ');
     const status = done.includes(i) ? '' : `   (${lineStatus(state, i, line.letters)})`;

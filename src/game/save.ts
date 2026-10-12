@@ -52,6 +52,11 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         ? { play: l.play, index: l.index, firstTime: !!l.firstTime, points: num(l.points, 0), sentence: !!l.sentence }
         : null;
     const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey) : [];
+    const ms = s.lastMilestone;
+    const lastMilestone =
+      ms && ['scene', 'act', 'play'].includes(ms.kind) && typeof ms.play === 'string'
+        ? { kind: ms.kind, play: ms.play, act: num(ms.act, 0), scene: num(ms.scene, 0), sentences: num(ms.sentences, 0) }
+        : null;
     return {
       currency: num(s.currency, fresh.currency),
       totalEarned: num(s.totalEarned, fresh.totalEarned),
@@ -59,6 +64,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       lines: num(s.lines, 0),
       play: str(s.play),
       completed,
+      scenesDone: strings(s.scenesDone),
+      actsDone: strings(s.actsDone),
+      playsDone: strings(s.playsDone),
+      lastMilestone,
       pinned: Array.isArray(s.pinned) ? s.pinned.filter((i) => Number.isInteger(i) && i >= 0) : [],
       lastLine,
       comboCapLevel: Math.max(0, Math.floor(num(s.comboCapLevel, 0))),

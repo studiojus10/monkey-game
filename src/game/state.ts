@@ -31,6 +31,15 @@ export interface LastLine {
   sentence: boolean; // whether it paid a Sentence
 }
 
+/** The most recent scene, act or play finished, for display. */
+export interface Milestone {
+  kind: 'scene' | 'act' | 'play';
+  play: string;
+  act: number;
+  scene: number;
+  sentences: number; // Sentences paid (scenes only)
+}
+
 export interface GameState {
   currency: number;
   totalEarned: number;
@@ -38,6 +47,10 @@ export interface GameState {
   lines: number; // currency: first completion of each play line
   play: string; // active play id; empty until the player picks a starter play
   completed: Record<string, number[]>; // play id -> completed line indices
+  scenesDone: string[]; // finished scenes as "play:act.scene"
+  actsDone: string[]; // finished acts as "play:act"
+  playsDone: string[]; // finished play ids
+  lastMilestone: Milestone | null;
   pinned: number[]; // line indices of the active play pinned to the home screen
   lastLine: LastLine | null;
   comboCapLevel: number; // combo cap raises bought
@@ -65,6 +78,10 @@ export function createInitialState(now = Date.now()): GameState {
     lines: 0,
     play: '',
     completed: {},
+    scenesDone: [],
+    actsDone: [],
+    playsDone: [],
+    lastMilestone: null,
     pinned: [],
     lastLine: null,
     comboCapLevel: 0,

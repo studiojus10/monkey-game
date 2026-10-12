@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combo, letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
+import { combo, letterShop, milestones, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
@@ -37,6 +37,11 @@ import {
   tick,
   typeLetter,
   typingUpgradeCost,
+  chooseNextPlay,
+  monkeySpeed,
+  nextMonkeyCost,
+  nextPlayChoices,
+  pointsMultiplier,
 } from '../src/game/logic';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -281,6 +286,10 @@ describe('the play', () => {
       [1, 1, 'HAMLET', 'No.'],
       [1, 2, 'POLONIUS', 'Ay, my lord.'],
       [2, 1, 'HAMLET', 'No!'],
+      // Unwritable lines keep every scene unfinished, so milestones stay out of these tests.
+      [1, 1, 'GHOST', 'Swear.'],
+      [1, 2, 'GHOST', 'Swear.'],
+      [2, 1, 'GHOST', 'Swear.'],
     ] as [number, number, string, string][],
   };
   const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
@@ -529,6 +538,64 @@ describe('word slots', () => {
       expect(s.monkeys[0].line.at(-1)).toEqual({ text: 'X', scored: false });
     } finally {
       setWordList([]);
+    }
+  });
+});
+
+describe('milestones and the next play', () => {
+  const one = {
+    id: 'one',
+    title: 'One',
+    lines: [
+      [1, 1, 'A', 'Ay, my lord.'],
+      [1, 2, 'B', 'No.'],
+      [1, 2, 'C', 'Lord.'],
+      [2, 1, 'D', 'Normal.'],
+    ] as [number, number, string, string][],
+  };
+  const two = { id: 'two', title: 'Two', lines: [[1, 1, 'E', 'Zounds.']] as [number, number, string, string][] };
+  const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
+  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
+    for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
+  };
+
+  it('finishing scenes, acts and the play pays bonuses and unlocks the next play', () => {
+    try {
+      setWordList([]);
+      setPlays([one, two]);
+      const s = createInitialState(0);
+      chooseStarterPlay(s, 'one');
+      s.letters = [...letters];
+      expect(chooseNextPlay(s, 'two')).toBe(false); // not until this play is finished
+
+      typeAll(s, 'AYMYLORD'); // all of scene 1.1
+      expect(s.scenesDone).toEqual(['one:1.1']);
+      expect(s.sentences).toBe(1 + 1); // the line's Sentence + the scene's (at least 1)
+      expect(s.lastMilestone?.kind).toBe('scene');
+      expect(pointsMultiplier(s)).toBeCloseTo(1 + milestones.scenePointsBonus);
+
+      const cost = nextMonkeyCost(s);
+      const speed = monkeySpeed(s);
+      typeAll(s, 'XNOXLORD'); // scene 1.2, which finishes act 1
+      expect(s.scenesDone).toEqual(['one:1.1', 'one:1.2']);
+      expect(s.actsDone).toEqual(['one:1']);
+      expect(s.lastMilestone?.kind).toBe('act');
+      expect(s.monkeys).toHaveLength(1 + milestones.actFreeMonkeys);
+      expect(nextMonkeyCost(s)).toBe(cost); // free monkeys don't raise the price
+      expect(monkeySpeed(s)).toBeCloseTo(speed * milestones.actSpeedMultiplier);
+      expect(nextPlayChoices(s)).toEqual([]);
+
+      typeAll(s, 'XNORMALX'); // the last line: act 2 and the play
+      expect(s.playsDone).toEqual(['one']);
+      expect(s.lastMilestone?.kind).toBe('play');
+      expect(nextPlayChoices(s).map((p) => p.id)).toEqual(['two']);
+      s.pinned = [0];
+      expect(chooseNextPlay(s, 'two')).toBe(true);
+      expect(s.play).toBe('two');
+      expect(s.pinned).toEqual([]);
+      expect(s.scenesDone).toHaveLength(3); // bonuses carry over
+    } finally {
+      setPlays([]);
     }
   });
 });

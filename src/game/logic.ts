@@ -7,6 +7,7 @@ import {
   maxOfflineLetters,
   maxMonkeyNameLength,
   maxPinnedLines,
+  milestones,
   maxOfflineSeconds,
   monkeyShop,
   startingLetters,
@@ -14,7 +15,7 @@ import {
   wordSlots,
   typing,
 } from './config';
-import { buildPlay, type Play, type PlayData } from './plays';
+import { buildPlay, type Play, type PlayData, type PlayLine } from './plays';
 import { createMonkey, type GameState, type MonkeyState, type Segment } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
@@ -58,6 +59,55 @@ export function chooseStarterPlay(state: GameState, id: string): boolean {
   state.play = id;
   state.completed[id] ??= [];
   return true;
+}
+
+/** Whether every line of a play has been written. */
+export function playFinished(state: GameState, id: string): boolean {
+  const play = plays.get(id);
+  return !!play && (state.completed[id]?.length ?? 0) >= play.lines.length;
+}
+
+/** Plays the player can move on to: none until the current play is finished. */
+export function nextPlayChoices(state: GameState): Play[] {
+  if (!playFinished(state, state.play)) return [];
+  return availablePlays().filter((p) => p.id !== state.play && !playFinished(state, p.id));
+}
+
+/** Switches to a new play once the current one is finished. Pins are cleared. */
+export function chooseNextPlay(state: GameState, id: string): boolean {
+  if (!nextPlayChoices(state).some((p) => p.id === id)) return false;
+  state.play = id;
+  state.completed[id] ??= [];
+  state.pinned = [];
+  return true;
+}
+
+/** Lines written and total in one scene (act.scene) of a play. */
+export function sceneProgress(state: GameState, play: Play, act: number, scene: number): [number, number] {
+  const done = new Set(state.completed[play.id] ?? []);
+  let written = 0;
+  let total = 0;
+  play.lines.forEach((l, i) => {
+    if (l.act !== act || l.scene !== scene) return;
+    total++;
+    if (done.has(i)) written++;
+  });
+  return [written, total];
+}
+
+/** Bonus on all points from finished scenes, e.g. 1.3 after three scenes. */
+export function pointsMultiplier(state: GameState): number {
+  return 1 + milestones.scenePointsBonus * state.scenesDone.length;
+}
+
+/** Typing speed bonus from finished acts. */
+export function speedMultiplier(state: GameState): number {
+  return Math.pow(milestones.actSpeedMultiplier, state.actsDone.length);
+}
+
+/** Letters per second for each monkey, with "Faster typing" and act bonuses. */
+export function monkeySpeed(state: GameState, level = state.typingLevel): number {
+  return lettersPerSecond(level) * speedMultiplier(state);
 }
 
 /** Pins or unpins a line of the active play. Returns false if the pin limit is reached. */
@@ -138,8 +188,13 @@ export function monkeyCost(owned: number): number {
   return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
 }
 
+/** Cost in Lines of the next monkey; free monkeys from acts don't raise it. */
+export function nextMonkeyCost(state: GameState): number {
+  return monkeyCost(Math.max(1, state.monkeys.length - milestones.actFreeMonkeys * state.actsDone.length));
+}
+
 export function buyMonkey(state: GameState): boolean {
-  const cost = monkeyCost(state.monkeys.length);
+  const cost = nextMonkeyCost(state);
   if (state.letters.length === 0 || state.lines < cost) return false;
   state.lines -= cost;
   state.monkeys.push(createMonkey());
@@ -335,7 +390,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   }
   for (const e of events) {
     if (e.kind === 'word') {
-      const paid = scoreInChain(state, m, e.text);
+      const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state);
       earn(state, paid);
       state.wordsTyped++;
       state.lastWord = e.text;
@@ -401,10 +456,38 @@ function typedLine(state: GameState, play: Play, indices: number[]): void {
   if (fresh !== undefined) {
     done.push(fresh);
     state.lines++;
-    points = line.points * line.words.length ** 2;
+    points = line.points * line.words.length ** 2 * pointsMultiplier(state);
     earn(state, points);
   }
   state.lastLine = { play: play.id, index: fresh ?? indices[0], firstTime: fresh !== undefined, points, sentence };
+  if (fresh !== undefined) checkMilestones(state, play, line);
+}
+
+/** After a new line, rewards its scene, act and play if they're now fully written. */
+function checkMilestones(state: GameState, play: Play, line: PlayLine): void {
+  const done = new Set(state.completed[play.id] ?? []);
+  const all = (match: (l: PlayLine) => boolean) => play.lines.every((l, i) => !match(l) || done.has(i));
+  const { act, scene } = line;
+  if (!all((l) => l.act === act && l.scene === scene)) return;
+  const sceneKey = `${play.id}:${act}.${scene}`;
+  if (!state.scenesDone.includes(sceneKey)) {
+    state.scenesDone.push(sceneKey);
+    const size = play.lines.filter((l) => l.act === act && l.scene === scene).length;
+    const sentences = Math.max(1, Math.round(size * milestones.sceneSentencesPerLine));
+    state.sentences += sentences;
+    state.lastMilestone = { kind: 'scene', play: play.id, act, scene, sentences };
+  }
+  if (!all((l) => l.act === act)) return;
+  const actKey = `${play.id}:${act}`;
+  if (!state.actsDone.includes(actKey)) {
+    state.actsDone.push(actKey);
+    for (let k = 0; k < milestones.actFreeMonkeys; k++) state.monkeys.push(createMonkey());
+    state.lastMilestone = { kind: 'act', play: play.id, act, scene: 0, sentences: 0 };
+  }
+  if (done.size >= play.lines.length && !state.playsDone.includes(play.id)) {
+    state.playsDone.push(play.id);
+    state.lastMilestone = { kind: 'play', play: play.id, act: 0, scene: 0, sentences: 0 };
+  }
 }
 
 /** The player pokes the first monkey into typing one extra letter. */
@@ -433,7 +516,7 @@ export function buyFasterTyping(state: GameState): boolean {
 export function tick(state: GameState, seconds: number, rng: Rng = Math.random): void {
   if (seconds <= 0 || state.letters.length === 0) return;
   state.monkeys.forEach((m, i) => {
-    m.progress += lettersPerSecond(state.typingLevel) * seconds;
+    m.progress += monkeySpeed(state) * seconds;
     while (m.progress >= 1) {
       m.progress -= 1;
       typeLetter(state, i, rng);
@@ -448,7 +531,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
  */
 export function applyOfflineProgress(state: GameState, now: number, rng: Rng = Math.random): number {
   const seconds = Math.min(Math.max(0, (now - state.lastSaved) / 1000), maxOfflineSeconds);
-  const letters = seconds * lettersPerSecond(state.typingLevel) * state.monkeys.length;
+  const letters = seconds * monkeySpeed(state) * state.monkeys.length;
   const simulated = Math.min(1, maxOfflineLetters / Math.max(letters, 1));
   const before = state.currency;
   const wordsBefore = state.wordsTyped;

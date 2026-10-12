@@ -150,8 +150,8 @@ describe('script browser and pins', () => {
     const s = started();
     let text = renderScript(s, 1);
     expect(text).toContain('0 of 2 lines written   line 2');
-    expect(text).toContain('-- Act 1, scene 1 --');
-    expect(text).toContain('-- Act 1, scene 2 --');
+    expect(text).toContain('-- Act 1, scene 1 (0/1 written) --');
+    expect(text).toContain('-- Act 1, scene 2 (0/1 written) --');
     expect(text).toContain('    HAMLET         I.   (within reach)');
     expect(text).toContain('>   POLONIUS       Ay, my lord.   (needs A D L M O R Y)');
     s.completed.test = [0];

@@ -13,6 +13,8 @@ import {
   buyHeavier,
   buyKey,
   buyMonkey,
+  chooseNextPlay,
+  nextPlayChoices,
   monkeyName,
   renameMonkey,
   buySlot,
@@ -39,6 +41,7 @@ import {
   keyChoices,
   letterPickPrompt,
   playChoices,
+  nextPlayPrompt,
   renderKeysMenu,
   renderScreen,
   renderScript,
@@ -70,6 +73,7 @@ let showingSlots = false;
 let selectedSlot = 0;
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
+let pickingNextPlay = false;
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
 
@@ -159,6 +163,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const i = Number(str) - 1;
     if (str && /^[1-9]$/.test(str) && i < state.monkeys.length) startNaming(i);
     else message = 'No monkey renamed.';
+    return draw();
+  }
+
+  if (pickingNextPlay) {
+    pickingNextPlay = false;
+    const play = nextPlayChoices(state)[Number(str) - 1];
+    message = play && chooseNextPlay(state, play.id) ? `Your monkeys turn to ${play.title}.` : 'No play chosen.';
     return draw();
   }
 
@@ -288,6 +299,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === '6') {
     if (slotsUnlocked(state)) showingSlots = true;
     else message = 'Word slots unlock later.';
+  } else if (str === 'c' && nextPlayChoices(state).length > 0) {
+    pickingNextPlay = true;
+    message = nextPlayPrompt(state);
   } else if (str === 'n') {
     if (state.monkeys.length === 1) startNaming(0);
     else {

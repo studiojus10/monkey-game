@@ -93,6 +93,20 @@ export const typing = {
   upgradeCostGrowth: 1.5,
 };
 
+/**
+ * Milestones for finishing every line of a scene or an act. Rewards are
+ * permanent and stack across plays: each scene adds scenePointsBonus to all
+ * points earned and pays Sentences (sceneSentencesPerLine per line in the
+ * scene, at least 1); each act multiplies typing speed by actSpeedMultiplier
+ * and adds actFreeMonkeys monkeys (which don't raise the monkey price).
+ */
+export const milestones = {
+  scenePointsBonus: 0.1,
+  sceneSentencesPerLine: 0.25,
+  actSpeedMultiplier: 1.5,
+  actFreeMonkeys: 1,
+};
+
 /** Letters per typewriter line on screen. */
 export const lineWidth = 30;
 

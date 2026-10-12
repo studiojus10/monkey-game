@@ -18,11 +18,11 @@ CI (`.github/workflows/ci.yml`) runs typecheck and tests on every PR. Run both b
 src/
   format.ts        number formatting (1.23K, 4.56M, ...), shared by any front end
   game/            pure game logic: no terminal, DOM, file system or timers
-    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, offline cap)
+    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, milestones, offline cap)
     state.ts       GameState and MonkeyState shapes, createInitialState()
     plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
-    logic.ts       setWordList, setPlays, chooseStarterPlay, chooseFirstLetter, buyLetter, buyMonkey, renameMonkey, buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
+    logic.ts       setWordList, setPlays, chooseStarterPlay, chooseFirstLetter, buyLetter, buyMonkey, renameMonkey, milestones (scene/act/play), chooseNextPlay, buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping, tick, offline progress (random source injectable as rng)
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave

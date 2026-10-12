@@ -138,9 +138,15 @@ Slots unlock later, alongside typewriter keys (starting guess: 13 letters owned)
 | Milestone | Reward |
 | --- | --- |
 | Line complete | A one-off points bonus that grows steeply with the line's size: (the line's word points) × (number of words)² **(default)**. A one- or two-word line pays a few times a normal word; a ten-word line pays a fortune |
-| Scene complete | A small permanent multiplier |
-| Act complete | A larger permanent multiplier |
-| Play complete | Massive and game-changing; see [Open questions](#open-questions) |
+| Scene complete | +10% to all points, for good and stacking (3 scenes = ×1.3), plus Sentences: a quarter of the scene's line count, at least 1 **(default)** |
+| Act complete | Typing speed ×1.5 for good, stacking, plus a free monkey that doesn't raise the monkey price **(default)**. This may become the main way monkeys arrive |
+| Play complete | Unlocks the next play. The big reward is still open; see [Open questions](#open-questions) |
+
+Scenes are big (Hamlet's median scene is about 200 lines; Macbeth's smallest is 11), so these are long-term goals. The script browser shows each scene's progress in its heading. Milestone bonuses carry over to later plays.
+
+### One play at a time
+
+You play one play at a time **(decided)**. You choose a starter play, and you can't start another until every line of the current one is written. Then `c` lets you pick any play you haven't finished; pins are cleared, and Lines, Sentences, letters, keys, slots and milestone bonuses all carry over. For now the next play is free; a price (in Lines, steep) may come back once more than three plays exist.
 
 ## Screen layout (terminal)
 
@@ -171,8 +177,8 @@ Each step is a small pull request that you can play with `npm start` before the 
 4. **Combos.** Chains and the multiplier (4+ letter words, capped at ×3), combo shown per monkey. (Built.)
 5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys. (Built.)
 6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking at 13 letters. (Built.)
-7. **Word slots.** Buy slots, set and change their words, switch them on and off, aimed at pinned lines. (Built, along with the script browser and pins.) Scene and act milestones still to do.
-8. **Finishing the play.** The big reward, once it's decided.
+7. **Word slots.** Buy slots, set and change their words, switch them on and off, aimed at pinned lines. (Built, along with the script browser and pins.)
+8. **Milestones and the next play.** Scene and act rewards, one play at a time, choosing the next play once the current one is finished. (Built; the big play-completion reward is still open.)
 9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.
 
 ## Open questions
@@ -180,5 +186,5 @@ Each step is a small pull request that you can play with `npm start` before the 
 - **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
 - **Play completion reward.** Not decided yet; it should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
 - **Monkey price in Lines.** Starting guess: 10 Lines, ×2 each. For the balance pass.
-- **Buying more plays.** Price, currency and whether progress carries between plays.
+- **Buying more plays.** Decided for now: one play at a time, the next one free once the current play is finished. A Lines price may return when more plays are added.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.
