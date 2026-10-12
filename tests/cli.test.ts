@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
-import { letterPickPrompt, maxMonkeyLines, renderLine, renderScreen, renderScript } from '../src/cli/screen';
+import {
+  keyChoices,
+  letterPickPrompt,
+  maxMonkeyLines,
+  renderKeysMenu,
+  renderLine,
+  renderScreen,
+  renderScript,
+} from '../src/cli/screen';
 import { chooseFirstLetter, chooseStarterPlay, setPlays } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
@@ -136,5 +144,26 @@ describe('script view', () => {
     expect(text).toContain('1 of 2 lines written');
     expect(text.indexOf('I.')).toBeLessThan(text.indexOf('Shortest'));
     expect(text).toContain('POLONIUS       Ay, my lord.');
+  });
+});
+
+describe('typewriter keys menu', () => {
+  it('is locked in the shop until you own enough letters', () => {
+    expect(renderScreen(started())).toContain('[5]  Typewriter keys: unlock when you own 13 letters');
+  });
+
+  it('lists heavier letters and the keys you can buy', () => {
+    const s = started();
+    s.letters = 'ABDEGHILNORST'.split('');
+    s.heavy.E = 2;
+    s.keys.push('TH');
+    expect(renderScreen(s)).toContain('[5]  Typewriter keys...');
+    const text = renderKeysMenu(s);
+    expect(text).toContain('E+2 ');
+    expect(text).toContain('Owned: TH');
+    expect(keyChoices(s)).not.toContain('TH');
+    expect(keyChoices(s)).toContain('HE');
+    expect(text).toMatch(/\[1\]  HE \(combination\)   cost [\d.]+[KMBT]? Points/);
+    expect(text).toMatch(/\[2\]  THE \(word\)/);
   });
 });

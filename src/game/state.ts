@@ -31,6 +31,8 @@ export interface GameState {
   completed: Record<string, number[]>; // play id -> completed line indices
   lastLine: LastLine | null;
   comboCapLevel: number; // combo cap raises bought
+  heavy: Record<string, number>; // letter -> heavier-key level
+  keys: string[]; // combination and word keys bought
   letters: string[]; // owned letters; empty until the player picks one
   monkeys: MonkeyState[];
   typingLevel: number; // "Faster typing" upgrades bought
@@ -54,6 +56,8 @@ export function createInitialState(now = Date.now()): GameState {
     completed: {},
     lastLine: null,
     comboCapLevel: 0,
+    heavy: {},
+    keys: [],
     letters: [],
     monkeys: [createMonkey()],
     typingLevel: 0,

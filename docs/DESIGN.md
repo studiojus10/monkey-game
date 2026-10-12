@@ -81,7 +81,7 @@ Beyond buying new letters, points can reshape what the monkeys type:
 - **Combination keys.** Buy a key that types a common cluster in one stroke, like `TH`, `ING` or `QU`. Each key is one more option the monkey can hit, with its own odds.
 - **Word keys.** Buy a key that types a whole common word, like `THE`, `AND` or `YOU`. A word key goes through the same word reading as anything else, so `THE` followed by `N` still becomes `THEN`.
 
-Keys only use letters you own, and each one is priced by how useful it is. They unlock later (starting guess: 13 letters owned), because progression should be slow: the player builds a bank of letters before worrying about odds. Keys are the mid-game lever; [word slots](#word-slots-steering-the-sentence) are the late-game one.
+Keys only use letters you own and come from a curated list: a test with 14 common letters showed `TH, ING, ER, THE, AND` together roughly double points per keystroke, while a junk cluster like `QZ` lowers it by diluting the pool. Keys are placed at random, not "smartly": a version that only pressed `ING` where it fit scored lower, because misplaced clusters still form words when re-read and swapping them out loses letters. Prices scale with the price of your next letter (starting guess: heavier ¼× doubling per level, combination 1×, word 3×). They unlock later (starting guess: 13 letters owned), because progression should be slow: the player builds a bank of letters before worrying about odds. Keys are the mid-game lever; [word slots](#word-slots-steering-the-sentence) are the late-game one.
 
 ### The typewriter line and carriage return
 
@@ -171,7 +171,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 3. **More monkeys.** A monkey shop that unlocks at 13 letters, one line per monkey on screen, offline progress by simulation.
 4. **Combos.** Chains and the multiplier (4+ letter words, capped at ×3), combo shown per monkey. (Built.)
 5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys. (Built.)
-6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking later.
+6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking at 13 letters. (Built.)
 7. **Word slots.** Buy slots, set and change their words, aimed at specific lines. Scene and act milestones.
 8. **Finishing the play.** The big reward, once it's decided.
 9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.

@@ -69,6 +69,23 @@ export const lineRewards = {
   sentenceMinWords: 3,
 };
 
+/**
+ * Typewriter keys, a mid-game upgrade bought with points once you own
+ * unlockLetters letters. Every key is one more option a monkey can hit:
+ * - heavier keys add weight to a letter you own (weight 1 + level);
+ * - combination and word keys type their whole text in one keystroke.
+ * Prices scale with the price of your next letter. Only curated keys are
+ * offered: junk clusters would just dilute the pool.
+ */
+export const typewriterKeys = {
+  unlockLetters: 13,
+  heavierCostFactor: 0.25, // x next letter's price x 2^level
+  combinationCostFactor: 1, // x next letter's price
+  wordCostFactor: 3, // x next letter's price
+  combinations: ['TH', 'HE', 'IN', 'ER', 'AN', 'ST', 'ND', 'OU', 'QU', 'SH', 'CH', 'ING', 'ION', 'ENT'],
+  words: ['THE', 'AND', 'YOU', 'NOT', 'THAT', 'WITH', 'THOU', 'THEE', 'THY', 'LORD', 'WHAT', 'HATH', 'LOVE'],
+};
+
 export const typing = {
   baseLettersPerSecond: 0.5,
   speedPerLevel: 1.25,

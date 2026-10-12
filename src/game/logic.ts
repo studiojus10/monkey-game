@@ -8,6 +8,7 @@ import {
   maxOfflineSeconds,
   monkeyShop,
   startingLetters,
+  typewriterKeys,
   typing,
 } from './config';
 import { buildPlay, type Play, type PlayData } from './plays';
@@ -137,13 +138,80 @@ function addToLine(m: MonkeyState, segment: Segment): void {
   m.line.push(segment);
 }
 
-/** One monkey types one random letter from the player's letters. */
+export function keysUnlocked(state: GameState): boolean {
+  return state.letters.length >= typewriterKeys.unlockLetters;
+}
+
+/** Points price of the next heavier-key level for a letter. */
+export function heavierCost(state: GameState, letter: string): number {
+  const level = state.heavy[letter] ?? 0;
+  return Math.ceil(letterCost(state.letters.length) * typewriterKeys.heavierCostFactor * 2 ** level);
+}
+
+/** Makes a letter you own come up more often. */
+export function buyHeavier(state: GameState, letter: string): boolean {
+  const l = letter.toUpperCase();
+  const cost = heavierCost(state, l);
+  if (!keysUnlocked(state) || !state.letters.includes(l) || state.currency < cost) return false;
+  state.currency -= cost;
+  state.heavy[l] = (state.heavy[l] ?? 0) + 1;
+  return true;
+}
+
+/** Points price of a combination or word key. */
+export function keyCost(state: GameState, key: string): number {
+  const factor = typewriterKeys.words.includes(key)
+    ? typewriterKeys.wordCostFactor
+    : typewriterKeys.combinationCostFactor;
+  return Math.ceil(letterCost(state.letters.length) * factor);
+}
+
+/** Combination and word keys you could buy now: not owned, and spelled with your letters. */
+export function availableKeys(state: GameState): string[] {
+  if (!keysUnlocked(state)) return [];
+  const usable = (list: string[]) =>
+    list.filter((k) => !state.keys.includes(k) && [...k].every((c) => state.letters.includes(c)));
+  // Alternate combinations and words so menus show both kinds.
+  const combos = usable(typewriterKeys.combinations);
+  const words = usable(typewriterKeys.words);
+  return Array.from({ length: Math.max(combos.length, words.length) }, (_, i) => [combos[i], words[i]])
+    .flat()
+    .filter((k): k is string => k !== undefined);
+}
+
+export function buyKey(state: GameState, key: string): boolean {
+  const cost = keyCost(state, key);
+  if (!availableKeys(state).includes(key) || state.currency < cost) return false;
+  state.currency -= cost;
+  state.keys.push(key);
+  return true;
+}
+
+/** Everything a monkey can hit, with weights: your letters (plus heavier levels) and your keys. */
+export function keyboard(state: GameState): { text: string; weight: number }[] {
+  return [
+    ...state.letters.map((l) => ({ text: l, weight: 1 + (state.heavy[l] ?? 0) })),
+    ...state.keys.map((k) => ({ text: k, weight: 1 })),
+  ];
+}
+
+function pressKey(state: GameState, rng: Rng): string {
+  const keys = keyboard(state);
+  let r = rng() * keys.reduce((n, k) => n + k.weight, 0);
+  for (const k of keys) {
+    r -= k.weight;
+    if (r < 0) return k.text;
+  }
+  return keys[keys.length - 1].text;
+}
+
+/** One monkey presses one random key: usually a letter, or a combination or word key. */
 export function typeLetter(state: GameState, index: number, rng: Rng = Math.random): void {
   const m = state.monkeys[index];
   if (!m || state.letters.length === 0) return;
-  const letter = state.letters[Math.floor(rng() * state.letters.length)];
+  const dict = dictionaryFor(state);
   const events: ReadEvent[] = [];
-  m.pending = readLetter(dictionaryFor(state), m.pending, letter, events);
+  for (const letter of pressKey(state, rng)) m.pending = readLetter(dict, m.pending, letter, events);
   for (const e of events) {
     if (e.kind === 'word') {
       const paid = scoreInChain(state, m, e.text);

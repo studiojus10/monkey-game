@@ -9,9 +9,12 @@ import {
   buyFasterTyping,
   buyLetter,
   buyCapRaise,
+  buyHeavier,
+  buyKey,
   buyMonkey,
   chooseStarterPlay,
   chooseFirstLetter,
+  keysUnlocked,
   letterCost,
   poke,
   setPlays,
@@ -22,7 +25,15 @@ import { load, save } from '../game/save';
 import { createInitialState } from '../game/state';
 import { formatNumber } from '../format';
 import { fileStorage } from './fileStorage';
-import { letterPickPrompt, playChoices, renderScreen, renderScript, unownedLetters } from './screen';
+import {
+  keyChoices,
+  letterPickPrompt,
+  playChoices,
+  renderKeysMenu,
+  renderScreen,
+  renderScript,
+  unownedLetters,
+} from './screen';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -40,6 +51,7 @@ let message =
 let confirmingReset = false;
 let pickingLetter = false;
 let showingScript = false;
+let showingKeys = false;
 
 /** Reads data/words.txt: one lowercase word per line. */
 function loadWordList(): string[] {
@@ -61,7 +73,11 @@ function loadPlays(): PlayData[] {
 
 function draw() {
   // Clear the screen and move the cursor home, then redraw.
-  const screen = showingScript ? renderScript(state) : renderScreen(state, message);
+  const screen = showingScript
+    ? renderScript(state)
+    : showingKeys
+      ? renderKeysMenu(state, message)
+      : renderScreen(state, message);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -101,6 +117,21 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingKeys) {
+    message = '';
+    if (key.name === 'escape' || key.name === 'q') {
+      showingKeys = false;
+    } else if (str && /^[1-9]$/.test(str)) {
+      const k = keyChoices(state)[Number(str) - 1];
+      if (k) message = buyKey(state, k) ? `You bought the ${k} key.` : `Not enough ${theme.currency}.`;
+    } else if (str && /^[a-z]$/i.test(str)) {
+      const l = str.toUpperCase();
+      if (!state.letters.includes(l)) message = `You don't own ${l} yet.`;
+      else message = buyHeavier(state, l) ? `${l} is heavier now.` : `Not enough ${theme.currency}.`;
+    }
+    return draw();
+  }
+
   message = '';
   if (key.name === 'q') {
     return quit();
@@ -124,6 +155,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (!buyMonkey(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
   } else if (str === '4') {
     if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
+  } else if (str === '5') {
+    if (keysUnlocked(state)) showingKeys = true;
+    else message = 'Typewriter keys unlock later.';
   } else if (key.name === 'p') {
     showingScript = true;
   } else if (key.name === 's') {

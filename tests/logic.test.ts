@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { combo, letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, monkeyShop, typing } from '../src/game/config';
+import { combo, letterShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, monkeyShop, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
   buyLetter,
   buyCapRaise,
+  availableKeys,
+  buyHeavier,
+  buyKey,
   buyMonkey,
+  heavierCost,
+  keyCost,
+  keyboard,
+  keysUnlocked,
   capRaiseCost,
   chooseStarterPlay,
   comboCap,
@@ -319,6 +326,67 @@ describe('the play', () => {
       expect(s.completed.test).toEqual([]);
     } finally {
       setPlays([]);
+    }
+  });
+});
+
+describe('typewriter keys', () => {
+  const thirteen = 'ABCDEFGHILNOTRSUWYQ'.split(''); // enough for keys like THE, ING, QU
+  const fresh = (letters: string[]) => {
+    const s = createInitialState(0);
+    s.letters = [...letters];
+    return s;
+  };
+
+  it('unlock once you own enough letters', () => {
+    const s = fresh(thirteen.slice(0, typewriterKeys.unlockLetters - 1));
+    s.currency = 1e15;
+    expect(keysUnlocked(s)).toBe(false);
+    expect(availableKeys(s)).toEqual([]);
+    expect(buyHeavier(s, 'A')).toBe(false);
+    s.letters.push(thirteen[typewriterKeys.unlockLetters - 1]);
+    expect(keysUnlocked(s)).toBe(true);
+  });
+
+  it('only offers keys spelled with your letters, once each', () => {
+    const s = fresh(thirteen);
+    s.currency = 1e15;
+    expect(availableKeys(s)).toContain('THE');
+    expect(availableKeys(s)).toContain('QU');
+    expect(availableKeys(s)).not.toContain('LOVE'); // no V
+    expect(buyKey(s, 'THE')).toBe(true);
+    expect(buyKey(s, 'THE')).toBe(false);
+    expect(buyKey(s, 'ZZZ')).toBe(false);
+    expect(s.keys).toEqual(['THE']);
+  });
+
+  it('word keys cost more than combination keys, and heavier levels double in price', () => {
+    const s = fresh(thirteen);
+    expect(keyCost(s, 'THE')).toBeGreaterThan(keyCost(s, 'TH'));
+    const first = heavierCost(s, 'E');
+    s.currency = first;
+    expect(buyHeavier(s, 'E')).toBe(true);
+    expect(s.heavy.E).toBe(1);
+    expect(heavierCost(s, 'E')).toBeCloseTo(first * 2, -1);
+    expect(buyHeavier(s, 'Z')).toBe(false); // not owned
+  });
+
+  it('heavier letters and keys change what monkeys press', () => {
+    const s = fresh(['A', 'B']);
+    s.heavy.A = 2; // A weight 3, B weight 1
+    expect(keyboard(s)).toEqual([
+      { text: 'A', weight: 3 },
+      { text: 'B', weight: 1 },
+    ]);
+    s.keys.push('AB');
+    // total weight 5: rng 0.7 -> 3.5 lands on B, 0.9 -> 4.5 on the AB key
+    setWordList(['AB']);
+    try {
+      typeLetter(s, 0, () => 0.9);
+      expect(s.lastWord).toBe('AB');
+      expect(s.monkeys[0].line.map((x) => x.text)).toEqual(['AB']);
+    } finally {
+      setWordList([]);
     }
   });
 });

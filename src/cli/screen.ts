@@ -1,10 +1,14 @@
-import { letterValues, startingLetters, theme } from '../game/config';
+import { letterValues, startingLetters, theme, typewriterKeys } from '../game/config';
 import {
   activePlay,
+  availableKeys,
   availablePlays,
   capRaiseCost,
   comboCap,
   comboMultiplier,
+  heavierCost,
+  keyCost,
+  keysUnlocked,
   letterCost,
   lettersPerSecond,
   monkeyCost,
@@ -124,12 +128,49 @@ export function renderScreen(state: GameState, message = ''): string {
       `cost ${formatNumber(nextMonkey)} Lines`,
     `  [4] ${mark(state.sentences, nextCap)}Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   ` +
       `cost ${formatNumber(nextCap)} Sentences`,
+    keysUnlocked(state)
+      ? `  [5]  Typewriter keys...`
+      : `  [5]  Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters`,
     '',
-    `[space] ${theme.pokeAction}   [1-4] buy (* = affordable)   [p] script   [s] save   [r] reset   [q] quit`,
+    `[space] ${theme.pokeAction}   [1-5] buy (* = affordable)   [p] script   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );
   return lines.join('\n');
+}
+
+/** Keys 1-9 in the typewriter keys menu buy these, in order. */
+export function keyChoices(state: GameState): string[] {
+  return availableKeys(state).slice(0, 9);
+}
+
+/** The typewriter keys menu: heavier letters, then combination and word keys. */
+export function renderKeysMenu(state: GameState, message = ''): string {
+  const mark = (price: number) => (state.currency >= price ? '*' : ' ');
+  const owned = state.keys.length > 0 ? state.keys.join(' ') : 'none yet';
+  return [
+    '=== Typewriter keys ===',
+    '',
+    `${formatNumber(state.currency)} ${theme.currency}`,
+    '',
+    'Heavier keys: press a letter you own to make it come up more often.',
+    '  ' +
+      state.letters
+        .map((l) => `${mark(heavierCost(state, l))}${l}${state.heavy[l] ? `+${state.heavy[l]}` : ''} ${formatNumber(heavierCost(state, l))}`)
+        .join('   '),
+    '',
+    'Combination and word keys: each types its whole text in one keystroke.',
+    ...keyChoices(state).map((k, i) => {
+      const kind = typewriterKeys.words.includes(k) ? 'word' : 'combination';
+      return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${formatNumber(keyCost(state, k))} ${theme.currency}`;
+    }),
+    ...(keyChoices(state).length === 0 ? ['  None available. Buy letters to unlock more.'] : []),
+    `  Owned: ${owned}`,
+    '',
+    '[esc] back   (* = affordable)',
+    '',
+    message,
+  ].join('\n');
 }
 
 function lastLineText(state: GameState): string[] {
