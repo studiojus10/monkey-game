@@ -98,7 +98,8 @@ export function genresWithPlays(): Genre[] {
 export function departmentPicks(state: GameState): number {
   const open = departmentGenres(state).length;
   const locked = genresWithPlays().filter((g) => !departmentGenres(state).includes(g)).length;
-  const earned = departmentRules.monkeysToOpen.filter((n, i) => i === 0 || state.monkeys.length >= n).length;
+  const total = state.monkeys.length + state.unassignedMonkeys;
+  const earned = departmentRules.monkeysToOpen.filter((n, i) => i === 0 || total >= n).length;
   return Math.max(0, Math.min(locked, earned - open));
 }
 
@@ -138,10 +139,15 @@ export function moveMonkey(state: GameState, index: number): boolean {
   // The next department round the list that has room.
   const at = open.indexOf(monkeyGenre(state, m)!);
   const next = [...open.slice(at + 1), ...open.slice(0, at)].find(
-    (g) => departmentMonkeys(state, g).length < departmentRules.maxMonkeys,
+    (g) => departmentTypists(state, g) < departmentRules.maxTypists,
   );
   if (!next) return false;
-  if (m.manager) toggleManager(state, index); // a manager moving departments goes back to typing
+  if (m.manager) {
+    // A manager moving departments goes back to typing there.
+    m.manager = false;
+    if (m.target) unpin(state, m.target);
+    m.target = null;
+  }
   m.department = next;
   return true;
 }
@@ -368,28 +374,51 @@ export function monkeyCost(owned: number): number {
 
 /** Cost in Lines of the next monkey; free monkeys from acts don't raise it. */
 export function nextMonkeyCost(state: GameState): number {
-  return monkeyCost(Math.max(1, state.monkeys.length - milestones.actFreeMonkeys * state.actsDone.length));
+  const total = state.monkeys.length + state.unassignedMonkeys;
+  return monkeyCost(Math.max(1, total - milestones.actFreeMonkeys * state.actsDone.length));
+}
+
+/** Typing monkeys (managers not counted) in a department. */
+export function departmentTypists(state: GameState, genre: Genre | undefined): number {
+  return departmentMonkeys(state, genre).filter((i) => !state.monkeys[i].manager).length;
+}
+
+/** Open departments with room for another typing monkey. */
+export function departmentsWithRoom(state: GameState): Genre[] {
+  return departmentGenres(state).filter((g) => departmentTypists(state, g) < departmentRules.maxTypists);
 }
 
 /**
- * The department a new monkey joins: `preferred` if it has room, else the
- * first open department with room. Undefined if every department is full.
+ * Where a new monkey goes: `genre` if it has room; with no genre given, the
+ * only department with room. Null if that's not possible (full, or a choice
+ * the player has to make). Before any department is open, '' (no department).
  */
-export function departmentWithRoom(state: GameState, preferred?: Genre): Genre | undefined | null {
-  const open = departmentGenres(state);
-  if (open.length === 0) return state.monkeys.length < departmentRules.maxMonkeys ? undefined : null;
-  const roomy = (g: Genre) => departmentMonkeys(state, g).length < departmentRules.maxMonkeys;
-  if (preferred && open.includes(preferred) && roomy(preferred)) return preferred;
-  return open.find(roomy) ?? null;
+function placeFor(state: GameState, genre?: Genre): string | null {
+  const rooms = departmentsWithRoom(state);
+  if (departmentGenres(state).length === 0) return departmentTypists(state, undefined) < departmentRules.maxTypists ? '' : null;
+  if (genre) return rooms.includes(genre) ? genre : null;
+  return rooms.length === 1 ? rooms[0] : null;
 }
 
-/** Buys a monkey with Lines. It joins the first department with room; none if all are full. */
-export function buyMonkey(state: GameState): boolean {
+/**
+ * Buys a monkey with Lines for a department. The department can be left out
+ * when only one has room; the player chooses otherwise.
+ */
+export function buyMonkey(state: GameState, genre?: Genre): boolean {
   const cost = nextMonkeyCost(state);
-  const dept = departmentWithRoom(state);
+  const dept = placeFor(state, genre);
   if (state.letters.length === 0 || state.lines < cost || dept === null) return false;
   state.lines -= cost;
-  state.monkeys.push({ ...createMonkey(), department: dept ?? '' });
+  state.monkeys.push({ ...createMonkey(), department: dept });
+  return true;
+}
+
+/** Puts an earned monkey that's waiting for a department to work. */
+export function assignMonkey(state: GameState, genre?: Genre): boolean {
+  const dept = placeFor(state, genre);
+  if (state.unassignedMonkeys === 0 || dept === null) return false;
+  state.unassignedMonkeys--;
+  state.monkeys.push({ ...createMonkey(), department: dept });
   return true;
 }
 
@@ -720,10 +749,10 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
     state.actsDone.push(actKey);
     const bonus = actBonus(play, act);
     state.speedBonus += bonus;
-    // Free monkeys join the play's department, or another with room; none if every department is full.
+    // Free monkeys start work at once if only one department has room; otherwise they wait for the player to pick.
     for (let k = 0; k < milestones.actFreeMonkeys; k++) {
-      const dept = departmentWithRoom(state, play.genre);
-      if (dept !== null) state.monkeys.push({ ...createMonkey(), department: dept ?? '' });
+      state.unassignedMonkeys++;
+      if (departmentsWithRoom(state).length <= 1) assignMonkey(state);
     }
     state.lastMilestone = { kind: 'act', play: play.id, act, scene: 0, sentences: 0, bonus };
   }
@@ -787,6 +816,8 @@ export function toggleManager(state: GameState, index: number): boolean {
   const m = state.monkeys[index];
   if (!m) return false;
   if (m.manager) {
+    // Back to typing only if the department has a free typing seat.
+    if (departmentTypists(state, monkeyGenre(state, m)) >= departmentRules.maxTypists) return false;
     m.manager = false;
     if (m.target) unpin(state, m.target);
     m.target = null;

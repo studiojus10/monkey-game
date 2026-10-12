@@ -128,14 +128,15 @@ export const scriptShop = {
  * Departments: one per genre (comedies, histories, tragedies, and last the
  * Sonnets). You open the first at the start; the n-th opens once you have
  * monkeysToOpen[n-1] monkeys, bought or earned. A department holds at most
- * maxMonkeys monkeys (its manager included), so the thresholds must stay
- * reachable: the n-th department needs at most (n-1) x maxMonkeys. Each monkey works in one department and only
+ * maxTypists typing monkeys plus one manager, so the thresholds must stay
+ * reachable: the n-th department needs at most (n-1) x maxTypists. You choose
+ * each new monkey's department (automatic when only one has room). Each monkey works in one department and only
  * writes lines of plays in that department's genre, and only plays of a
  * department's genre can be bought.
  */
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],
-  maxMonkeys: 10, // per department, its manager included
+  maxTypists: 10, // typing monkeys per department, plus one manager
 };
 
 /**

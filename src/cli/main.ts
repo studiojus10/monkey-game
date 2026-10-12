@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { departmentRules, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type PlayData } from '../game/plays';
@@ -17,6 +17,10 @@ import {
   departmentPicks,
   monkeyGenre,
   moveMonkey,
+  assignMonkey,
+  departmentsWithRoom,
+  departmentTypists,
+  nextMonkeyCost,
   departmentGenres,
   departmentSlots,
   slotGenre,
@@ -92,6 +96,7 @@ let pickingMonkeyToName = false;
 let pickingDepartment = false;
 let pickingMonkeyToMove = false;
 let pickingManager = false;
+let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
 let pickingManagerUpgrade = false;
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
@@ -134,6 +139,14 @@ function quit() {
   process.exit(0);
 }
 
+/** A prompt listing the departments with room, keys 1-4. */
+function deptPrompt(question: string): string {
+  const choices = departmentsWithRoom(state).map(
+    (g, i) => `[${i + 1}] ${genreNames[g]} (${departmentTypists(state, g)}/${departmentRules.maxTypists})`,
+  );
+  return `${question} ${choices.join('   ')}   (any other key cancels)`;
+}
+
 function namePrompt(): string {
   return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for M-${namingMonkey + 1})`;
 }
@@ -174,6 +187,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else if (str && /^[A-Za-z0-9 '-]$/.test(str) && nameDraft.length < maxMonkeyNameLength) nameDraft += str;
       message = namePrompt();
     }
+    return draw();
+  }
+
+  if (pickingDeptFor) {
+    const what = pickingDeptFor;
+    pickingDeptFor = '';
+    const g = departmentsWithRoom(state)[Number(str) - 1];
+    const ok = g && (what === 'buy' ? buyMonkey(state, g) : assignMonkey(state, g));
+    if (ok) startNaming(state.monkeys.length - 1);
+    else message = 'No monkey added.';
     return draw();
   }
 
@@ -376,8 +399,20 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       message = letterPickPrompt(state);
     }
   } else if (str === '3') {
-    if (buyMonkey(state)) startNaming(state.monkeys.length - 1);
-    else message = 'Not enough Lines. Lines come from writing lines of the play.';
+    const rooms = departmentsWithRoom(state);
+    if (state.lines < nextMonkeyCost(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
+    else if (departmentGenres(state).length > 0 && rooms.length === 0) message = 'Every department is full. Open another with [g].';
+    else if (rooms.length > 1) {
+      pickingDeptFor = 'buy';
+      message = deptPrompt('Which department gets the new monkey?');
+    } else if (buyMonkey(state)) startNaming(state.monkeys.length - 1);
+  } else if (str === 'a' && state.unassignedMonkeys > 0) {
+    if (departmentsWithRoom(state).length === 0) message = 'Every department is full. Open another with [g].';
+    else if (assignMonkey(state)) startNaming(state.monkeys.length - 1);
+    else {
+      pickingDeptFor = 'assign';
+      message = deptPrompt('Which department gets the new monkey?');
+    }
   } else if (str === '4') {
     if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
   } else if (str === '5') {

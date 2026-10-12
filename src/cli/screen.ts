@@ -211,6 +211,9 @@ export function renderScreen(state: GameState, message = ''): string {
       ? `  [6]  Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)`
       : `  [6]  Word slots: unlock when you own ${wordSlots.unlockLetters} letters`,
     `  [p]  Buy scenes, acts and plays in the script (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})`,
+    ...(state.unassignedMonkeys > 0
+      ? [`  [a]  Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'} to a department`]
+      : []),
     ...(managerChoices(state).length > 0
       ? [`  [u]  Upgrade a manager: +${managers.bonusPerLevel}x points for its whole department (costs Lines)`]
       : []),
@@ -371,7 +374,9 @@ function lastMilestoneText(state: GameState): string[] {
   if (ms.kind === 'act') {
     return [
       `* Act ${ms.act} of ${play.title} finished! Typing +${pct(ms.bonus)} for good, ` +
-        `and a new monkey joined ([n] to name it)`,
+        (state.unassignedMonkeys > 0
+          ? 'and a new monkey is waiting for a department ([a] to assign it)'
+          : 'and a new monkey joined ([n] to name it)'),
     ];
   }
   return [`* ${play.title} is finished! Every bonus in it is yours.`];

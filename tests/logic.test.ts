@@ -41,6 +41,9 @@ import {
   departmentChoices,
   manage,
   departmentMonkeys,
+  departmentsWithRoom,
+  departmentTypists,
+  assignMonkey,
   managerMultiplier,
   managerUpgradeCost,
   toggleManager,
@@ -902,21 +905,45 @@ describe('department limits and slots', () => {
   const comedy = { id: 'c', title: 'C', genre: 'comedy' as const, lines: [[1, 1, 'A', 'Ay, my lord.']] as [number, number, string, string][] };
   const tragedy = { id: 't', title: 'T', genre: 'tragedy' as const, lines: [[1, 1, 'A', 'No, my lord.']] as [number, number, string, string][] };
 
-  it('caps each department at maxMonkeys; new monkeys go where there is room', () => {
+  it('caps each department at 10 typists plus a manager; you choose where new monkeys go', () => {
     try {
       setPlays([comedy, tragedy]);
       const s = createInitialState(0);
       s.departments = ['comedy'];
       s.letters = ['A'];
       s.lines = 1e9;
-      while (s.monkeys.length < departmentRules.maxMonkeys) expect(buyMonkey(s)).toBe(true);
-      expect(buyMonkey(s)).toBe(false); // the only department is full
-      expect(openDepartment(s, 'tragedy')).toBe(true);
+      while (s.monkeys.length < departmentRules.maxTypists) expect(buyMonkey(s)).toBe(true); // one department: automatic
+      expect(buyMonkey(s)).toBe(false); // full of typists
+      expect(toggleManager(s, 0)).toBe(true); // a manager frees a typing seat
       expect(buyMonkey(s)).toBe(true);
+      expect(departmentMonkeys(s, 'comedy')).toHaveLength(departmentRules.maxTypists + 1);
+      expect(toggleManager(s, 0)).toBe(false); // no seat to go back to
+
+      expect(openDepartment(s, 'tragedy')).toBe(true);
+      expect(buyMonkey(s)).toBe(true); // only tragedies have room: automatic
       expect(monkeyGenre(s, s.monkeys[s.monkeys.length - 1])).toBe('tragedy');
-      expect(moveMonkey(s, 0)).toBe(true); // tragedies have room
-      expect(moveMonkey(s, 1)).toBe(true);
-      expect(departmentMonkeys(s, 'tragedy')).toHaveLength(3);
+      s.monkeys.splice(1, 1); // a seat opens in comedies too
+      expect(departmentsWithRoom(s)).toEqual(['comedy', 'tragedy']);
+      expect(buyMonkey(s)).toBe(false); // two choices: the player must pick
+      expect(buyMonkey(s, 'tragedy')).toBe(true);
+      expect(moveMonkey(s, 1)).toBe(true); // tragedies have room
+      expect(departmentTypists(s, 'tragedy')).toBe(3);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('holds an earned monkey until you pick its department, when there is a choice', () => {
+    try {
+      setPlays([comedy, tragedy]);
+      const s = createInitialState(0);
+      s.departments = ['comedy', 'tragedy'];
+      s.unassignedMonkeys = 1;
+      expect(assignMonkey(s)).toBe(false); // two departments with room
+      expect(assignMonkey(s, 'tragedy')).toBe(true);
+      expect(s.unassignedMonkeys).toBe(0);
+      expect(monkeyGenre(s, s.monkeys[1])).toBe('tragedy');
+      expect(assignMonkey(s, 'tragedy')).toBe(false); // none waiting
     } finally {
       setPlays([]);
     }

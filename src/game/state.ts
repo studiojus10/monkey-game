@@ -77,6 +77,7 @@ export interface GameState {
   slots: WordSlot[];
   letters: string[]; // owned letters; empty until the player picks one
   monkeys: MonkeyState[];
+  unassignedMonkeys: number; // earned monkeys waiting for the player to pick their department
   typingLevel: number; // "Faster typing" upgrades bought
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
@@ -111,6 +112,7 @@ export function createInitialState(now = Date.now()): GameState {
     slots: [],
     letters: [],
     monkeys: [createMonkey()],
+    unassignedMonkeys: 0,
     typingLevel: 0,
     wordsTyped: 0,
     lastWord: '',
