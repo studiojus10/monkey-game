@@ -10,13 +10,14 @@ This is the design every build step works toward. Items marked **(default)** are
 2. Whenever a real word shows up in a stream, you earn points for it.
 3. Points buy more letters (more possible words), more monkeys (more streams) and upgrades.
 4. Words typed back to back build a combo multiplier.
-5. You pick a Shakespeare play at the start. As monkeys type the words of the play, its lines get checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
+5. You pick a Shakespeare play at the start. When a monkey types one of its lines word for word, the line is checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
+6. Progression is deliberately slow. Later upgrades (typewriter keys, word slots) let you steer what gets typed so you can target specific lines.
 
 ## Letters
 
 - You start with **one letter**, and it has to be a word on its own, so the choice is **A** or **I**.
 - More letters are bought with points, one at a time, in any order you like. Price depends on how many letters you already own and grows steeply (starting guess: 10, then roughly ×3 per letter) **(default)**.
-- Each monkey picks each letter you own with **equal odds** **(default)**. Buying a rare letter like Z therefore adds high-value words but also dilutes the stream with a letter that rarely fits; that trade-off is intentional. Points can later change those odds (see [Typewriter keys](#typewriter-keys-shaping-the-odds)).
+- Each monkey picks each letter you own with **equal odds** **(default)**. Buying a rare letter like Z therefore adds high-value words but also dilutes the stream with a letter that rarely fits; that trade-off is intentional. Later in the game, points can change those odds (see [Typewriter keys](#typewriter-keys-shaping-the-odds)).
 
 ## Words
 
@@ -80,18 +81,18 @@ Beyond buying new letters, points can reshape what the monkeys type:
 - **Combination keys.** Buy a key that types a common cluster in one stroke, like `TH`, `ING` or `QU`. Each key is one more option the monkey can hit, with its own odds.
 - **Word keys.** Buy a key that types a whole common word, like `THE`, `AND` or `YOU`. A word key goes through the same word reading as anything else, so `THE` followed by `N` still becomes `THEN`.
 
-Keys only use letters you own, and each one is priced by how useful it is. They are the mid-game lever; the Muse below is the late-game one.
+Keys only use letters you own, and each one is priced by how useful it is. They unlock later (starting guess: 13 letters owned), because progression should be slow: the player builds a bank of letters before worrying about odds. Keys are the mid-game lever; [word slots](#word-slots-steering-the-sentence) are the late-game one.
 
 ### The typewriter line and carriage return
 
-Each monkey types on a line **30 letters** wide **(default)**. When the line is full, the carriage returns: the pending letters are settled (the longest word in them scores, the rest are skipped), the combo resets, and a fresh line starts. This keeps the screen readable and caps the combo. Line width can be an upgrade.
+Each monkey's line on screen is **30 letters** wide **(default)**. When it's full, the carriage returns and a fresh line starts. This is display only: words and chains carry on across the return, since play lines can be longer than 30 letters.
 
 ## Combos
 
 Words typed back to back on the same monkey's line form a chain. The chain's multiplier is the number of **different** words in it: two different words in a row is double, three is triple, and so on. The whole chain is worth the sum of its words' points × the multiplier.
 
 - **A repeated word doesn't raise the multiplier.** It still joins the chain and is paid at the current multiplier, but only a word that isn't already in the chain counts toward it. With only "I", the multiplier stays at ×1; with A and I it tops out at ×2; with I and T (words `I` and `IT`) it also tops out at ×2. The multiplier only gets big once you own enough letters for real variety.
-- A **skipped letter** or a **carriage return** breaks the chain.
+- A **skipped letter** breaks the chain.
 - Points are paid as the chain grows: when a word lands, you receive whatever brings the chain's total up to (sum of its words) × (different words so far).
 
 Example: `CAT` (15) then `ZAP` (42) back to back pays 15, then 99 more, for a chain total of (15 + 42) × 2 = 114. If another `CAT` follows, the multiplier stays ×2 and the chain becomes (15 + 42 + 15) × 2 = 144, paying 30 more.
@@ -102,22 +103,30 @@ At the start you choose a play. Plays differ in length, which is effectively the
 
 ### How lines get completed
 
-Typing a full line by pure chance isn't realistic: a specific 30-letter line turns up roughly once in 10^42 letters, far beyond what any number of monkeys could type. So lines are completed **one word at a time** **(default)**:
+A line counts only when a monkey actually types it: its words back to back, in order, inside one chain (no skipped letter in between).
 
-- A *line* is a line as printed in the script (one line of verse, or one line of prose).
-- Whenever any monkey scores a word, that word is checked off in **every** line of the script that contains it.
-- A line is **complete** once all its words are checked. Since a line can only finish when you own all of its letters, letter purchases naturally unlock parts of the play.
-- The script view shows the current scene with checked words highlighted and completed lines marked.
+- A *line* is a line as printed in the script (one line of verse, or one line of prose). Punctuation and spaces are ignored.
+- Matching uses the letters across the chain's words, not where the word breaks fell, so `TOBE` read as `TO` + `BE` or split some other way still counts as "to be".
+- A completed line is checked off in the script, and the script view shows the current scene with completed lines marked.
 
-### The Muse: typing toward the script
+By pure chance this is very rare: a specific 30-letter line turns up roughly once in 10^42 letters. That's intended. Early on, only very short lines are realistically possible ("No.", "Ay, my lord."), and only once you own their letters, so completing one is a rare, special event that pays big. Longer lines need word slots.
 
-Common words ("the", "is", "my") check off quickly, but long words like `unpregnant` would almost never appear at random. Muse upgrades make that reachable: while a monkey's pending letters match the start of an unchecked word in the script, it has a chance of typing that word's next letter instead of a random one (only if you own the letter). Upgrades raise the chance. This is the main late-game lever for play progress.
+### Word slots: steering the sentence
+
+Once you own enough letters to start building sentences, you can buy **word slots**. Each slot locks one position in a chain to a word you choose, and you can change the word any time for free.
+
+- Example: buy slot 3 and set it to `FRIEND`. Whenever a monkey's chain reaches two words, the next word it types is FRIEND.
+- A slot can only hold a word you can spell with your letters (or a word from your play).
+- A slot always fires **(default)**; the price does the balancing. Slots get more expensive the more you own, so steering a whole line takes real investment.
+- With slots the player targets specific lines: pick a line, set slots for its harder words, and let chance fill in the common ones.
+
+Slots unlock later, alongside typewriter keys (starting guess: 13 letters owned), so the early game is about building a bank of letters.
 
 ### Rewards
 
 | Milestone | Reward |
 | --- | --- |
-| Line complete | A one-off points bonus based on the line's words |
+| Line complete | A large one-off points bonus based on the line's words; early lines are rare and pay especially well |
 | Scene complete | A small permanent multiplier |
 | Act complete | A larger permanent multiplier |
 | Play complete | Massive and game-changing; see [Open questions](#open-questions) |
@@ -151,16 +160,16 @@ Each step is a small pull request that you can play with `npm start` before the 
 1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one slow monkey types it on screen, each word scores 1, and "Faster typing" is for sale. Builds the word matcher with tests.
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
 3. **More monkeys.** A monkey shop that unlocks at 13 letters, one line per monkey on screen, offline progress by simulation.
-4. **Typewriter keys.** Heavier letter keys, combination keys and word keys in the shop.
-5. **Combos.** Chains, the 30-letter line and carriage return, combo shown per monkey.
-6. **Pick a play.** Play choice at the start, the script view, words checked off across the script, line bonuses.
-7. **The Muse and milestones.** Muse upgrades, scene and act completion with their multipliers.
+4. **Combos.** Chains and the different-words multiplier, combo shown per monkey.
+5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, big line rewards.
+6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking later.
+7. **Word slots.** Buy slots, set and change their words, aimed at specific lines. Scene and act milestones.
 8. **Finishing the play.** The big reward, once it's decided.
-9. **Balance pass.** Tune costs and rates so each stage of the game feels paced.
+9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.
 
 ## Open questions
 
+- **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
 - **Play completion reward.** Not decided yet; it should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
-- **Line rules.** Should a later upgrade or prestige layer also reward lines typed *verbatim and in order* as a rare jackpot?
 - **Monkey unlock.** For now more monkeys unlock at 13 letters. Justin wants this revisited later and made more interesting than a letter count.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.
