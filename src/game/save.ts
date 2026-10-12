@@ -37,6 +37,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       chainWords: strings(m?.chainWords),
       chainPoints: num(m?.chainPoints, 0),
       chainRecent: strings(m?.chainRecent),
+      chainLength: Math.max(0, Math.floor(num(m?.chainLength, 0))),
     });
     const completed: Record<string, number[]> = {};
     if (s.completed && typeof s.completed === 'object') {
@@ -65,6 +66,11 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
           .filter(([l, n]) => /^[A-Z]$/.test(l) && Number.isInteger(n) && n > 0),
       ),
       keys: strings(s.keys).filter((k) => /^[A-Z]+$/.test(k)),
+      slots: Array.isArray(s.slots)
+        ? s.slots
+            .filter((x) => x && Number.isInteger(x.position) && x.position > 0)
+            .map((x) => ({ position: x.position, word: /^[A-Z]*$/.test(str(x.word)) ? str(x.word) : '', on: !!x.on }))
+        : [],
       letters: Array.isArray(s.letters)
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
         : [],

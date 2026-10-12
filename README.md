@@ -21,6 +21,7 @@ npm start
 | `3` | Buy another monkey (costs Lines) |
 | `4` | Raise the combo cap (costs Sentences) |
 | `5` | Typewriter keys menu (once you own 13 letters): press a letter to make it heavier, `1`–`9` to buy a key, `esc` to go back |
+| `6` | Word slots menu (once you own 13 letters): `b` buys a slot (costs Lines), `w` sets its word, `o` switches it on or off, left/right move its position |
 | `p` | Script browser: arrows scroll by line and scene, `enter` pins a line to the home screen (up to 5), `f` jumps to the next shortest line within reach, `esc` goes back |
 | `s` | Save now |
 | `r` | Reset progress (asks to confirm) |
@@ -35,6 +36,7 @@ npm start
 - **A starter play**: Hamlet, Macbeth or A Midsummer Night's Dream. When a monkey types one of its lines word for word (spaces and punctuation don't matter), the line is written into your script. The first time pays a **Line** and a points bonus that grows steeply with the line's length; lines of 3+ words also pay a **Sentence** every time. Texts are the public-domain Moby Shakespeare via [the MIT Shakespeare](https://github.com/TheMITTech/shakespeare), converted with `scripts/import-play.ts`.
 - **More monkeys**, bought with Lines. Each types its own line. The first 10 are shown under the title.
 - **Typewriter keys**, once you own 13 letters: heavier letters come up more often, and combination keys (`TH`, `ING`, `QU`, ...) and word keys (`THE`, `AND`, `LORD`, ...) type their whole text in one keystroke. Only useful keys are offered; a test showed junk clusters dilute the pool, while good keys roughly double points per keystroke.
+- **Word slots**, once you own 13 letters, bought with Lines: each locks one position in a chain to a word you choose ("3rd word: FRIEND"), typed as a finished word. Switch slots off any time for fully random typing. Pinned lines show slot words in bold where they match.
 - **Faster typing**, bought with points: each level makes the monkey type 25% faster and costs more than the last.
 - **Autosave** to `save.json` every 10 seconds and on quit. Set `IDLE_SAVE=path/to/file.json` to use a different file, which is handy for testing from a fresh start.
 - **Offline progress**: the monkeys keep typing while you're away, up to 8 hours.

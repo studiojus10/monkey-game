@@ -126,7 +126,8 @@ Once you own enough letters to start building sentences, you can buy **word slot
 
 - Example: buy slot 3 and set it to `FRIEND`. Whenever a monkey's chain reaches two words, the next word it types is FRIEND.
 - A slot can only hold a word you can spell with your letters (or a word from your play).
-- A slot always fires **(default)**; the price does the balancing. Slots get more expensive the more you own, so steering a whole line takes real investment.
+- A slot always fires while it's **on**, and each slot can be switched off at any time so the monkeys type fully at random. The slot's word is typed as a finished word, so it can't run into the letters after it.
+- In pinned lines and the script browser, words that an active slot will type at that position are shown in bold, so the player can compare their slots with the line they're building. Slots get more expensive the more you own, so steering a whole line takes real investment.
 - With slots the player targets specific lines: pick a line, set slots for its harder words, and let chance fill in the common ones.
 
 Slots unlock later, alongside typewriter keys (starting guess: 13 letters owned), so the early game is about building a bank of letters.
@@ -172,7 +173,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 4. **Combos.** Chains and the multiplier (4+ letter words, capped at ×3), combo shown per monkey. (Built.)
 5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys. (Built.)
 6. **Typewriter keys.** Heavier letter keys, combination keys and word keys, unlocking at 13 letters. (Built.)
-7. **Word slots.** Buy slots, set and change their words, aimed at specific lines. Scene and act milestones.
+7. **Word slots.** Buy slots, set and change their words, switch them on and off, aimed at pinned lines. (Built, along with the script browser and pins.) Scene and act milestones still to do.
 8. **Finishing the play.** The big reward, once it's decided.
 9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.
 

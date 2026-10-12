@@ -9,11 +9,16 @@ import {
   buyHeavier,
   buyKey,
   buyMonkey,
+  buySlot,
   heavierCost,
   keyCost,
   keyboard,
   keysUnlocked,
   missingLetters,
+  moveSlot,
+  setSlotWord,
+  slotCost,
+  toggleSlot,
   reachableLines,
   togglePin,
   capRaiseCost,
@@ -417,6 +422,98 @@ describe('pinned lines', () => {
       expect(reachableLines(s)).toEqual([2, 4, 6]);
     } finally {
       setPlays([]);
+    }
+  });
+});
+
+describe('word slots', () => {
+  const letters = 'AYMLORDNXEISTH'.split(''); // 14 letters: slots unlocked
+  const setup = () => {
+    setWordList(['AY', 'MY', 'LORD', 'NO', 'IS', 'THE']);
+    const s = createInitialState(0);
+    s.letters = [...letters];
+    return s;
+  };
+
+  it('cost Lines, unlock with enough letters, and start at the first free position', () => {
+    const s = setup();
+    try {
+      expect(buySlot(s)).toBe(false); // no Lines
+      s.lines = slotCost(0) + slotCost(1);
+      expect(buySlot(s)).toBe(true);
+      expect(buySlot(s)).toBe(true);
+      expect(s.slots.map((x) => x.position)).toEqual([1, 2]);
+      expect(s.lines).toBe(0);
+      const few = createInitialState(0);
+      few.letters = ['A'];
+      few.lines = 100;
+      expect(buySlot(few)).toBe(false);
+    } finally {
+      setWordList([]);
+    }
+  });
+
+  it('only take words you can spell, and can be moved and switched off', () => {
+    const s = setup();
+    try {
+      s.lines = 100;
+      buySlot(s);
+      buySlot(s);
+      expect(setSlotWord(s, 0, 'lord')).toBe(true);
+      expect(setSlotWord(s, 0, 'ZEBRA')).toBe(false);
+      expect(s.slots[0].word).toBe('LORD');
+      expect(moveSlot(s, 0, 1)).toBe(true); // 2 is taken, so it jumps to 3
+      expect(s.slots[0].position).toBe(3);
+      expect(moveSlot(s, 1, -1)).toBe(true); // 1 is free now
+      expect(moveSlot(s, 1, -1)).toBe(false); // can't go below 1
+      expect(toggleSlot(s, 0)).toBe(true);
+      expect(s.slots[0].on).toBe(false);
+    } finally {
+      setWordList([]);
+    }
+  });
+
+  it('force the word at their position in the chain, and do nothing when off', () => {
+    const s = setup();
+    try {
+      s.slots = [
+        { position: 1, word: 'AY', on: true },
+        { position: 2, word: 'MY', on: true },
+        { position: 3, word: 'LORD', on: true },
+      ];
+      const x = () => (letters.indexOf('X') + 0.5) / letters.length;
+      typeLetter(s, 0, x); // slot 1: AY
+      typeLetter(s, 0, x); // slot 2: MY
+      typeLetter(s, 0, x); // slot 3: LORD
+      expect(s.monkeys[0].line.map((seg) => seg.text)).toEqual(['AY', 'MY', 'LORD']);
+      typeLetter(s, 0, x); // no slot 4: random X breaks the chain
+      expect(s.monkeys[0].chainLength).toBe(0);
+      s.slots.forEach((slot) => (slot.on = false));
+      typeLetter(s, 0, x);
+      expect(s.monkeys[0].line.at(-1)).toEqual({ text: 'X', scored: false });
+    } finally {
+      setWordList([]);
+    }
+  });
+
+  it('type slot words as finished words, even ones that could grow', () => {
+    const s = setup();
+    setWordList(['AY', 'AYS', 'MY', 'MYTH', 'LORD', 'LORDS']);
+    try {
+      s.slots = [
+        { position: 1, word: 'AY', on: true },
+        { position: 2, word: 'MY', on: true },
+        { position: 3, word: 'LORD', on: true },
+      ];
+      const x = () => (letters.indexOf('X') + 0.5) / letters.length;
+      for (let i = 0; i < 3; i++) typeLetter(s, 0, x);
+      expect(s.monkeys[0].line.map((seg) => seg.text)).toEqual(['AY', 'MY', 'LORD']);
+      expect(s.monkeys[0].pending).toBe('');
+      s.slots.forEach((slot) => (slot.on = false));
+      typeLetter(s, 0, x);
+      expect(s.monkeys[0].line.at(-1)).toEqual({ text: 'X', scored: false });
+    } finally {
+      setWordList([]);
     }
   });
 });

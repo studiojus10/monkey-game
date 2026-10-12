@@ -11,6 +11,14 @@ export interface MonkeyState {
   chainWords: string[]; // different long words in the current chain (back-to-back words)
   chainPoints: number; // sum of the chain's word points, before the multiplier
   chainRecent: string[]; // the chain's latest words, enough to hold the longest play line
+  chainLength: number; // words in the current chain, for word slots
+}
+
+/** A word slot: the word at `position` in a chain (1 = first) is always `word` while on. */
+export interface WordSlot {
+  position: number;
+  word: string; // empty until the player sets one
+  on: boolean;
 }
 
 /** The most recent play line a monkey typed, for display. */
@@ -34,6 +42,7 @@ export interface GameState {
   comboCapLevel: number; // combo cap raises bought
   heavy: Record<string, number>; // letter -> heavier-key level
   keys: string[]; // combination and word keys bought
+  slots: WordSlot[];
   letters: string[]; // owned letters; empty until the player picks one
   monkeys: MonkeyState[];
   typingLevel: number; // "Faster typing" upgrades bought
@@ -44,7 +53,7 @@ export interface GameState {
 }
 
 export function createMonkey(): MonkeyState {
-  return { pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [] };
+  return { pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
 }
 
 export function createInitialState(now = Date.now()): GameState {
@@ -60,6 +69,7 @@ export function createInitialState(now = Date.now()): GameState {
     comboCapLevel: 0,
     heavy: {},
     keys: [],
+    slots: [],
     letters: [],
     monkeys: [createMonkey()],
     typingLevel: 0,

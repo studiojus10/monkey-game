@@ -1,4 +1,4 @@
-import { letterValues, maxPinnedLines, startingLetters, theme, typewriterKeys } from '../game/config';
+import { letterValues, maxPinnedLines, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   activePlay,
   availableKeys,
@@ -12,6 +12,8 @@ import {
   letterCost,
   lettersPerSecond,
   missingLetters,
+  slotCost,
+  slotsUnlocked,
   monkeyCost,
   typingUpgradeCost,
 } from '../game/logic';
@@ -133,12 +135,52 @@ export function renderScreen(state: GameState, message = ''): string {
     keysUnlocked(state)
       ? `  [5]  Typewriter keys...`
       : `  [5]  Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters`,
+    slotsUnlocked(state)
+      ? `  [6]  Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)`
+      : `  [6]  Word slots: unlock when you own ${wordSlots.unlockLetters} letters`,
     '',
-    `[space] ${theme.pokeAction}   [1-5] buy (* = affordable)   [p] script & pins   [s] save   [r] reset   [q] quit`,
+    `[space] ${theme.pokeAction}   [1-6] buy (* = affordable)   [p] script & pins   [s] save   [r] reset   [q] quit`,
     '',
     message,
   );
   return lines.join('\n');
+}
+
+/** Ordinal for a chain position: 1st, 2nd, 3rd, 4th, ... */
+export function ordinal(n: number): string {
+  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+  return `${n}${suffix}`;
+}
+
+/**
+ * The word slots menu. `selected` is the slot being edited; `typing` is the
+ * word being typed in, or null when not typing.
+ */
+export function renderSlotsMenu(state: GameState, selected: number, typing: string | null, message = ''): string {
+  const next = slotCost(state.slots.length);
+  const canBuy = state.slots.length < wordSlots.maxSlots;
+  const rows = [...state.slots.entries()]
+    .sort(([, a], [, b]) => a.position - b.position)
+    .map(([i, x]) => {
+      const word = i === selected && typing !== null ? `${typing}_` : x.word || '(no word)';
+      return `${i === selected ? '>' : ' '} [${i + 1}] ${ordinal(x.position).padEnd(4)} word: ${word.padEnd(16)} ${x.on ? 'ON' : 'off'}`;
+    });
+  return [
+    '=== Word slots ===',
+    '',
+    `${formatNumber(state.lines)} Lines`,
+    'Each slot makes the word at its position in a chain always the word you choose,',
+    'e.g. 3rd word: FRIEND. Switch slots off for fully random typing.',
+    '',
+    ...(rows.length > 0 ? rows : ['  No slots yet.']),
+    '',
+    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${formatNumber(next)} Lines`] : []),
+    typing !== null
+      ? 'Type the word, [enter] to set it, [esc] to cancel'
+      : '[1-9] select   [w] set word   [o] on/off   [left/right] move position   [esc] back',
+    '',
+    message,
+  ].join('\n');
 }
 
 /** Keys 1-9 in the typewriter keys menu buy these, in order. */
@@ -214,7 +256,7 @@ export function renderScript(state: GameState, cursor: number, message = ''): st
     }
     const marks = (i === at ? '>' : ' ') + (done.includes(i) ? '+' : ' ') + (state.pinned.includes(i) ? '@' : ' ');
     const status = done.includes(i) ? '' : `   (${lineStatus(state, i, line.letters)})`;
-    rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${line.text}${status}`);
+    rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${slotHighlight(state, line.text)}${status}`);
   }
   return [
     `=== ${play.title} ===   ${count(done.length)} of ${count(play.lines.length)} lines written   ` +
@@ -230,6 +272,21 @@ export function renderScript(state: GameState, cursor: number, message = ''): st
   ].join('\n');
 }
 
+/**
+ * Bolds each word of a line that an active word slot will type at that
+ * position, e.g. slot "3rd word: NAME" bolds "name" in "Hello my name is Hamlet".
+ */
+export function slotHighlight(state: GameState, text: string): string {
+  const slotAt = new Map(state.slots.filter((x) => x.on && x.word).map((x) => [x.position, x.word]));
+  let position = 0;
+  return text.replace(/[A-Za-z'\u2019]+/g, (token) => {
+    const word = token.replace(/['\u2019]/g, '').toUpperCase();
+    if (!word) return token;
+    position++;
+    return slotAt.get(position) === word ? bold(token) : token;
+  });
+}
+
 /** Pinned lines for the home screen, with what each still needs. */
 function pinnedText(state: GameState): string[] {
   const play = activePlay(state);
@@ -239,7 +296,7 @@ function pinnedText(state: GameState): string[] {
     'Pinned lines',
     ...state.pinned.map((i) => {
       const line = play.lines[i];
-      return `  @ ${lineLocation(line)} "${line.text}"   (${lineStatus(state, i, line.letters)})`;
+      return `  @ ${lineLocation(line)} "${slotHighlight(state, line.text)}"   (${lineStatus(state, i, line.letters)})`;
     }),
   ];
 }

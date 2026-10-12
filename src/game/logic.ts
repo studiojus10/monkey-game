@@ -10,6 +10,7 @@ import {
   monkeyShop,
   startingLetters,
   typewriterKeys,
+  wordSlots,
   typing,
 } from './config';
 import { buildPlay, type Play, type PlayData } from './plays';
@@ -237,13 +238,83 @@ function pressKey(state: GameState, rng: Rng): string {
   return keys[keys.length - 1].text;
 }
 
-/** One monkey presses one random key: usually a letter, or a combination or word key. */
+export function slotsUnlocked(state: GameState): boolean {
+  return state.letters.length >= wordSlots.unlockLetters;
+}
+
+/** Cost in Lines of the next word slot, given how many you have. */
+export function slotCost(owned: number): number {
+  return Math.ceil(wordSlots.baseCost * Math.pow(wordSlots.costGrowth, owned));
+}
+
+/** Buys a slot at the first free position. It starts on, with no word set. */
+export function buySlot(state: GameState): boolean {
+  const cost = slotCost(state.slots.length);
+  if (!slotsUnlocked(state) || state.slots.length >= wordSlots.maxSlots || state.lines < cost) return false;
+  let position = 1;
+  while (state.slots.some((x) => x.position === position)) position++;
+  state.lines -= cost;
+  state.slots.push({ position, word: '', on: true });
+  return true;
+}
+
+/** Sets a slot's word. It must be a word you can spell with your letters. Free, any time. */
+export function setSlotWord(state: GameState, slot: number, word: string): boolean {
+  const s = state.slots[slot];
+  const w = word.toUpperCase();
+  if (!s || !dictionaryFor(state).isWord(w)) return false;
+  s.word = w;
+  return true;
+}
+
+export function toggleSlot(state: GameState, slot: number): boolean {
+  const s = state.slots[slot];
+  if (!s) return false;
+  s.on = !s.on;
+  return true;
+}
+
+/** Moves a slot to another position, skipping positions other slots hold. */
+export function moveSlot(state: GameState, slot: number, delta: 1 | -1): boolean {
+  const s = state.slots[slot];
+  if (!s) return false;
+  let p = s.position + delta;
+  while (p >= 1 && state.slots.some((x) => x !== s && x.position === p)) p += delta;
+  if (p < 1 || p > wordSlots.maxSlots + state.slots.length) return false;
+  s.position = p;
+  return true;
+}
+
+/**
+ * The slot due for this monkey's next word, if any. Slots apply at a word
+ * break; if the letters waiting are already a word, they count as the
+ * previous word so the slot can follow them.
+ */
+function dueSlot(state: GameState, m: MonkeyState, dict: Dictionary): string {
+  const ready = m.pending === '' ? 0 : dict.isWord(m.pending) ? 1 : -1;
+  if (ready < 0) return '';
+  const s = state.slots.find((x) => x.on && x.word && x.position === m.chainLength + ready + 1);
+  return s && dict.isWord(s.word) ? s.word : '';
+}
+
+/**
+ * One monkey presses one key. If a word slot is due, it types the slot's word
+ * as a finished word (it can't run into the next letters); otherwise it
+ * presses a random key (usually a letter, or a combination or word key).
+ */
 export function typeLetter(state: GameState, index: number, rng: Rng = Math.random): void {
   const m = state.monkeys[index];
   if (!m || state.letters.length === 0) return;
   const dict = dictionaryFor(state);
   const events: ReadEvent[] = [];
-  for (const letter of pressKey(state, rng)) m.pending = readLetter(dict, m.pending, letter, events);
+  const slot = dueSlot(state, m, dict);
+  if (slot) {
+    if (m.pending) events.push({ kind: 'word', text: m.pending });
+    events.push({ kind: 'word', text: slot });
+    m.pending = '';
+  } else {
+    for (const letter of pressKey(state, rng)) m.pending = readLetter(dict, m.pending, letter, events);
+  }
   for (const e of events) {
     if (e.kind === 'word') {
       const paid = scoreInChain(state, m, e.text);
@@ -256,6 +327,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
       m.chainWords = [];
       m.chainPoints = 0;
       m.chainRecent = [];
+      m.chainLength = 0;
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
@@ -275,6 +347,7 @@ function scoreInChain(state: GameState, m: MonkeyState, word: string): number {
   const before = m.chainPoints * comboMultiplier(state, m);
   if (word.length >= combo.minWordLength && !m.chainWords.includes(word)) m.chainWords.push(word);
   m.chainPoints += wordPoints(word);
+  m.chainLength++;
   m.chainRecent.push(word);
   let kept = m.chainRecent.reduce((n, w) => n + w.length, 0);
   while (m.chainRecent.length > 1 && kept - m.chainRecent[0].length >= longestLine) {

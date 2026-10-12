@@ -13,16 +13,21 @@ import {
   buyHeavier,
   buyKey,
   buyMonkey,
+  buySlot,
   chooseStarterPlay,
   chooseFirstLetter,
   keysUnlocked,
+  moveSlot,
   letterCost,
   poke,
   reachableLines,
+  setSlotWord,
+  slotsUnlocked,
   setPlays,
   setWordList,
   tick,
   togglePin,
+  toggleSlot,
 } from '../game/logic';
 import { load, save } from '../game/save';
 import { createInitialState } from '../game/state';
@@ -35,6 +40,7 @@ import {
   renderKeysMenu,
   renderScreen,
   renderScript,
+  renderSlotsMenu,
   scriptPageSize,
   unownedLetters,
 } from './screen';
@@ -58,6 +64,9 @@ let showingScript = false;
 let scriptCursor = 0;
 let findIndex = -1;
 let showingKeys = false;
+let showingSlots = false;
+let selectedSlot = 0;
+let slotWordDraft: string | null = null;
 
 /** Reads data/words.txt: one lowercase word per line. */
 function loadWordList(): string[] {
@@ -83,7 +92,9 @@ function draw() {
     ? renderScript(state, scriptCursor, message)
     : showingKeys
       ? renderKeysMenu(state, message)
-      : renderScreen(state, message);
+      : showingSlots
+        ? renderSlotsMenu(state, selectedSlot, slotWordDraft, message)
+        : renderScreen(state, message);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -157,6 +168,40 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingSlots) {
+    message = '';
+    if (slotWordDraft !== null) {
+      if (key.name === 'escape') {
+        slotWordDraft = null;
+      } else if (key.name === 'return' || key.name === 'enter') {
+        const word = slotWordDraft;
+        slotWordDraft = null;
+        if (!setSlotWord(state, selectedSlot, word)) {
+          message = `${word || 'That'} isn't a word you can spell with your letters.`;
+        }
+      } else if (key.name === 'backspace') {
+        slotWordDraft = slotWordDraft.slice(0, -1);
+      } else if (str && /^[a-z]$/i.test(str)) {
+        slotWordDraft += str.toUpperCase();
+      }
+      return draw();
+    }
+    if (key.name === 'escape' || key.name === 'q') {
+      showingSlots = false;
+    } else if (str === 'b') {
+      if (buySlot(state)) selectedSlot = state.slots.length - 1;
+      else message = 'Not enough Lines. Lines come from writing lines of the play.';
+    } else if (str && /^[1-9]$/.test(str) && Number(str) <= state.slots.length) {
+      selectedSlot = Number(str) - 1;
+    } else if (state.slots[selectedSlot]) {
+      if (str === 'w') slotWordDraft = '';
+      else if (str === 'o') toggleSlot(state, selectedSlot);
+      else if (key.name === 'left') moveSlot(state, selectedSlot, -1);
+      else if (key.name === 'right') moveSlot(state, selectedSlot, 1);
+    }
+    return draw();
+  }
+
   if (showingKeys) {
     message = '';
     if (key.name === 'escape' || key.name === 'q') {
@@ -198,6 +243,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === '5') {
     if (keysUnlocked(state)) showingKeys = true;
     else message = 'Typewriter keys unlock later.';
+  } else if (str === '6') {
+    if (slotsUnlocked(state)) showingSlots = true;
+    else message = 'Word slots unlock later.';
   } else if (key.name === 'p') {
     showingScript = true;
   } else if (key.name === 's') {

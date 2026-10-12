@@ -96,6 +96,19 @@ export const typing = {
 /** Letters per typewriter line on screen. */
 export const lineWidth = 30;
 
+/**
+ * Word slots, a late upgrade bought with Lines once you own unlockLetters
+ * letters. Each slot locks one position in a chain (1st word, 2nd word, ...)
+ * to a word you choose; it can be switched off to type fully at random. The
+ * n-th slot costs baseCost x costGrowth^(n-1) Lines.
+ */
+export const wordSlots = {
+  unlockLetters: 13,
+  baseCost: 3,
+  costGrowth: 2,
+  maxSlots: 9,
+};
+
 /** How many play lines can be pinned to the home screen. */
 export const maxPinnedLines = 5;
 
