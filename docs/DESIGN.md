@@ -16,7 +16,7 @@ This is the design every build step works toward. Items marked **(default)** are
 
 - You start with **one letter**, and it has to be a word on its own, so the choice is **A** or **I**.
 - More letters are bought with points, one at a time, in any order you like. Price depends on how many letters you already own and grows steeply (starting guess: 10, then roughly ×3 per letter) **(default)**.
-- Each monkey picks each letter you own with **equal odds** **(default)**. Buying a rare letter like Z therefore adds high-value words but also dilutes the stream with a letter that rarely fits; that trade-off is intentional. Later upgrades can weight the odds (see [Muse](#the-muse-typing-toward-the-script)).
+- Each monkey picks each letter you own with **equal odds** **(default)**. Buying a rare letter like Z therefore adds high-value words but also dilutes the stream with a letter that rarely fits; that trade-off is intentional. Points can later change those odds (see [Typewriter keys](#typewriter-keys-shaping-the-odds)).
 
 ## Words
 
@@ -71,6 +71,16 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 - You start with **one monkey**. More monkeys are bought with points; each costs more than the last (starting guess ×1.15 each) **(default)**.
 - Every monkey types its own stream at a base speed (starting guess 2 letters per second), with upgrades that make monkeys type faster.
 - Pressing **space** pokes your first monkey into typing one extra letter immediately, so the early game has something to do.
+
+### Typewriter keys: shaping the odds
+
+Beyond buying new letters, points can reshape what the monkeys type:
+
+- **Heavier keys.** Raise how often a letter you own comes up, so you can lean on vowels or on the letters your play needs.
+- **Combination keys.** Buy a key that types a common cluster in one stroke, like `TH`, `ING` or `QU`. Each key is one more option the monkey can hit, with its own odds.
+- **Word keys.** Buy a key that types a whole common word, like `THE`, `AND` or `YOU`. A word key goes through the same word reading as anything else, so `THE` followed by `N` still becomes `THEN`.
+
+Keys only use letters you own, and each one is priced by how useful it is. They are the mid-game lever; the Muse below is the late-game one.
 
 ### The typewriter line and carriage return
 
@@ -141,11 +151,12 @@ Each step is a small pull request that you can play with `npm start` before the 
 1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one monkey types it on screen and each word scores 1. Builds the word matcher with tests.
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
 3. **More monkeys.** A monkey shop, one line per monkey on screen, faster-typing upgrades, offline progress by simulation.
-4. **Combos.** Chains, the 30-letter line and carriage return, combo shown per monkey.
-5. **Pick a play.** Play choice at the start, the script view, words checked off across the script, line bonuses.
-6. **The Muse and milestones.** Muse upgrades, scene and act completion with their multipliers.
-7. **Finishing the play.** The big reward, once it's decided.
-8. **Balance pass.** Tune costs and rates so each stage of the game feels paced.
+4. **Typewriter keys.** Heavier letter keys, combination keys and word keys in the shop.
+5. **Combos.** Chains, the 30-letter line and carriage return, combo shown per monkey.
+6. **Pick a play.** Play choice at the start, the script view, words checked off across the script, line bonuses.
+7. **The Muse and milestones.** Muse upgrades, scene and act completion with their multipliers.
+8. **Finishing the play.** The big reward, once it's decided.
+9. **Balance pass.** Tune costs and rates so each stage of the game feels paced.
 
 ## Open questions
 
