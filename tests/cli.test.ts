@@ -37,7 +37,7 @@ describe('terminal screen', () => {
     const s = createInitialState(0);
     s.currency = 1234;
     const text = renderScreen(s, 'hello');
-    expect(text).toContain('1.23K Coins');
+    expect(text).toContain('1.23K Points');
     expect(text).toContain('[1] *Worker x0');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');

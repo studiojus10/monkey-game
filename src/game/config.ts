@@ -3,7 +3,7 @@
 
 export const theme = {
   title: 'Idle Game',
-  currency: 'Coins',
+  currency: 'Points',
   clickAction: 'Collect',
 };
 
