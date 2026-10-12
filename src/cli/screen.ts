@@ -6,6 +6,9 @@ import {
   departmentChoices,
   departmentGenres,
   monkeyGenre,
+  departmentSlots,
+  managerOf,
+  slotGenre,
   managerUpgradeCost,
   nextDepartmentAt,
   getPlay,
@@ -234,28 +237,37 @@ export function ordinal(n: number): string {
  * The word slots menu. `selected` is the slot being edited; `typing` is the
  * word being typed in, or null when not typing.
  */
-export function renderSlotsMenu(state: GameState, selected: number, typing: string | null, message = ''): string {
-  const next = slotCost(state.slots.length);
-  const canBuy = state.slots.length < wordSlots.maxSlots;
-  const rows = [...state.slots.entries()]
-    .sort(([, a], [, b]) => a.position - b.position)
-    .map(([i, x]) => {
-      const word = i === selected && typing !== null ? `${typing}_` : x.word || '(no word)';
-      return `${i === selected ? '>' : ' '} [${i + 1}] ${ordinal(x.position).padEnd(4)} word: ${word.padEnd(16)} ${x.on ? 'ON' : 'off'}`;
-    });
+export function renderSlotsMenu(
+  state: GameState,
+  genre: Genre | undefined,
+  selected: number,
+  typing: string | null,
+  message = '',
+): string {
+  const mine = departmentSlots(state, genre);
+  const next = slotCost(mine.length);
+  const canBuy = mine.length < wordSlots.maxSlots;
+  const rows = mine.map((i, k) => {
+    const x = state.slots[i];
+    const word = i === selected && typing !== null ? `${typing}_` : x.word || '(no word)';
+    return `${i === selected ? '>' : ' '} [${k + 1}] ${ordinal(x.position).padEnd(4)} word: ${word.padEnd(16)} ${x.on ? 'ON' : 'off'}`;
+  });
+  const managed = !!managerOf(state, genre);
+  const many = departmentGenres(state).length > 1;
   return [
-    '=== Word slots ===',
+    `=== Word slots${genre ? `: ${genreNames[genre]} department` : ''} ===`,
     '',
     `${formatNumber(state.lines)} Lines`,
     'Each slot makes the word at its position in a chain always the word you choose,',
     'e.g. 3rd word: FRIEND. Switch slots off for fully random typing.',
     '',
+    ...(managed ? ["This department's manager sets these slots for you."] : []),
     ...(rows.length > 0 ? rows : ['  No slots yet.']),
     '',
     ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
     typing !== null
       ? 'Type the word, [enter] to set it, [esc] to cancel'
-      : '[1-9] select   [w] set word   [o] on/off   [left/right] move position   [esc] back',
+      : `[1-9] select   [w] set word   [o] on/off   [left/right] move position${many ? '   [tab] next department' : ''}   [esc] back`,
     '',
     message,
   ].join('\n');
@@ -415,7 +427,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     }
     const marks = (i === at ? '>' : ' ') + (done.includes(i) ? '+' : ' ') + (pinned(i) ? '@' : ' ');
     const status = done.includes(i) ? '' : `   (${lineStatus(state, play, i)})`;
-    rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${slotHighlight(state, line.text)}${status}`);
+    rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${slotHighlight(state, line.text, play.genre)}${status}`);
   }
   const sc = sceneOf(play, at)!;
   const section = (label: string, n: number) =>
@@ -448,8 +460,10 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
  * Bolds each word of a line that an active word slot will type at that
  * position, e.g. slot "3rd word: NAME" bolds "name" in "Hello my name is Hamlet".
  */
-export function slotHighlight(state: GameState, text: string): string {
-  const slotAt = new Map(state.slots.filter((x) => x.on && x.word).map((x) => [x.position, x.word]));
+export function slotHighlight(state: GameState, text: string, genre: Genre | undefined): string {
+  const slotAt = new Map(
+    state.slots.filter((x) => x.on && x.word && slotGenre(state, x) === genre).map((x) => [x.position, x.word]),
+  );
   let position = 0;
   return text.replace(/[A-Za-z'\u2019]+/g, (token) => {
     const word = token.replace(/['\u2019]/g, '').toUpperCase();
@@ -465,7 +479,7 @@ function pinnedText(state: GameState): string[] {
     const play = getPlay(p.play);
     const line = play?.lines[p.index];
     if (!play || !line) return [];
-    return [`  @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text)}"   (${lineStatus(state, play, p.index)})`];
+    return [`  @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})`];
   });
   return rows.length === 0 ? [] : ['', 'Pinned lines', ...rows];
 }

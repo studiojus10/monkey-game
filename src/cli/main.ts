@@ -17,6 +17,9 @@ import {
   departmentPicks,
   monkeyGenre,
   moveMonkey,
+  departmentGenres,
+  departmentSlots,
+  slotGenre,
   toggleManager,
   upgradeManager,
   openDepartment,
@@ -82,7 +85,8 @@ let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
 let showingSlots = false;
-let selectedSlot = 0;
+let selectedSlot = 0; // index into state.slots
+let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingDepartment = false;
@@ -117,7 +121,7 @@ function draw() {
     : showingKeys
       ? renderKeysMenu(state, message)
       : showingSlots
-        ? renderSlotsMenu(state, selectedSlot, slotWordDraft, message)
+        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
         : renderScreen(state, message);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
@@ -309,12 +313,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
     if (key.name === 'escape' || key.name === 'q') {
       showingSlots = false;
+    } else if (key.name === 'tab') {
+      slotDept = (slotDept + 1) % Math.max(1, departmentGenres(state).length);
+      selectedSlot = departmentSlots(state, departmentGenres(state)[slotDept])[0] ?? -1;
     } else if (str === 'b') {
-      if (buySlot(state)) selectedSlot = state.slots.length - 1;
-      else message = 'Not enough Lines. Lines come from writing lines of the play.';
-    } else if (str && /^[1-9]$/.test(str) && Number(str) <= state.slots.length) {
-      selectedSlot = Number(str) - 1;
-    } else if (state.slots[selectedSlot]) {
+      if (buySlot(state, departmentGenres(state)[slotDept])) selectedSlot = state.slots.length - 1;
+      else message = 'Not enough Lines (or this department has every slot). Lines come from writing lines of the play.';
+    } else if (str && /^[1-9]$/.test(str)) {
+      const i = departmentSlots(state, departmentGenres(state)[slotDept])[Number(str) - 1];
+      if (i !== undefined) selectedSlot = i;
+    } else if (
+      state.slots[selectedSlot] &&
+      slotGenre(state, state.slots[selectedSlot]) === departmentGenres(state)[slotDept]
+    ) {
       if (str === 'w') slotWordDraft = '';
       else if (str === 'o') toggleSlot(state, selectedSlot);
       else if (key.name === 'left') moveSlot(state, selectedSlot, -1);
@@ -373,7 +384,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (keysUnlocked(state)) showingKeys = true;
     else message = 'Typewriter keys unlock later.';
   } else if (str === '6') {
-    if (slotsUnlocked(state)) showingSlots = true;
+    if (slotsUnlocked(state)) {
+      showingSlots = true;
+      if (slotDept >= departmentGenres(state).length) slotDept = 0;
+      selectedSlot = departmentSlots(state, departmentGenres(state)[slotDept])[0] ?? -1;
+    }
     else message = 'Word slots unlock later.';
   } else if (str === 'g' && departmentPicks(state) > 0) {
     pickingDepartment = true;

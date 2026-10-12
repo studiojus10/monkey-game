@@ -19,8 +19,12 @@ export interface MonkeyState {
   chainLength: number; // words in the current chain, for word slots
 }
 
-/** A word slot: the word at `position` in a chain (1 = first) is always `word` while on. */
+/**
+ * A word slot: the word at `position` in a chain (1 = first) is always
+ * `word` while on, for the monkeys of its department.
+ */
 export interface WordSlot {
+  department: string; // genre of its department; empty = the first department
   position: number;
   word: string; // empty until the player sets one
   on: boolean;

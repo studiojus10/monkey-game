@@ -40,6 +40,7 @@ import {
   chooseStarterScene,
   departmentChoices,
   manage,
+  departmentMonkeys,
   managerMultiplier,
   managerUpgradeCost,
   toggleManager,
@@ -535,9 +536,9 @@ describe('word slots', () => {
     const s = setup();
     try {
       s.slots = [
-        { position: 1, word: 'AY', on: true },
-        { position: 2, word: 'MY', on: true },
-        { position: 3, word: 'LORD', on: true },
+        { department: '', position: 1, word: 'AY', on: true },
+        { department: '', position: 2, word: 'MY', on: true },
+        { department: '', position: 3, word: 'LORD', on: true },
       ];
       const x = () => (letters.indexOf('X') + 0.5) / letters.length;
       typeLetter(s, 0, x); // slot 1: AY
@@ -559,9 +560,9 @@ describe('word slots', () => {
     setWordList(['AY', 'AYS', 'MY', 'MYTH', 'LORD', 'LORDS']);
     try {
       s.slots = [
-        { position: 1, word: 'AY', on: true },
-        { position: 2, word: 'MY', on: true },
-        { position: 3, word: 'LORD', on: true },
+        { department: '', position: 1, word: 'AY', on: true },
+        { department: '', position: 2, word: 'MY', on: true },
+        { department: '', position: 3, word: 'LORD', on: true },
       ];
       const x = () => (letters.indexOf('X') + 0.5) / letters.length;
       for (let i = 0; i < 3; i++) typeLetter(s, 0, x);
@@ -866,17 +867,17 @@ describe('manager monkeys', () => {
       const s = setup();
       while (s.monkeys.length <= managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
       s.slots = [
-        { position: 1, word: '', on: false },
-        { position: 2, word: '', on: true },
-        { position: 4, word: 'NO', on: true },
+        { department: '', position: 1, word: '', on: false },
+        { department: '', position: 2, word: '', on: true },
+        { department: '', position: 4, word: 'NO', on: true },
       ];
       expect(toggleManager(s, 0)).toBe(true);
       expect(s.monkeys[0].target).toEqual({ play: 'm', index: 1 }); // line 0 needs Z, U, S
       expect(s.pinned).toEqual([{ play: 'm', index: 1 }]);
       expect(s.slots).toEqual([
-        { position: 1, word: 'AY', on: true },
-        { position: 2, word: 'MY', on: true },
-        { position: 4, word: 'NO', on: false }, // the line has only 3 words
+        { department: '', position: 1, word: 'AY', on: true },
+        { department: '', position: 2, word: 'MY', on: true },
+        { department: '', position: 4, word: 'NO', on: false }, // the line has only 3 words
       ]);
 
       tick(s, 1, () => 0.99);
@@ -891,6 +892,57 @@ describe('manager monkeys', () => {
       expect(s.monkeys[0].target).toEqual({ play: 'm', index: 2 });
       expect(s.pinned).toEqual([{ play: 'm', index: 2 }]);
       expect(s.slots[0].word).toBe('NO');
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
+describe('department limits and slots', () => {
+  const comedy = { id: 'c', title: 'C', genre: 'comedy' as const, lines: [[1, 1, 'A', 'Ay, my lord.']] as [number, number, string, string][] };
+  const tragedy = { id: 't', title: 'T', genre: 'tragedy' as const, lines: [[1, 1, 'A', 'No, my lord.']] as [number, number, string, string][] };
+
+  it('caps each department at maxMonkeys; new monkeys go where there is room', () => {
+    try {
+      setPlays([comedy, tragedy]);
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.letters = ['A'];
+      s.lines = 1e9;
+      while (s.monkeys.length < departmentRules.maxMonkeys) expect(buyMonkey(s)).toBe(true);
+      expect(buyMonkey(s)).toBe(false); // the only department is full
+      expect(openDepartment(s, 'tragedy')).toBe(true);
+      expect(buyMonkey(s)).toBe(true);
+      expect(monkeyGenre(s, s.monkeys[s.monkeys.length - 1])).toBe('tragedy');
+      expect(moveMonkey(s, 0)).toBe(true); // tragedies have room
+      expect(moveMonkey(s, 1)).toBe(true);
+      expect(departmentMonkeys(s, 'tragedy')).toHaveLength(3);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('gives each department its own word slots', () => {
+    try {
+      setWordList([]);
+      setPlays([comedy, tragedy]);
+      const s = createInitialState(0);
+      s.departments = ['comedy', 'tragedy'];
+      s.owned = ['c', 't'];
+      s.letters = 'AYMLORDNXEISTH'.split('');
+      s.lines = 100;
+      expect(buySlot(s, 'comedy')).toBe(true);
+      expect(buySlot(s, 'tragedy')).toBe(true);
+      expect(s.slots.map((x) => x.position)).toEqual([1, 1]); // each starts at its own 1st position
+      expect(s.lines).toBe(100 - 2 * slotCost(0)); // each department's first slot is the cheap one
+      expect(setSlotWord(s, 0, 'AY')).toBe(true);
+      expect(setSlotWord(s, 1, 'AY')).toBe(false); // not a word in the tragedy's department
+      expect(setSlotWord(s, 1, 'NO')).toBe(true);
+      s.monkeys.push({ ...createMonkey(), department: 'tragedy' });
+      typeLetter(s, 0, () => 0);
+      typeLetter(s, 1, () => 0);
+      expect(s.monkeys[0].line[0].text).toBe('AY');
+      expect(s.monkeys[1].line[0].text).toBe('NO');
     } finally {
       setPlays([]);
     }

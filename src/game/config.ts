@@ -127,12 +127,15 @@ export const scriptShop = {
 /**
  * Departments: one per genre (comedies, histories, tragedies, and last the
  * Sonnets). You open the first at the start; the n-th opens once you have
- * monkeysToOpen[n-1] monkeys, bought or earned. Each monkey works in one department and only
+ * monkeysToOpen[n-1] monkeys, bought or earned. A department holds at most
+ * maxMonkeys monkeys (its manager included), so the thresholds must stay
+ * reachable: the n-th department needs at most (n-1) x maxMonkeys. Each monkey works in one department and only
  * writes lines of plays in that department's genre, and only plays of a
  * department's genre can be bought.
  */
 export const departmentRules = {
-  monkeysToOpen: [0, 10, 30, 60],
+  monkeysToOpen: [0, 10, 20, 30],
+  maxMonkeys: 10, // per department, its manager included
 };
 
 /**
@@ -173,8 +176,9 @@ export const lineWidth = 30;
 /**
  * Word slots, a late upgrade bought with Lines once you own unlockLetters
  * letters. Each slot locks one position in a chain (1st word, 2nd word, ...)
- * to a word you choose; it can be switched off to type fully at random. The
- * n-th slot costs baseCost x costGrowth^(n-1) Lines.
+ * to a word you choose; it can be switched off to type fully at random.
+ * Each department has its own slots, up to maxSlots; a department's n-th slot
+ * costs baseCost x costGrowth^(n-1) Lines.
  */
 export const wordSlots = {
   unlockLetters: 13,

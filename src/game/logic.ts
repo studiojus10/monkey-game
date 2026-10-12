@@ -20,7 +20,7 @@ import {
   typing,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createMonkey, type GameState, type MonkeyState, type Pin, type Segment } from './state';
+import { createMonkey, type GameState, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -135,9 +135,14 @@ export function moveMonkey(state: GameState, index: number): boolean {
   const m = state.monkeys[index];
   const open = departmentGenres(state);
   if (!m || open.length < 2) return false;
-  if (m.manager) toggleManager(state, index); // a manager moving departments goes back to typing
+  // The next department round the list that has room.
   const at = open.indexOf(monkeyGenre(state, m)!);
-  m.department = open[(at + 1) % open.length];
+  const next = [...open.slice(at + 1), ...open.slice(0, at)].find(
+    (g) => departmentMonkeys(state, g).length < departmentRules.maxMonkeys,
+  );
+  if (!next) return false;
+  if (m.manager) toggleManager(state, index); // a manager moving departments goes back to typing
+  m.department = next;
   return true;
 }
 
@@ -366,11 +371,25 @@ export function nextMonkeyCost(state: GameState): number {
   return monkeyCost(Math.max(1, state.monkeys.length - milestones.actFreeMonkeys * state.actsDone.length));
 }
 
+/**
+ * The department a new monkey joins: `preferred` if it has room, else the
+ * first open department with room. Undefined if every department is full.
+ */
+export function departmentWithRoom(state: GameState, preferred?: Genre): Genre | undefined | null {
+  const open = departmentGenres(state);
+  if (open.length === 0) return state.monkeys.length < departmentRules.maxMonkeys ? undefined : null;
+  const roomy = (g: Genre) => departmentMonkeys(state, g).length < departmentRules.maxMonkeys;
+  if (preferred && open.includes(preferred) && roomy(preferred)) return preferred;
+  return open.find(roomy) ?? null;
+}
+
+/** Buys a monkey with Lines. It joins the first department with room; none if all are full. */
 export function buyMonkey(state: GameState): boolean {
   const cost = nextMonkeyCost(state);
-  if (state.letters.length === 0 || state.lines < cost) return false;
+  const dept = departmentWithRoom(state);
+  if (state.letters.length === 0 || state.lines < cost || dept === null) return false;
   state.lines -= cost;
-  state.monkeys.push(createMonkey());
+  state.monkeys.push({ ...createMonkey(), department: dept ?? '' });
   return true;
 }
 
@@ -488,19 +507,35 @@ export function slotsUnlocked(state: GameState): boolean {
   return state.letters.length >= wordSlots.unlockLetters;
 }
 
-/** Cost in Lines of the next word slot, given how many you have. */
+/** Cost in Lines of a department's next word slot, given how many it has. */
 export function slotCost(owned: number): number {
   return Math.ceil(wordSlots.baseCost * Math.pow(wordSlots.costGrowth, owned));
 }
 
-/** Buys a slot at the first free position. It starts on, with no word set. */
-export function buySlot(state: GameState): boolean {
-  const cost = slotCost(state.slots.length);
-  if (!slotsUnlocked(state) || state.slots.length >= wordSlots.maxSlots || state.lines < cost) return false;
+/** The genre of the department a slot belongs to. */
+export function slotGenre(state: GameState, slot: WordSlot): Genre | undefined {
+  const open = departmentGenres(state);
+  return open.find((g) => g === slot.department) ?? open[0];
+}
+
+/** Indices (into state.slots) of a department's slots, by position. */
+export function departmentSlots(state: GameState, genre: Genre | undefined): number[] {
+  return state.slots
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => slotGenre(state, x) === genre)
+    .sort((a, b) => a.x.position - b.x.position)
+    .map(({ i }) => i);
+}
+
+/** Buys a slot for a department at its first free position. It starts on, with no word set. */
+export function buySlot(state: GameState, genre = departmentGenres(state)[0]): boolean {
+  const mine = departmentSlots(state, genre).map((i) => state.slots[i]);
+  const cost = slotCost(mine.length);
+  if (!slotsUnlocked(state) || mine.length >= wordSlots.maxSlots || state.lines < cost) return false;
   let position = 1;
-  while (state.slots.some((x) => x.position === position)) position++;
+  while (mine.some((x) => x.position === position)) position++;
   state.lines -= cost;
-  state.slots.push({ position, word: '', on: true });
+  state.slots.push({ department: genre ?? '', position, word: '', on: true });
   return true;
 }
 
@@ -508,8 +543,7 @@ export function buySlot(state: GameState): boolean {
 export function setSlotWord(state: GameState, slot: number, word: string): boolean {
   const s = state.slots[slot];
   const w = word.toUpperCase();
-  const genresToCheck = departmentGenres(state).length > 0 ? departmentGenres(state) : [undefined];
-  if (!s || !genresToCheck.some((g) => dictionaryFor(state, g).isWord(w))) return false;
+  if (!s || !dictionaryFor(state, slotGenre(state, s)).isWord(w)) return false;
   s.word = w;
   return true;
 }
@@ -525,9 +559,10 @@ export function toggleSlot(state: GameState, slot: number): boolean {
 export function moveSlot(state: GameState, slot: number, delta: 1 | -1): boolean {
   const s = state.slots[slot];
   if (!s) return false;
+  const mine = departmentSlots(state, slotGenre(state, s)).map((i) => state.slots[i]);
   let p = s.position + delta;
-  while (p >= 1 && state.slots.some((x) => x !== s && x.position === p)) p += delta;
-  if (p < 1 || p > wordSlots.maxSlots + state.slots.length) return false;
+  while (p >= 1 && mine.some((x) => x !== s && x.position === p)) p += delta;
+  if (p < 1 || p > wordSlots.maxSlots + mine.length) return false;
   s.position = p;
   return true;
 }
@@ -540,7 +575,10 @@ export function moveSlot(state: GameState, slot: number, delta: 1 | -1): boolean
 function dueSlot(state: GameState, m: MonkeyState, dict: Dictionary): string {
   const ready = m.pending === '' ? 0 : dict.isWord(m.pending) ? 1 : -1;
   if (ready < 0) return '';
-  const s = state.slots.find((x) => x.on && x.word && x.position === m.chainLength + ready + 1);
+  const genre = monkeyGenre(state, m);
+  const s = state.slots.find(
+    (x) => x.on && x.word && x.position === m.chainLength + ready + 1 && slotGenre(state, x) === genre,
+  );
   return s && dict.isWord(s.word) ? s.word : '';
 }
 
@@ -682,7 +720,11 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
     state.actsDone.push(actKey);
     const bonus = actBonus(play, act);
     state.speedBonus += bonus;
-    for (let k = 0; k < milestones.actFreeMonkeys; k++) state.monkeys.push({ ...createMonkey(), department: play.genre });
+    // Free monkeys join the play's department, or another with room; none if every department is full.
+    for (let k = 0; k < milestones.actFreeMonkeys; k++) {
+      const dept = departmentWithRoom(state, play.genre);
+      if (dept !== null) state.monkeys.push({ ...createMonkey(), department: dept ?? '' });
+    }
     state.lastMilestone = { kind: 'act', play: play.id, act, scene: 0, sentences: 0, bonus };
   }
   if (play.scenes.every(finished) && !state.playsDone.includes(play.id)) {
@@ -774,11 +816,10 @@ export function firstReachableLine(state: GameState, genre: Genre | undefined): 
 
 /**
  * Runs the managers: each keeps its department's target on the first
- * reachable unwritten line, pins it, and (the first department's manager)
- * fills the word slots with the line's words, by position.
+ * reachable unwritten line, pins it, and fills its department's word slots
+ * with the line's words, by position.
  */
 export function manage(state: GameState): void {
-  let slotsSet = false;
   for (const genre of departmentGenres(state)) {
     const boss = managerOf(state, genre);
     if (!boss) continue;
@@ -791,15 +832,13 @@ export function manage(state: GameState): void {
         state.pinned.push(boss.target);
       }
     }
-    if (!slotsSet) {
-      // With no line in reach the slots go off, so typing is fully random again.
-      slotsSet = true;
-      const words = boss.target ? plays.get(boss.target.play)!.lines[boss.target.index].words : [];
-      for (const slot of state.slots) {
-        const word = words[slot.position - 1];
-        slot.word = word ?? slot.word;
-        slot.on = !!word;
-      }
+    // Slots past the line's end switch off; with no line in reach they all do, so typing is random again.
+    const words = boss.target ? plays.get(boss.target.play)!.lines[boss.target.index].words : [];
+    for (const i of departmentSlots(state, genre)) {
+      const slot = state.slots[i];
+      const word = words[slot.position - 1];
+      slot.word = word ?? slot.word;
+      slot.on = !!word;
     }
   }
 }

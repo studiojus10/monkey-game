@@ -233,22 +233,22 @@ describe('word slots on screen', () => {
   it('bold the words a slot will type in pinned lines', () => {
     const s = started();
     s.slots = [
-      { position: 3, word: 'NAME', on: true },
-      { position: 1, word: 'BYE', on: true },
-      { position: 5, word: 'HAMLET', on: false },
+      { department: '', position: 3, word: 'NAME', on: true },
+      { department: '', position: 1, word: 'BYE', on: true },
+      { department: '', position: 5, word: 'HAMLET', on: false },
     ];
-    expect(slotHighlight(s, 'Hello my name is Hamlet.')).toBe('Hello my \x1b[1mname\x1b[22m is Hamlet.');
-    expect(slotHighlight(s, "O'er my name")).toBe("O'er my \x1b[1mname\x1b[22m");
+    expect(slotHighlight(s, 'Hello my name is Hamlet.', 'comedy')).toBe('Hello my \x1b[1mname\x1b[22m is Hamlet.');
+    expect(slotHighlight(s, "O'er my name", 'comedy')).toBe("O'er my \x1b[1mname\x1b[22m");
   });
 
   it('lists slots with their position, word and switch', () => {
     const s = started();
     s.lines = 2;
-    s.slots = [{ position: 3, word: 'FRIEND', on: true }];
-    const text = plain(renderSlotsMenu(s, 0, null));
+    s.slots = [{ department: '', position: 3, word: 'FRIEND', on: true }];
+    const text = plain(renderSlotsMenu(s, 'comedy', 0, null));
     expect(text).toContain('> [1] 3rd  word: FRIEND           ON');
     expect(text).toContain('[b]  buy a slot   cost 6 Lines');
-    expect(renderSlotsMenu(s, 0, 'FRI')).toContain('word: FRI_');
+    expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word: FRI_');
     expect(ordinal(1) + ordinal(2) + ordinal(11) + ordinal(22)).toBe('1st2nd11th22nd');
   });
 });

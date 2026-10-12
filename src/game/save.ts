@@ -103,7 +103,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       slots: Array.isArray(s.slots)
         ? s.slots
             .filter((x) => x && Number.isInteger(x.position) && x.position > 0)
-            .map((x) => ({ position: x.position, word: /^[A-Z]*$/.test(str(x.word)) ? str(x.word) : '', on: !!x.on }))
+            .map((x) => ({ department: str(x.department), position: x.position, word: /^[A-Z]*$/.test(str(x.word)) ? str(x.word) : '', on: !!x.on }))
         : [],
       letters: Array.isArray(s.letters)
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))

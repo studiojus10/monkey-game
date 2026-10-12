@@ -151,7 +151,7 @@ Scenes, acts and whole plays are bought with points in the script browser **(dec
 
 ### Departments
 
-Each genre has a **department** **(decided)**. You open the first at the start, which picks your starting genre. The second opens once you have 10 monkeys (bought or earned), and the third once you have 20 more (30 in all); the [Sonnets department](#the-sonnets-department) opens last, at 60. Numbers are for the balance pass. You can only buy plays in genres you have a department for. Each monkey works in one department and only writes lines of plays in that department's genre, so with all three open you work on a comedy, a history and a tragedy at the same time. `d` moves a monkey to the next department; free monkeys from an act join that play's department; with more than one department, each monkey's line starts with its department's initial.
+Each genre has a **department** **(decided)**. You open the first at the start, which picks your starting genre. A department holds at most **10 monkeys**, one of which can be its manager **(decided, for now)**. The second department opens once you have 10 monkeys (bought or earned), the third at 20, and the [Sonnets department](#the-sonnets-department) last at 30, so each opens just as the ones before it fill up. New and free monkeys join a department with room; when every open department is full, no more monkeys can be bought. Each department has **its own word slots** **(decided)**, bought and set separately (`tab` in the slots menu switches department), and they only steer that department's monkeys. Numbers are for the balance pass. You can only buy plays in genres you have a department for. Each monkey works in one department and only writes lines of plays in that department's genre, so with all three open you work on a comedy, a history and a tragedy at the same time. `d` moves a monkey to the next department; free monkeys from an act join that play's department; with more than one department, each monkey's line starts with its department's initial.
 
 ### Manager monkeys (automation)
 
@@ -160,12 +160,12 @@ For players who don't want to micromanage **(decided)**. A department with more 
 - fills your word slots with that line's words by position (slots past the line's length switch off; with no line in reach all slots switch off, so typing is random again);
 - moves on to the next line as soon as one is written.
 
-There's one set of word slots, so with several managers the first department's manager sets them. Managers can be **upgraded** (`u`): each upgrade adds +0.1× to the points of every monkey in that department. Because one upgrade improves a whole department, they're very expensive: Lines, 50 per monkey in the department, doubling each level (starting guess).
+A manager sets its own department's slots. Managers can be **upgraded** (`u`): each upgrade adds +0.1× to the points of every monkey in that department. Because one upgrade improves a whole department, they're very expensive: Lines, 50 per monkey in the department, doubling each level (starting guess).
 
 ### The Sonnets department
 
 A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a late way to earn more **Lines**. Verse lines run to a meter rather than ending at sentence breaks, so sonnets score differently:
-- It opens only after all three play departments, at 60 monkeys (starting guess).
+- It opens only after all three play departments, at 30 monkeys (starting guess).
 - Sonnets are bought one at a time (10 points per letter, like scenes) or all 154 at once at the whole-play discount. There are no acts.
 - Each new verse line written pays 2 Lines and a smaller points bonus (line word points × words, not words²). No Sentences, since verse lines often aren't complete sentences.
 - Finishing a sonnet pays 1 Line per line in it (14 for most) instead of scene and act bonuses; sonnets give no points or speed bonus and no free monkey.
