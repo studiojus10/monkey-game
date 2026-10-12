@@ -209,6 +209,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 
 - **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
 - **Play completion reward.** Not decided yet; Justin will decide later (2026-10-12). It should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
+- **Achievements and milestones menu.** Justin wants a page like the statistics (`t`) and dictionary (`w`) pages listing achievements and milestones (2026-10-12). Which achievements, and whether they give rewards, is still to be decided with Justin.
 - **Monkey price in Lines.** Starting guess: 10 Lines, ×2 each. For the balance pass.
 - **Department thresholds and script prices.** 10 and 30 monkeys, 10 points per letter, 20%/40% discounts are placeholders for the balance pass.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.
