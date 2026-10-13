@@ -27,6 +27,7 @@ import {
   comboMultiplier,
   monkeyCost,
   letterCost,
+  letterWordsCost,
   setPlays,
   setWordList,
   chooseFirstLetter,
@@ -200,9 +201,10 @@ describe('faster typing', () => {
 });
 
 describe('buying letters', () => {
-  it('costs more for each letter you own', () => {
+  it('costs more points and Words for each letter you own', () => {
     expect(letterCost(1)).toBe(letterShop.baseCost);
     expect(letterCost(2)).toBe(letterShop.baseCost * letterShop.costGrowth);
+    expect([1, 2, 3, 4, 13].map(letterWordsCost)).toEqual([0, 1, 2, 4, 42]);
   });
 
   it('adds a new letter for points, once', () => {
@@ -210,11 +212,15 @@ describe('buying letters', () => {
     expect(buyLetter(s, 't')).toBe(false); // no first letter yet
     chooseFirstLetter(s, 'i');
     s.currency = letterCost(1) * 10;
+    s.letters.push('A', 'N'); // own 3: the next costs 2 Words
+    expect(buyLetter(s, 't')).toBe(false); // no Words yet
+    s.words = 3;
     expect(buyLetter(s, 'I')).toBe(false);
     expect(buyLetter(s, '!')).toBe(false);
     expect(buyLetter(s, 't')).toBe(true);
-    expect(s.letters).toEqual(['I', 'T']);
-    expect(s.currency).toBe(letterCost(1) * 9);
+    expect(s.letters).toEqual(['I', 'A', 'N', 'T']);
+    expect(s.currency).toBe(letterCost(1) * 10 - letterCost(3));
+    expect(s.words).toBe(1);
     expect(buyLetter(s, 'T')).toBe(false);
   });
 

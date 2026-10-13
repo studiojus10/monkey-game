@@ -40,6 +40,7 @@ import {
   keysUnlocked,
   moveSlot,
   letterCost,
+  letterWordsCost,
   poke,
   reachableLines,
   setSlotWord,
@@ -494,6 +495,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === '2' && unownedLetters(state).length > 0) {
     if (state.currency < letterCost(state.letters.length)) {
       message = `Not enough ${theme.currency}.`;
+    } else if (state.words < letterWordsCost(state.letters.length)) {
+      message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
     } else {
       pickingLetter = true;
       message = letterPickPrompt(state);

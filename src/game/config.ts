@@ -35,6 +35,10 @@ export const letterValues: Record<string, number> = {
 export const letterShop = {
   baseCost: 25,
   costGrowth: 3,
+  // Each letter also costs Words: floor(wordsCostFactor x owned^wordsCostPower), so 0, 1, 2, 4, 6, 9, ...
+  // Kept gentle early: a poor second or third letter (Q, J) adds few new words, and must not lock you out.
+  wordsCostFactor: 0.25,
+  wordsCostPower: 2,
 };
 
 /**

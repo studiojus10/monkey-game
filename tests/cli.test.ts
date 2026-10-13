@@ -84,7 +84,9 @@ describe('terminal screen', () => {
     expect(text.split('\n')[2]).toBe('M-1(0.50/s) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
     expect(plain(text)).toContain('[1] ★Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10 Points');
-    expect(plain(text)).toContain('[2] ★Buy a letter   cost 25 Points');
+    expect(plain(text)).toContain('[2] ★Buy a letter   cost 25 Points'); // the 2nd letter costs no Words
+    s.letters.push('A');
+    expect(plain(renderScreen(s, '', true))).toContain('[2]  Buy a letter   cost 75 Points + 1 Words');
     expect(plain(text)).toContain('[3]  Buy a monkey (you have 1)   cost 10 Lines');
     expect(plain(text)).toContain('[4]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
     expect(text).toContain('[q] quit');

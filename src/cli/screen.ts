@@ -19,6 +19,8 @@ import {
   wordKeySpellsNeeded,
   keysUnlocked,
   letterCost,
+  letterWordsCost,
+  canAffordLetter,
   monkeySpeed,
   nextMonkeyCost,
   ownedProgress,
@@ -203,6 +205,7 @@ function shopLines(state: GameState): string[] {
   const nextSpeed = monkeySpeed(state, state.typingLevel + 1);
   const cost = typingUpgradeCost(state.typingLevel);
   const nextLetter = letterCost(state.letters.length);
+  const nextLetterWords = letterWordsCost(state.letters.length);
   const nextMonkey = nextMonkeyCost(state);
   const nextCap = capRaiseCost(state.comboCapLevel);
   const mark = (have: number, price: number) => (have >= price ? '★' : ' ');
@@ -211,7 +214,10 @@ function shopLines(state: GameState): string[] {
     `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
       `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`,
     ...(unownedLetters(state).length > 0
-      ? [`  [2] ${mark(state.currency, nextLetter)}Buy a letter   cost ${price(nextLetter, state.currency)} ${theme.currency}`]
+      ? [
+          `  [2] ${canAffordLetter(state) ? '★' : ' '}Buy a letter   cost ${price(nextLetter, state.currency)} ${theme.currency}` +
+            (nextLetterWords > 0 ? ` + ${price(nextLetterWords, state.words)} Words` : ''),
+        ]
       : []),
     `  [3] ${mark(state.lines, nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   ` +
       `cost ${price(nextMonkey, state.lines)} Lines`,

@@ -391,12 +391,23 @@ export function letterCost(owned: number): number {
   return Math.ceil(letterShop.baseCost * Math.pow(letterShop.costGrowth, Math.max(0, owned - 1)));
 }
 
-/** Buys a letter you don't own yet. */
+/** Cost in Words of the next letter, given how many you own. */
+export function letterWordsCost(owned: number): number {
+  return Math.floor(letterShop.wordsCostFactor * owned ** letterShop.wordsCostPower);
+}
+
+/** Whether you have the points and Words for your next letter. */
+export function canAffordLetter(state: GameState): boolean {
+  return state.currency >= letterCost(state.letters.length) && state.words >= letterWordsCost(state.letters.length);
+}
+
+/** Buys a letter you don't own yet, for points and Words. */
 export function buyLetter(state: GameState, letter: string): boolean {
   const l = letter.toUpperCase();
   const cost = letterCost(state.letters.length);
   if (state.letters.length === 0 || !/^[A-Z]$/.test(l) || state.letters.includes(l)) return false;
-  if (state.currency < cost) return false;
+  if (!canAffordLetter(state)) return false;
+  state.words -= letterWordsCost(state.letters.length);
   state.currency -= cost;
   state.letters.push(l);
   return true;
