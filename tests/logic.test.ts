@@ -40,6 +40,7 @@ import {
   chooseStarterScene,
   departmentChoices,
   manage,
+  firstReachableLine,
   departmentMonkeys,
   departmentsWithRoom,
   departmentTypists,
@@ -1054,6 +1055,38 @@ describe('finding your place in the script', () => {
       expect(nextOwnedScene(s, 'a', 1, -1)).toEqual({ play: 'b', index: 0 });
       s.owned = [];
       expect(nextOwnedScene(s, 'a', 0, 1)).toBeNull();
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
+describe('manager line choice', () => {
+  it('picks a line within reach, then the fewest words, then the earliest in the play', () => {
+    try {
+      setPlays([
+        {
+          id: 'p',
+          title: 'P',
+          genre: 'comedy',
+          lines: [
+            [1, 1, 'A', 'Zounds.'], // one word, but needs Z, U, S
+            [1, 1, 'B', 'Ay, my lord.'],
+            [1, 1, 'C', 'No, my lord.'],
+            [1, 1, 'D', 'Ay, no.'],
+            [1, 1, 'E', 'My lord.'],
+          ],
+        },
+      ]);
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.owned = ['p'];
+      s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N'];
+      expect(firstReachableLine(s, 'comedy')).toEqual({ play: 'p', index: 3 }); // 2 words, before line 4
+      s.completed.p = [3];
+      expect(firstReachableLine(s, 'comedy')).toEqual({ play: 'p', index: 4 });
+      s.completed.p = [3, 4];
+      expect(firstReachableLine(s, 'comedy')).toEqual({ play: 'p', index: 1 }); // 3 words each: play order
     } finally {
       setPlays([]);
     }

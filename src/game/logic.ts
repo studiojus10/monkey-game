@@ -898,19 +898,30 @@ function unpin(state: GameState, pin: Pin): void {
   state.pinned = state.pinned.filter((p) => !samePin(p, pin));
 }
 
-/** The first unwritten line of a genre's owned scenes, in play order, that your letters can spell. */
+/**
+ * The line a manager targets: among a genre's unwritten owned lines that
+ * your letters can spell, the one with the fewest words, then the earliest
+ * in play order.
+ */
 export function firstReachableLine(state: GameState, genre: Genre | undefined): Pin | null {
+  let best: Pin | null = null;
+  let bestWords = Infinity;
   for (const play of plays.values()) {
     if (play.genre !== genre) continue;
-    const index = reachableLines(state, play.id).sort((a, b) => a - b)[0];
-    if (index !== undefined) return { play: play.id, index };
+    for (const index of reachableLines(state, play.id)) {
+      const words = play.lines[index].words.length;
+      if (words < bestWords || (words === bestWords && best?.play === play.id && index < best.index)) {
+        best = { play: play.id, index };
+        bestWords = words;
+      }
+    }
   }
-  return null;
+  return best;
 }
 
 /**
- * Runs the managers: each keeps its department's target on the first
- * reachable unwritten line, pins it, and fills its department's word slots
+ * Runs the managers: each keeps its department's target on a reachable
+ * unwritten line (fewest words first, then play order), pins it, and fills its department's word slots
  * with the line's words, by position.
  */
 export function manage(state: GameState): void {

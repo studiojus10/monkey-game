@@ -156,7 +156,7 @@ Each genre has a **department** **(decided)**. You open the first at the start, 
 ### Manager monkeys (automation)
 
 For players who don't want to micromanage **(decided)**. A department with more than 5 monkeys can promote one to **manager** (`m`, one per department; `m` again sends it back to typing). A manager stops typing and instead:
-- picks the first unwritten line of its department's owned scenes, in play order, that your letters can spell, and pins it;
+- picks an unwritten line of its department's owned scenes that your letters can spell (within reach), preferring the line with the fewest words, then the earliest in play order **(decided)**, and pins it;
 - fills your word slots with that line's words by position (slots past the line's length switch off; with no line in reach all slots switch off, so typing is random again);
 - moves on to the next line as soon as one is written.
 
