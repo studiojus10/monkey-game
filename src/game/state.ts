@@ -60,6 +60,7 @@ export interface GameState {
   totalEarned: number;
   sentences: number; // currency: every time a play line (3+ words) is typed
   lines: number; // currency: first completion of each play line
+  words: number; // currency: one for each different word ever spelled (each new dictionary entry)
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
   owned: string[]; // script bought: "play", "play:act" or "play:act.scene"; empty until the free starter scene
   completed: Record<string, number[]>; // play id -> completed line indices
@@ -114,6 +115,7 @@ export function createInitialState(now = Date.now()): GameState {
     totalEarned: 0,
     sentences: 0,
     lines: 0,
+    words: 0,
     departments: [],
     owned: [],
     completed: {},

@@ -107,6 +107,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       totalEarned: num(s.totalEarned, fresh.totalEarned),
       sentences: num(s.sentences, 0),
       lines: num(s.lines, 0),
+      words: num(s.words, Object.keys(stats.words).length), // saves from before Words count what they've spelled
       departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,

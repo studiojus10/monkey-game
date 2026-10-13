@@ -34,6 +34,14 @@ describe('save/load', () => {
     expect(s.currency).toBe(7);
   });
 
+  it('gives an old save one Word per different word it has spelled', () => {
+    const s = createInitialState(0);
+    s.stats.words = { CAT: 3, DOG: 1 };
+    const raw = JSON.parse(serialize(s));
+    delete raw.state.words;
+    expect(deserialize(JSON.stringify(raw)).words).toBe(2);
+  });
+
   it('fills in missing fields', () => {
     const s = deserialize(JSON.stringify({ version: 3, state: { currency: 7, letters: ['I', 'bad'] } }), 5);
     expect(s.currency).toBe(7);

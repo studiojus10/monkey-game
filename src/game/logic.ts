@@ -693,6 +693,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
 function countWord(state: GameState, m: MonkeyState, word: string, paid: number, fromSlot: boolean): void {
   const st = state.stats;
   if (fromSlot) for (const l of word) st.letters[l] = (st.letters[l] ?? 0) + 1;
+  if (!st.words[word]) state.words++; // a new word for the dictionary
   st.words[word] = (st.words[word] ?? 0) + 1;
   if (word.length > st.longestWord.length) st.longestWord = word;
   if (paid > st.bestWordPoints) {

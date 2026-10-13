@@ -103,6 +103,7 @@ Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is 
 
 - **Points** come from every word. They buy letters, typing speed and typewriter keys.
 - **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy repeatable upgrades such as raising the combo cap.
+- **Words** (2026-10-13) come from each **different** word your monkeys spell: one per new entry in the dictionary, so the supply is limited by the word list and your letters. An early-game limited currency. What it buys is still open (see [Open questions](#open-questions)).
 - **Lines** come from completing a line of the play for the **first** time: one per line, so the supply is limited by the play's length. They're the rarest currency and buy the biggest, permanent upgrades: new monkeys and word slots.
 
 Lines and Sentences are both rare, so the upgrades they buy can't be reached by grinding points. (Exact split of what each buys is for the balance pass.)
@@ -208,6 +209,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 
 - **Unlock rules for keys and slots.** 13 letters is a placeholder, like the monkey unlock.
 - **Play completion reward.** Not decided yet; Justin will decide later (2026-10-12). It should be massive and change how the game plays every time. Ideas: a prestige reset that keeps a "First Folio" giving a permanent multiplier and lets you pick the next play; a golden monkey that types whole words at a time; letters that cost nothing on the next run; a new mechanic per play (e.g. finishing *Macbeth* adds a witches' cauldron that brews letters).
+- **What Words buy.** The Words currency is earned but has nothing to spend on yet; Justin is deciding.
 - **Achievements and milestones menu.** Justin wants a page like the statistics (`t`) and dictionary (`w`) pages listing achievements and milestones (2026-10-12). Which achievements, and whether they give rewards, is still to be decided with Justin.
 - **Monkey price in Lines.** Starting guess: 10 Lines, ×2 each. For the balance pass.
 - **Department thresholds and script prices.** 10 and 30 monkeys, 10 points per letter, 20%/40% discounts are placeholders for the balance pass.

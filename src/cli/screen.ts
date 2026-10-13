@@ -177,7 +177,7 @@ export function renderScreen(state: GameState, message = '', shopOpen = false): 
       : []),
     '',
     `${bold(`${formatNumber(state.currency)} ${theme.currency}`)}   ${formatNumber(state.sentences)} Sentences   ` +
-      `${formatNumber(state.lines)} Lines`,
+      `${formatNumber(state.lines)} Lines   ${formatNumber(state.words)} Words`,
     `Letters: ${state.letters.join(' ')}`,
     `Script: ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned, ` +
       `${count(written)} / ${count(ownedLines)} lines written`,

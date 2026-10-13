@@ -130,6 +130,7 @@ describe('typing', () => {
     expect(s.stats.pets).toBe(1);
     expect(s.stats.letters).toEqual({ I: 5 });
     expect(s.stats.words).toEqual({ I: 5 });
+    expect(s.words).toBe(1); // one Word: I was new only the first time
     expect(s.stats.longestWord).toBe('I');
     expect(s.stats.bestWord).toBe('I');
     expect(s.stats.longestChain).toBe(5);
