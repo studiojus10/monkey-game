@@ -1,4 +1,4 @@
-import { accessories, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { accessories, monkeyIcon, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   furnitureSpot,
@@ -190,11 +190,12 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       : m.resting
         ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
         : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
+  // Each monkey has an icon, its hat if it wears one; other accessories show as letters after its name.
   const worn = (m: MonkeyState) => {
-    const glyphs = accessories.filter((a) => m.accessories.includes(a.id)).map((a) => a.glyph).join('');
+    const glyphs = accessories.filter((a) => !a.icon && m.accessories.includes(a.id)).map((a) => a.glyph).join('');
     return glyphs ? `[${glyphs}]` : '';
   };
-  const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
+  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
   const nameWidth = Math.max(...labels.map(([n]) => n.length));
   const comboWidth = Math.max(...labels.map(([, c]) => c.length));
   lines.push(
@@ -375,9 +376,9 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         ...accessories.map((a) => {
           const cost = accessoryCost(state, a.id);
           const someone = team.some((i) => !state.monkeys[i].accessories.includes(a.id));
-          return { id: `accessory:${a.id}`, star: someone && state.currency >= cost, text: `${a.name} [${a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return { id: `accessory:${a.id}`, star: someone && state.currency >= cost, text: `${a.name} [${a.icon ?? a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.currency)} ${theme.currency}` };
         }),
-        { text: 'Each is for one monkey, one per slot (head, eyes, ears, hands, feet). Its letter shows after the name.' },
+        { text: "Each is for one monkey, one per slot (head, eyes, ears, hands, feet). A hat changes the monkey's icon; the rest show as letters after its name." },
       ];
     }
     case 'estate': {
@@ -404,6 +405,14 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       ];
     }
   }
+}
+
+/** How monkeys show on the office map. */
+export const monkeyIconLegend = [`${monkeyIcon} monkey`, `&${monkeyIcon} manager`];
+
+/** A monkey's icon: its hat if it wears one, else a plain monkey. Two columns wide. */
+export function iconOf(m: MonkeyState): string {
+  return accessoryIn(m, 'head')?.icon ?? monkeyIcon;
 }
 
 /** What an accessory does for the monkey wearing it, in a few words. */

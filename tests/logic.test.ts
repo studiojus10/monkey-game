@@ -1413,10 +1413,12 @@ describe('accessories', () => {
     s.currency = 1e12;
     const m = s.monkeys[0];
     const base = monkeySpeed(s, m);
-    for (const a of accessories) expect(buyAccessory(s, 0, a.id)).toBe(true);
-    expect(m.accessories).toHaveLength(accessories.length);
-    expect(monkeySpeed(s, m)).toBeCloseTo(base * 1.1);
-    expect(wearing(m, 'points')).toBeCloseTo(0.1);
+    for (const id of ['glasses', 'headphones', 'slippers', 'mug', 'crown']) expect(buyAccessory(s, 0, id)).toBe(true);
+    expect(monkeySpeed(s, m)).toBeCloseTo(base * 1.2); // mug and crown
+    expect(wearing(m, 'points')).toBeCloseTo(0.2); // glasses and crown
+    expect(buyAccessory(s, 0, 'cap')).toBe(true); // a new hat replaces the crown: one per slot
+    expect(m.accessories).toHaveLength(5);
+    expect(m.accessories).not.toContain('crown');
     expect(comboMultiplier(s, { ...m, chainWords: ['AAAA', 'BBBB', 'CCCC', 'DDDD', 'EEEE'] })).toBe(comboCap(s) + 1);
     energy.drainSeconds = 600;
     const rates = energyRates(s, m);

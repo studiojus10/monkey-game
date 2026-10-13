@@ -227,13 +227,15 @@ export const energy = {
  * costGrowth times the last, across all monkeys. Effects, for the monkey
  * wearing it: points (its words and lines pay this much more), speed (types
  * faster), drain (tires slower), rest (breaks go faster), combo (its combo cap
- * is this much higher). Numbers are placeholders.
+ * is this much higher). A hat changes the monkey's icon (a plain monkey
+ * without one). Numbers are placeholders.
  */
 export interface Accessory {
   id: string;
   name: string;
   slot: 'head' | 'eyes' | 'ears' | 'hands' | 'feet';
   glyph: string; // one character, shown after the monkey's name
+  icon?: string; // hats: the monkey's icon while it wears it
   cost: number;
   costGrowth: number;
   points?: number;
@@ -243,12 +245,18 @@ export interface Accessory {
   combo?: number;
 }
 
+/** A monkey's icon with no hat on. */
+export const monkeyIcon = '🐵';
+
 export const accessories: Accessory[] = [
   { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 5_000, costGrowth: 1.5, points: 0.1 },
   { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 10_000, costGrowth: 1.5, drain: 0.15 },
   { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 10_000, costGrowth: 1.5, rest: 0.3 },
   { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 25_000, costGrowth: 1.5, speed: 0.1 },
-  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', cost: 100_000, costGrowth: 2, combo: 1 },
+  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: '🧢', cost: 2_000, costGrowth: 1.5, drain: 0.1 },
+  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '🎩', cost: 50_000, costGrowth: 1.5, points: 0.15 },
+  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '🎓', cost: 100_000, costGrowth: 2, combo: 1 },
+  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: '👑', cost: 10_000_000, costGrowth: 3, points: 0.1, speed: 0.1 },
 ];
 
 export const departmentRules = {

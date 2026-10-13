@@ -14,7 +14,7 @@ import {
   happiness,
 } from '../game/logic';
 import type { Furniture, GameState, Room } from '../game/state';
-import { genreNames, price } from './screen';
+import { genreNames, iconOf, monkeyIconLegend, price } from './screen';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -62,10 +62,11 @@ function roomBox(state: GameState, room: Room, cursor: Cell | null, held: number
       if (f < 0) text = ' . ';
       else if (state.furniture[f].kind === desk.id) {
         const monkey = state.monkeys[sitters[desks.indexOf(f)]];
-        text = !monkey ? '[ ]' : monkey.manager ? '[&]' : '[@]';
+        text = !monkey ? '[ ]' : `${monkey.manager ? '&' : ' '}${iconOf(monkey)}`; // icons are two columns wide
       } else text = ` ${glyphOf(state.furniture[f].kind)} `;
     }
-    return here ? `>${text[1]}<` : text;
+    if (!here) return text;
+    return text.length === 3 && text.codePointAt(1)! > 0xffff ? `>${text.slice(1)}` : `>${text[1]}<`;
   };
   // Walls run between a square of the room and one outside it; + only where they turn or meet.
   const corner = (x: number, y: number) => {
@@ -140,7 +141,7 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
     '=== Office ===',
     '',
     ...map,
-    ['[@] monkey', '[&] manager', '[ ] free desk', ...furnished].join('   '),
+    [...monkeyIconLegend, '[ ] free desk', ...furnished].join('   '),
     '',
     ...summary,
     '',
