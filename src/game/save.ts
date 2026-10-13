@@ -1,5 +1,6 @@
-import { furnitureKinds, officeRooms, typing } from './config';
-import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Stats } from './state';
+import { desk, furnitureKinds, typing } from './config';
+import { furnishOffice } from './logic';
+import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
 // Version 2 had one chosen play (`play`) and pins as line numbers in it; it
@@ -55,22 +56,11 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
       typewriter: Math.max(0, Math.floor(num(m?.typewriter, Math.max(0, Math.ceil(oldTypingLevel / typing.levelsPerTypewriter) - 1)))),
     });
-    // Rooms bought, in order. Saves from before office space get the first rooms that seat their monkeys.
-    const office = (v: unknown, monkeyCount: number): string[] => {
-      const ids = strings(v);
-      if (ids.length > 0) {
-        const rooms = officeRooms.filter((r) => ids.includes(r.id)).map((r) => r.id);
-        return rooms.includes(officeRooms[0].id) ? rooms : [officeRooms[0].id, ...rooms];
-      }
-      const rooms: string[] = [];
-      let desks = 0;
-      for (const r of officeRooms) {
-        if (rooms.length > 0 && desks >= monkeyCount) break;
-        rooms.push(r.id);
-        desks += r.desks;
-      }
-      return rooms;
-    };
+    const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
+    const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
+      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break') && Array.isArray(r.cells))
+      .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]) }))
+      .filter((r) => r.cells.length > 0);
     const completed: Record<string, number[]> = {};
     if (s.completed && typeof s.completed === 'object') {
       for (const [id, list] of Object.entries(s.completed)) {
@@ -124,15 +114,16 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       .map((p) => (typeof p === 'number' ? { play: oldPlay, index: p } : (p as Pin)))
       .filter((p) => p && typeof p.play === 'string' && p.play && Number.isInteger(p.index) && p.index >= 0)
       .map((p) => ({ play: p.play, index: p.index }));
-    return {
+    const state: GameState = {
       currency: num(s.currency, fresh.currency),
       totalEarned: num(s.totalEarned, fresh.totalEarned),
       sentences: num(s.sentences, 0),
       lines: num(s.lines, 0),
       words: num(s.words, Object.keys(stats.words).length), // saves from before Words count what they've spelled
-      office: office(s.office, monkeys.length),
+      office: rooms,
+      squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),
       furniture: (Array.isArray(s.furniture) ? s.furniture : [])
-        .filter((f) => f && furnitureKinds.some((k) => k.id === f.kind) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))
+        .filter((f) => f && (f.kind === desk.id || furnitureKinds.some((k) => k.id === f.kind)) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))
         .map((f) => ({ kind: f.kind, room: f.room, x: f.x, y: f.y })),
       departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
@@ -160,9 +151,13 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastWordPoints: num(s.lastWordPoints, 0),
+      settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false },
       stats,
       lastSaved: num(s.lastSaved, now),
     };
+    // Saves from before rooms get an office that seats their monkeys.
+    if (state.office.length === 0) furnishOffice(state);
+    return state;
   } catch {
     return fresh;
   }

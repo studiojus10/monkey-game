@@ -1,4 +1,4 @@
-import { officeRooms } from './config';
+import { office as officeRules } from './config';
 
 /** A piece of a monkey's current line: a scored word or a skipped letter. */
 export interface Segment {
@@ -53,10 +53,21 @@ export interface Milestone {
   bonus: number; // points bonus (scenes) or typing speed bonus (acts) it added, e.g. 0.2 = +20%; Lines paid (sonnets)
 }
 
-/** A piece of furniture standing in one cell of an office room. */
+/**
+ * A room of the office: a department's room (its monkeys' desks go here) or a
+ * break room. Its squares are [x, y] cells on its own grid; any shape.
+ */
+export interface Room {
+  id: string;
+  kind: 'department' | 'break';
+  department: string; // genre of a department room; empty = the first department
+  cells: [number, number][];
+}
+
+/** A piece of furniture standing on one square of a room. Desks are furniture too. */
 export interface Furniture {
-  kind: string; // a furnitureKinds id
-  room: string; // an officeRooms id
+  kind: string; // 'desk' or a furnitureKinds id
+  room: string; // a Room id
   x: number;
   y: number;
 }
@@ -73,7 +84,8 @@ export interface GameState {
   sentences: number; // currency: every time a play line (3+ words) is typed
   lines: number; // currency: first completion of each play line
   words: number; // currency: one for each different word ever spelled (each new dictionary entry)
-  office: string[]; // ids of the office rooms bought, in order (officeRooms in config); the first is where you start
+  office: Room[]; // rooms, in the order bought; the first is where you start
+  squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
   owned: string[]; // script bought: "play", "play:act" or "play:act.scene"; empty until the free starter scene
@@ -95,8 +107,18 @@ export interface GameState {
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
   lastWordPoints: number; // what it paid, combo included
+  settings: Settings;
   stats: Stats;
   lastSaved: number; // epoch ms
+}
+
+/** Player options, from the options menu. */
+export interface Settings {
+  autoPlaceFurniture: boolean; // new furniture places itself; off opens the office map to place it
+}
+
+export function createSettings(): Settings {
+  return { autoPlaceFurniture: true };
 }
 
 /** Lifetime statistics, for the statistics page. They never affect play. */
@@ -122,6 +144,18 @@ export function createMonkey(): MonkeyState {
   return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, skill: 0, typewriter: 0 };
 }
 
+/** A rectangle of squares from (0, 0). */
+export function rectangle(width: number, height: number): [number, number][] {
+  const cells: [number, number][] = [];
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) cells.push([x, y]);
+  return cells;
+}
+
+/** The room you start in: the first department's. */
+export function starterRoom(): Room {
+  return { id: 'r1', kind: 'department', department: '', cells: rectangle(officeRules.starterWidth, officeRules.starterHeight) };
+}
+
 export function createInitialState(now = Date.now()): GameState {
   return {
     currency: 0,
@@ -129,8 +163,9 @@ export function createInitialState(now = Date.now()): GameState {
     sentences: 0,
     lines: 0,
     words: 0,
-    office: [officeRooms[0].id],
-    furniture: [],
+    office: [starterRoom()],
+    squaresBought: 0,
+    furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
     departments: [],
     owned: [],
     completed: {},
@@ -151,6 +186,7 @@ export function createInitialState(now = Date.now()): GameState {
     wordsTyped: 0,
     lastWord: '',
     lastWordPoints: 0,
+    settings: createSettings(),
     stats: createStats(),
     lastSaved: now,
   };

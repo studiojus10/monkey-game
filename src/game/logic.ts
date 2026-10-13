@@ -15,16 +15,16 @@ import {
   managers,
   maxOfflineSeconds,
   monkeyShop,
-  officeRooms,
+  office as officeRules,
+  desk,
   furnitureKinds,
-  type Room,
   startingLetters,
   typewriterKeys,
   wordSlots,
   typing,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createMonkey, type Furniture, type GameState, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
+import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -125,6 +125,8 @@ export function departmentChoices(state: GameState): Genre[] {
 export function openDepartment(state: GameState, genre: string): boolean {
   const g = departmentChoices(state).find((x) => x === genre);
   if (!g || departmentPicks(state) === 0) return false;
+  // The first department takes the room you start in.
+  if (departmentGenres(state).length === 0) for (const r of state.office) if (r.kind === 'department' && r.department === '') r.department = g;
   state.departments.push(g);
   return true;
 }
@@ -142,10 +144,16 @@ export function moveMonkey(state: GameState, index: number): boolean {
   if (!m || open.length < 2) return false;
   // The next department round the list that has room.
   const at = open.indexOf(monkeyGenre(state, m)!);
+  const from = monkeyGenre(state, m);
   const next = [...open.slice(at + 1), ...open.slice(0, at)].find(
-    (g) => departmentTypists(state, g) < departmentRules.maxTypists,
+    (g) => departmentTypists(state, g) < departmentRules.maxTypists && hasDeskSpace(state, g),
   );
   if (!next) return false;
+  // Its desk moves with it.
+  const oldRoom = departmentRoom(state, from);
+  const oldDesk = oldRoom ? roomDesks(state, oldRoom).pop() : undefined;
+  if (oldDesk !== undefined) state.furniture.splice(oldDesk, 1);
+  placeDesk(state, next);
   if (m.manager) {
     // A manager moving departments goes back to typing there.
     m.manager = false;
@@ -427,59 +435,131 @@ export function nextMonkeyCost(state: GameState): number {
   return monkeyCost(Math.max(1, total - milestones.actFreeMonkeys * state.actsDone.length));
 }
 
-/** The office rooms you own, in the order bought. */
-export function ownedRooms(state: GameState): Room[] {
-  return officeRooms.filter((r) => state.office.includes(r.id));
+/** The department a room belongs to: undefined for a break room. */
+export function roomGenre(state: GameState, room: Room): Genre | undefined {
+  if (room.kind !== 'department') return undefined;
+  const open = departmentGenres(state);
+  return open.find((g) => g === room.department) ?? (room.department === '' ? open[0] : undefined);
 }
 
-/** Desks in all your rooms: the most monkeys (managers included) you can have. */
-export function deskCount(state: GameState): number {
-  return ownedRooms(state).reduce((n, r) => n + r.desks, 0);
+/** A department's room (before any department opens, the room you start in). */
+export function departmentRoom(state: GameState, genre: Genre | undefined): Room | undefined {
+  return state.office.find((r) => r.kind === 'department' && (roomGenre(state, r) === genre || (!genre && r.department === '')));
 }
 
-/** Desks with nobody at them. */
-export function freeDesks(state: GameState): number {
-  return Math.max(0, deskCount(state) - state.monkeys.length);
+/** Open departments that don't have a room yet. */
+export function roomlessDepartments(state: GameState): Genre[] {
+  return departmentGenres(state).filter((g) => !departmentRoom(state, g));
 }
 
-/** The next room for sale, or undefined once you own them all. */
-export function nextRoom(state: GameState): Room | undefined {
-  return officeRooms.find((r) => !state.office.includes(r.id));
+const hasCell = (room: Room, x: number, y: number) => room.cells.some(([cx, cy]) => cx === x && cy === y);
+const readingOrder = (a: [number, number], b: [number, number]) => a[1] - b[1] || a[0] - b[0];
+
+/** The smallest rectangle around a room's squares. */
+export function roomBounds(room: Room): { minX: number; maxX: number; minY: number; maxY: number } {
+  const xs = room.cells.map(([x]) => x);
+  const ys = room.cells.map(([, y]) => y);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
-/** Buys the next room with points. */
-export function buyRoom(state: GameState): boolean {
-  const room = nextRoom(state);
-  if (!room || state.currency < room.cost) return false;
-  state.currency -= room.cost;
-  state.office.push(room.id);
-  // Monkeys earned while the office was full move in at once if there's only one department to choose.
-  while (state.unassignedMonkeys > 0 && departmentsWithRoom(state).length <= 1 && assignMonkey(state));
-  return true;
-}
-
-/** Desk cells of a room as [x, y]: every other cell of every other row, in reading order. */
-export function deskCells(room: Room): [number, number][] {
-  const cells: [number, number][] = [];
-  for (let y = 1; y < room.height; y += 2) for (let x = 1; x < room.width; x += 2) cells.push([x, y]);
-  return cells.slice(0, room.desks);
-}
-
-/** What a cell of a room holds: a desk, furniture (its index in state.furniture), or free floor. */
-export function cellAt(state: GameState, roomId: string, x: number, y: number): 'desk' | number | 'floor' | null {
-  const room = officeRooms.find((r) => r.id === roomId);
-  if (!room || !state.office.includes(roomId) || x < 0 || y < 0 || x >= room.width || y >= room.height) return null;
-  if (deskCells(room).some(([dx, dy]) => dx === x && dy === y)) return 'desk';
+/** What a square holds: furniture (its index in state.furniture), free floor, or null if it's not in the room. */
+export function cellAt(state: GameState, roomId: string, x: number, y: number): number | 'floor' | null {
+  const room = state.office.find((r) => r.id === roomId);
+  if (!room || !hasCell(room, x, y)) return null;
   const f = state.furniture.findIndex((p) => p.room === roomId && p.x === x && p.y === y);
   return f >= 0 ? f : 'floor';
 }
 
-/** The first free floor cell, room by room in reading order, or null when the office is full. */
-export function firstFreeCell(state: GameState): Omit<Furniture, 'kind'> | null {
-  for (const room of ownedRooms(state)) {
-    for (let y = 0; y < room.height; y++) {
-      for (let x = 0; x < room.width; x++) if (cellAt(state, room.id, x, y) === 'floor') return { room: room.id, x, y };
+/** A room's free squares, in reading order. */
+export function freeSquares(state: GameState, room: Room): [number, number][] {
+  return [...room.cells].sort(readingOrder).filter(([x, y]) => cellAt(state, room.id, x, y) === 'floor');
+}
+
+/** The desks in a room, as indices into state.furniture. Monkeys of its department sit at them in order. */
+export function roomDesks(state: GameState, room: Room): number[] {
+  return state.furniture.flatMap((f, i) => (f.kind === desk.id && f.room === room.id ? [i] : []));
+}
+
+/** Whether a department's room has a free square for another monkey's desk. */
+export function hasDeskSpace(state: GameState, genre: Genre | undefined): boolean {
+  const room = departmentRoom(state, genre);
+  return !!room && freeSquares(state, room).length > 0;
+}
+
+/** Stands a new desk on the first free square of a department's room. */
+function placeDesk(state: GameState, genre: Genre | undefined): void {
+  const room = departmentRoom(state, genre);
+  const square = room && freeSquares(state, room)[0];
+  if (room && square) state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+}
+
+/** Seats monkeys waiting for a desk, if there's only one department to choose. */
+function seatWaiting(state: GameState): void {
+  while (state.unassignedMonkeys > 0 && departmentsWithRoom(state).length <= 1 && assignMonkey(state));
+}
+
+/** Points for a new 3x3 room. */
+export function roomCost(state: GameState): number {
+  return Math.ceil(officeRules.roomBaseCost * Math.pow(officeRules.roomCostGrowth, Math.max(0, state.office.length - 1)));
+}
+
+/** Buys a room: for a department that has none, or a break room. */
+export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): boolean {
+  const cost = roomCost(state);
+  if (state.currency < cost || (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre)))) return false;
+  state.currency -= cost;
+  const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
+  state.office.push({ id, kind, department: kind === 'department' ? genre! : '', cells: rectangle(officeRules.newRoomWidth, officeRules.newRoomHeight) });
+  seatWaiting(state);
+  return true;
+}
+
+/** Points for the next square added to a room. */
+export function squareCost(state: GameState): number {
+  return Math.ceil(officeRules.squareBaseCost * Math.pow(officeRules.squareCostGrowth, state.squaresBought));
+}
+
+/** Squares a room could grow into: next to it, side by side, in reading order. */
+export function expansionSquares(room: Room): [number, number][] {
+  const out: [number, number][] = [];
+  for (const [x, y] of room.cells) {
+    for (const [nx, ny] of [[x, y - 1], [x - 1, y], [x + 1, y], [x, y + 1]] as [number, number][]) {
+      if (!hasCell(room, nx, ny) && !out.some(([ox, oy]) => ox === nx && oy === ny)) out.push([nx, ny]);
     }
+  }
+  return out.sort(readingOrder);
+}
+
+/** The square a room grows into when you don't choose: the one that keeps it most compact. */
+export function bestExpansion(room: Room): [number, number] {
+  const area = (cells: [number, number][]) => {
+    const b = roomBounds({ ...room, cells });
+    return (b.maxX - b.minX + 1) * (b.maxY - b.minY + 1);
+  };
+  const options = expansionSquares(room);
+  return options.reduce((best, c) => (area([...room.cells, c]) < area([...room.cells, best]) ? c : best), options[0]);
+}
+
+/** Adds one square to a room: `square` if given (it must be next to the room), else the most compact one. */
+export function expandRoom(state: GameState, roomId: string, square?: [number, number]): boolean {
+  const room = state.office.find((r) => r.id === roomId);
+  const cost = squareCost(state);
+  if (!room || state.currency < cost) return false;
+  const [x, y] = square ?? bestExpansion(room);
+  if (!expansionSquares(room).some(([ex, ey]) => ex === x && ey === y)) return false;
+  state.currency -= cost;
+  room.cells.push([x, y]);
+  state.squaresBought++;
+  seatWaiting(state);
+  return true;
+}
+
+/** Where new furniture goes: the first free square of a break room, else of any room. */
+export function furnitureSpot(state: GameState): Omit<Furniture, 'kind'> | null {
+  const rooms = [...state.office.filter((r) => r.kind === 'break'), ...state.office.filter((r) => r.kind !== 'break')];
+  for (const room of rooms) {
+    const square = freeSquares(state, room)[0];
+    if (square) return { room: room.id, x: square[0], y: square[1] };
   }
   return null;
 }
@@ -492,22 +572,43 @@ export function furnitureCost(state: GameState, kind: string): number {
   return Math.ceil(k.cost * Math.pow(k.costGrowth, owned));
 }
 
-/** Buys a piece of furniture and stands it in the first free cell. */
+/** Buys a piece of furniture and stands it where it fits (see furnitureSpot). */
 export function buyFurniture(state: GameState, kind: string): boolean {
   const cost = furnitureCost(state, kind);
-  const cell = firstFreeCell(state);
-  if (!cell || state.currency < cost) return false;
+  const spot = furnitureSpot(state);
+  if (!spot || state.currency < cost) return false;
   state.currency -= cost;
-  state.furniture.push({ kind, ...cell });
+  state.furniture.push({ kind, ...spot });
   return true;
 }
 
-/** Moves a piece of furniture to a free floor cell. */
+/** Moves a piece of furniture to a free square. Desks stay in their department's room. */
 export function moveFurniture(state: GameState, index: number, roomId: string, x: number, y: number): boolean {
   const f = state.furniture[index];
-  if (!f || cellAt(state, roomId, x, y) !== 'floor') return false;
+  if (!f || cellAt(state, roomId, x, y) !== 'floor' || (f.kind === desk.id && f.room !== roomId)) return false;
   Object.assign(f, { room: roomId, x, y });
   return true;
+}
+
+/**
+ * Gives a save from before rooms an office: a room for each department, grown
+ * until it fits its monkeys, each with a desk.
+ */
+export function furnishOffice(state: GameState): void {
+  state.furniture = state.furniture.filter((f) => f.kind !== desk.id);
+  const depts = state.departments.length > 0 ? state.departments : [''];
+  state.office = depts.map((g, i) => ({
+    id: `r${i + 1}`,
+    kind: 'department' as const,
+    department: g,
+    cells: i === 0 ? rectangle(officeRules.starterWidth, officeRules.starterHeight) : rectangle(officeRules.newRoomWidth, officeRules.newRoomHeight),
+  }));
+  state.monkeys.forEach((m) => {
+    const room = state.office.find((r) => r.department === m.department) ?? state.office[0];
+    if (freeSquares(state, room).length === 0) room.cells.push(bestExpansion(room));
+    const [x, y] = freeSquares(state, room)[0];
+    state.furniture.push({ kind: desk.id, room: room.id, x, y });
+  });
 }
 
 /** Typing monkeys (managers not counted) in a department. */
@@ -515,20 +616,25 @@ export function departmentTypists(state: GameState, genre: Genre | undefined): n
   return departmentMonkeys(state, genre).filter((i) => !state.monkeys[i].manager).length;
 }
 
-/** Open departments with room for another typing monkey. */
+/** Whether a new monkey has somewhere to go: a department with room, or (before any department) the first room. */
+export function canSeatMonkey(state: GameState): boolean {
+  if (departmentGenres(state).length === 0) return departmentTypists(state, undefined) < departmentRules.maxTypists && hasDeskSpace(state, undefined);
+  return departmentsWithRoom(state).length > 0;
+}
+
+/** Open departments with room for another typing monkey: a free typing place and a free square for its desk. */
 export function departmentsWithRoom(state: GameState): Genre[] {
-  return departmentGenres(state).filter((g) => departmentTypists(state, g) < departmentRules.maxTypists);
+  return departmentGenres(state).filter((g) => departmentTypists(state, g) < departmentRules.maxTypists && hasDeskSpace(state, g));
 }
 
 /**
  * Where a new monkey goes: `genre` if it has room; with no genre given, the
  * only department with room. Null if that's not possible (full, or a choice
- * the player has to make, or no free desk). Before any department is open, '' (no department).
+ * the player has to make, or no square for a desk). Before any department is open, '' (no department).
  */
 function placeFor(state: GameState, genre?: Genre): string | null {
-  if (freeDesks(state) === 0) return null;
   const rooms = departmentsWithRoom(state);
-  if (departmentGenres(state).length === 0) return departmentTypists(state, undefined) < departmentRules.maxTypists ? '' : null;
+  if (departmentGenres(state).length === 0) return departmentTypists(state, undefined) < departmentRules.maxTypists && hasDeskSpace(state, undefined) ? '' : null;
   if (genre) return rooms.includes(genre) ? genre : null;
   return rooms.length === 1 ? rooms[0] : null;
 }
@@ -543,6 +649,7 @@ export function buyMonkey(state: GameState, genre?: Genre): boolean {
   if (state.letters.length === 0 || state.lines < cost || dept === null) return false;
   state.lines -= cost;
   state.monkeys.push({ ...createMonkey(), department: dept });
+  placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;
 }
 
@@ -552,6 +659,7 @@ export function assignMonkey(state: GameState, genre?: Genre): boolean {
   if (state.unassignedMonkeys === 0 || dept === null) return false;
   state.unassignedMonkeys--;
   state.monkeys.push({ ...createMonkey(), department: dept });
+  placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;
 }
 

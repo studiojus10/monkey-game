@@ -14,10 +14,10 @@ import {
   renderScript,
   renderContents,
   renderSlotsMenu,
+  renderOptions,
   slotHighlight,
 } from '../src/cli/screen';
 import { officeMapWidth, renderOffice } from '../src/cli/office';
-import { officeRooms } from '../src/game/config';
 import { dictionaryRowFor, renderDictionary, renderStats } from '../src/cli/stats';
 import { typeLetter, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
 import { load, save } from '../src/game/save';
@@ -91,7 +91,7 @@ describe('terminal screen', () => {
     expect(tools).toContain('[1] ★Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
     s.letters.push('A');
     expect(plain(renderScreen(s, '', 'typewriters'))).toContain('[1]  Buy a letter key   cost 75 Points + 1 Words');
-    expect(plain(text)).toContain('[2]  Hire a monkey (1/2 desks used)   cost 10 Lines');
+    expect(plain(text)).toContain('[2]  Hire a monkey (you have 1)   cost 10 Lines');
     expect(plain(text)).toContain('[3]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
@@ -315,14 +315,16 @@ describe('script contents', () => {
 });
 
 describe('office space on screen', () => {
-  it('sells the next room in Real estate and stops hiring when the desks are full', () => {
+  it('sells rooms and squares in Real estate, and stops hiring when there is no square for a desk', () => {
     const s = started();
-    s.monkeys.push(createMonkey());
+    s.monkeys.push(createMonkey(), createMonkey(), createMonkey());
+    s.furniture.push({ kind: 'desk', room: 'r1', x: 1, y: 0 }, { kind: 'desk', room: 'r1', x: 0, y: 1 }, { kind: 'desk', room: 'r1', x: 1, y: 1 });
     const estate = plain(renderScreen(s, '', 'estate'));
-    expect(estate).toContain('[1]  Buy the Back room: +4 desks (6 in all)   cost 2.50K Points');
-    expect(estate).toContain('[2]  View the office map (2/2 desks used)');
+    expect(estate).toContain('[1]  View and design the office map');
+    expect(estate).toContain('[2]  Buy a break room for furniture   cost 10.00K Points');
+    expect(estate).toContain('[3]  Grow the Comedies room by a square (4 now)   cost 500 Points');
     const staff = plain(renderScreen(s, '', 'staff'));
-    expect(staff).toContain('Hire a monkey: all 2 desks are taken. Buy a room in the Real estate store.');
+    expect(staff).toContain("Hire a monkey: no free square for its desk. Grow its department's room in Real estate.");
     expect(staff).not.toContain('[2]  Hire');
   });
 
@@ -330,20 +332,27 @@ describe('office space on screen', () => {
     const s = started();
     s.monkeys[0].name = 'Bobo';
     const text = plain(renderOffice(s));
-    expect(text).toContain('Broom cupboard\n+------------+\n| .  .  .  . |\n| . [@] . [ ]|');
-    expect(text).toContain('  Broom cupboard   1/2 desks    Bobo');
-    expect(text).toContain('Desks in use: 1 of 2.');
-    expect(text).toContain('Next room: Back room, 4 desks, for 2.50K Points in the Real estate store.');
+    expect(text).toContain('Comedies room\n+-------+\n|[@]  . |\n| .   . |\n+-------+');
+    expect(text).toContain('  Comedies room      4 squares   1 monkey: Bobo');
+  });
+
+  it('draws rooms of any shape, and the squares a room can grow into', () => {
+    const s = started();
+    s.office[0].cells.push([2, 0]);
+    expect(plain(renderOffice(s))).toContain('+-----------+\n|[@]  .   . |\n|       +---+\n| .   . |\n+-------+');
+    const growing = plain(renderOffice(s, '', { room: 'r1', x: 2, y: 1 }, -1, true));
+    expect(growing).toContain('Growing the Comedies room');
+    expect(growing).toContain(' + ');
   });
 
   it('wraps rooms onto new rows to stay narrow enough for the terminal', () => {
     const s = started();
-    s.office = officeRooms.map((r) => r.id);
+    for (let i = 0; i < 6; i++) s.office.push({ id: `b${i}`, kind: 'break', department: '', cells: [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0]] });
     s.monkeys[0].manager = true;
     const text = plain(renderOffice(s));
     expect(text).toContain('[&]');
-    expect(text).toContain('You own every room.');
-    for (const line of text.split('\n')) expect(line.length).toBeLessThanOrEqual(officeMapWidth);
+    expect(text).toContain('Break room 6');
+    for (const line of text.split('\n').slice(0, 20)) expect(line.length).toBeLessThanOrEqual(officeMapWidth);
   });
 });
 
@@ -358,12 +367,21 @@ describe('furniture', () => {
 
   it('draws furniture, the cursor and a piece being moved', () => {
     const s = started();
-    s.furniture.push({ kind: 'plant', room: 'cupboard', x: 0, y: 0 });
-    expect(plain(renderOffice(s))).toContain('| P  .  .  . |');
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
+    expect(plain(renderOffice(s))).toContain('|[@]  P |');
     expect(plain(renderOffice(s))).toContain('P potted plant');
-    expect(plain(renderOffice(s, '', { room: 'cupboard', x: 2, y: 0 }))).toContain('| P  . >.< . |');
-    const moving = plain(renderOffice(s, '', { room: 'cupboard', x: 2, y: 2 }, 0));
-    expect(moving).toContain('| .  .  .  . |\n| . [@] . [ ]|\n| .  . >P< . |');
+    expect(plain(renderOffice(s, '', { room: 'r1', x: 0, y: 1 }))).toContain('|>.<  . |');
+    const moving = plain(renderOffice(s, '', { room: 'r1', x: 1, y: 1 }, 1));
+    expect(moving).toContain('|[@]  . |\n| .  >P<|');
     expect(moving).toContain('Moving the potted plant.');
   });
+
+  it('has an option to place furniture yourself', () => {
+    const s = started();
+    expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: ON');
+    s.settings.autoPlaceFurniture = false;
+    expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: off');
+    expect(plain(renderScreen(s, '', 'furniture'))).toContain('New furniture opens the office map so you can place it.');
+  });
+
 });

@@ -3,17 +3,20 @@ import { emitKeypressEvents } from 'node:readline';
 import { departmentRules, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { sceneName, type PlayData } from '../game/plays';
+import { sceneName, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   buyFurniture,
   cellAt,
-  firstFreeCell,
+  furnitureSpot,
   furnitureCost,
   moveFurniture,
-  ownedRooms,
   buyRoom,
-  nextRoom,
+  expandRoom,
+  roomBounds,
+  roomCost,
+  squareCost,
+  canSeatMonkey,
   buyFasterTyping,
   buyTypewriter,
   skillCap,
@@ -83,10 +86,11 @@ import {
   contentsPageSize,
   renderSlotsMenu,
   scriptPageSize,
+  renderOptions,
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
-import { furnitureName, renderOffice, type Cell } from './office';
+import { furnitureName, renderOffice, roomName, type Cell } from './office';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -114,6 +118,8 @@ let showingDev = false;
 let showingStats = false;
 let showingOffice = false;
 let officeCursor: Cell | null = null; // the selected cell on the office map
+let officeExpanding = false; // choosing a square to grow the cursor's room
+let showingOptions = false;
 let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
 let showingDictionary = false;
 let dictionaryRow = 0;
@@ -173,13 +179,13 @@ function buyItem(id: string): void {
   } else if (id === 'hire') {
     const rooms = departmentsWithRoom(state);
     if (state.lines < nextMonkeyCost(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
-    else if (departmentGenres(state).length > 0 && rooms.length === 0) message = 'Every department is full. Open another in Real estate.';
+    else if (!canSeatMonkey(state)) message = noSeatMessage();
     else if (rooms.length > 1) {
       pickingDeptFor = 'buy';
       message = deptPrompt('Which department gets the new monkey?');
     } else if (buyMonkey(state)) startNaming(state.monkeys.length - 1);
   } else if (id === 'assign') {
-    if (departmentsWithRoom(state).length === 0) message = 'Every department is full. Open another in Real estate.';
+    if (!canSeatMonkey(state)) message = noSeatMessage();
     else if (assignMonkey(state)) startNaming(state.monkeys.length - 1);
     else {
       pickingDeptFor = 'assign';
@@ -201,25 +207,54 @@ function buyItem(id: string): void {
     message = managerUpgradePrompt(state);
   } else if (id === 'script') {
     openScript();
-  } else if (id === 'room') {
-    const room = nextRoom(state);
-    if (room) message = buyRoom(state) ? `You moved into the ${room.name}: ${room.desks} more desks.` : `Not enough ${theme.currency}.`;
+  } else if (id.startsWith('room:')) {
+    const what = id.slice('room:'.length);
+    if (state.currency < roomCost(state)) message = `Not enough ${theme.currency}.`;
+    else if (what === 'break' ? buyRoom(state, 'break') : buyRoom(state, 'department', what as Genre)) {
+      message = `You have a new room, the ${roomName(state, state.office[state.office.length - 1])}. See it on the office map with [o].`;
+    }
+  } else if (id.startsWith('grow:')) {
+    const room = state.office.find((r) => r.id === id.slice('grow:'.length));
+    if (room) message = expandRoom(state, room.id) ? `The ${roomName(state, room)} grew by a square. Choose squares yourself with [x] on the office map.` : `Not enough ${theme.currency}.`;
   } else if (id === 'map') {
     openOffice();
   } else if (id.startsWith('furniture:')) {
     const kind = id.slice('furniture:'.length);
-    if (!firstFreeCell(state)) message = 'No free floor left. Buy a room in Real estate.';
+    if (!furnitureSpot(state)) message = 'No free floor left. Buy a break room or grow a room in Real estate.';
     else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
-    else if (buyFurniture(state, kind)) message = `The ${furnitureName(state, state.furniture.length - 1)} is in. Move it on the office map with [o].`;
+    else if (buyFurniture(state, kind)) {
+      const i = state.furniture.length - 1;
+      if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in. Move it on the office map with [o].`;
+      else {
+        // Placing it yourself: the map opens with the new piece in hand.
+        openOffice();
+        const f = state.furniture[i];
+        officeCursor = { room: f.room, x: f.x, y: f.y };
+        heldFurniture = i;
+        message = `Where should the ${furnitureName(state, i)} go? [esc] leaves it here.`;
+      }
+    }
   }
+}
+
+/** Why a new monkey can't be seated. */
+function noSeatMessage(): string {
+  const genres = departmentGenres(state);
+  return genres.length > 0 && genres.every((g) => departmentTypists(state, g) >= departmentRules.maxTypists)
+    ? 'Every department is full. Open another in Real estate.'
+    : "No free square for a desk. Grow a department's room in Real estate.";
 }
 
 /** Opens the office map with the cursor in the top-left corner of the first room. */
 function openOffice(): void {
   showingOffice = true;
   heldFurniture = -1;
+  officeExpanding = false;
   message = '';
-  if (!officeCursor || !state.office.includes(officeCursor.room)) officeCursor = { room: ownedRooms(state)[0].id, x: 0, y: 0 };
+  if (!officeCursor || !state.office.some((r) => r.id === officeCursor!.room)) {
+    const b = roomBounds(state.office[0]);
+    officeCursor = { room: state.office[0].id, x: b.minX, y: b.minY };
+  }
 }
 
 /** Opens the script browser on the play you're working on. */
@@ -248,8 +283,10 @@ function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
+    : showingOptions
+    ? renderOptions(state)
     : showingOffice
-    ? renderOffice(state, message, officeCursor, heldFurniture)
+    ? renderOffice(state, message, officeCursor, heldFurniture, officeExpanding)
     : showingStats
     ? renderStats(state)
     : showingDictionary
@@ -545,29 +582,49 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingOptions) {
+    if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
+    else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
+    return draw();
+  }
+
   if (showingOffice && officeCursor) {
     message = '';
-    const rooms = ownedRooms(state);
+    const rooms = state.office;
     const at = Math.max(0, rooms.findIndex((r) => r.id === officeCursor!.room));
     const room = rooms[at];
     const c = officeCursor;
+    // The cursor stays on the room's grid; while growing it, one square further out.
+    const b = roomBounds(room);
+    const m = officeExpanding ? 1 : 0;
     if (key.name === 'escape' || key.name === 'q' || str === 'o') {
-      if (heldFurniture >= 0) heldFurniture = -1; // put back where it was
+      if (officeExpanding) officeExpanding = false;
+      else if (heldFurniture >= 0) heldFurniture = -1; // it stays where it was
       else showingOffice = false;
-    } else if (key.name === 'up') c.y = Math.max(0, c.y - 1);
-    else if (key.name === 'down') c.y = Math.min(room.height - 1, c.y + 1);
-    else if (key.name === 'left') c.x = Math.max(0, c.x - 1);
-    else if (key.name === 'right') c.x = Math.min(room.width - 1, c.x + 1);
+    } else if (key.name === 'up') c.y = Math.max(b.minY - m, c.y - 1);
+    else if (key.name === 'down') c.y = Math.min(b.maxY + m, c.y + 1);
+    else if (key.name === 'left') c.x = Math.max(b.minX - m, c.x - 1);
+    else if (key.name === 'right') c.x = Math.min(b.maxX + m, c.x + 1);
     else if (key.name === 'tab') {
       const next = rooms[(at + 1) % rooms.length];
-      officeCursor = { room: next.id, x: Math.min(c.x, next.width - 1), y: Math.min(c.y, next.height - 1) };
+      const nb = roomBounds(next);
+      officeCursor = { room: next.id, x: Math.min(Math.max(c.x, nb.minX), nb.maxX), y: Math.min(Math.max(c.y, nb.minY), nb.maxY) };
+    } else if (str === 'x' && heldFurniture < 0) {
+      officeExpanding = !officeExpanding;
+      if (!officeExpanding) Object.assign(c, { x: Math.min(Math.max(c.x, b.minX), b.maxX), y: Math.min(Math.max(c.y, b.minY), b.maxY) });
     } else if (key.name === 'return' || key.name === 'enter') {
       const here = cellAt(state, c.room, c.x, c.y);
-      if (heldFurniture >= 0) {
+      if (officeExpanding) {
+        if (here !== null) message = 'That square is already part of the room. Choose a +.';
+        else if (state.currency < squareCost(state)) message = `Not enough ${theme.currency}.`;
+        else if (!expandRoom(state, room.id, [c.x, c.y])) message = 'Rooms grow next to a square they already have. Choose a +.';
+      } else if (heldFurniture >= 0) {
         if (here === heldFurniture || moveFurniture(state, heldFurniture, c.room, c.x, c.y)) heldFurniture = -1;
-        else message = here === 'desk' ? "That's a desk." : 'Something is already there.';
+        else if (here === null) message = 'That is outside the room.';
+        else if (here === 'floor') message = "Desks stay in their department's room.";
+        else message = 'Something is already there.';
       } else if (typeof here === 'number') heldFurniture = here;
-      else message = here === 'desk' ? 'Desks stay where they are.' : 'No furniture there. Buy some in the Furniture store.';
+      else message = here === null ? 'That is outside the room.' : 'No furniture there. Buy some in the Furniture store.';
     }
     return draw();
   }
@@ -664,6 +721,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     showingDev = true;
   } else if (str === 'o') {
     openOffice();
+  } else if (str === 'c') {
+    showingOptions = true;
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'w') {

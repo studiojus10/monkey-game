@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, officeRooms, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, office, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFurniture,
   cellAt,
-  firstFreeCell,
+  furnitureSpot,
   furnitureCost,
   moveFurniture,
   buyRoom,
-  deskCells,
-  deskCount,
-  freeDesks,
-  nextRoom,
+  expandRoom,
+  bestExpansion,
+  expansionSquares,
+  furnishOffice,
+  hasDeskSpace,
+  roomDesks,
+  squareCost,
+  departmentRoom,
+  canSeatMonkey,
   buyFasterTyping,
   buyTypewriter,
   skillCap,
@@ -79,7 +84,12 @@ import {
   currentWork,
   nextOwnedScene,
 } from '../src/game/logic';
-import { createInitialState, createMonkey } from '../src/game/state';
+import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
+
+/** Gives a department a big room, so floor space doesn't get in a test's way. */
+function roomFor(s: GameState, genre: string): void {
+  s.office.push({ id: `r${s.office.length + 1}`, kind: 'department', department: genre, cells: rectangle(8, 8) });
+}
 
 const rng = () => 0;
 
@@ -717,6 +727,7 @@ describe('departments, the scene shop and milestones', () => {
       expect(departmentPicks(s)).toBe(1);
       expect(openDepartment(s, 'tragedy')).toBe(true);
       expect(departmentPicks(s)).toBe(0);
+      roomFor(s, 'tragedy');
       s.owned = ['one', 'two'];
 
       typeAll(s, 'NAYMYLORDX', 0); // monkey 0 is in comedies: the tragedy's line doesn't count
@@ -994,7 +1005,7 @@ describe('department limits and slots', () => {
       s.departments = ['comedy'];
       s.letters = ['A'];
       s.lines = 1e9;
-      s.office = officeRooms.map((r) => r.id);
+      for (let i = 0; i < 40; i++) s.office[0].cells.push(bestExpansion(s.office[0]));
       while (s.monkeys.length < departmentRules.maxTypists) expect(buyMonkey(s)).toBe(true); // one department: automatic
       expect(buyMonkey(s)).toBe(false); // full of typists
       expect(toggleManager(s, 0)).toBe(true); // a manager frees a typing seat
@@ -1003,6 +1014,7 @@ describe('department limits and slots', () => {
       expect(toggleManager(s, 0)).toBe(false); // no seat to go back to
 
       expect(openDepartment(s, 'tragedy')).toBe(true);
+      roomFor(s, 'tragedy');
       expect(buyMonkey(s)).toBe(true); // only tragedies have room: automatic
       expect(monkeyGenre(s, s.monkeys[s.monkeys.length - 1])).toBe('tragedy');
       s.monkeys.splice(1, 1); // a seat opens in comedies too
@@ -1021,6 +1033,7 @@ describe('department limits and slots', () => {
       setPlays([comedy, tragedy]);
       const s = createInitialState(0);
       s.departments = ['comedy', 'tragedy'];
+      roomFor(s, 'tragedy');
       s.unassignedMonkeys = 1;
       expect(assignMonkey(s)).toBe(false); // two departments with room
       expect(assignMonkey(s, 'tragedy')).toBe(true);
@@ -1173,90 +1186,123 @@ describe('manager line choice', () => {
 });
 
 describe('office space', () => {
-  it('starts with the first room; its desks cap the monkeys, managers included', () => {
+  const comedy = { id: 'c', title: 'C', genre: 'comedy' as const, lines: [[1, 1, 'A', 'No.']] as [number, number, string, string][] };
+  const tragedy = { id: 't', title: 'T', genre: 'tragedy' as const, lines: [[1, 1, 'A', 'Lo.']] as [number, number, string, string][] };
+  const genreRoom = (s: ReturnType<typeof createInitialState>, g: string) => {
+    s.currency = 1e12;
+    expect(buyRoom(s, 'department', g as never)).toBe(true);
+    return s.office[s.office.length - 1];
+  };
+
+  it('starts with one small room and a desk for the first monkey; floor space caps the monkeys', () => {
     const s = createInitialState(0);
     s.letters = ['A'];
     s.lines = 1e9;
-    expect(s.office).toEqual([officeRooms[0].id]);
-    expect(deskCount(s)).toBe(officeRooms[0].desks);
-    while (freeDesks(s) > 0) expect(buyMonkey(s)).toBe(true);
-    expect(s.monkeys).toHaveLength(officeRooms[0].desks);
-    expect(buyMonkey(s)).toBe(false); // no free desk
+    expect(s.office).toHaveLength(1);
+    expect(s.office[0].cells).toHaveLength(office.starterWidth * office.starterHeight);
+    expect(roomDesks(s, s.office[0])).toHaveLength(1);
+    while (canSeatMonkey(s)) expect(buyMonkey(s)).toBe(true);
+    expect(s.monkeys).toHaveLength(office.starterWidth * office.starterHeight); // a desk on every square
+    expect(roomDesks(s, s.office[0])).toHaveLength(s.monkeys.length);
+    expect(buyMonkey(s)).toBe(false);
   });
 
-  it('sells rooms in order for points, adding desks', () => {
+  it('grows a room one square at a time, compact unless you choose the square', () => {
     const s = createInitialState(0);
-    const room = nextRoom(s)!;
-    expect(room).toBe(officeRooms[1]);
-    s.currency = room.cost - 1;
-    expect(buyRoom(s)).toBe(false);
-    s.currency = room.cost;
-    expect(buyRoom(s)).toBe(true);
-    expect(s.currency).toBe(0);
-    expect(deskCount(s)).toBe(officeRooms[0].desks + officeRooms[1].desks);
-    expect(nextRoom(s)).toBe(officeRooms[2]);
-    s.office = officeRooms.map((r) => r.id);
-    expect(nextRoom(s)).toBeUndefined();
-    expect(buyRoom(s)).toBe(false);
+    const room = s.office[0];
+    s.currency = squareCost(s) * 10;
+    const first = squareCost(s);
+    expect(expandRoom(s, room.id)).toBe(true);
+    expect(room.cells).toHaveLength(5);
+    expect(squareCost(s)).toBeGreaterThan(first);
+    expect(expandRoom(s, room.id, [5, 5])).toBe(false); // not next to the room
+    expect(expandRoom(s, room.id, [-1, 0])).toBe(true); // a square you choose
+    expect(expansionSquares(room).some(([x, y]) => x === -2 && y === 0)).toBe(true);
+    s.currency = 0;
+    expect(expandRoom(s, room.id)).toBe(false);
   });
 
-  it('has desks for four full departments, each fitting in its room', () => {
-    expect(officeRooms.reduce((n, r) => n + r.desks, 0)).toBe(4 * (departmentRules.maxTypists + 1));
-    for (const r of officeRooms) {
-      const cells = deskCells(r);
-      expect(cells).toHaveLength(r.desks);
-      for (const [x, y] of cells) expect(x < r.width && y < r.height).toBe(true);
+  it('gives each department its own room, where its monkeys get desks', () => {
+    try {
+      setPlays([comedy, tragedy]);
+      const s = createInitialState(0);
+      s.letters = ['A'];
+      s.lines = 1e9;
+      expect(openDepartment(s, 'comedy')).toBe(true);
+      expect(departmentRoom(s, 'comedy')).toBe(s.office[0]); // the first department takes the starter room
+      s.departments.push('tragedy');
+      expect(hasDeskSpace(s, 'tragedy')).toBe(false); // no room yet
+      expect(buyMonkey(s, 'tragedy')).toBe(false);
+      expect(buyRoom(s, 'department', 'comedy')).toBe(false); // already has one
+      const room = genreRoom(s, 'tragedy');
+      expect(buyMonkey(s, 'tragedy')).toBe(true);
+      expect(roomDesks(s, room)).toHaveLength(1);
+      expect(moveMonkey(s, s.monkeys.length - 1)).toBe(true); // back to comedies: the desk moves too
+      expect(roomDesks(s, room)).toHaveLength(0);
+      expect(roomDesks(s, s.office[0])).toHaveLength(2);
+    } finally {
+      setPlays([]);
     }
   });
 
-  it('holds an earned monkey until there is a desk, then seats it when a room is bought', () => {
+  it('holds an earned monkey until there is a square for its desk', () => {
     const s = createInitialState(0);
     s.letters = ['A'];
-    s.monkeys.push(createMonkey());
+    s.office[0].cells = [[0, 0]];
     s.unassignedMonkeys = 1;
     expect(assignMonkey(s)).toBe(false);
-    s.currency = officeRooms[1].cost;
-    expect(buyRoom(s)).toBe(true);
+    s.currency = 1e9;
+    expect(expandRoom(s, s.office[0].id)).toBe(true);
     expect(s.unassignedMonkeys).toBe(0);
-    expect(s.monkeys).toHaveLength(3);
+    expect(s.monkeys).toHaveLength(2);
+  });
+
+  it('builds an office for saves from before rooms', () => {
+    const s = createInitialState(0);
+    s.departments = ['comedy', 'tragedy'];
+    s.monkeys = Array.from({ length: 6 }, (_, i) => ({ ...createMonkey(), department: i < 5 ? 'comedy' : 'tragedy' }));
+    s.office = [];
+    furnishOffice(s);
+    expect(s.office.map((r) => r.department)).toEqual(['comedy', 'tragedy']);
+    expect(roomDesks(s, s.office[0])).toHaveLength(5);
+    expect(roomDesks(s, s.office[1])).toHaveLength(1);
   });
 });
 
 describe('furniture', () => {
-  it('buys furniture into the first free floor cell, each costing more than the last', () => {
+  it('buys furniture into a free square, a break room first, each costing more than the last', () => {
     const s = createInitialState(0);
     const plant = furnitureKinds[0];
-    s.currency = 1e9;
+    s.currency = 1e12;
     expect(furnitureCost(s, plant.id)).toBe(plant.cost);
     expect(buyFurniture(s, plant.id)).toBe(true);
-    expect(s.furniture).toEqual([{ kind: plant.id, room: 'cupboard', x: 0, y: 0 }]);
-    expect(s.currency).toBe(1e9 - plant.cost);
+    expect(s.furniture[1]).toEqual({ kind: plant.id, room: 'r1', x: 1, y: 0 }); // next to the desk
     expect(furnitureCost(s, plant.id)).toBe(Math.ceil(plant.cost * plant.costGrowth));
+    expect(buyRoom(s, 'break')).toBe(true);
+    expect(buyFurniture(s, plant.id)).toBe(true);
+    expect(s.furniture[2].room).toBe('r2');
     expect(buyFurniture(s, 'nonsense')).toBe(false);
   });
 
-  it('never stands furniture on a desk, and stops when the floor is full', () => {
+  it('stops when every room is full', () => {
     const s = createInitialState(0);
     s.currency = 1e15;
-    const room = officeRooms[0];
-    const floor = room.width * room.height - room.desks;
-    for (let i = 0; i < floor; i++) expect(buyFurniture(s, 'plant')).toBe(true);
-    expect(firstFreeCell(s)).toBeNull();
+    while (furnitureSpot(s)) expect(buyFurniture(s, 'plant')).toBe(true);
     expect(buyFurniture(s, 'plant')).toBe(false);
-    for (const f of s.furniture) expect(cellAt(s, f.room, f.x, f.y)).not.toBe('desk');
   });
 
-  it('moves furniture only onto free floor in a room you own', () => {
+  it('moves furniture onto free squares; desks stay in their room', () => {
     const s = createInitialState(0);
-    s.furniture.push({ kind: 'plant', room: 'cupboard', x: 0, y: 0 }, { kind: 'lamp', room: 'cupboard', x: 1, y: 0 });
-    expect(cellAt(s, 'cupboard', 1, 1)).toBe('desk');
-    expect(moveFurniture(s, 0, 'cupboard', 1, 1)).toBe(false); // a desk
-    expect(moveFurniture(s, 0, 'cupboard', 1, 0)).toBe(false); // the lamp
-    expect(moveFurniture(s, 0, 'cupboard', 9, 0)).toBe(false); // off the room
-    expect(moveFurniture(s, 0, 'backroom', 0, 0)).toBe(false); // not bought yet
-    expect(moveFurniture(s, 0, 'cupboard', 3, 2)).toBe(true);
-    expect(cellAt(s, 'cupboard', 3, 2)).toBe(0);
-    expect(cellAt(s, 'cupboard', 0, 0)).toBe('floor');
+    s.currency = 1e12;
+    buyRoom(s, 'break');
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
+    expect(cellAt(s, 'r1', 0, 0)).toBe(0); // the desk
+    expect(moveFurniture(s, 1, 'r1', 0, 0)).toBe(false); // taken
+    expect(moveFurniture(s, 1, 'r1', 9, 0)).toBe(false); // off the room
+    expect(moveFurniture(s, 1, 'r2', 2, 2)).toBe(true);
+    expect(cellAt(s, 'r2', 2, 2)).toBe(1);
+    expect(cellAt(s, 'r1', 1, 0)).toBe('floor');
+    expect(moveFurniture(s, 0, 'r2', 0, 0)).toBe(false); // a desk can't leave its department's room
+    expect(moveFurniture(s, 0, 'r1', 1, 1)).toBe(true);
   });
 });
-

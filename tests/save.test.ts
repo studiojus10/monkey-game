@@ -65,16 +65,24 @@ describe('save/load', () => {
 });
 
 describe('office space in saves', () => {
-  it('keeps the rooms bought, and gives saves from before office space enough desks for their monkeys', () => {
+  it('keeps rooms, squares, furniture and options, and gives saves from before rooms an office', () => {
     const s = createInitialState(0);
-    s.office.push('backroom');
-    s.furniture.push({ kind: 'plant', room: 'cupboard', x: 0, y: 0 }, { kind: 'nonsense', room: 'cupboard', x: 1, y: 0 });
+    s.office.push({ id: 'r2', kind: 'break', department: '', cells: [[0, 0], [1, 0]] });
+    s.squaresBought = 3;
+    s.settings.autoPlaceFurniture = false;
+    s.furniture.push({ kind: 'plant', room: 'r2', x: 0, y: 0 }, { kind: 'nonsense', room: 'r2', x: 1, y: 0 });
     const back = deserialize(serialize(s));
-    expect(back.office).toEqual(['cupboard', 'backroom']);
-    expect(back.furniture).toEqual([{ kind: 'plant', room: 'cupboard', x: 0, y: 0 }]);
+    expect(back.office).toEqual(s.office);
+    expect(back.squaresBought).toBe(3);
+    expect(back.settings.autoPlaceFurniture).toBe(false);
+    expect(back.furniture).toEqual([{ kind: 'desk', room: 'r1', x: 0, y: 0 }, { kind: 'plant', room: 'r2', x: 0, y: 0 }]);
     const old = JSON.parse(serialize(s));
     delete old.state.office;
+    delete old.state.settings;
     old.state.monkeys = Array.from({ length: 7 }, () => createMonkey());
-    expect(deserialize(JSON.stringify(old)).office).toEqual(['cupboard', 'backroom', 'office']);
+    const loaded = deserialize(JSON.stringify(old));
+    expect(loaded.office).toHaveLength(1);
+    expect(loaded.furniture.filter((f) => f.kind === 'desk')).toHaveLength(7);
+    expect(loaded.settings.autoPlaceFurniture).toBe(true);
   });
 });
