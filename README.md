@@ -27,6 +27,7 @@ npm start
 | `p` | Script browser, opening on the play you are working on (your latest pin, else where your monkeys last wrote): arrows scroll by line and scene, `tab` opens a table of contents (all plays, then `enter` for that play's acts and scenes, `enter` again jumps there; `esc` steps back), `b`/`a`/`w` buy the scene/act/whole play under the cursor, `enter` pins a line to the home screen (up to 5), `,` and `.` jump to the previous or next scene you own (across plays), `f` jumps to the next shortest line within reach, `esc` goes back |
 | `t` | Statistics: time typing, letters typed per letter, words spelled, longest word and chain, longest line written, most spelled words; `w` switches to the dictionary, `esc` goes back |
 | `w` | Dictionary: every word your monkeys have spelled, A to Z, with how many times; up/down (or page up/down) scroll, a letter jumps to it, `t` switches to statistics, `esc` goes back |
+| `` ` `` | Development tools for testing (add 1 billion points, 1,000 Lines or Sentences, every letter); they change your save, so use a throwaway one (`IDLE_SAVE=/tmp/x.json npm start`) |
 | `g` | Open a new department (at 10 monkeys, then 20, and the Sonnets at 30); each holds up to 10 typing monkeys plus a manager |
 | `d` | Move a monkey to its next department |
 | `m` | Promote a monkey to manager (department of 6+ monkeys) or send one back to typing; a manager pins the next reachable line and fills your word slots |

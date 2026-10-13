@@ -66,11 +66,13 @@ import {
   renderScreen,
   renderScript,
   renderContents,
+  renderDevMenu,
   contentsPageSize,
   renderSlotsMenu,
   scriptPageSize,
   unownedLetters,
 } from './screen';
+import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
 
 const FRAME_MS = 250;
@@ -95,6 +97,7 @@ let contentsCursor = 0;
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
+let showingDev = false;
 let showingStats = false;
 let showingDictionary = false;
 let dictionaryRow = 0;
@@ -140,7 +143,9 @@ function draw() {
       ? renderDictionary(state, dictionaryRow)
       : showingScript
     ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message)
-    : showingKeys
+    : showingDev
+      ? renderDevMenu(message)
+      : showingKeys
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
@@ -442,6 +447,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingDev) {
+    message = '';
+    const tool = str && /^[1-9]$/.test(str) ? devTools[Number(str) - 1] : undefined;
+    if (key.name === 'escape' || str === '`' || key.name === 'q') showingDev = false;
+    else if (tool) {
+      tool.apply(state);
+      message = `Done: ${tool.label}.`;
+    }
+    return draw();
+  }
+
   if (showingKeys) {
     message = '';
     if (key.name === 'escape' || key.name === 'q') {
@@ -543,6 +559,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === work.play));
       scriptCursor = work.index;
     }
+  } else if (str === '`') {
+    showingDev = true;
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'w') {

@@ -35,6 +35,7 @@ import {
   typingUpgradeCost,
 } from '../game/logic';
 import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
+import { devTools } from '../game/dev';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
 
@@ -189,7 +190,7 @@ export function renderScreen(state: GameState, message = '', shopOpen = false): 
     ...pinnedText(state),
     '',
     ...(shopOpen ? shopLines(state) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );
@@ -236,6 +237,19 @@ function shopLines(state: GameState): string[] {
         : []),
     '',
   ];
+}
+
+/** The development tools menu, for testing features. */
+export function renderDevMenu(message = ''): string {
+  return [
+    '=== Development tools ===   (for testing; these change your save)',
+    '',
+    ...devTools.map((t, i) => `  [${i + 1}] ${t.label}`),
+    '',
+    `[1-${devTools.length}] use a tool   [esc] back`,
+    '',
+    message,
+  ].join('\n');
 }
 
 /** Ordinal for a chain position: 1st, 2nd, 3rd, 4th, ... */
