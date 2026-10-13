@@ -1,6 +1,8 @@
-import { typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { furnitureKinds, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
+  firstFreeCell,
+  furnitureCost,
   deskCount,
   freeDesks,
   nextRoom,
@@ -263,11 +265,12 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
 }
 
 /** The shop's stores, shown as tabs; tab or left/right switches between them. */
-export const stores = ['staff', 'typewriters', 'script', 'accessories', 'estate'] as const;
+export const stores = ['staff', 'typewriters', 'furniture', 'script', 'accessories', 'estate'] as const;
 export type Store = (typeof stores)[number];
 export const storeNames: Record<Store, string> = {
   staff: 'Staff',
   typewriters: 'Typewriters',
+  furniture: 'Furniture',
   script: 'Script',
   accessories: 'Accessories',
   estate: 'Real estate',
@@ -327,6 +330,17 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         slotsUnlocked(state)
           ? { id: 'slots', text: `Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)` }
           : { text: `Word slots: unlock when you own ${wordSlots.unlockLetters} letters` },
+      ];
+    }
+    case 'furniture': {
+      const room = !!firstFreeCell(state);
+      return [
+        ...furnitureKinds.map((k) => {
+          const cost = furnitureCost(state, k.id);
+          return { id: `furniture:${k.id}`, star: room && state.currency >= cost, text: `${k.name} [${k.glyph}]   cost ${price(cost, state.currency)} ${theme.currency}` };
+        }),
+        { text: room ? 'New furniture goes in the first free spot; move it on the office map ([o]).' : 'No free floor left: buy a room in the Real estate store.' },
+        { text: 'What furniture does for your monkeys is coming soon.' },
       ];
     }
     case 'script':

@@ -1,4 +1,4 @@
-import { officeRooms, typing } from './config';
+import { furnitureKinds, officeRooms, typing } from './config';
 import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
@@ -131,6 +131,9 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       lines: num(s.lines, 0),
       words: num(s.words, Object.keys(stats.words).length), // saves from before Words count what they've spelled
       office: office(s.office, monkeys.length),
+      furniture: (Array.isArray(s.furniture) ? s.furniture : [])
+        .filter((f) => f && furnitureKinds.some((k) => k.id === f.kind) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))
+        .map((f) => ({ kind: f.kind, room: f.room, x: f.x, y: f.y })),
       departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,

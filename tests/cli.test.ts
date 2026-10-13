@@ -105,9 +105,9 @@ describe('terminal screen', () => {
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[space] close the shop   [tab] next store   [1-9] buy');
-    expect(open).toMatch(/^Shop +\[Staff\] +Typewriters +Script +Accessories +Real estate$/m);
+    expect(open).toMatch(/^Shop +\[Staff\] +Typewriters +Furniture +Script +Accessories +Real estate$/m);
     s.currency = 30; // enough for Faster typing and a letter key: a ★ on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Staff★ +Typewriters★ +\[Script\] +Accessories +Real estate$/m);
+    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Staff★ +Typewriters★ +Furniture +\[Script\] +Accessories +Real estate$/m);
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -344,5 +344,26 @@ describe('office space on screen', () => {
     expect(text).toContain('[&]');
     expect(text).toContain('You own every room.');
     for (const line of text.split('\n')) expect(line.length).toBeLessThanOrEqual(officeMapWidth);
+  });
+});
+
+describe('furniture', () => {
+  it('sells furniture in the Furniture store', () => {
+    const s = started();
+    s.currency = 600;
+    const text = plain(renderScreen(s, '', 'furniture'));
+    expect(text).toContain('[1] ★Potted plant [P]   cost 500 Points');
+    expect(text).toContain('[2]  Floor lamp [L]   cost 2.00K Points');
+  });
+
+  it('draws furniture, the cursor and a piece being moved', () => {
+    const s = started();
+    s.furniture.push({ kind: 'plant', room: 'cupboard', x: 0, y: 0 });
+    expect(plain(renderOffice(s))).toContain('| P  .  .  . |');
+    expect(plain(renderOffice(s))).toContain('P potted plant');
+    expect(plain(renderOffice(s, '', { room: 'cupboard', x: 2, y: 0 }))).toContain('| P  . >.< . |');
+    const moving = plain(renderOffice(s, '', { room: 'cupboard', x: 2, y: 2 }, 0));
+    expect(moving).toContain('| .  .  .  . |\n| . [@] . [ ]|\n| .  . >P< . |');
+    expect(moving).toContain('Moving the potted plant.');
   });
 });

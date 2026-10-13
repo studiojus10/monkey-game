@@ -6,6 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { sceneName, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
+  buyFurniture,
+  cellAt,
+  firstFreeCell,
+  furnitureCost,
+  moveFurniture,
+  ownedRooms,
   buyRoom,
   nextRoom,
   buyFasterTyping,
@@ -80,7 +86,7 @@ import {
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
-import { renderOffice } from './office';
+import { furnitureName, renderOffice, type Cell } from './office';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -107,6 +113,8 @@ let showingKeys = false;
 let showingDev = false;
 let showingStats = false;
 let showingOffice = false;
+let officeCursor: Cell | null = null; // the selected cell on the office map
+let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
 let showingDictionary = false;
 let dictionaryRow = 0;
 let shop: Store | null = null; // the open store; the shop starts closed and space opens and closes it
@@ -197,8 +205,21 @@ function buyItem(id: string): void {
     const room = nextRoom(state);
     if (room) message = buyRoom(state) ? `You moved into the ${room.name}: ${room.desks} more desks.` : `Not enough ${theme.currency}.`;
   } else if (id === 'map') {
-    showingOffice = true;
+    openOffice();
+  } else if (id.startsWith('furniture:')) {
+    const kind = id.slice('furniture:'.length);
+    if (!firstFreeCell(state)) message = 'No free floor left. Buy a room in Real estate.';
+    else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
+    else if (buyFurniture(state, kind)) message = `The ${furnitureName(state, state.furniture.length - 1)} is in. Move it on the office map with [o].`;
   }
+}
+
+/** Opens the office map with the cursor in the top-left corner of the first room. */
+function openOffice(): void {
+  showingOffice = true;
+  heldFurniture = -1;
+  message = '';
+  if (!officeCursor || !state.office.includes(officeCursor.room)) officeCursor = { room: ownedRooms(state)[0].id, x: 0, y: 0 };
 }
 
 /** Opens the script browser on the play you're working on. */
@@ -228,7 +249,7 @@ function draw() {
   const screen = showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
     : showingOffice
-    ? renderOffice(state)
+    ? renderOffice(state, message, officeCursor, heldFurniture)
     : showingStats
     ? renderStats(state)
     : showingDictionary
@@ -524,8 +545,30 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (showingOffice) {
-    if (key.name === 'escape' || key.name === 'q' || str === 'o') showingOffice = false;
+  if (showingOffice && officeCursor) {
+    message = '';
+    const rooms = ownedRooms(state);
+    const at = Math.max(0, rooms.findIndex((r) => r.id === officeCursor!.room));
+    const room = rooms[at];
+    const c = officeCursor;
+    if (key.name === 'escape' || key.name === 'q' || str === 'o') {
+      if (heldFurniture >= 0) heldFurniture = -1; // put back where it was
+      else showingOffice = false;
+    } else if (key.name === 'up') c.y = Math.max(0, c.y - 1);
+    else if (key.name === 'down') c.y = Math.min(room.height - 1, c.y + 1);
+    else if (key.name === 'left') c.x = Math.max(0, c.x - 1);
+    else if (key.name === 'right') c.x = Math.min(room.width - 1, c.x + 1);
+    else if (key.name === 'tab') {
+      const next = rooms[(at + 1) % rooms.length];
+      officeCursor = { room: next.id, x: Math.min(c.x, next.width - 1), y: Math.min(c.y, next.height - 1) };
+    } else if (key.name === 'return' || key.name === 'enter') {
+      const here = cellAt(state, c.room, c.x, c.y);
+      if (heldFurniture >= 0) {
+        if (here === heldFurniture || moveFurniture(state, heldFurniture, c.room, c.x, c.y)) heldFurniture = -1;
+        else message = here === 'desk' ? "That's a desk." : 'Something is already there.';
+      } else if (typeof here === 'number') heldFurniture = here;
+      else message = here === 'desk' ? 'Desks stay where they are.' : 'No furniture there. Buy some in the Furniture store.';
+    }
     return draw();
   }
 
@@ -620,7 +663,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === '`') {
     showingDev = true;
   } else if (str === 'o') {
-    showingOffice = true;
+    openOffice();
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'w') {

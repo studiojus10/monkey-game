@@ -1,13 +1,17 @@
-import { theme, type Room } from '../game/config';
+import { furnitureKinds, theme, type Room } from '../game/config';
 import { deskCells, deskCount, monkeyName, nextRoom, ownedRooms } from '../game/logic';
+import type { Furniture } from '../game/state';
 import type { GameState } from '../game/state';
 import { price } from './screen';
 
 /** Widest the map may get before rooms wrap onto the next row. */
 export const officeMapWidth = 76;
 
+/** A cell of the office map: a room and a position in it. */
+export type Cell = Omit<Furniture, 'kind'>;
+
 /** One room drawn top-down: its name, then a box of cells three characters wide. */
-function roomBox(state: GameState, room: Room, firstMonkey: number): string[] {
+function roomBox(state: GameState, room: Room, firstMonkey: number, cursor: Cell | null, held: number): string[] {
   const desks = deskCells(room);
   const rows: string[] = [];
   for (let y = 0; y < room.height; y++) {
@@ -15,7 +19,12 @@ function roomBox(state: GameState, room: Room, firstMonkey: number): string[] {
     for (let x = 0; x < room.width; x++) {
       const d = desks.findIndex(([dx, dy]) => dx === x && dy === y);
       const m = d < 0 ? undefined : state.monkeys[firstMonkey + d];
-      row += d < 0 ? ' . ' : !m ? '[ ]' : m.manager ? '[&]' : '[@]';
+      const here = cursor?.room === room.id && cursor.x === x && cursor.y === y;
+      // A piece being moved shows under the cursor, not where it stood.
+      const f = here && held >= 0 ? held : state.furniture.findIndex((p, i) => i !== held && p.room === room.id && p.x === x && p.y === y);
+      const glyph = f >= 0 ? (furnitureKinds.find((k) => k.id === state.furniture[f].kind)?.glyph ?? '?') : '';
+      const cell = d >= 0 && !(here && held >= 0) ? (!m ? '[ ]' : m.manager ? '[&]' : '[@]') : glyph ? ` ${glyph} ` : ' . ';
+      row += here ? `>${cell[1]}<` : cell;
     }
     rows.push(`|${row}|`);
   }
@@ -24,13 +33,17 @@ function roomBox(state: GameState, room: Room, firstMonkey: number): string[] {
   return [room.name.slice(0, width).padEnd(width), wall, ...rows, wall];
 }
 
-/** The office map: every room you own with its desks and who sits at them. Read-only for now. */
-export function renderOffice(state: GameState, message = ''): string {
+/**
+ * The office map: every room you own with its desks, who sits at them, and
+ * the furniture. `cursor` marks the selected cell; `held` is the furniture
+ * being moved (an index into state.furniture), or -1.
+ */
+export function renderOffice(state: GameState, message = '', cursor: Cell | null = null, held = -1): string {
   const rooms = ownedRooms(state);
   // Monkeys sit at desks in order: the first monkeys in the first room, and so on.
   const starts: number[] = [];
   rooms.reduce((n, r) => (starts.push(n), n + r.desks), 0);
-  const boxes = rooms.map((r, i) => roomBox(state, r, starts[i]));
+  const boxes = rooms.map((r, i) => roomBox(state, r, starts[i], cursor, held));
 
   // Rooms side by side, wrapping onto a new row when the map gets too wide.
   const map: string[] = [];
@@ -57,7 +70,7 @@ export function renderOffice(state: GameState, message = ''): string {
     '=== Office ===',
     '',
     ...map,
-    '[@] monkey   [&] manager   [ ] free desk',
+    ['[@] monkey', '[&] manager', '[ ] free desk', ...furnitureKinds.filter((k) => state.furniture.some((f) => f.kind === k.id)).map((k) => `${k.glyph} ${k.name.toLowerCase()}`)].join('   '),
     '',
     ...seated,
     '',
@@ -66,8 +79,16 @@ export function renderOffice(state: GameState, message = ''): string {
       ? `Next room: ${next.name}, ${next.desks} desks, for ${price(next.cost, state.currency)} ${theme.currency} in the Real estate store.`
       : 'You own every room.',
     '',
-    '[esc] back',
+    ...(held >= 0
+      ? [`Moving the ${furnitureName(state, held)}.`, '[arrows] move   [tab] next room   [enter] put it down   [esc] cancel']
+      : ['[arrows] move   [tab] next room   [enter] pick up furniture   [esc] back']),
     '',
     message,
   ].join('\n');
+}
+
+/** The name of a piece of furniture, lower case. */
+export function furnitureName(state: GameState, index: number): string {
+  const f = state.furniture[index];
+  return (furnitureKinds.find((k) => k.id === f?.kind)?.name ?? 'furniture').toLowerCase();
 }

@@ -178,6 +178,29 @@ export const officeRooms: Room[] = [
   { id: 'loft', name: 'Top-floor loft', width: 14, height: 5, desks: 12, cost: 10_000_000_000 },
 ];
 
+/**
+ * Furniture, bought with points in the Furniture store. Each piece fills one
+ * floor cell of a room (not a desk) and is placed in the first free cell; the
+ * office map moves it. Each one of a kind costs costGrowth times the last.
+ * What furniture does comes with monkey energy; costs are placeholders.
+ */
+export interface FurnitureKind {
+  id: string;
+  name: string;
+  glyph: string; // one character on the office map
+  cost: number;
+  costGrowth: number;
+}
+
+export const furnitureKinds: FurnitureKind[] = [
+  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5 },
+  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5 },
+  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5 },
+  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2 },
+  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2 },
+  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2 },
+];
+
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],
   maxTypists: 10, // typing monkeys per department, plus one manager

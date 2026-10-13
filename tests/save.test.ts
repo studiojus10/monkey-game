@@ -68,7 +68,10 @@ describe('office space in saves', () => {
   it('keeps the rooms bought, and gives saves from before office space enough desks for their monkeys', () => {
     const s = createInitialState(0);
     s.office.push('backroom');
-    expect(deserialize(serialize(s)).office).toEqual(['cupboard', 'backroom']);
+    s.furniture.push({ kind: 'plant', room: 'cupboard', x: 0, y: 0 }, { kind: 'nonsense', room: 'cupboard', x: 1, y: 0 });
+    const back = deserialize(serialize(s));
+    expect(back.office).toEqual(['cupboard', 'backroom']);
+    expect(back.furniture).toEqual([{ kind: 'plant', room: 'cupboard', x: 0, y: 0 }]);
     const old = JSON.parse(serialize(s));
     delete old.state.office;
     old.state.monkeys = Array.from({ length: 7 }, () => createMonkey());

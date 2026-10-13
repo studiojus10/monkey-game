@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, officeRooms, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, officeRooms, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  buyFurniture,
+  cellAt,
+  firstFreeCell,
+  furnitureCost,
+  moveFurniture,
   buyRoom,
   deskCells,
   deskCount,
@@ -1216,3 +1221,42 @@ describe('office space', () => {
     expect(s.monkeys).toHaveLength(3);
   });
 });
+
+describe('furniture', () => {
+  it('buys furniture into the first free floor cell, each costing more than the last', () => {
+    const s = createInitialState(0);
+    const plant = furnitureKinds[0];
+    s.currency = 1e9;
+    expect(furnitureCost(s, plant.id)).toBe(plant.cost);
+    expect(buyFurniture(s, plant.id)).toBe(true);
+    expect(s.furniture).toEqual([{ kind: plant.id, room: 'cupboard', x: 0, y: 0 }]);
+    expect(s.currency).toBe(1e9 - plant.cost);
+    expect(furnitureCost(s, plant.id)).toBe(Math.ceil(plant.cost * plant.costGrowth));
+    expect(buyFurniture(s, 'nonsense')).toBe(false);
+  });
+
+  it('never stands furniture on a desk, and stops when the floor is full', () => {
+    const s = createInitialState(0);
+    s.currency = 1e15;
+    const room = officeRooms[0];
+    const floor = room.width * room.height - room.desks;
+    for (let i = 0; i < floor; i++) expect(buyFurniture(s, 'plant')).toBe(true);
+    expect(firstFreeCell(s)).toBeNull();
+    expect(buyFurniture(s, 'plant')).toBe(false);
+    for (const f of s.furniture) expect(cellAt(s, f.room, f.x, f.y)).not.toBe('desk');
+  });
+
+  it('moves furniture only onto free floor in a room you own', () => {
+    const s = createInitialState(0);
+    s.furniture.push({ kind: 'plant', room: 'cupboard', x: 0, y: 0 }, { kind: 'lamp', room: 'cupboard', x: 1, y: 0 });
+    expect(cellAt(s, 'cupboard', 1, 1)).toBe('desk');
+    expect(moveFurniture(s, 0, 'cupboard', 1, 1)).toBe(false); // a desk
+    expect(moveFurniture(s, 0, 'cupboard', 1, 0)).toBe(false); // the lamp
+    expect(moveFurniture(s, 0, 'cupboard', 9, 0)).toBe(false); // off the room
+    expect(moveFurniture(s, 0, 'backroom', 0, 0)).toBe(false); // not bought yet
+    expect(moveFurniture(s, 0, 'cupboard', 3, 2)).toBe(true);
+    expect(cellAt(s, 'cupboard', 3, 2)).toBe(0);
+    expect(cellAt(s, 'cupboard', 0, 0)).toBe('floor');
+  });
+});
+

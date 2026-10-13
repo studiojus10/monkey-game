@@ -16,6 +16,7 @@ import {
   maxOfflineSeconds,
   monkeyShop,
   officeRooms,
+  furnitureKinds,
   type Room,
   startingLetters,
   typewriterKeys,
@@ -23,7 +24,7 @@ import {
   typing,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createMonkey, type GameState, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
+import { createMonkey, type Furniture, type GameState, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -462,6 +463,51 @@ export function deskCells(room: Room): [number, number][] {
   const cells: [number, number][] = [];
   for (let y = 1; y < room.height; y += 2) for (let x = 1; x < room.width; x += 2) cells.push([x, y]);
   return cells.slice(0, room.desks);
+}
+
+/** What a cell of a room holds: a desk, furniture (its index in state.furniture), or free floor. */
+export function cellAt(state: GameState, roomId: string, x: number, y: number): 'desk' | number | 'floor' | null {
+  const room = officeRooms.find((r) => r.id === roomId);
+  if (!room || !state.office.includes(roomId) || x < 0 || y < 0 || x >= room.width || y >= room.height) return null;
+  if (deskCells(room).some(([dx, dy]) => dx === x && dy === y)) return 'desk';
+  const f = state.furniture.findIndex((p) => p.room === roomId && p.x === x && p.y === y);
+  return f >= 0 ? f : 'floor';
+}
+
+/** The first free floor cell, room by room in reading order, or null when the office is full. */
+export function firstFreeCell(state: GameState): Omit<Furniture, 'kind'> | null {
+  for (const room of ownedRooms(state)) {
+    for (let y = 0; y < room.height; y++) {
+      for (let x = 0; x < room.width; x++) if (cellAt(state, room.id, x, y) === 'floor') return { room: room.id, x, y };
+    }
+  }
+  return null;
+}
+
+/** Points for the next piece of a kind of furniture. */
+export function furnitureCost(state: GameState, kind: string): number {
+  const k = furnitureKinds.find((f) => f.id === kind);
+  if (!k) return Infinity;
+  const owned = state.furniture.filter((f) => f.kind === kind).length;
+  return Math.ceil(k.cost * Math.pow(k.costGrowth, owned));
+}
+
+/** Buys a piece of furniture and stands it in the first free cell. */
+export function buyFurniture(state: GameState, kind: string): boolean {
+  const cost = furnitureCost(state, kind);
+  const cell = firstFreeCell(state);
+  if (!cell || state.currency < cost) return false;
+  state.currency -= cost;
+  state.furniture.push({ kind, ...cell });
+  return true;
+}
+
+/** Moves a piece of furniture to a free floor cell. */
+export function moveFurniture(state: GameState, index: number, roomId: string, x: number, y: number): boolean {
+  const f = state.furniture[index];
+  if (!f || cellAt(state, roomId, x, y) !== 'floor') return false;
+  Object.assign(f, { room: roomId, x, y });
+  return true;
 }
 
 /** Typing monkeys (managers not counted) in a department. */
