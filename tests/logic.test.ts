@@ -40,7 +40,7 @@ import {
   chooseStarterScene,
   departmentChoices,
   manage,
-  firstReachableLine,
+  managerLine,
   departmentMonkeys,
   departmentsWithRoom,
   departmentTypists,
@@ -1062,6 +1062,28 @@ describe('finding your place in the script', () => {
 });
 
 describe('manager line choice', () => {
+  it('switches from an out-of-reach line once a line comes within reach', () => {
+    try {
+      setPlays([{ id: 'q', title: 'Q', genre: 'comedy', lines: [[1, 1, 'A', 'Zounds.'], [1, 1, 'B', 'Ay, my lord.']] }]);
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.owned = ['q'];
+      s.letters = ['A', 'Y', 'M', 'L', 'O', 'R'];
+      s.monkeys = Array.from({ length: managers.minDepartmentMonkeys + 1 }, createMonkey);
+      expect(toggleManager(s, 0)).toBe(true);
+      expect(s.monkeys[0].target).toEqual({ play: 'q', index: 0 }); // nothing in reach yet
+      expect(s.pinned).toEqual([{ play: 'q', index: 0 }]);
+      manage(s);
+      expect(s.monkeys[0].target).toEqual({ play: 'q', index: 0 });
+      s.letters.push('D');
+      manage(s);
+      expect(s.monkeys[0].target).toEqual({ play: 'q', index: 1 });
+      expect(s.pinned).toEqual([{ play: 'q', index: 1 }]);
+    } finally {
+      setPlays([]);
+    }
+  });
+
   it('picks a line within reach, then the fewest words, then the earliest in the play', () => {
     try {
       setPlays([
@@ -1082,11 +1104,15 @@ describe('manager line choice', () => {
       s.departments = ['comedy'];
       s.owned = ['p'];
       s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N'];
-      expect(firstReachableLine(s, 'comedy')).toEqual({ play: 'p', index: 3 }); // 2 words, before line 4
+      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 3 }); // 2 words, before line 4
       s.completed.p = [3];
-      expect(firstReachableLine(s, 'comedy')).toEqual({ play: 'p', index: 4 });
+      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 4 });
       s.completed.p = [3, 4];
-      expect(firstReachableLine(s, 'comedy')).toEqual({ play: 'p', index: 1 }); // 3 words each: play order
+      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 1 }); // 3 words each: play order
+      s.completed.p = [1, 2, 3, 4];
+      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 0 }); // nothing in reach: shortest out of reach
+      s.completed.p = [0, 1, 2, 3, 4];
+      expect(managerLine(s, 'comedy')).toBeNull();
     } finally {
       setPlays([]);
     }

@@ -30,7 +30,7 @@ npm start
 | `` ` `` | Development tools for testing (add 1 billion points, 1,000 Lines or Sentences, every letter); they change your save, so use a throwaway one (`IDLE_SAVE=/tmp/x.json npm start`) |
 | `g` | Open a new department (at 10 monkeys, then 20, and the Sonnets at 30); each holds up to 10 typing monkeys plus a manager |
 | `d` | Move a monkey to its next department |
-| `m` | Promote a monkey to manager (department of 6+ monkeys) or send one back to typing; a manager pins the reachable line with the fewest words (earliest first on ties) and fills your word slots |
+| `m` | Promote a monkey to manager (department of 6+ monkeys) or send one back to typing; a manager pins the line with the fewest words, preferring lines within reach (earliest first on ties) and fills your word slots |
 | `u` | Upgrade a manager: +0.1x points for its whole department (costs Lines) |
 | `n` | Name a monkey (pick which one with `1`–`9` if you have several) |
 | `s` | Save now |

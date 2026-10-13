@@ -899,29 +899,34 @@ function unpin(state: GameState, pin: Pin): void {
 }
 
 /**
- * The line a manager targets: among a genre's unwritten owned lines that
- * your letters can spell, the one with the fewest words, then the earliest
- * in play order.
+ * The line a manager targets among a genre's unwritten owned lines: one
+ * within reach (your letters can spell it) if any, then the fewest words,
+ * then the earliest in play order. Null when every owned line is written.
  */
-export function firstReachableLine(state: GameState, genre: Genre | undefined): Pin | null {
+export function managerLine(state: GameState, genre: Genre | undefined): Pin | null {
   let best: Pin | null = null;
-  let bestWords = Infinity;
+  let bestRank: [number, number] = [2, Infinity]; // [0 if within reach else 1, words]
   for (const play of plays.values()) {
     if (play.genre !== genre) continue;
-    for (const index of reachableLines(state, play.id)) {
-      const words = play.lines[index].words.length;
-      if (words < bestWords || (words === bestWords && best?.play === play.id && index < best.index)) {
+    const done = new Set(state.completed[play.id] ?? []);
+    play.lines.forEach((line, index) => {
+      if (done.has(index) || !ownsLine(state, play, index)) return;
+      const rank: [number, number] = [missingLetters(state, line.letters).length === 0 ? 0 : 1, line.words.length];
+      if (rank[0] < bestRank[0] || (rank[0] === bestRank[0] && rank[1] < bestRank[1])) {
         best = { play: play.id, index };
-        bestWords = words;
+        bestRank = rank;
       }
-    }
+    });
   }
   return best;
 }
 
+/** Letters and script owned when each department's manager last chose a line it couldn't reach. */
+const managerChecked = new Map<string, string>();
+
 /**
- * Runs the managers: each keeps its department's target on a reachable
- * unwritten line (fewest words first, then play order), pins it, and fills its department's word slots
+ * Runs the managers: each keeps its department's target on an unwritten
+ * line (see managerLine), pins it, and fills its department's word slots
  * with the line's words, by position.
  */
 export function manage(state: GameState): void {
@@ -930,14 +935,20 @@ export function manage(state: GameState): void {
     if (!boss) continue;
     const t = boss.target;
     const done = t && (state.completed[t.play] ?? []).includes(t.index);
-    if (!t || done) {
+    // An out-of-reach target is reconsidered when letters or script change, in case a line came within reach.
+    const key = `${state.letters.join('')}|${state.owned.join('|')}`;
+    const line = t && plays.get(t.play)?.lines[t.index];
+    const stale = !!line && missingLetters(state, line.letters).length > 0 && managerChecked.get(genre) !== key;
+    if (!t || done || stale) {
       if (t) unpin(state, t);
-      boss.target = firstReachableLine(state, genre);
+      boss.target = managerLine(state, genre);
+      const picked = boss.target && plays.get(boss.target.play)?.lines[boss.target.index];
+      if (picked && missingLetters(state, picked.letters).length > 0) managerChecked.set(genre, key);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
         state.pinned.push(boss.target);
       }
     }
-    // Slots past the line's end switch off; with no line in reach they all do, so typing is random again.
+    // Slots past the line's end switch off; with no line left they all do, so typing is random again.
     const words = boss.target ? plays.get(boss.target.play)!.lines[boss.target.index].words : [];
     for (const i of departmentSlots(state, genre)) {
       const slot = state.slots[i];
