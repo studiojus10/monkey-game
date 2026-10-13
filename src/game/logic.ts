@@ -506,7 +506,7 @@ export function keysUnlocked(state: GameState): boolean {
 /** Points price of the next heavier-key level for a letter. */
 export function heavierCost(state: GameState, letter: string): number {
   const level = state.heavy[letter] ?? 0;
-  return Math.ceil(letterCost(state.letters.length) * typewriterKeys.heavierCostFactor * 2 ** level);
+  return Math.ceil(typewriterKeys.baseCost * typewriterKeys.heavierCostFactor * 2 ** level);
 }
 
 /** Makes a letter you own come up more often. */
@@ -520,11 +520,11 @@ export function buyHeavier(state: GameState, letter: string): boolean {
 }
 
 /** Points price of a combination or word key. */
-export function keyCost(state: GameState, key: string): number {
+export function keyCost(_state: GameState, key: string): number {
   const factor = typewriterKeys.words.includes(key)
     ? typewriterKeys.wordCostFactor
     : typewriterKeys.combinationCostFactor;
-  return Math.ceil(letterCost(state.letters.length) * factor);
+  return Math.ceil(typewriterKeys.baseCost * factor);
 }
 
 /** Combination and word keys you could buy now: not owned, and spelled with your letters. */

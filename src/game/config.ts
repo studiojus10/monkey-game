@@ -79,9 +79,10 @@ export const lineRewards = {
  */
 export const typewriterKeys = {
   unlockLetters: 13,
-  heavierCostFactor: 0.25, // x next letter's price x 2^level
-  combinationCostFactor: 1, // x next letter's price
-  wordCostFactor: 3, // x next letter's price
+  baseCost: 4_000_000, // points; fixed, so owning more letters doesn't make keys dearer
+  heavierCostFactor: 0.25, // x baseCost x 2^level
+  combinationCostFactor: 1, // x baseCost
+  wordCostFactor: 3, // x baseCost
   combinations: ['TH', 'HE', 'IN', 'ER', 'AN', 'ST', 'ND', 'OU', 'QU', 'SH', 'CH', 'ING', 'ION', 'ENT'],
   words: ['THE', 'AND', 'YOU', 'NOT', 'THAT', 'WITH', 'THOU', 'THEE', 'THY', 'LORD', 'WHAT', 'HATH', 'LOVE'],
 };
