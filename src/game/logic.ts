@@ -30,6 +30,7 @@ import {
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
+import { autoConnect, connectedRooms, placeRoom, roomCanUse } from './layout';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
@@ -307,9 +308,15 @@ export function energyFactor(energy: number): number {
   return 1 - energyRules.maxSlowdown * (1 - energy);
 }
 
-/** A monkey's speed right now: tiredness slows it, and on a break it doesn't type. */
+/** Whether a monkey can get to its desk: its department's room connects to the office entrance. */
+export function canReachDesk(state: GameState, m: MonkeyState): boolean {
+  const room = departmentRoom(state, monkeyGenre(state, m));
+  return !room || connectedRooms(state).has(room.id);
+}
+
+/** A monkey's speed right now: tiredness slows it, and on a break (or locked out of its room) it doesn't type. */
 export function currentSpeed(state: GameState, m: MonkeyState): number {
-  return m.manager || m.resting ? 0 : monkeySpeed(state, m) * energyFactor(m.energy);
+  return m.manager || m.resting || !canReachDesk(state, m) ? 0 : monkeySpeed(state, m) * energyFactor(m.energy);
 }
 
 const kindOf = (id: string) => (id === desk.id ? desk : furnitureKinds.find((k) => k.id === id));
@@ -317,20 +324,22 @@ const kindOf = (id: string) => (id === desk.id ? desk : furnitureKinds.find((k) 
 /** How much slower a department's monkeys tire, from the decor in its room (0.1 = 10%). */
 export function drainCut(state: GameState, genre: Genre | undefined): number {
   const room = departmentRoom(state, genre);
-  const sum = state.furniture.reduce((n, f) => n + (room && f.room === room.id ? (kindOf(f.kind)?.drain ?? 0) : 0), 0);
+  if (!room || !connectedRooms(state).has(room.id)) return 0;
+  const sum = state.furniture.reduce((n, f) => n + (f.room === room.id ? (kindOf(f.kind)?.drain ?? 0) : 0), 0);
   return Math.min(energyRules.maxDrainCut, sum);
 }
 
-/** How much faster breaks go, from the comforts in break rooms (0.5 = 50%). */
+/** How much faster breaks go, from the comforts in break rooms you can reach (0.5 = 50%). */
 export function restBoost(state: GameState): number {
-  const breaks = new Set(state.office.filter((r) => r.kind === 'break').map((r) => r.id));
+  const open = connectedRooms(state);
+  const breaks = new Set(state.office.filter((r) => r.kind === 'break' && open.has(r.id)).map((r) => r.id));
   const sum = state.furniture.reduce((n, f) => n + (breaks.has(f.room) ? (kindOf(f.kind)?.rest ?? 0) : 0), 0);
   return Math.min(energyRules.maxRestBoost, sum);
 }
 
-/** Office happiness from all the furniture: points x (1 + happiness). */
+/** Office happiness from the furniture in rooms you can reach: points x (1 + happiness). */
 export function happiness(state: GameState): number {
-  const rooms = new Set(state.office.map((r) => r.id));
+  const rooms = connectedRooms(state);
   const sum = state.furniture.reduce((n, f) => n + (rooms.has(f.room) ? (kindOf(f.kind)?.happiness ?? 0) : 0), 0);
   return Math.min(energyRules.maxHappiness, sum);
 }
@@ -565,15 +574,19 @@ export function buyLetter(state: GameState, letter: string): boolean {
   return true;
 }
 
-/** Cost in points of the next monkey, given how many you have. */
-export function monkeyCost(owned: number): number {
-  return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
+/** Cost in points of a monkey for the department-th department opened (from 0) that has already bought `bought`. */
+export function monkeyCost(bought: number, department = 0): number {
+  return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.departmentGrowth, department) * Math.pow(monkeyShop.costGrowth, bought));
 }
 
-/** Cost in points of the next monkey; free monkeys from acts don't raise it. */
-export function nextMonkeyCost(state: GameState): number {
-  const total = state.monkeys.length + state.unassignedMonkeys;
-  return monkeyCost(Math.max(1, total - milestones.actFreeMonkeys * state.actsDone.length));
+/**
+ * Cost in points of the next monkey for a department (by default the one a
+ * new monkey would go to). Only bought monkeys raise it; free ones from acts don't.
+ */
+export function nextMonkeyCost(state: GameState, genre?: Genre): number {
+  const open = departmentGenres(state);
+  const dept = genre ?? departmentsWithRoom(state)[0] ?? open[0] ?? '';
+  return monkeyCost(state.monkeysBought[dept] ?? 0, Math.max(0, open.indexOf(dept as Genre)));
 }
 
 /** The department a room belongs to: undefined for a break room. */
@@ -649,10 +662,19 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
   const cost = roomCost(state);
   if (state.currency < cost || (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre)))) return false;
   state.currency -= cost;
-  const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
-  state.office.push({ id, kind, department: kind === 'department' ? genre! : '', cells: rectangle(officeRules.newRoomWidth, officeRules.newRoomHeight) });
+  addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight);
   seatWaiting(state);
   return true;
+}
+
+/** Adds a w x h room where it fits best, with a door and hallway to the rest of the office. Returns it. */
+export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number): Room {
+  const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
+  const [x0, y0] = placeRoom(state, width, height);
+  const room: Room = { id, kind, department: kind === 'department' ? department : '', cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
+  state.office.push(room);
+  autoConnect(state);
+  return room;
 }
 
 /** Points for the next square added to a room. */
@@ -660,24 +682,28 @@ export function squareCost(state: GameState): number {
   return Math.ceil(officeRules.squareBaseCost * Math.pow(officeRules.squareCostGrowth, state.squaresBought));
 }
 
-/** Squares a room could grow into: next to it, side by side, in reading order. */
-export function expansionSquares(room: Room): [number, number][] {
+/**
+ * Squares a room could grow into, in reading order: next to it, empty (not a
+ * hallway) and not touching another room.
+ */
+export function expansionSquares(state: GameState, room: Room): [number, number][] {
   const out: [number, number][] = [];
   for (const [x, y] of room.cells) {
     for (const [nx, ny] of [[x, y - 1], [x - 1, y], [x + 1, y], [x, y + 1]] as [number, number][]) {
-      if (!hasCell(room, nx, ny) && !out.some(([ox, oy]) => ox === nx && oy === ny)) out.push([nx, ny]);
+      if (!hasCell(room, nx, ny) && !out.some(([ox, oy]) => ox === nx && oy === ny) && roomCanUse(state, nx, ny, room)) out.push([nx, ny]);
     }
   }
   return out.sort(readingOrder);
 }
 
 /** The square a room grows into when you don't choose: the one that keeps it most compact. */
-export function bestExpansion(room: Room): [number, number] {
+export function bestExpansion(state: GameState, room: Room): [number, number] | undefined {
   const area = (cells: [number, number][]) => {
     const b = roomBounds({ ...room, cells });
     return (b.maxX - b.minX + 1) * (b.maxY - b.minY + 1);
   };
-  const options = expansionSquares(room);
+  const options = expansionSquares(state, room);
+  if (options.length === 0) return undefined;
   return options.reduce((best, c) => (area([...room.cells, c]) < area([...room.cells, best]) ? c : best), options[0]);
 }
 
@@ -686,8 +712,10 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   const room = state.office.find((r) => r.id === roomId);
   const cost = squareCost(state);
   if (!room || state.currency < cost) return false;
-  const [x, y] = square ?? bestExpansion(room);
-  if (!expansionSquares(room).some(([ex, ey]) => ex === x && ey === y)) return false;
+  const target = square ?? bestExpansion(state, room);
+  if (!target) return false;
+  const [x, y] = target;
+  if (!expansionSquares(state, room).some(([ex, ey]) => ex === x && ey === y)) return false;
   state.currency -= cost;
   room.cells.push([x, y]);
   state.squaresBought++;
@@ -746,7 +774,7 @@ export function furnishOffice(state: GameState): void {
   }));
   state.monkeys.forEach((m) => {
     const room = state.office.find((r) => r.department === m.department) ?? state.office[0];
-    if (freeSquares(state, room).length === 0) room.cells.push(bestExpansion(room));
+    if (freeSquares(state, room).length === 0) room.cells.push(bestExpansion(state, room) ?? [Math.max(...room.cells.map(([x]) => x)) + 1, 0]);
     const [x, y] = freeSquares(state, room)[0];
     state.furniture.push({ kind: desk.id, room: room.id, x, y });
   });
@@ -785,10 +813,12 @@ function placeFor(state: GameState, genre?: Genre): string | null {
  * when only one has room; the player chooses otherwise.
  */
 export function buyMonkey(state: GameState, genre?: Genre): boolean {
-  const cost = nextMonkeyCost(state);
   const dept = placeFor(state, genre);
-  if (state.letters.length === 0 || state.currency < cost || dept === null) return false;
+  if (dept === null) return false;
+  const cost = nextMonkeyCost(state, (dept || undefined) as Genre | undefined);
+  if (state.letters.length === 0 || state.currency < cost) return false;
   state.currency -= cost;
+  state.monkeysBought[dept] = (state.monkeysBought[dept] ?? 0) + 1;
   state.monkeys.push({ ...createMonkey(), department: dept });
   placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;
@@ -1372,7 +1402,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   state.stats.secondsTyping += seconds;
   manage(state);
   const due = state.monkeys.map((m) => {
-    if (m.manager) return 0;
+    if (m.manager || !canReachDesk(state, m)) return 0;
     m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds, energyRates(state, m));
     const n = Math.floor(m.progress);
     m.progress -= n;

@@ -78,9 +78,10 @@ const hours = Number(process.argv[2] ?? 24);
 // Try other settings without editing config: SIM_CHAIN_WORDS=6 SIM_WORD_MIN=3
 if (process.env.SIM_CHAIN_WORDS) sentenceRules.chainWords = Number(process.env.SIM_CHAIN_WORDS);
 if (process.env.SIM_WORD_MIN) sentenceRules.wordMinLength = Number(process.env.SIM_WORD_MIN);
-// ...and monkey prices: SIM_MONKEY_COST=10 SIM_MONKEY_GROWTH=1.5
+// ...and monkey prices: SIM_MONKEY_COST=1e5 SIM_MONKEY_GROWTH=5 SIM_DEPT_GROWTH=50
 if (process.env.SIM_MONKEY_COST) monkeyShop.baseCost = Number(process.env.SIM_MONKEY_COST);
 if (process.env.SIM_MONKEY_GROWTH) monkeyShop.costGrowth = Number(process.env.SIM_MONKEY_GROWTH);
+if (process.env.SIM_DEPT_GROWTH) monkeyShop.departmentGrowth = Number(process.env.SIM_DEPT_GROWTH);
 let seed = Number(process.argv[3] ?? 1);
 const rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
@@ -131,16 +132,16 @@ function shop(): void {
       if (g && openDepartment(s, g)) bought = true;
     }
     for (const g of roomlessDepartments(s)) if (s.currency >= roomCost(s) && buyRoom(s, 'department', g)) bought = true;
-    // Monkeys, with floor space for them.
-    if (s.currency >= nextMonkeyCost(s)) {
-      if (!canSeatMonkey(s)) {
-        const g = departmentGenres(s).find((x) => departmentTypists(s, x) < departmentRules.maxTypists && departmentRoom(s, x));
-        const room = g && departmentRoom(s, g);
-        if (room && s.currency >= squareCost(s)) expandRoom(s, room.id);
-      }
+    // Monkeys, with floor space for them: each department has its own price, so the cheapest with room.
+    {
       const rooms = departmentsWithRoom(s);
-      const g = rooms.length > 0 ? rooms.reduce((a, b) => (departmentTypists(s, a) <= departmentTypists(s, b) ? a : b)) : undefined;
-      if ((g ? buyMonkey(s, g) : buyMonkey(s))) bought = true;
+      const g = rooms.length > 0 ? rooms.reduce((a, b) => (nextMonkeyCost(s, a) <= nextMonkeyCost(s, b) ? a : b)) : undefined;
+      const want = departmentGenres(s).length > 0 ? departmentGenres(s).reduce((a, b) => (nextMonkeyCost(s, a) <= nextMonkeyCost(s, b) ? a : b)) : undefined;
+      if (want && s.currency >= nextMonkeyCost(s, want) && !rooms.includes(want) && departmentTypists(s, want) < departmentRules.maxTypists) {
+        const room = departmentRoom(s, want);
+        if (room && s.currency >= squareCost(s) + nextMonkeyCost(s, want)) expandRoom(s, room.id);
+      }
+      if (g ? s.currency >= nextMonkeyCost(s, g) && buyMonkey(s, g) : s.currency >= nextMonkeyCost(s) && buyMonkey(s)) bought = true;
     }
     while (s.unassignedMonkeys > 0 && assignMonkey(s, departmentsWithRoom(s)[0])) bought = true;
     // Combo cap with Sentences.

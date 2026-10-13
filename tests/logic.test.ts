@@ -4,6 +4,8 @@ import {
   applyOfflineProgress,
   chainSentences,
   accessoryCost,
+  addRoom,
+  canReachDesk,
   buyAccessory,
   wearing,
   drainCut,
@@ -96,6 +98,7 @@ import {
   nextOwnedScene,
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
+import { autoConnect, connectedRooms, cycleDoor, doorSides, isConnected, layOutOffice, toggleHall } from '../src/game/layout';
 
 // Most tests check typing exactly, so monkeys don't tire unless a test says so.
 const drainSeconds = energy.drainSeconds;
@@ -108,7 +111,7 @@ afterEach(() => {
 
 /** Gives a department a big room, so floor space doesn't get in a test's way. */
 function roomFor(s: GameState, genre: string): void {
-  s.office.push({ id: `r${s.office.length + 1}`, kind: 'department', department: genre, cells: rectangle(8, 8) });
+  addRoom(s, 'department', genre, 8, 8);
 }
 
 const rng = () => 0;
@@ -319,13 +322,29 @@ describe('monkeys', () => {
     s.lines = 1e12;
     expect(buyMonkey(s)).toBe(false); // Sentences and Lines don't buy monkeys
     s.sentences = 0;
-    s.currency = monkeyCost(1);
-    expect(monkeyCost(1)).toBe(monkeyShop.baseCost);
+    s.currency = monkeyCost(0);
+    expect(monkeyCost(0)).toBe(monkeyShop.baseCost);
     expect(buyMonkey(s)).toBe(true);
     expect(s.monkeys).toHaveLength(2);
     expect(s.currency).toBe(0);
     expect(buyMonkey(s)).toBe(false);
-    expect(monkeyCost(2)).toBeGreaterThan(monkeyCost(1));
+    expect(nextMonkeyCost(s)).toBe(monkeyShop.baseCost * monkeyShop.costGrowth);
+  });
+
+  it('gives each department its own monkey price, dearer for each later department', () => {
+    const s = createInitialState(0);
+    s.letters = ['A'];
+    s.departments = ['comedy', 'tragedy'];
+    s.currency = 1e30;
+    roomFor(s, 'comedy');
+    roomFor(s, 'tragedy');
+    expect(nextMonkeyCost(s, 'comedy')).toBe(monkeyCost(0, 0));
+    expect(nextMonkeyCost(s, 'tragedy')).toBe(monkeyCost(0, 1));
+    expect(monkeyCost(0, 1)).toBe(monkeyShop.baseCost * monkeyShop.departmentGrowth);
+    expect(buyMonkey(s, 'comedy')).toBe(true);
+    expect(buyMonkey(s, 'comedy')).toBe(true);
+    expect(nextMonkeyCost(s, 'comedy')).toBe(monkeyCost(2, 0));
+    expect(nextMonkeyCost(s, 'tragedy')).toBe(monkeyCost(0, 1)); // comedy hires don't raise tragedy's price
   });
 
   it('monkeys can be named, and fall back to M-<number>', () => {
@@ -1028,7 +1047,7 @@ describe('department limits and slots', () => {
       s.letters = ['A'];
       s.lines = 1e9;
       s.currency = 1e30;
-      for (let i = 0; i < 40; i++) s.office[0].cells.push(bestExpansion(s.office[0]));
+      for (let i = 0; i < 40; i++) s.office[0].cells.push(bestExpansion(s, s.office[0])!);
       while (s.monkeys.length < departmentRules.maxTypists) expect(buyMonkey(s)).toBe(true); // one department: automatic
       expect(buyMonkey(s)).toBe(false); // full of typists
       expect(toggleManager(s, 0)).toBe(true); // a manager frees a typing seat
@@ -1241,7 +1260,7 @@ describe('office space', () => {
     expect(squareCost(s)).toBeGreaterThan(first);
     expect(expandRoom(s, room.id, [5, 5])).toBe(false); // not next to the room
     expect(expandRoom(s, room.id, [-1, 0])).toBe(true); // a square you choose
-    expect(expansionSquares(room).some(([x, y]) => x === -2 && y === 0)).toBe(true);
+    expect(expansionSquares(s, room).some(([x, y]) => x === -2 && y === 0)).toBe(true);
     s.currency = 0;
     expect(expandRoom(s, room.id)).toBe(false);
   });
@@ -1324,10 +1343,11 @@ describe('furniture', () => {
     expect(cellAt(s, 'r1', 0, 0)).toBe(0); // the desk
     expect(moveFurniture(s, 1, 'r1', 0, 0)).toBe(false); // taken
     expect(moveFurniture(s, 1, 'r1', 9, 0)).toBe(false); // off the room
-    expect(moveFurniture(s, 1, 'r2', 2, 2)).toBe(true);
-    expect(cellAt(s, 'r2', 2, 2)).toBe(1);
+    const [x, y] = s.office[1].cells[8];
+    expect(moveFurniture(s, 1, 'r2', x, y)).toBe(true);
+    expect(cellAt(s, 'r2', x, y)).toBe(1);
     expect(cellAt(s, 'r1', 1, 0)).toBe('floor');
-    expect(moveFurniture(s, 0, 'r2', 0, 0)).toBe(false); // a desk can't leave its department's room
+    expect(moveFurniture(s, 0, 'r2', ...s.office[1].cells[0])).toBe(false); // a desk can't leave its department's room
     expect(moveFurniture(s, 0, 'r1', 1, 1)).toBe(true);
   });
 });
@@ -1389,9 +1409,9 @@ describe('furniture effects', () => {
 
   it('caps each effect', () => {
     const s = createInitialState(0);
-    s.office.push({ id: 'r2', kind: 'break', department: '', cells: rectangle(10, 10) });
     s.office[0].cells = rectangle(10, 10);
-    for (let i = 0; i < 40; i++) s.furniture.push({ kind: 'tv', room: 'r2', x: i % 10, y: Math.floor(i / 10) }, { kind: 'bookshelf', room: 'r1', x: i % 10, y: 5 + Math.floor(i / 10) });
+    const r2 = addRoom(s, 'break', '', 10, 10);
+    for (let i = 0; i < 40; i++) s.furniture.push({ kind: 'tv', room: 'r2', x: r2.cells[i][0], y: r2.cells[i][1] }, { kind: 'bookshelf', room: 'r1', x: i % 10, y: 5 + Math.floor(i / 10) });
     expect(restBoost(s)).toBe(energy.maxRestBoost);
     expect(drainCut(s, undefined)).toBe(energy.maxDrainCut);
     expect(happiness(s)).toBe(energy.maxHappiness);
@@ -1465,3 +1485,80 @@ describe('sentences from long chains', () => {
   });
 });
 
+
+describe('doors and hallways', () => {
+  it('places each new room apart from the others, with a hallway and doors back to the first room', () => {
+    const s = createInitialState(0);
+    s.currency = 1e30;
+    for (let i = 0; i < 4; i++) expect(buyRoom(s, 'break')).toBe(true);
+    expect(s.halls.length).toBeGreaterThan(0);
+    for (const r of s.office) expect(isConnected(s, r)).toBe(true);
+    // No two rooms share a wall: a hallway's width is always between them.
+    const owner = new Map(s.office.flatMap((r) => r.cells.map(([x, y]) => [`${x},${y}`, r.id] as const)));
+    for (const r of s.office) {
+      for (const [x, y] of r.cells) {
+        for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+          const other = owner.get(`${x + dx},${y + dy}`);
+          expect(!other || other === r.id).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("stops a room's monkeys and furniture working when nothing leads to it", () => {
+    const s = createInitialState(0);
+    s.currency = 1e30;
+    s.letters = ['A'];
+    const lounge = addRoom(s, 'break', '', 3, 3);
+    s.furniture.push({ kind: 'tv', room: lounge.id, x: lounge.cells[0][0], y: lounge.cells[0][1] });
+    expect(restBoost(s)).toBeGreaterThan(0);
+    for (const [x, y] of [...s.halls]) toggleHall(s, x, y); // tear up the hallway
+    expect(s.doors).toHaveLength(0); // doors onto nothing go too
+    expect(isConnected(s, lounge)).toBe(false);
+    expect(restBoost(s)).toBe(0);
+    expect(happiness(s)).toBe(0);
+    autoConnect(s);
+    expect(isConnected(s, lounge)).toBe(true);
+
+    s.departments = ['comedy', 'tragedy'];
+    const room = addRoom(s, 'department', 'tragedy', 3, 3);
+    s.monkeys.push({ ...createMonkey(), department: 'tragedy' });
+    const m = s.monkeys[1];
+    expect(canReachDesk(s, m)).toBe(true);
+    const doors = s.doors.filter((d) => room.cells.some(([x, y]) => x === d.x && y === d.y));
+    s.doors = s.doors.filter((d) => !doors.includes(d));
+    expect(canReachDesk(s, m)).toBe(false);
+    tick(s, 10, rng);
+    expect(m.progress).toBe(0); // it can't get to its desk to type
+    expect(currentSpeed(s, m)).toBe(0);
+  });
+
+  it('cycles a door around the walls of a square, and lays or lifts hallway squares', () => {
+    const s = createInitialState(0); // a 2x2 room at 0,0
+    expect(cycleDoor(s, 0, 0)).toBe(false); // nothing beyond its walls yet
+    expect(toggleHall(s, 0, 0)).toBe(false); // part of a room
+    expect(toggleHall(s, 0, -1)).toBe(true);
+    expect(toggleHall(s, -1, 0)).toBe(true);
+    expect(doorSides(s, 0, 0)).toEqual(['n', 'w']);
+    expect(cycleDoor(s, 0, 0)).toBe(true);
+    expect(s.doors).toEqual([{ x: 0, y: 0, side: 'n' }]);
+    cycleDoor(s, 0, 0);
+    expect(s.doors).toEqual([{ x: 0, y: 0, side: 'w' }]);
+    cycleDoor(s, 0, 0);
+    expect(s.doors).toEqual([]);
+    expect(toggleHall(s, 0, -1)).toBe(true); // lifted again
+    expect(s.halls).toEqual([[-1, 0]]);
+  });
+
+  it('lays out an older office where every room started at the same corner', () => {
+    const s = createInitialState(0);
+    s.office.push({ id: 'r2', kind: 'break', department: '', cells: rectangle(3, 3) });
+    s.furniture.push({ kind: 'plant', room: 'r2', x: 1, y: 1 });
+    layOutOffice(s);
+    const r2 = s.office[1];
+    expect(r2.cells.some(([x, y]) => s.office[0].cells.some(([a, b]) => a === x && b === y))).toBe(false);
+    const plant = s.furniture[1];
+    expect(r2.cells.some(([x, y]) => x === plant.x && y === plant.y)).toBe(true); // furniture moved with its room
+    expect(connectedRooms(s).has('r2')).toBe(true);
+  });
+});

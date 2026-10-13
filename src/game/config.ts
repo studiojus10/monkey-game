@@ -42,12 +42,16 @@ export const letterShop = {
 };
 
 /**
- * You start with one monkey. More monkeys are paid in Points, which keep
- * growing all game; the n-th one you buy costs baseCost x costGrowth^(n-1).
+ * You start with one monkey. More monkeys are paid in Points. Each
+ * department has its own price: the n-th monkey bought for the d-th
+ * department opened (both from 0) costs
+ * baseCost x departmentGrowth^d x costGrowth^n, so every department takes
+ * days to fill however many monkeys came before it.
  */
 export const monkeyShop = {
   baseCost: 300_000, // scripts/simulate.ts: 2nd monkey after about 2.5h, a full department (10) after about 3 days
   costGrowth: 6,
+  departmentGrowth: 100,
 };
 
 /**
@@ -181,6 +185,7 @@ export const office = {
   roomCostGrowth: 10,
   squareBaseCost: 500,
   squareCostGrowth: 1.15,
+  mapWidth: 18, // squares across the office map before new rooms go below instead
 };
 
 /**
