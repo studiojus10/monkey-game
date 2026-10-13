@@ -2,6 +2,8 @@
 
 Idle/incremental game, currently a text-based terminal game. TypeScript on Node (run with tsx, no build step), Vitest for tests. A browser front end may be added later, so game logic must stay independent of the terminal.
 
+The game being built is "Infinite Monkeys"; the full design and build plan are in `docs/DESIGN.md`. Read it before adding gameplay.
+
 ## Commands
 
 - `npm start` – play in the terminal (`IDLE_SAVE=/tmp/x.json npm start` for a throwaway save)
@@ -16,21 +18,31 @@ CI (`.github/workflows/ci.yml`) runs typecheck and tests on every PR. Run both b
 src/
   format.ts        number formatting (1.23K, 4.56M, ...), shared by any front end
   game/            pure game logic: no terminal, DOM, file system or timers
-    config.ts      theme strings + balance data (generators, upgrades, offline cap)
-    state.ts       GameState shape and createInitialState()
-    logic.ts       click, tick, buyGenerator, buyUpgrade, cost/production formulas, offline progress
+    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture, energy, accessories, milestones, offline cap, per-second simulation cap)
+    state.ts       GameState, MonkeyState and Stats shapes, createInitialState()
+    plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
+    words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
+    logic.ts       setWordList, setPlays, departments, scene shop (buySection), chooseStarterScene, chooseFirstLetter, buyLetter, office (rooms per department and break rooms, expandRoom one square at a time, desks placed with each monkey, buyFurniture, moveFurniture, furnishOffice for old saves), buyMonkey, renameMonkey, milestones (scene/act/play), managers (manage, upgradeManager), buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping and buyTypewriter (per-monkey skill and typewriter), accessories (buyAccessory, wearing), energy (spendEnergy: tiring and breaks, exact over any stretch; furniture effects drainCut, restBoost, happiness), tick, offline progress (random source injectable as rng)
+    dev.ts         development tools (devTools list) shown on the ` menu; add new test tools here
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
-    main.ts        entry: loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave
-    screen.ts      renderScreen() returns the screen as plain text; shopItems() maps keys 1-9 to purchases
+    main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave
+    screen.ts      renderScreen() and renderScript() return screens as text (ANSI bold for the live part of a monkey line); the shop's stores (storeItems, shopLines)
+    office.ts      renderOffice(): the office map (rooms of any shape, desks, who sits where, furniture, cursor, grow mode)
+    (screen.ts also has renderOptions(): the options menu, state.settings)
+    stats.ts       renderStats() and renderDictionary(): the statistics page and the A-Z dictionary of spelled words
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
+data/words.txt     ENABLE word list (public domain), one lowercase word per line
+data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare
+scripts/           import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json; import-sonnets.ts builds data/plays/sonnets.json
 tests/             unit tests for logic, save, formatting and the terminal screen
 ```
 
 ## Conventions
 
-- Game content (names, costs, rates, new generators/upgrades) goes in `config.ts` as data, not as new logic.
-- Logic functions mutate the `GameState` passed in and return a boolean for purchases; they never do I/O.
+- Game content (names, costs, rates, words) goes in `config.ts` as data, not as new logic.
+- Logic functions mutate the `GameState` passed in and return a boolean for purchases; they never do I/O. Anything random takes an `rng` argument so tests can fix it.
+- Everything the game prints is ASCII (plus ANSI bold/colour codes) so it runs in any terminal on any system: no emoji, Unicode symbols or box-drawing. A test in `tests/cli.test.ts` checks this.
 - Keep rendering in `screen.ts` pure (state in, string out) so it stays testable; side effects belong in `cli/main.ts`.
 - A new front end (e.g. browser) gets its own folder next to `cli/` and its own `SaveStorage`.
 - Adding a field to `GameState`: give it a default in `createInitialState()` and a fallback in `deserialize()` so old saves still load. Bump `SAVE_VERSION` and migrate if a field's meaning changes.

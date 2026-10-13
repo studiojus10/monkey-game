@@ -1,17 +1,196 @@
+import { office as officeRules } from './config';
+
+/** A piece of a monkey's current line: a scored word or a skipped letter. */
+export interface Segment {
+  text: string;
+  scored: boolean;
+}
+
+export interface MonkeyState {
+  name: string; // player-given name; empty shows as M-<number>
+  department: string; // genre of the department it works in; empty = the first department
+  manager: boolean; // a manager doesn't type; it picks its department's target line, pins it and fills word slots
+  target: Pin | null; // a manager's current target line
+  managerLevel: number; // manager upgrades bought; each raises its department's points
+  pending: string; // letters that might still become a word
+  line: Segment[]; // what's on the current typewriter line, for display
+  progress: number; // fraction of the next letter typed so far
+  chainWords: string[]; // different long words in the current chain (back-to-back words)
+  chainPoints: number; // sum of the chain's word points, before the multiplier
+  chainRecent: string[]; // the chain's latest words, enough to hold the longest play line
+  chainLength: number; // words in the current chain, for word slots
+  skill: number; // typing skill level: "Faster typing" bought for this monkey
+  typewriter: number; // typewriter tier, 0 = the first; caps skill at (tier + 1) x levelsPerTypewriter
+  energy: number; // 1 = rested, 0 = worn out; a tired monkey types slower
+  resting: boolean; // on a break until its energy is back to full
+  accessories: string[]; // ids of the accessories it wears, one per slot
+}
+
+/**
+ * A word slot: the word at `position` in a chain (1 = first) is always
+ * `word` while on, for the monkeys of its department.
+ */
+export interface WordSlot {
+  department: string; // genre of its department; empty = the first department
+  position: number;
+  word: string; // empty until the player sets one
+  on: boolean;
+}
+
+/** The most recent play line a monkey typed, for display. */
+export interface LastLine {
+  play: string;
+  index: number;
+  firstTime: boolean;
+  points: number; // bonus paid (first time only)
+  sentence: boolean; // whether it paid a Sentence
+}
+
+/** The most recent scene, act or play finished, for display. */
+export interface Milestone {
+  kind: 'scene' | 'act' | 'play' | 'sonnet';
+  play: string;
+  act: number;
+  scene: number;
+  sentences: number; // Sentences paid (scenes)
+  bonus: number; // points bonus (scenes) or typing speed bonus (acts) it added, e.g. 0.2 = +20%; Lines paid (sonnets)
+}
+
+/**
+ * A room of the office: a department's room (its monkeys' desks go here) or a
+ * break room. Its squares are [x, y] cells on its own grid; any shape.
+ */
+export interface Room {
+  id: string;
+  kind: 'department' | 'break';
+  department: string; // genre of a department room; empty = the first department
+  cells: [number, number][];
+}
+
+/** A piece of furniture standing on one square of a room. Desks are furniture too. */
+export interface Furniture {
+  kind: string; // 'desk' or a furnitureKinds id
+  room: string; // a Room id
+  x: number;
+  y: number;
+}
+
+/** A line pinned to the home screen. */
+export interface Pin {
+  play: string;
+  index: number;
+}
+
 export interface GameState {
   currency: number;
   totalEarned: number;
-  generators: Record<string, number>; // generator id -> owned count
-  upgrades: string[]; // purchased upgrade ids
+  sentences: number; // currency: every time a play line (3+ words) is typed
+  lines: number; // currency: first completion of each play line
+  words: number; // currency: one for each different word ever spelled (each new dictionary entry)
+  office: Room[]; // rooms, in the order bought; the first is where you start
+  squaresBought: number; // squares added to rooms, which raises the price of the next
+  furniture: Furniture[]; // pieces bought, where they stand
+  departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
+  owned: string[]; // script bought: "play", "play:act" or "play:act.scene"; empty until the free starter scene
+  completed: Record<string, number[]>; // play id -> completed line indices
+  scenesDone: string[]; // finished scenes as "play:act.scene"
+  actsDone: string[]; // finished acts as "play:act"
+  playsDone: string[]; // finished play ids
+  lastMilestone: Milestone | null;
+  pointsBonus: number; // from finished scenes: points x (1 + pointsBonus)
+  speedBonus: number; // from finished acts: typing speed x (1 + speedBonus)
+  pinned: Pin[]; // lines pinned to the home screen
+  lastLine: LastLine | null;
+  comboCapLevel: number; // combo cap raises bought
+  keys: string[]; // combination and word keys bought
+  slots: WordSlot[];
+  letters: string[]; // owned letters; empty until the player picks one
+  monkeys: MonkeyState[];
+  unassignedMonkeys: number; // earned monkeys waiting for the player to pick their department
+  wordsTyped: number;
+  lastWord: string; // most recent scored word, for display
+  lastWordPoints: number; // what it paid, combo included
+  settings: Settings;
+  stats: Stats;
   lastSaved: number; // epoch ms
+}
+
+/** Player options, from the options menu. */
+export interface Settings {
+  autoPlaceFurniture: boolean; // new furniture places itself; off opens the office map to place it
+}
+
+export function createSettings(): Settings {
+  return { autoPlaceFurniture: true };
+}
+
+/** Lifetime statistics, for the statistics page. They never affect play. */
+export interface Stats {
+  letters: Record<string, number>; // letter -> times typed
+  words: Record<string, number>; // word -> times spelled
+  longestWord: string;
+  bestWord: string; // the single word that paid the most points
+  bestWordPoints: number;
+  longestChain: number; // most words in one unbroken chain
+  linesTyped: number; // play lines typed, repeats included
+  longestLine: Pin | null; // the longest play line written (by letters)
+  bestLinePoints: number; // the biggest first-time line payout
+  pets: number; // times the player petted a monkey
+  secondsTyping: number; // time the monkeys have been at work, offline included
+}
+
+export function createStats(): Stats {
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, secondsTyping: 0 };
+}
+
+export function createMonkey(): MonkeyState {
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, skill: 0, typewriter: 0, energy: 1, resting: false, accessories: [] };
+}
+
+/** A rectangle of squares from (0, 0). */
+export function rectangle(width: number, height: number): [number, number][] {
+  const cells: [number, number][] = [];
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) cells.push([x, y]);
+  return cells;
+}
+
+/** The room you start in: the first department's. */
+export function starterRoom(): Room {
+  return { id: 'r1', kind: 'department', department: '', cells: rectangle(officeRules.starterWidth, officeRules.starterHeight) };
 }
 
 export function createInitialState(now = Date.now()): GameState {
   return {
     currency: 0,
     totalEarned: 0,
-    generators: {},
-    upgrades: [],
+    sentences: 0,
+    lines: 0,
+    words: 0,
+    office: [starterRoom()],
+    squaresBought: 0,
+    furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
+    departments: [],
+    owned: [],
+    completed: {},
+    scenesDone: [],
+    actsDone: [],
+    playsDone: [],
+    lastMilestone: null,
+    pointsBonus: 0,
+    speedBonus: 0,
+    pinned: [],
+    lastLine: null,
+    comboCapLevel: 0,
+    keys: [],
+    slots: [],
+    letters: [],
+    monkeys: [createMonkey()],
+    unassignedMonkeys: 0,
+    wordsTyped: 0,
+    lastWord: '',
+    lastWordPoints: 0,
+    settings: createSettings(),
+    stats: createStats(),
     lastSaved: now,
   };
 }
