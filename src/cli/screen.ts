@@ -15,8 +15,8 @@ import {
   capRaiseCost,
   comboCap,
   comboMultiplier,
-  heavierCost,
   keyCost,
+  wordKeySpellsNeeded,
   keysUnlocked,
   letterCost,
   monkeySpeed,
@@ -303,7 +303,17 @@ export function keyChoices(state: GameState): string[] {
   return availableKeys(state).slice(0, 9);
 }
 
-/** The typewriter keys menu: heavier letters, then combination and word keys. */
+/** The words closest to unlocking as keys, with how often they've been spelled. */
+function nextWordKeys(state: GameState): string[] {
+  const near = Object.entries(state.stats.words)
+    .filter(([w, n]) => w.length >= typewriterKeys.wordMinLength && n < wordKeySpellsNeeded(state) && !state.keys.includes(w))
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .slice(0, 5)
+    .map(([w, n]) => `${w} ${n}/${wordKeySpellsNeeded(state)}`);
+  return near.length > 0 ? [`  Closest: ${near.join('   ')}`] : [];
+}
+
+/** The typewriter keys menu: combination keys and the word keys your monkeys have unlocked. */
 export function renderKeysMenu(state: GameState, message = ''): string {
   const mark = (price: number) => (state.currency >= price ? '★' : ' ');
   const owned = state.keys.length > 0 ? state.keys.join(' ') : 'none yet';
@@ -312,18 +322,16 @@ export function renderKeysMenu(state: GameState, message = ''): string {
     '',
     bold(`${formatNumber(state.currency)} ${theme.currency}`),
     '',
-    'Heavier keys: press a letter you own to make it come up more often.',
-    '  ' +
-      state.letters
-        .map((l) => `${mark(heavierCost(state, l))}${l}${state.heavy[l] ? `+${state.heavy[l]}` : ''} ${price(heavierCost(state, l), state.currency)}`)
-        .join('   '),
+    'Each key types its whole text in one keystroke.',
+    `A word of ${typewriterKeys.wordMinLength}+ letters becomes a key once your monkeys have spelled it ${wordKeySpellsNeeded(state)} times` +
+      ` (+${Math.round((typewriterKeys.wordSpellsGrowth - 1) * 100)}% for each word key you own).`,
+    ...nextWordKeys(state),
     '',
-    'Combination and word keys: each types its whole text in one keystroke.',
     ...keyChoices(state).map((k, i) => {
-      const kind = typewriterKeys.words.includes(k) ? 'word' : 'combination';
+      const kind = typewriterKeys.combinations.includes(k) ? 'combination' : 'word';
       return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${price(keyCost(state, k), state.currency)} ${theme.currency}`;
     }),
-    ...(keyChoices(state).length === 0 ? ['  None available. Buy letters to unlock more.'] : []),
+    ...(keyChoices(state).length === 0 ? ['  None available yet.'] : []),
     `  Owned: ${owned}`,
     '',
     '[esc] back   (★ = affordable)',

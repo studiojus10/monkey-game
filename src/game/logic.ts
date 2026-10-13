@@ -504,28 +504,27 @@ export function keysUnlocked(state: GameState): boolean {
   return state.letters.length >= typewriterKeys.unlockLetters;
 }
 
-/** Points price of the next heavier-key level for a letter. */
-export function heavierCost(state: GameState, letter: string): number {
-  const level = state.heavy[letter] ?? 0;
-  return Math.ceil(typewriterKeys.baseCost * typewriterKeys.heavierCostFactor * 2 ** level);
-}
-
-/** Makes a letter you own come up more often. */
-export function buyHeavier(state: GameState, letter: string): boolean {
-  const l = letter.toUpperCase();
-  const cost = heavierCost(state, l);
-  if (!keysUnlocked(state) || !state.letters.includes(l) || state.currency < cost) return false;
-  state.currency -= cost;
-  state.heavy[l] = (state.heavy[l] ?? 0) + 1;
-  return true;
-}
-
-/** Points price of a combination or word key. */
+/** Points price of a combination or word key: word keys cost by length. */
 export function keyCost(_state: GameState, key: string): number {
-  const factor = typewriterKeys.words.includes(key)
-    ? typewriterKeys.wordCostFactor
-    : typewriterKeys.combinationCostFactor;
+  const factor = typewriterKeys.combinations.includes(key)
+    ? typewriterKeys.combinationCostFactor
+    : typewriterKeys.wordCostPerLetter * key.length;
   return Math.ceil(typewriterKeys.baseCost * factor);
+}
+
+/** How many times a word must be spelled to unlock as your next word key. */
+export function wordKeySpellsNeeded(state: GameState): number {
+  const owned = state.keys.filter((k) => !typewriterKeys.combinations.includes(k)).length;
+  return Math.ceil(typewriterKeys.wordSpellsToUnlock * typewriterKeys.wordSpellsGrowth ** owned);
+}
+
+/** Words your monkeys have spelled often enough to become keys, most spelled first. */
+export function unlockedWordKeys(state: GameState): string[] {
+  const needed = wordKeySpellsNeeded(state);
+  return Object.entries(state.stats.words)
+    .filter(([w, n]) => n >= needed && w.length >= typewriterKeys.wordMinLength)
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .map(([w]) => w);
 }
 
 /** Combination and word keys you could buy now: not owned, and spelled with your letters. */
@@ -535,7 +534,7 @@ export function availableKeys(state: GameState): string[] {
     list.filter((k) => !state.keys.includes(k) && [...k].every((c) => state.letters.includes(c)));
   // Alternate combinations and words so menus show both kinds.
   const combos = usable(typewriterKeys.combinations);
-  const words = usable(typewriterKeys.words);
+  const words = usable(unlockedWordKeys(state));
   return Array.from({ length: Math.max(combos.length, words.length) }, (_, i) => [combos[i], words[i]])
     .flat()
     .filter((k): k is string => k !== undefined);
@@ -549,10 +548,10 @@ export function buyKey(state: GameState, key: string): boolean {
   return true;
 }
 
-/** Everything a monkey can hit, with weights: your letters (plus heavier levels) and your keys. */
+/** Everything a monkey can hit, with weights: your letters and your keys. */
 export function keyboard(state: GameState): { text: string; weight: number }[] {
   return [
-    ...state.letters.map((l) => ({ text: l, weight: 1 + (state.heavy[l] ?? 0) })),
+    ...state.letters.map((l) => ({ text: l, weight: 1 })),
     ...state.keys.map((k) => ({ text: k, weight: 1 })),
   ];
 }

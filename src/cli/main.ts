@@ -30,7 +30,6 @@ import {
   upgradeManager,
   openDepartment,
   buyCapRaise,
-  buyHeavier,
   buyKey,
   buyMonkey,
   monkeyName,
@@ -465,10 +464,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str && /^[1-9]$/.test(str)) {
       const k = keyChoices(state)[Number(str) - 1];
       if (k) message = buyKey(state, k) ? `You bought the ${k} key.` : `Not enough ${theme.currency}.`;
-    } else if (str && /^[a-z]$/i.test(str)) {
-      const l = str.toUpperCase();
-      if (!state.letters.includes(l)) message = `You don't own ${l} yet.`;
-      else message = buyHeavier(state, l) ? `${l} is heavier now.` : `Not enough ${theme.currency}.`;
     }
     return draw();
   }

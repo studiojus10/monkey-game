@@ -22,7 +22,7 @@ npm start
 | `3` | Buy another monkey (costs Lines): pick its department if more than one has room, then type its name (`enter` keeps M-2, M-3, ...) |
 | `a` | Assign a monkey earned from an act to a department |
 | `4` | Raise the combo cap (costs Sentences) |
-| `5` | Typewriter keys menu (once you own 13 letters): press a letter to make it heavier, `1`–`9` to buy a key, `esc` to go back |
+| `5` | Typewriter keys menu (once you own 13 letters): `1`–`9` to buy a key, `esc` to go back |
 | `6` | Word slots menu (once you own 13 letters), per department (`tab` switches): `b` buys a slot (costs Lines), `w` sets its word, `o` switches it on or off, left/right move its position |
 | `p` | Script browser, opening on the play you are working on (your latest pin, else where your monkeys last wrote): arrows scroll by line and scene, `tab` opens a table of contents (all plays, then `enter` for that play's acts and scenes, `enter` again jumps there; `esc` steps back), `b`/`a`/`w` buy the scene/act/whole play under the cursor, `enter` pins a line to the home screen (up to 5), `,` and `.` jump to the previous or next scene you own (across plays), `f` jumps to the next shortest line within reach, `esc` goes back |
 | `t` | Statistics: time typing, letters typed per letter, words spelled, longest word and chain, longest line written, most spelled words; `w` switches to the dictionary, `esc` goes back |
@@ -47,7 +47,7 @@ npm start
 - **Milestones**: writing every line of a scene gives a permanent points bonus (bigger for longer scenes) and some Sentences; finishing an act gives a permanent typing speed bonus (bigger for longer acts) and a free monkey. Bonuses add up the same however you bought the scenes.
 - **Departments**: one per genre. Each holds up to 10 typing monkeys plus a manager, and has its own word slots; you pick each new monkey's department. The second opens at 10 monkeys and the third at 20; each monkey only writes plays of its department's genre. A fourth, the **Sonnets**, opens last at 30: verse lines pay 2 Lines each, and a finished sonnet pays a Line per line in it.
 - **More monkeys**, bought with Lines. Each types its own line and can be named. The first 10 are shown under the title, their text lined up in one column.
-- **Typewriter keys**, once you own 13 letters: heavier letters come up more often, and combination keys (`TH`, `ING`, `QU`, ...) and word keys (`THE`, `AND`, `LORD`, ...) type their whole text in one keystroke. Only useful keys are offered; a test showed junk clusters dilute the pool, while good keys roughly double points per keystroke.
+- **Typewriter keys**, once you own 13 letters: combination keys (`TH`, `ING`, `QU`, ...) and word keys type their whole text in one keystroke. A word of 3+ letters becomes a word key once your monkeys have spelled it 100 times (10% more for each word key you own). Only useful keys are offered; a test showed junk clusters dilute the pool, while good keys roughly double points per keystroke.
 - **Word slots**, once you own 13 letters, bought with Lines: each locks one position in a chain to a word you choose ("3rd word: FRIEND"), typed as a finished word. Switch slots off any time for fully random typing. Pinned lines show slot words in bold where they match.
 - **Faster typing**, bought with points: each level makes the monkey type 25% faster and costs more than the last.
 - **Autosave** to `save.json` every 10 seconds and on quit. Set `IDLE_SAVE=path/to/file.json` to use a different file, which is handy for testing from a fresh start.

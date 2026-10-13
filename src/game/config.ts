@@ -71,20 +71,24 @@ export const lineRewards = {
 
 /**
  * Typewriter keys, a mid-game upgrade bought with points once you own
- * unlockLetters letters. Every key is one more option a monkey can hit:
- * - heavier keys add weight to a letter you own (weight 1 + level);
- * - combination and word keys type their whole text in one keystroke.
- * Prices scale with the price of your next letter. Only curated keys are
- * offered: junk clusters would just dilute the pool.
+ * unlockLetters letters. Each key is one more option a monkey can hit, and
+ * types its whole text in one keystroke:
+ * - combination keys come from a curated list (junk clusters would just
+ *   dilute the pool);
+ * - a word key unlocks once your monkeys have spelled that word enough
+ *   times: wordSpellsToUnlock for the first word key, then wordSpellsGrowth
+ *   times more for each word key you own (words of wordMinLength+ letters).
+ * Prices are fixed, so owning more letters doesn't make keys dearer.
  */
 export const typewriterKeys = {
   unlockLetters: 13,
-  baseCost: 4_000_000, // points; fixed, so owning more letters doesn't make keys dearer
-  heavierCostFactor: 0.25, // x baseCost x 2^level
+  baseCost: 4_000_000, // points
   combinationCostFactor: 1, // x baseCost
-  wordCostFactor: 3, // x baseCost
+  wordCostPerLetter: 1, // x baseCost per letter of the word
+  wordSpellsToUnlock: 100,
+  wordSpellsGrowth: 1.1, // +10% per word key owned
+  wordMinLength: 3,
   combinations: ['TH', 'HE', 'IN', 'ER', 'AN', 'ST', 'ND', 'OU', 'QU', 'SH', 'CH', 'ING', 'ION', 'ENT'],
-  words: ['THE', 'AND', 'YOU', 'NOT', 'THAT', 'WITH', 'THOU', 'THEE', 'THY', 'LORD', 'WHAT', 'HATH', 'LOVE'],
 };
 
 export const typing = {

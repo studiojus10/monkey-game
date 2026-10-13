@@ -6,14 +6,13 @@ import {
   buyLetter,
   buyCapRaise,
   availableKeys,
-  buyHeavier,
   buyKey,
   buyMonkey,
   monkeyName,
   renameMonkey,
   buySlot,
-  heavierCost,
   keyCost,
+  wordKeySpellsNeeded,
   keyboard,
   keysUnlocked,
   missingLetters,
@@ -442,43 +441,52 @@ describe('typewriter keys', () => {
     s.currency = 1e15;
     expect(keysUnlocked(s)).toBe(false);
     expect(availableKeys(s)).toEqual([]);
-    expect(buyHeavier(s, 'A')).toBe(false);
     s.letters.push(thirteen[typewriterKeys.unlockLetters - 1]);
     expect(keysUnlocked(s)).toBe(true);
   });
 
-  it('only offers keys spelled with your letters, once each', () => {
+  it('offers combination keys spelled with your letters, once each', () => {
     const s = fresh(thirteen);
     s.currency = 1e15;
-    expect(availableKeys(s)).toContain('THE');
     expect(availableKeys(s)).toContain('QU');
-    expect(availableKeys(s)).not.toContain('LOVE'); // no V
-    expect(buyKey(s, 'THE')).toBe(true);
-    expect(buyKey(s, 'THE')).toBe(false);
+    expect(availableKeys(s)).not.toContain('THE'); // words must be spelled first
+    expect(buyKey(s, 'QU')).toBe(true);
+    expect(buyKey(s, 'QU')).toBe(false);
     expect(buyKey(s, 'ZZZ')).toBe(false);
-    expect(s.keys).toEqual(['THE']);
+    expect(s.keys).toEqual(['QU']);
   });
 
-  it('word keys cost more than combination keys, and heavier levels double in price', () => {
+  it('unlocks a word key once it is spelled often enough, needing more spells for each word key owned', () => {
     const s = fresh(thirteen);
-    expect(keyCost(s, 'THE')).toBeGreaterThan(keyCost(s, 'TH'));
-    const first = heavierCost(s, 'E');
-    s.currency = first;
-    expect(buyHeavier(s, 'E')).toBe(true);
-    expect(s.heavy.E).toBe(1);
-    expect(heavierCost(s, 'E')).toBeCloseTo(first * 2, -1);
-    expect(buyHeavier(s, 'Z')).toBe(false); // not owned
+    s.currency = 1e15;
+    const first = typewriterKeys.wordSpellsToUnlock;
+    expect(wordKeySpellsNeeded(s)).toBe(first);
+    s.stats.words = { THE: first, AND: first + 5, LORD: first - 1, AT: 500 };
+    expect(availableKeys(s)).toContain('THE');
+    expect(availableKeys(s)).toContain('AND');
+    expect(availableKeys(s)).not.toContain('LORD'); // not spelled enough yet
+    expect(availableKeys(s)).not.toContain('AT'); // too short to be a word key
+    expect(buyKey(s, 'AND')).toBe(true);
+    expect(wordKeySpellsNeeded(s)).toBe(Math.ceil(first * typewriterKeys.wordSpellsGrowth));
+    expect(availableKeys(s)).not.toContain('THE'); // now needs more spells
+    expect(buyKey(s, 'TH')).toBe(true); // combination keys don't raise it
+    expect(wordKeySpellsNeeded(s)).toBe(Math.ceil(first * typewriterKeys.wordSpellsGrowth));
   });
 
-  it('heavier letters and keys change what monkeys press', () => {
+  it('word keys cost by length', () => {
+    const s = fresh(thirteen);
+    expect(keyCost(s, 'TH')).toBe(typewriterKeys.baseCost * typewriterKeys.combinationCostFactor);
+    expect(keyCost(s, 'LORD')).toBe(typewriterKeys.baseCost * typewriterKeys.wordCostPerLetter * 4);
+  });
+
+  it('keys change what monkeys press', () => {
     const s = fresh(['A', 'B']);
-    s.heavy.A = 2; // A weight 3, B weight 1
     expect(keyboard(s)).toEqual([
-      { text: 'A', weight: 3 },
+      { text: 'A', weight: 1 },
       { text: 'B', weight: 1 },
     ]);
     s.keys.push('AB');
-    // total weight 5: rng 0.7 -> 3.5 lands on B, 0.9 -> 4.5 on the AB key
+    // total weight 3: rng 0.9 -> 2.7 lands on the AB key
     setWordList(['AB']);
     try {
       typeLetter(s, 0, () => 0.9);

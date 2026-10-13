@@ -225,14 +225,14 @@ describe('typewriter keys menu', () => {
     expect(renderScreen(started(), '', true)).toContain('[5]  Typewriter keys: unlock when you own 13 letters');
   });
 
-  it('lists heavier letters and the keys you can buy', () => {
+  it('lists the keys you can buy and the words closest to unlocking', () => {
     const s = started();
     s.letters = 'ABDEGHILNORST'.split('');
-    s.heavy.E = 2;
     s.keys.push('TH');
+    s.stats.words = { THE: 100, LORD: 40, NOR: 12 };
     expect(renderScreen(s, '', true)).toContain('[5]  Typewriter keys...');
     const text = plain(renderKeysMenu(s));
-    expect(text).toContain('E+2 ');
+    expect(text).toContain('Closest: LORD 40/100   NOR 12/100');
     expect(text).toContain('Owned: TH');
     expect(keyChoices(s)).not.toContain('TH');
     expect(keyChoices(s)).toContain('HE');

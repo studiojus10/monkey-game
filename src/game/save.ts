@@ -119,10 +119,6 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       pinned,
       lastLine,
       comboCapLevel: Math.max(0, Math.floor(num(s.comboCapLevel, 0))),
-      heavy: Object.fromEntries(
-        Object.entries(s.heavy && typeof s.heavy === 'object' ? s.heavy : {})
-          .filter(([l, n]) => /^[A-Z]$/.test(l) && Number.isInteger(n) && n > 0),
-      ),
       keys: strings(s.keys).filter((k) => /^[A-Z]+$/.test(k)),
       slots: Array.isArray(s.slots)
         ? s.slots

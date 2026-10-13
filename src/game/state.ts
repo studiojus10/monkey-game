@@ -72,7 +72,6 @@ export interface GameState {
   pinned: Pin[]; // lines pinned to the home screen
   lastLine: LastLine | null;
   comboCapLevel: number; // combo cap raises bought
-  heavy: Record<string, number>; // letter -> heavier-key level
   keys: string[]; // combination and word keys bought
   slots: WordSlot[];
   letters: string[]; // owned letters; empty until the player picks one
@@ -127,7 +126,6 @@ export function createInitialState(now = Date.now()): GameState {
     pinned: [],
     lastLine: null,
     comboCapLevel: 0,
-    heavy: {},
     keys: [],
     slots: [],
     letters: [],
