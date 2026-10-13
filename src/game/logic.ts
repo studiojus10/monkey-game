@@ -1328,7 +1328,7 @@ export function buyTypewriter(state: GameState, index = 0): boolean {
   return true;
 }
 
-export function tick(state: GameState, seconds: number, rng: Rng = Math.random): void {
+export function tick(state: GameState, seconds: number, rng: Rng = Math.random, lettersPerSecondCap = maxSimulatedLettersPerSecond): void {
   if (seconds <= 0 || state.letters.length === 0) return;
   state.stats.secondsTyping += seconds;
   manage(state);
@@ -1340,7 +1340,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
     return n;
   });
   const total = due.reduce((a, b) => a + b, 0);
-  const budget = Math.max(state.monkeys.length, Math.floor(maxSimulatedLettersPerSecond * seconds));
+  const budget = Math.max(state.monkeys.length, Math.floor(lettersPerSecondCap * seconds));
   const share = total > budget ? budget / total : 1;
   const before = wordEarnings;
   const wordsBefore = state.wordsTyped;
