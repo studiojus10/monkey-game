@@ -27,7 +27,7 @@ src/
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave
-    screen.ts      renderScreen() and renderScript() return screens as text (ANSI bold for the live part of a monkey line)
+    screen.ts      renderScreen() and renderScript() return screens as text (ANSI bold for the live part of a monkey line); the shop's stores (storeItems, shopLines)
     stats.ts       renderStats() and renderDictionary(): the statistics page and the A-Z dictionary of spelled words
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line

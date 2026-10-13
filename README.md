@@ -16,23 +16,18 @@ npm start
 | `1`–`3` | Pick your first department (genre), then a free first scene (start of the game only) |
 | `a` or `i` | Pick your first letter (start of the game only) |
 | `enter` | Pet the monkey into typing an extra letter |
-| `space` | Open or close the shop (closed at the start); `1`–`6`, `a`, `u` and `g` work while it is open |
-| `1` | Buy "Faster typing" for a monkey (pick which if you have several; ★ marks what you can afford) |
-| `7` | Buy a monkey a better typewriter, raising its typing skill cap by 10 levels |
-| `2` | Buy a letter (points, plus Words from the 3rd letter on), then press the letter you want |
-| `3` | Buy another monkey (costs Lines): pick its department if more than one has room, then type its name (`enter` keeps M-2, M-3, ...) |
-| `a` | Assign a monkey earned from an act to a department |
-| `4` | Raise the combo cap (costs Sentences) |
-| `5` | Typewriter keys menu (once you own 13 letters): `1`–`9` to buy a key, `esc` to go back |
-| `6` | Word slots menu (once you own 13 letters), per department (`tab` switches): `b` buys a slot (costs Lines), `w` sets its word, `o` switches it on or off, left/right move its position |
+| `space` | Open or close the shop (closed at the start). It opens on the store you used last; `tab` or left/right switch stores and `1`–`9` buy within the store (★ marks what you can afford, on items and on store tabs) |
+| Staff store | Faster typing for a monkey (pick which if you have several), hire a monkey (costs Lines: pick its department if more than one has room, then type its name; `enter` keeps M-2, M-3, ...), assign a monkey earned from an act, raise the combo cap (costs Sentences), upgrade a manager (+0.1x points for its whole department, costs Lines) |
+| Typewriters store | Letter keys (points, plus Words from the 3rd letter on; then press the letter you want), a better typewriter for a monkey (+10 typing skill cap), typewriter keys menu (once you own 13 letters: `1`–`9` buys a key, `esc` goes back), word slots menu (once you own 13 letters, per department, `tab` switches: `b` buys a slot for Lines, `w` sets its word, `o` switches it on or off, left/right move its position) |
+| Script store | Opens the script browser (same as `p`) |
+| Accessories store | Coming soon |
+| Real estate store | Open a new department (at 10 monkeys, then 20, and the Sonnets at 30); each holds up to 10 typing monkeys plus a manager. More office space is coming soon |
 | `p` | Script browser, opening on the play you are working on (your latest pin, else where your monkeys last wrote): arrows scroll by line and scene, `tab` opens a table of contents (all plays, then `enter` for that play's acts and scenes, `enter` again jumps there; `esc` steps back), `b`/`a`/`w` buy the scene/act/whole play under the cursor, `enter` pins a line to the home screen (up to 5), `,` and `.` jump to the previous or next scene you own (across plays), `f` jumps to the next shortest line within reach, `esc` goes back |
 | `t` | Statistics: time typing, letters typed per letter, words spelled, longest word and chain, longest line written, most spelled words; `w` switches to the dictionary, `esc` goes back |
 | `w` | Dictionary: every word your monkeys have spelled, A to Z, with how many times; up/down (or page up/down) scroll, a letter jumps to it, `t` switches to statistics, `esc` goes back |
 | `` ` `` | Development tools for testing (add 1 billion points, 1,000 Lines or Sentences, every letter); they change your save, so use a throwaway one (`IDLE_SAVE=/tmp/x.json npm start`) |
-| `g` | Open a new department (at 10 monkeys, then 20, and the Sonnets at 30); each holds up to 10 typing monkeys plus a manager |
 | `d` | Move a monkey to its next department |
 | `m` | Promote a monkey to manager (department of 6+ monkeys) or send one back to typing; a manager pins the line with the fewest words, preferring lines within reach (earliest first on ties) and fills your word slots |
-| `u` | Upgrade a manager: +0.1x points for its whole department (costs Lines) |
 | `n` | Name a monkey (pick which one with `1`–`9` if you have several) |
 | `s` | Save now |
 | `r` | Reset progress (asks to confirm) |

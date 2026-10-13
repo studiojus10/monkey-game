@@ -204,6 +204,13 @@ Each step is a small pull request that you can play with `npm start` before the 
 7. **Word slots.** Buy slots, set and change their words, switch them on and off, aimed at pinned lines. (Built, along with the script browser and pins.)
 8. **Milestones, the script shop and departments.** Length-scaled scene and act rewards, buying scenes/acts/plays, genre departments opened by monkey count, and the Sonnets department. (Built; the big play-completion reward is still open, to decide later.)
 9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.
+10. **Office expansion** (Justin, 2026-10-13), one step at a time:
+    1. **Stores.** The shop splits into stores, switched with `tab`: Staff (training, hiring, combo cap, managers), Typewriters (letter keys, better typewriters, typewriter keys, word slots), Script, Accessories (coming soon) and Real estate (departments, office space later). Buying a letter is now buying a letter key for the typewriters. (Built.)
+    2. **Office space.** Rooms and desks cap how many monkeys you can hire, shown on a read-only top-down ASCII map.
+    3. **Furniture placement.** Buy furniture and place it on the map (or auto-place); rearrange any time.
+    4. **Energy.** Monkeys tire as they type, losing up to 25% speed, and take a break at 0%.
+    5. **Furniture and accessory effects.** Couches, water coolers and TVs refill energy faster; plants and decor slow the drain.
+    6. **Hidden mechanics and lore.** Layout bonuses discovered through flavour text (e.g. a feng shui book).
 
 ## Open questions
 

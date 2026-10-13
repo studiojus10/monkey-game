@@ -19,7 +19,6 @@ import {
   sceneOf,
   starterScenes,
   departmentChoices,
-  departmentPicks,
   monkeyGenre,
   moveMonkey,
   assignMonkey,
@@ -40,14 +39,12 @@ import {
   buySlot,
   chooseStarterScene,
   chooseFirstLetter,
-  keysUnlocked,
   moveSlot,
   letterCost,
   letterWordsCost,
   poke,
   reachableLines,
   setSlotWord,
-  slotsUnlocked,
   setPlays,
   setWordList,
   tick,
@@ -69,13 +66,15 @@ import {
   renderScreen,
   renderScript,
   renderContents,
+  stores,
+  storeChoices,
+  type Store,
   typists,
   typingPickPrompt,
   renderDevMenu,
   contentsPageSize,
   renderSlotsMenu,
   scriptPageSize,
-  unownedLetters,
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
@@ -106,7 +105,8 @@ let showingDev = false;
 let showingStats = false;
 let showingDictionary = false;
 let dictionaryRow = 0;
-let shopOpen = false; // the shop starts closed; space opens and closes it
+let shop: Store | null = null; // the open store; the shop starts closed and space opens and closes it
+let lastStore: Store = 'staff';
 let showingSlots = false;
 let selectedSlot = 0; // index into state.slots
 let slotDept = 0; // index into departmentGenres(state)
@@ -139,6 +139,70 @@ function loadPlays(): PlayData[] {
     .map((f) => JSON.parse(readFileSync(dir + f, 'utf8')) as PlayData);
 }
 
+/** Acts on a store item chosen with 1-9 (see storeItems). */
+function buyItem(id: string): void {
+  if (id === 'train' || id === 'typewriter') {
+    const what = id === 'train' ? 'skill' : 'typewriter';
+    const team = typists(state);
+    if (team.length === 1) message = buyTyping(team[0], what);
+    else if (team.length > 1) {
+      pickingTyping = what;
+      message = typingPickPrompt(state, what);
+    }
+  } else if (id === 'letter') {
+    if (state.currency < letterCost(state.letters.length)) {
+      message = `Not enough ${theme.currency}.`;
+    } else if (state.words < letterWordsCost(state.letters.length)) {
+      message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
+    } else {
+      pickingLetter = true;
+      message = letterPickPrompt(state);
+    }
+  } else if (id === 'hire') {
+    const rooms = departmentsWithRoom(state);
+    if (state.lines < nextMonkeyCost(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
+    else if (departmentGenres(state).length > 0 && rooms.length === 0) message = 'Every department is full. Open another in Real estate.';
+    else if (rooms.length > 1) {
+      pickingDeptFor = 'buy';
+      message = deptPrompt('Which department gets the new monkey?');
+    } else if (buyMonkey(state)) startNaming(state.monkeys.length - 1);
+  } else if (id === 'assign') {
+    if (departmentsWithRoom(state).length === 0) message = 'Every department is full. Open another in Real estate.';
+    else if (assignMonkey(state)) startNaming(state.monkeys.length - 1);
+    else {
+      pickingDeptFor = 'assign';
+      message = deptPrompt('Which department gets the new monkey?');
+    }
+  } else if (id === 'combo') {
+    if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
+  } else if (id === 'keys') {
+    showingKeys = true;
+  } else if (id === 'slots') {
+    showingSlots = true;
+    if (slotDept >= departmentGenres(state).length) slotDept = 0;
+    selectedSlot = departmentSlots(state, departmentGenres(state)[slotDept])[0] ?? -1;
+  } else if (id === 'department') {
+    pickingDepartment = true;
+    message = departmentPrompt(state);
+  } else if (id === 'manager') {
+    pickingManagerUpgrade = true;
+    message = managerUpgradePrompt(state);
+  } else if (id === 'script') {
+    openScript();
+  }
+}
+
+/** Opens the script browser on the play you're working on. */
+function openScript(): void {
+  showingScript = true;
+  contents = '';
+  const work = currentWork(state);
+  if (work) {
+    scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === work.play));
+    scriptCursor = work.index;
+  }
+}
+
 /** Buys a skill level or a typewriter for monkey `i`; returns the message to show. */
 function buyTyping(i: number, what: 'skill' | 'typewriter'): string {
   const m = state.monkeys[i];
@@ -146,7 +210,7 @@ function buyTyping(i: number, what: 'skill' | 'typewriter'): string {
   if (what === 'typewriter') {
     return buyTypewriter(state, i) ? `${name} has a ${typewriterName(m.typewriter)} now.` : `Not enough ${theme.currency}.`;
   }
-  if (m.skill >= skillCap(m)) return `${name}'s ${typewriterName(m.typewriter)} can't keep up. Buy a better typewriter with [7].`;
+  if (m.skill >= skillCap(m)) return `${name}'s ${typewriterName(m.typewriter)} can't keep up. Buy a better typewriter in Typewriters.`;
   return buyFasterTyping(state, i) ? '' : `Not enough ${theme.currency}.`;
 }
 
@@ -166,7 +230,7 @@ function draw() {
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message, shopOpen);
+        : renderScreen(state, message, shop);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -513,59 +577,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (key.name === 'return' || key.name === 'enter') {
     poke(state);
   } else if (key.name === 'space') {
-    shopOpen = !shopOpen;
-  } else if (!shopOpen && str && /^[1-7aug]$/.test(str)) {
-    message = 'Open the shop with [space] first.';
-  } else if (str === '1' || str === '7') {
-    const what = str === '1' ? 'skill' : 'typewriter';
-    const team = typists(state);
-    if (team.length === 1) message = buyTyping(team[0], what);
-    else if (team.length > 1) {
-      pickingTyping = what;
-      message = typingPickPrompt(state, what);
-    }
-  } else if (str === '2' && unownedLetters(state).length > 0) {
-    if (state.currency < letterCost(state.letters.length)) {
-      message = `Not enough ${theme.currency}.`;
-    } else if (state.words < letterWordsCost(state.letters.length)) {
-      message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
-    } else {
-      pickingLetter = true;
-      message = letterPickPrompt(state);
-    }
-  } else if (str === '3') {
-    const rooms = departmentsWithRoom(state);
-    if (state.lines < nextMonkeyCost(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
-    else if (departmentGenres(state).length > 0 && rooms.length === 0) message = 'Every department is full. Open another with [g].';
-    else if (rooms.length > 1) {
-      pickingDeptFor = 'buy';
-      message = deptPrompt('Which department gets the new monkey?');
-    } else if (buyMonkey(state)) startNaming(state.monkeys.length - 1);
-  } else if (str === 'a' && state.unassignedMonkeys > 0) {
-    if (departmentsWithRoom(state).length === 0) message = 'Every department is full. Open another with [g].';
-    else if (assignMonkey(state)) startNaming(state.monkeys.length - 1);
-    else {
-      pickingDeptFor = 'assign';
-      message = deptPrompt('Which department gets the new monkey?');
-    }
-  } else if (str === '4') {
-    if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
-  } else if (str === '5') {
-    if (keysUnlocked(state)) showingKeys = true;
-    else message = 'Typewriter keys unlock later.';
-  } else if (str === '6') {
-    if (slotsUnlocked(state)) {
-      showingSlots = true;
-      if (slotDept >= departmentGenres(state).length) slotDept = 0;
-      selectedSlot = departmentSlots(state, departmentGenres(state)[slotDept])[0] ?? -1;
-    }
-    else message = 'Word slots unlock later.';
-  } else if (str === 'g' && departmentPicks(state) > 0) {
-    pickingDepartment = true;
-    message = departmentPrompt(state);
-  } else if (str === 'u' && managerChoices(state).length > 0) {
-    pickingManagerUpgrade = true;
-    message = managerUpgradePrompt(state);
+    shop = shop ? null : lastStore;
+  } else if (shop && (key.name === 'tab' || key.name === 'right' || key.name === 'left')) {
+    const step = key.name === 'left' ? stores.length - 1 : 1;
+    shop = lastStore = stores[(stores.indexOf(shop) + step) % stores.length];
+  } else if (shop && str && /^[1-9]$/.test(str)) {
+    const item = storeChoices(state, shop)[Number(str) - 1];
+    if (item?.id) buyItem(item.id);
   } else if (str === 'm') {
     pickingManager = true;
     message = `Promote which monkey to manager (or send a manager back to typing)? Press 1-${Math.min(9, state.monkeys.length)}.`;
@@ -582,13 +600,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       message = `Name which monkey? Press 1-${Math.min(9, state.monkeys.length)}.`;
     }
   } else if (key.name === 'p') {
-    showingScript = true;
-    contents = '';
-    const work = currentWork(state);
-    if (work) {
-      scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === work.play));
-      scriptCursor = work.index;
-    }
+    openScript();
   } else if (str === '`') {
     showingDev = true;
   } else if (str === 't') {

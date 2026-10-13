@@ -115,7 +115,7 @@ export function departmentPrompt(state: GameState): string {
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = '', shopOpen = false): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null): string {
   const lines = [`=== ${theme.title} ===`, ''];
 
   if (state.owned.length === 0 && state.departments.length === 0) {
@@ -191,10 +191,11 @@ export function renderScreen(state: GameState, message = '', shopOpen = false): 
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
     ...lastLineText(state),
     ...lastMilestoneText(state),
+    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Real estate store.'] : []),
     ...pinnedText(state),
     '',
-    ...(shopOpen ? shopLines(state) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-7] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
+    ...(shop ? shopLines(state, shop) : []),
+    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );
@@ -206,10 +207,10 @@ export function typists(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (m.manager ? [] : [i]));
 }
 
-/** Shop lines [1] (typing skill) and [7] (typewriters): spelled out for one monkey, the cheapest for several. */
-function typingShopLines(state: GameState): string[] {
+/** Shop items for typing skill and typewriters: spelled out for one monkey, the cheapest for several. */
+function typingItems(state: GameState): { skill: ShopItem; typewriter: ShopItem } {
   const team = typists(state);
-  const mark = (n: number) => (state.currency >= n ? '★' : ' ');
+  const can = (n: number) => state.currency >= n;
   const trainable = team.filter((i) => state.monkeys[i].skill < skillCap(state.monkeys[i]));
   const cheapestSkill = Math.min(...trainable.map((i) => typingUpgradeCost(state.monkeys[i].skill)));
   const cheapestWriter = Math.min(...team.map((i) => typewriterCost(state.monkeys[i])));
@@ -218,26 +219,34 @@ function typingShopLines(state: GameState): string[] {
     const name = monkeyName(state, team[0]);
     const cost = typingUpgradeCost(m.skill);
     const writer = typewriterCost(m);
-    return [
-      m.skill < skillCap(m)
-        ? `  [1] ${mark(cost)}Faster typing for ${name} (skill ${m.skill}/${skillCap(m)}): ` +
-          `${monkeySpeed(state, m).toFixed(2)} -> ${monkeySpeed(state, m, m.skill + 1).toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`
-        : `  [1]  ${name}'s ${typewriterName(m.typewriter)} can't keep up: skill ${m.skill}/${skillCap(m)}. Buy a better typewriter with [7]`,
-      `  [7] ${mark(writer)}${typewriterName(m.typewriter + 1)} for ${name} (skill cap ${skillCap(m)} -> ${skillCap(m) + typing.levelsPerTypewriter})   ` +
-        `cost ${price(writer, state.currency)} ${theme.currency}`,
-    ];
+    return {
+      skill:
+        m.skill < skillCap(m)
+          ? {
+              id: 'train',
+              star: can(cost),
+              text:
+                `Faster typing for ${name} (skill ${m.skill}/${skillCap(m)}): ` +
+                `${monkeySpeed(state, m).toFixed(2)} -> ${monkeySpeed(state, m, m.skill + 1).toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`,
+            }
+          : { id: 'train', text: `${name}'s ${typewriterName(m.typewriter)} can't keep up: skill ${m.skill}/${skillCap(m)}. Buy a better typewriter in Typewriters` },
+      typewriter: {
+        id: 'typewriter',
+        star: can(writer),
+        text: `${typewriterName(m.typewriter + 1)} for ${name} (skill cap ${skillCap(m)} -> ${skillCap(m) + typing.levelsPerTypewriter})   cost ${price(writer, state.currency)} ${theme.currency}`,
+      },
+    };
   }
-  return [
-    trainable.length > 0
-      ? `  [1] ${mark(cheapestSkill)}Faster typing for a monkey   from ${price(cheapestSkill, state.currency)} ${theme.currency}`
-      : `  [1]  Faster typing: every monkey's typewriter is maxed out. Buy better ones with [7]`,
-    ...(team.length > 0
-      ? [`  [7] ${mark(cheapestWriter)}Better typewriter for a monkey   from ${price(cheapestWriter, state.currency)} ${theme.currency}`]
-      : []),
-  ];
+  return {
+    skill:
+      trainable.length > 0
+        ? { id: 'train', star: can(cheapestSkill), text: `Faster typing for a monkey   from ${price(cheapestSkill, state.currency)} ${theme.currency}` }
+        : { id: 'train', text: "Faster typing: every monkey's typewriter is maxed out. Buy better ones in Typewriters" },
+    typewriter: { id: 'typewriter', star: can(cheapestWriter), text: `Better typewriter for a monkey   from ${price(cheapestWriter, state.currency)} ${theme.currency}` },
+  };
 }
 
-/** Picker prompt for [1] or [7]: each typing monkey with its skill and the price. */
+/** Picker prompt for Faster typing or a better typewriter: each typing monkey with its skill and the price. */
 export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter'): string {
   const rows = typists(state)
     .filter((i) => i < 9)
@@ -250,44 +259,102 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
   return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}`;
 }
 
-/** The shop, shown while it is open. */
-function shopLines(state: GameState): string[] {
-  const nextLetter = letterCost(state.letters.length);
-  const nextLetterWords = letterWordsCost(state.letters.length);
-  const nextMonkey = nextMonkeyCost(state);
-  const nextCap = capRaiseCost(state.comboCapLevel);
-  const mark = (have: number, price: number) => (have >= price ? '★' : ' ');
+/** The shop's stores, shown as tabs; tab or left/right switches between them. */
+export const stores = ['staff', 'typewriters', 'script', 'accessories', 'estate'] as const;
+export type Store = (typeof stores)[number];
+export const storeNames: Record<Store, string> = {
+  staff: 'Staff',
+  typewriters: 'Typewriters',
+  script: 'Script',
+  accessories: 'Accessories',
+  estate: 'Real estate',
+};
+
+/** Something for sale in a store. Items without an id are information only and get no number. */
+export interface ShopItem {
+  id?: string;
+  star?: boolean;
+  text: string;
+}
+
+/** What a store sells. Numbered items (those with an id) are bought with 1-9 in this order. */
+export function storeItems(state: GameState, store: Store): ShopItem[] {
+  const typingShop = typingItems(state);
+  switch (store) {
+    case 'staff': {
+      const nextMonkey = nextMonkeyCost(state);
+      const nextCap = capRaiseCost(state.comboCapLevel);
+      return [
+        typingShop.skill,
+        { id: 'hire', star: state.lines >= nextMonkey, text: `Hire a monkey (you have ${state.monkeys.length})   cost ${price(nextMonkey, state.lines)} Lines` },
+        ...(state.unassignedMonkeys > 0
+          ? [{ id: 'assign', text: `Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'} to a department` }]
+          : []),
+        { id: 'combo', star: state.sentences >= nextCap, text: `Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   cost ${price(nextCap, state.sentences)} Sentences` },
+        ...(managerChoices(state).length > 0
+          ? [{ id: 'manager', text: `Upgrade a manager: +${managers.bonusPerLevel}x points for its whole department (costs Lines)` }]
+          : []),
+      ];
+    }
+    case 'typewriters': {
+      const nextLetter = letterCost(state.letters.length);
+      const nextLetterWords = letterWordsCost(state.letters.length);
+      return [
+        ...(unownedLetters(state).length > 0
+          ? [
+              {
+                id: 'letter',
+                star: canAffordLetter(state),
+                text:
+                  `Buy a letter key   cost ${price(nextLetter, state.currency)} ${theme.currency}` +
+                  (nextLetterWords > 0 ? ` + ${price(nextLetterWords, state.words)} Words` : ''),
+              },
+            ]
+          : []),
+        typingShop.typewriter,
+        keysUnlocked(state)
+          ? { id: 'keys', text: 'Typewriter keys...' }
+          : { text: `Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters` },
+        slotsUnlocked(state)
+          ? { id: 'slots', text: `Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)` }
+          : { text: `Word slots: unlock when you own ${wordSlots.unlockLetters} letters` },
+      ];
+    }
+    case 'script':
+      return [{ id: 'script', text: `Browse and buy scenes, acts and plays (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})` }];
+    case 'accessories':
+      return [{ text: 'Accessories for your monkeys are coming soon.' }];
+    case 'estate':
+      return [
+        ...(departmentPicks(state) > 0
+          ? [{ id: 'department', text: 'Open a new department!' }]
+          : nextDepartmentAt(state) > 0
+            ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys` }]
+            : []),
+        { text: 'More office space is coming soon.' },
+      ];
+  }
+}
+
+/** The numbered (buyable) items of a store, in key order 1-9. */
+export function storeChoices(state: GameState, store: Store): ShopItem[] {
+  return storeItems(state, store).filter((x) => x.id);
+}
+
+/** The open store: a tab row, then its items. */
+function shopLines(state: GameState, store: Store): string[] {
+  let n = 0;
   return [
-    'Shop',
-    ...typingShopLines(state),
-    ...(unownedLetters(state).length > 0
-      ? [
-          `  [2] ${canAffordLetter(state) ? '★' : ' '}Buy a letter   cost ${price(nextLetter, state.currency)} ${theme.currency}` +
-            (nextLetterWords > 0 ? ` + ${price(nextLetterWords, state.words)} Words` : ''),
-        ]
-      : []),
-    `  [3] ${mark(state.lines, nextMonkey)}Buy a monkey (you have ${state.monkeys.length})   ` +
-      `cost ${price(nextMonkey, state.lines)} Lines`,
-    `  [4] ${mark(state.sentences, nextCap)}Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   ` +
-      `cost ${price(nextCap, state.sentences)} Sentences`,
-    keysUnlocked(state)
-      ? `  [5]  Typewriter keys...`
-      : `  [5]  Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters`,
-    slotsUnlocked(state)
-      ? `  [6]  Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)`
-      : `  [6]  Word slots: unlock when you own ${wordSlots.unlockLetters} letters`,
-    `  [p]  Buy scenes, acts and plays in the script (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})`,
-    ...(state.unassignedMonkeys > 0
-      ? [`  [a]  Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'} to a department`]
-      : []),
-    ...(managerChoices(state).length > 0
-      ? [`  [u]  Upgrade a manager: +${managers.bonusPerLevel}x points for its whole department (costs Lines)`]
-      : []),
-    ...(departmentPicks(state) > 0
-      ? [`  [g]  Open a new department!`]
-      : nextDepartmentAt(state) > 0
-        ? [`       Next department opens at ${nextDepartmentAt(state)} monkeys`]
-        : []),
+    // A ★ on a tab means that store has something you can afford.
+    'Shop   ' +
+      stores
+        .map((x) => {
+          const name = `${storeNames[x]}${storeItems(state, x).some((i) => i.star) ? '★' : ''}`;
+          return x === store ? bold(`[${name}]`) : ` ${name} `;
+        })
+        .join(' ')
+        .trimEnd(),
+    ...storeItems(state, store).map((x) => (x.id ? `  [${++n}] ${x.star ? '★' : ' '}${x.text}` : `       ${x.text}`)),
     '',
   ];
 }
@@ -458,7 +525,7 @@ function lastMilestoneText(state: GameState): string[] {
     return [
       `* Act ${ms.act} of ${play.title} finished! Typing +${pct(ms.bonus)} for good, ` +
         (state.unassignedMonkeys > 0
-          ? 'and a new monkey is waiting for a department ([a] to assign it)'
+          ? 'and a new monkey is waiting for a department (assign it in the Staff store)'
           : 'and a new monkey joined ([n] to name it)'),
     ];
   }
