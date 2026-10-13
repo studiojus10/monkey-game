@@ -23,6 +23,7 @@ export interface MonkeyState {
   typewriter: number; // typewriter tier, 0 = the first; caps skill at (tier + 1) x levelsPerTypewriter
   energy: number; // 1 = rested, 0 = worn out; a tired monkey types slower
   resting: boolean; // on a break until its energy is back to full
+  accessories: string[]; // ids of the accessories it wears, one per slot
 }
 
 /**
@@ -143,7 +144,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, skill: 0, typewriter: 0, energy: 1, resting: false };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, skill: 0, typewriter: 0, energy: 1, resting: false, accessories: [] };
 }
 
 /** A rectangle of squares from (0, 0). */

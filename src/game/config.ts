@@ -221,6 +221,36 @@ export const energy = {
   maxHappiness: 0.5, // and raises points by at most +50%
 };
 
+/**
+ * Accessories, bought with points for one monkey at a time in the
+ * Accessories store. A monkey wears one per slot. Each one of a kind costs
+ * costGrowth times the last, across all monkeys. Effects, for the monkey
+ * wearing it: points (its words and lines pay this much more), speed (types
+ * faster), drain (tires slower), rest (breaks go faster), combo (its combo cap
+ * is this much higher). Numbers are placeholders.
+ */
+export interface Accessory {
+  id: string;
+  name: string;
+  slot: 'head' | 'eyes' | 'ears' | 'hands' | 'feet';
+  glyph: string; // one character, shown after the monkey's name
+  cost: number;
+  costGrowth: number;
+  points?: number;
+  speed?: number;
+  drain?: number;
+  rest?: number;
+  combo?: number;
+}
+
+export const accessories: Accessory[] = [
+  { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 5_000, costGrowth: 1.5, points: 0.1 },
+  { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 10_000, costGrowth: 1.5, drain: 0.15 },
+  { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 10_000, costGrowth: 1.5, rest: 0.3 },
+  { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 25_000, costGrowth: 1.5, speed: 0.1 },
+  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', cost: 100_000, costGrowth: 2, combo: 1 },
+];
+
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],
   maxTypists: 10, // typing monkeys per department, plus one manager

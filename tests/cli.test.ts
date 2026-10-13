@@ -15,6 +15,7 @@ import {
   renderContents,
   renderSlotsMenu,
   renderOptions,
+  accessoryPickPrompt,
   slotHighlight,
 } from '../src/cli/screen';
 import { officeMapWidth, renderOffice } from '../src/cli/office';
@@ -396,3 +397,16 @@ describe('energy on screen', () => {
     expect(plain(renderScreen(s))).toContain('M-1(break 45s) x1');
   });
 });
+
+describe('accessories on screen', () => {
+  it('sells accessories and shows what each monkey wears', () => {
+    const s = started();
+    s.currency = 6000;
+    expect(plain(renderScreen(s, '', 'accessories'))).toContain('[1] ★Reading glasses [g], eyes: its words pay 10% more   cost 5.00K Points');
+    s.monkeys[0].accessories = ['glasses', 'mug'];
+    expect(plain(renderScreen(s))).toContain('M-1[gc](0.55/s 100%)');
+    s.monkeys.push(createMonkey());
+    expect(accessoryPickPrompt(s, 'glasses')).toBe('Reading glasses for which monkey? [1] M-1 (has one)   [2] M-2');
+  });
+});
+

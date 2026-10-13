@@ -17,6 +17,8 @@ import {
   monkeyShop,
   office as officeRules,
   energy as energyRules,
+  accessories,
+  type Accessory,
   desk,
   furnitureKinds,
   startingLetters,
@@ -254,7 +256,36 @@ export function speedMultiplier(state: GameState): number {
 
 /** Letters per second for a monkey, from its typing skill and act bonuses. */
 export function monkeySpeed(state: GameState, m: MonkeyState, skill = m.skill): number {
-  return lettersPerSecond(skill) * speedMultiplier(state);
+  return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed'));
+}
+
+/** What a monkey's accessories add up to for one effect. */
+export function wearing(m: MonkeyState, effect: 'points' | 'speed' | 'drain' | 'rest' | 'combo'): number {
+  return m.accessories.reduce((n, id) => n + (accessories.find((a) => a.id === id)?.[effect] ?? 0), 0);
+}
+
+/** Points for the next accessory of a kind. */
+export function accessoryCost(state: GameState, id: string): number {
+  const a = accessories.find((x) => x.id === id);
+  if (!a) return Infinity;
+  const owned = state.monkeys.filter((m) => m.accessories.includes(id)).length;
+  return Math.ceil(a.cost * Math.pow(a.costGrowth, owned));
+}
+
+/** The accessory a monkey wears in a slot, if any. */
+export function accessoryIn(m: MonkeyState, slot: Accessory['slot']): Accessory | undefined {
+  return accessories.find((a) => a.slot === slot && m.accessories.includes(a.id));
+}
+
+/** Buys an accessory for a typing monkey; it replaces whatever that monkey wore in the same slot. */
+export function buyAccessory(state: GameState, index: number, id: string): boolean {
+  const m = state.monkeys[index];
+  const a = accessories.find((x) => x.id === id);
+  const cost = accessoryCost(state, id);
+  if (!m || !a || m.manager || m.accessories.includes(id) || state.currency < cost) return false;
+  state.currency -= cost;
+  m.accessories = [...m.accessories.filter((x) => accessories.find((y) => y.id === x)?.slot !== a.slot), id];
+  return true;
 }
 
 /** How fast a monkey's energy lets it type: 1 when rested, down to 1 - maxSlowdown when worn out. */
@@ -293,8 +324,8 @@ export function happiness(state: GameState): number {
 /** Seconds of typing that drain a monkey, and of rest that refill it, with the office's furniture. */
 export function energyRates(state: GameState, m: MonkeyState): EnergyRates {
   return {
-    drainSeconds: energyRules.drainSeconds / (1 - drainCut(state, monkeyGenre(state, m))),
-    breakSeconds: energyRules.breakSeconds / (1 + restBoost(state)),
+    drainSeconds: energyRules.drainSeconds / ((1 - drainCut(state, monkeyGenre(state, m))) * (1 - Math.min(0.9, wearing(m, 'drain')))),
+    breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state)) * (1 + wearing(m, 'rest'))),
   };
 }
 
@@ -963,7 +994,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   }
   for (const e of events) {
     if (e.kind === 'word') {
-      const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state) * managerMultiplier(state, m);
+      const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
       earn(state, paid);
       wordEarnings += paid;
       state.wordsTyped++;
@@ -997,7 +1028,7 @@ function countWord(state: GameState, m: MonkeyState, word: string, paid: number,
 
 /** The combo multiplier: how many different long words are in the chain, up to the cap. */
 export function comboMultiplier(state: GameState, m: MonkeyState): number {
-  return Math.min(comboCap(state), Math.max(1, m.chainWords.length));
+  return Math.min(comboCap(state) + wearing(m, 'combo'), Math.max(1, m.chainWords.length));
 }
 
 /**
@@ -1054,7 +1085,7 @@ function typedLine(state: GameState, matches: Pin[], m: MonkeyState): void {
   if (fresh) {
     (state.completed[play.id] ??= []).push(fresh.index);
     state.lines += verse ? sonnetRewards.linesPerLine : 1;
-    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state) * managerMultiplier(state, m);
+    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
     earn(state, points);
     state.stats.bestLinePoints = Math.max(state.stats.bestLinePoints, points);
   }

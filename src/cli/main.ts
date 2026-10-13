@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
+  accessoryCost,
+  buyAccessory,
   buyFurniture,
   cellAt,
   furnitureSpot,
@@ -87,6 +89,7 @@ import {
   renderSlotsMenu,
   scriptPageSize,
   renderOptions,
+  accessoryPickPrompt,
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
@@ -131,6 +134,7 @@ let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
+let pickingAccessory = ''; // choosing a monkey for this accessory
 let pickingDepartment = false;
 let pickingMonkeyToMove = false;
 let pickingManager = false;
@@ -218,6 +222,15 @@ function buyItem(id: string): void {
     if (room) message = expandRoom(state, room.id) ? `The ${roomName(state, room)} grew by a square. Choose squares yourself with [x] on the office map.` : `Not enough ${theme.currency}.`;
   } else if (id === 'map') {
     openOffice();
+  } else if (id.startsWith('accessory:')) {
+    const what = id.slice('accessory:'.length);
+    const team = typists(state);
+    if (state.currency < accessoryCost(state, what)) message = `Not enough ${theme.currency}.`;
+    else if (team.length === 1) message = buyAccessoryFor(team[0], what);
+    else {
+      pickingAccessory = what;
+      message = accessoryPickPrompt(state, what);
+    }
   } else if (id.startsWith('furniture:')) {
     const kind = id.slice('furniture:'.length);
     if (!furnitureSpot(state)) message = 'No free floor left. Buy a break room or grow a room in Real estate.';
@@ -235,6 +248,13 @@ function buyItem(id: string): void {
       }
     }
   }
+}
+
+/** Buys an accessory for monkey `i`; returns the message to show. */
+function buyAccessoryFor(i: number, id: string): string {
+  const name = monkeyName(state, i);
+  if (state.monkeys[i].accessories.includes(id)) return `${name} already has one.`;
+  return buyAccessory(state, i, id) ? `${name} looks sharp.` : `Not enough ${theme.currency}.`;
 }
 
 /** Why a new monkey can't be seated. */
@@ -401,6 +421,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       str && /^[1-9]$/.test(str) && moveMonkey(state, i)
         ? `${monkeyName(state, i)} now works in ${genreNames[monkeyGenre(state, state.monkeys[i])!]}.`
         : 'No monkey moved. Moving needs a second department.';
+    return draw();
+  }
+
+  if (pickingAccessory) {
+    const what = pickingAccessory;
+    pickingAccessory = '';
+    const i = Number(str) - 1;
+    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) message = 'Nothing bought.';
+    else message = buyAccessoryFor(i, what);
     return draw();
   }
 

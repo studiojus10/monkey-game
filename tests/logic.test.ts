@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, office, energy, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  accessoryCost,
+  buyAccessory,
+  wearing,
   drainCut,
   energyRates,
   happiness,
@@ -1386,6 +1389,39 @@ describe('furniture effects', () => {
     expect(restBoost(s)).toBe(energy.maxRestBoost);
     expect(drainCut(s, undefined)).toBe(energy.maxDrainCut);
     expect(happiness(s)).toBe(energy.maxHappiness);
+  });
+});
+
+describe('accessories', () => {
+  it('buys an accessory for one typing monkey, one per slot, each of a kind dearer than the last', () => {
+    const s = createInitialState(0);
+    s.monkeys.push(createMonkey());
+    const glasses = accessories.find((a) => a.id === 'glasses')!;
+    s.currency = 1e12;
+    expect(buyAccessory(s, 0, 'glasses')).toBe(true);
+    expect(s.currency).toBe(1e12 - glasses.cost);
+    expect(buyAccessory(s, 0, 'glasses')).toBe(false); // already wears them
+    expect(accessoryCost(s, 'glasses')).toBe(Math.ceil(glasses.cost * glasses.costGrowth));
+    expect(buyAccessory(s, 1, 'glasses')).toBe(true);
+    expect(buyAccessory(s, 0, 'nonsense')).toBe(false);
+    s.monkeys[1].manager = true;
+    expect(buyAccessory(s, 1, 'mug')).toBe(false); // managers don't type
+  });
+
+  it('applies its effects to the monkey wearing it', () => {
+    const s = createInitialState(0);
+    s.currency = 1e12;
+    const m = s.monkeys[0];
+    const base = monkeySpeed(s, m);
+    for (const a of accessories) expect(buyAccessory(s, 0, a.id)).toBe(true);
+    expect(m.accessories).toHaveLength(accessories.length);
+    expect(monkeySpeed(s, m)).toBeCloseTo(base * 1.1);
+    expect(wearing(m, 'points')).toBeCloseTo(0.1);
+    expect(comboMultiplier(s, { ...m, chainWords: ['AAAA', 'BBBB', 'CCCC', 'DDDD', 'EEEE'] })).toBe(comboCap(s) + 1);
+    energy.drainSeconds = 600;
+    const rates = energyRates(s, m);
+    expect(rates.drainSeconds).toBeCloseTo(600 / 0.85);
+    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.3);
   });
 });
 

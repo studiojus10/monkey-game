@@ -1,4 +1,4 @@
-import { desk, furnitureKinds, typing } from './config';
+import { accessories, desk, furnitureKinds, typing } from './config';
 import { furnishOffice } from './logic';
 import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
 
@@ -57,6 +57,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       typewriter: Math.max(0, Math.floor(num(m?.typewriter, Math.max(0, Math.ceil(oldTypingLevel / typing.levelsPerTypewriter) - 1)))),
       energy: Math.min(1, Math.max(0, num(m?.energy, 1))),
       resting: !!m?.resting,
+      accessories: strings(m?.accessories).filter((id) => accessories.some((a) => a.id === id)),
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])

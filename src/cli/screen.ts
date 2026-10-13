@@ -1,7 +1,9 @@
-import { furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { accessories, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   furnitureSpot,
+  accessoryCost,
+  accessoryIn,
   furnitureCost,
   canSeatMonkey,
   roomCost,
@@ -188,7 +190,11 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       : m.resting
         ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
         : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
-  const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
+  const worn = (m: MonkeyState) => {
+    const glyphs = accessories.filter((a) => m.accessories.includes(a.id)).map((a) => a.glyph).join('');
+    return glyphs ? `[${glyphs}]` : '';
+  };
+  const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
   const nameWidth = Math.max(...labels.map(([n]) => n.length));
   const comboWidth = Math.max(...labels.map(([, c]) => c.length));
   lines.push(
@@ -363,8 +369,17 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
     }
     case 'script':
       return [{ id: 'script', text: `Browse and buy scenes, acts and plays (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})` }];
-    case 'accessories':
-      return [{ text: 'Accessories for your monkeys are coming soon.' }];
+    case 'accessories': {
+      const team = typists(state);
+      return [
+        ...accessories.map((a) => {
+          const cost = accessoryCost(state, a.id);
+          const someone = team.some((i) => !state.monkeys[i].accessories.includes(a.id));
+          return { id: `accessory:${a.id}`, star: someone && state.currency >= cost, text: `${a.name} [${a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+        }),
+        { text: 'Each is for one monkey, one per slot (head, eyes, ears, hands, feet). Its letter shows after the name.' },
+      ];
+    }
     case 'estate': {
       const roomPrice = roomCost(state);
       const squarePrice = squareCost(state);
@@ -389,6 +404,32 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       ];
     }
   }
+}
+
+/** What an accessory does for the monkey wearing it, in a few words. */
+export function accessoryEffect(a: Accessory): string {
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  return [
+    ...(a.points ? [`its words pay ${pct(a.points)} more`] : []),
+    ...(a.speed ? [`it types ${pct(a.speed)} faster`] : []),
+    ...(a.drain ? [`it tires ${pct(a.drain)} slower`] : []),
+    ...(a.rest ? [`its breaks go ${pct(a.rest)} faster`] : []),
+    ...(a.combo ? [`its combo cap +${a.combo}`] : []),
+  ].join(', ');
+}
+
+/** The prompt for choosing which monkey gets an accessory. */
+export function accessoryPickPrompt(state: GameState, id: string): string {
+  const a = accessories.find((x) => x.id === id)!;
+  const rows = typists(state)
+    .filter((i) => i < 9)
+    .map((i) => {
+      const m = state.monkeys[i];
+      const worn = accessoryIn(m, a.slot);
+      const note = m.accessories.includes(id) ? ' (has one)' : worn ? ` (swaps its ${worn.name.toLowerCase()})` : '';
+      return `[${i + 1}] ${monkeyName(state, i)}${note}`;
+    });
+  return `${a.name} for which monkey? ${rows.join('   ')}`;
 }
 
 /** What a kind of furniture does, in a few words. */
