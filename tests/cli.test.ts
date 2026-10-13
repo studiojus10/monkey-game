@@ -92,7 +92,7 @@ describe('terminal screen', () => {
     expect(tools).toContain('[1] *Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
     s.letters.push('A');
     expect(plain(renderScreen(s, '', 'typewriters'))).toContain('[1]  Buy a letter key   cost 75 Points + 1 Words');
-    expect(plain(text)).toContain('[2]  Hire a monkey (you have 1)   cost 10 Sentences');
+    expect(plain(text)).toContain('[2]  Hire a monkey (you have 1)   cost 100 Sentences');
     expect(plain(text)).toContain('[3]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
@@ -218,7 +218,7 @@ describe('bold prices', () => {
   it('bolds every price in the shop', () => {
     const text = renderScreen(started(), '', 'staff');
     expect(text).toContain('cost \x1b[1m10\x1b[22m Points'); // faster typing
-    expect(text).toContain('cost \x1b[1m10\x1b[22m Sentences'); // a monkey
+    expect(text).toContain('cost \x1b[1m100\x1b[22m Sentences'); // a monkey
   });
 
   it('shows affordable prices in green and the rest in the normal color', () => {

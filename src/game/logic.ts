@@ -35,7 +35,7 @@ import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 export type Rng = () => number;
 
 let wordList: readonly string[] = extraWords;
-let cached = new Map<string, { key: string; dict: Dictionary }>();
+let cached = new Map<string, { key: string; dict: Dictionary; letters: Snapshot; owned: Snapshot }>();
 
 /**
  * Sets the words that can score. The front end loads the word list and hands
@@ -89,13 +89,26 @@ export function ownsLine(state: GameState, play: Play, index: number): boolean {
  * play but opened no department counts that play's genre.)
  */
 export function departmentGenres(state: GameState): Genre[] {
+  // Called for nearly every letter typed, so it's remembered until departments or the script change.
+  const memo = genreMemo.get(state);
+  if (memo && unchanged(memo.departments, state.departments) && unchanged(memo.owned, state.owned)) return memo.list.slice();
   const list = state.departments.filter((g): g is Genre => genres.includes(g as Genre));
   for (const k of state.owned) {
     const g = plays.get(k.split(':')[0])?.genre;
     if (g && !list.includes(g)) list.push(g);
   }
-  return list;
+  genreMemo.set(state, { departments: snapshot(state.departments), owned: snapshot(state.owned), list });
+  return list.slice();
 }
+
+/**
+ * An array as it was: these lists only ever grow by push or get replaced
+ * whole, so the same array at the same length holds the same items.
+ */
+type Snapshot = { array: readonly string[]; length: number };
+const snapshot = (array: readonly string[]): Snapshot => ({ array, length: array.length });
+const unchanged = (s: Snapshot, array: readonly string[]) => s.array === array && s.length === array.length;
+const genreMemo = new WeakMap<GameState, { departments: Snapshot; owned: Snapshot; list: Genre[] }>();
 
 /** Genres that have at least one play. */
 export function genresWithPlays(): Genre[] {
@@ -436,6 +449,12 @@ export function togglePin(state: GameState, playId: string, index: number): bool
 }
 
 /** Letters a line needs that you don't own yet. */
+/** True when you own every letter in `letters`. */
+export function inReach(state: GameState, letters: string): boolean {
+  for (const c of letters) if (!state.letters.includes(c)) return false;
+  return true;
+}
+
 export function missingLetters(state: GameState, letters: string): string[] {
   return [...new Set(letters)].filter((c) => !state.letters.includes(c)).sort();
 }
@@ -448,7 +467,7 @@ export function reachableLines(state: GameState, playId: string): number[] {
   return play.lines
     .map((line, i) => ({ line, i }))
     .filter(
-      ({ line, i }) => !done.has(i) && ownsLine(state, play, i) && missingLetters(state, line.letters).length === 0,
+      ({ line, i }) => !done.has(i) && ownsLine(state, play, i) && inReach(state, line.letters),
     )
     .sort((a, b) => a.line.letters.length - b.line.letters.length || a.i - b.i)
     .map(({ i }) => i);
@@ -492,13 +511,17 @@ function isOneLetterRun(word: string): boolean {
  * department's owned scenes (which always count), rebuilt only when they change.
  */
 export function dictionaryFor(state: GameState, genre = departmentGenres(state)[0]): Dictionary {
-  const key = [...state.letters].sort().join('') + '|' + state.owned.join('|');
   let entry = cached.get(genre ?? '');
+  // Checking the snapshots first skips building the key on almost every letter.
+  if (entry && unchanged(entry.letters, state.letters) && unchanged(entry.owned, state.owned)) return entry.dict;
+  const key = [...state.letters].sort().join('') + '|' + state.owned.join('|');
   if (entry?.key !== key) {
     const words = [...wordList, ...ownedLines(state, genre).words].filter((w) => !isOneLetterRun(w));
-    entry = { key, dict: new Dictionary(words, state.letters) };
+    entry = { key, dict: new Dictionary(words, state.letters), letters: snapshot(state.letters), owned: snapshot(state.owned) };
     cached.set(genre ?? '', entry);
   }
+  entry.letters = snapshot(state.letters);
+  entry.owned = snapshot(state.owned);
   return entry.dict;
 }
 
@@ -1250,7 +1273,7 @@ export function managerLine(state: GameState, genre: Genre | undefined): Pin | n
     const done = new Set(state.completed[play.id] ?? []);
     play.lines.forEach((line, index) => {
       if (done.has(index) || !ownsLine(state, play, index)) return;
-      const rank: [number, number] = [missingLetters(state, line.letters).length === 0 ? 0 : 1, line.words.length];
+      const rank: [number, number] = [inReach(state, line.letters) ? 0 : 1, line.words.length];
       if (rank[0] < bestRank[0] || (rank[0] === bestRank[0] && rank[1] < bestRank[1])) {
         best = { play: play.id, index };
         bestRank = rank;
@@ -1277,12 +1300,12 @@ export function manage(state: GameState): void {
     // An out-of-reach target is reconsidered when letters or script change, in case a line came within reach.
     const key = `${state.letters.join('')}|${state.owned.join('|')}`;
     const line = t && plays.get(t.play)?.lines[t.index];
-    const stale = !!line && missingLetters(state, line.letters).length > 0 && managerChecked.get(genre) !== key;
+    const stale = !!line && !inReach(state, line.letters) && managerChecked.get(genre) !== key;
     if (!t || done || stale) {
       if (t) unpin(state, t);
       boss.target = managerLine(state, genre);
       const picked = boss.target && plays.get(boss.target.play)?.lines[boss.target.index];
-      if (picked && missingLetters(state, picked.letters).length > 0) managerChecked.set(genre, key);
+      if (picked && !inReach(state, picked.letters)) managerChecked.set(genre, key);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
         state.pinned.push(boss.target);
       }

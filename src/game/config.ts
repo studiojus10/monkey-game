@@ -47,8 +47,8 @@ export const letterShop = {
  * baseCost x costGrowth^(n-1) Sentences.
  */
 export const monkeyShop = {
-  baseCost: 10,
-  costGrowth: 2,
+  baseCost: 100, // scripts/simulate.ts: 2nd monkey after about 3h, a full department (10) after about 3 days
+  costGrowth: 3,
 };
 
 /**
