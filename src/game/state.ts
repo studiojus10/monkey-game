@@ -1,3 +1,5 @@
+import { officeRooms } from './config';
+
 /** A piece of a monkey's current line: a scored word or a skipped letter. */
 export interface Segment {
   text: string;
@@ -63,6 +65,7 @@ export interface GameState {
   sentences: number; // currency: every time a play line (3+ words) is typed
   lines: number; // currency: first completion of each play line
   words: number; // currency: one for each different word ever spelled (each new dictionary entry)
+  office: string[]; // ids of the office rooms bought, in order (officeRooms in config); the first is where you start
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
   owned: string[]; // script bought: "play", "play:act" or "play:act.scene"; empty until the free starter scene
   completed: Record<string, number[]>; // play id -> completed line indices
@@ -117,6 +120,7 @@ export function createInitialState(now = Date.now()): GameState {
     sentences: 0,
     lines: 0,
     words: 0,
+    office: [officeRooms[0].id],
     departments: [],
     owned: [],
     completed: {},

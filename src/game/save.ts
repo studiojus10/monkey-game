@@ -1,4 +1,4 @@
-import { typing } from './config';
+import { officeRooms, typing } from './config';
 import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
@@ -55,6 +55,22 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
       typewriter: Math.max(0, Math.floor(num(m?.typewriter, Math.max(0, Math.ceil(oldTypingLevel / typing.levelsPerTypewriter) - 1)))),
     });
+    // Rooms bought, in order. Saves from before office space get the first rooms that seat their monkeys.
+    const office = (v: unknown, monkeyCount: number): string[] => {
+      const ids = strings(v);
+      if (ids.length > 0) {
+        const rooms = officeRooms.filter((r) => ids.includes(r.id)).map((r) => r.id);
+        return rooms.includes(officeRooms[0].id) ? rooms : [officeRooms[0].id, ...rooms];
+      }
+      const rooms: string[] = [];
+      let desks = 0;
+      for (const r of officeRooms) {
+        if (rooms.length > 0 && desks >= monkeyCount) break;
+        rooms.push(r.id);
+        desks += r.desks;
+      }
+      return rooms;
+    };
     const completed: Record<string, number[]> = {};
     if (s.completed && typeof s.completed === 'object') {
       for (const [id, list] of Object.entries(s.completed)) {
@@ -114,6 +130,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       sentences: num(s.sentences, 0),
       lines: num(s.lines, 0),
       words: num(s.words, Object.keys(stats.words).length), // saves from before Words count what they've spelled
+      office: office(s.office, monkeys.length),
       departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,

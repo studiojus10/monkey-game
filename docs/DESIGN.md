@@ -206,7 +206,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 9. **Balance pass.** Tune costs and rates so progression is slow and each stage feels paced.
 10. **Office expansion** (Justin, 2026-10-13), one step at a time:
     1. **Stores.** The shop splits into stores, switched with `tab`: Staff (training, hiring, combo cap, managers), Typewriters (letter keys, better typewriters, typewriter keys, word slots), Script, Accessories (coming soon) and Real estate (departments, office space later). Buying a letter is now buying a letter key for the typewriters. (Built.)
-    2. **Office space.** Rooms and desks cap how many monkeys you can hire, shown on a read-only top-down ASCII map.
+    2. **Office space.** Rooms and desks cap how many monkeys you can have (managers included), shown on a read-only top-down ASCII map (`o`). Rooms are bought in order with points in Real estate: Broom cupboard (2 desks, the start), Back room (4), Small office (6), Open-plan floor (10), Annex (10), Top-floor loft (12): 44 desks seat four full departments. Monkeys fill desks in order; earned monkeys wait for a free desk. Prices are placeholders. (Built.)
     3. **Furniture placement.** Buy furniture and place it on the map (or auto-place); rearrange any time.
     4. **Energy.** Monkeys tire as they type, losing up to 25% speed, and take a break at 0%.
     5. **Furniture and accessory effects.** Couches, water coolers and TVs refill energy faster; plants and decor slow the drain.

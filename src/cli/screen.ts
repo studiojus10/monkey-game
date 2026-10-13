@@ -1,6 +1,9 @@
 import { typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
+  deskCount,
+  freeDesks,
+  nextRoom,
   availablePlays,
   departmentPicks,
   departmentChoices,
@@ -195,7 +198,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     ...pinnedText(state),
     '',
     ...(shop ? shopLines(state, shop) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );
@@ -286,9 +289,15 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       const nextCap = capRaiseCost(state.comboCapLevel);
       return [
         typingShop.skill,
-        { id: 'hire', star: state.lines >= nextMonkey, text: `Hire a monkey (you have ${state.monkeys.length})   cost ${price(nextMonkey, state.lines)} Lines` },
+        freeDesks(state) > 0
+          ? { id: 'hire', star: state.lines >= nextMonkey, text: `Hire a monkey (${state.monkeys.length}/${deskCount(state)} desks used)   cost ${price(nextMonkey, state.lines)} Lines` }
+          : { text: `Hire a monkey: all ${deskCount(state)} desks are taken. Buy a room in the Real estate store.` },
         ...(state.unassignedMonkeys > 0
-          ? [{ id: 'assign', text: `Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'} to a department` }]
+          ? [
+              freeDesks(state) > 0
+                ? { id: 'assign', text: `Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'} to a department` }
+                : { text: `${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? ' is' : 's are'} waiting for a desk.` },
+            ]
           : []),
         { id: 'combo', star: state.sentences >= nextCap, text: `Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   cost ${price(nextCap, state.sentences)} Sentences` },
         ...(managerChoices(state).length > 0
@@ -324,15 +333,20 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       return [{ id: 'script', text: `Browse and buy scenes, acts and plays (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})` }];
     case 'accessories':
       return [{ text: 'Accessories for your monkeys are coming soon.' }];
-    case 'estate':
+    case 'estate': {
+      const room = nextRoom(state);
       return [
+        ...(room
+          ? [{ id: 'room', star: state.currency >= room.cost, text: `Buy the ${room.name}: +${room.desks} desks (${deskCount(state) + room.desks} in all)   cost ${price(room.cost, state.currency)} ${theme.currency}` }]
+          : []),
+        { id: 'map', text: `View the office map (${state.monkeys.length}/${deskCount(state)} desks used)` },
         ...(departmentPicks(state) > 0
           ? [{ id: 'department', text: 'Open a new department!' }]
           : nextDepartmentAt(state) > 0
             ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys` }]
             : []),
-        { text: 'More office space is coming soon.' },
       ];
+    }
   }
 }
 

@@ -16,6 +16,8 @@ import {
   renderSlotsMenu,
   slotHighlight,
 } from '../src/cli/screen';
+import { officeMapWidth, renderOffice } from '../src/cli/office';
+import { officeRooms } from '../src/game/config';
 import { dictionaryRowFor, renderDictionary, renderStats } from '../src/cli/stats';
 import { typeLetter, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
 import { load, save } from '../src/game/save';
@@ -89,7 +91,7 @@ describe('terminal screen', () => {
     expect(tools).toContain('[1] ★Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
     s.letters.push('A');
     expect(plain(renderScreen(s, '', 'typewriters'))).toContain('[1]  Buy a letter key   cost 75 Points + 1 Words');
-    expect(plain(text)).toContain('[2]  Hire a monkey (you have 1)   cost 10 Lines');
+    expect(plain(text)).toContain('[2]  Hire a monkey (1/2 desks used)   cost 10 Lines');
     expect(plain(text)).toContain('[3]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
     expect(text).toContain('[q] quit');
     expect(text).toContain('hello');
@@ -309,5 +311,38 @@ describe('script contents', () => {
     expect(scenes).toContain('  Act 1');
     expect(scenes.find((r) => r.includes('Scene 1'))).toMatch(/^ {6}Scene 1 +1\/1 written, finished$/);
     expect(scenes.find((r) => r.includes('Scene 2'))).toMatch(/^> {5}Scene 2 +1 lines, not owned$/);
+  });
+});
+
+describe('office space on screen', () => {
+  it('sells the next room in Real estate and stops hiring when the desks are full', () => {
+    const s = started();
+    s.monkeys.push(createMonkey());
+    const estate = plain(renderScreen(s, '', 'estate'));
+    expect(estate).toContain('[1]  Buy the Back room: +4 desks (6 in all)   cost 2.50K Points');
+    expect(estate).toContain('[2]  View the office map (2/2 desks used)');
+    const staff = plain(renderScreen(s, '', 'staff'));
+    expect(staff).toContain('Hire a monkey: all 2 desks are taken. Buy a room in the Real estate store.');
+    expect(staff).not.toContain('[2]  Hire');
+  });
+
+  it('draws each room with its desks and who sits at them', () => {
+    const s = started();
+    s.monkeys[0].name = 'Bobo';
+    const text = plain(renderOffice(s));
+    expect(text).toContain('Broom cupboard\n+------------+\n| .  .  .  . |\n| . [@] . [ ]|');
+    expect(text).toContain('  Broom cupboard   1/2 desks    Bobo');
+    expect(text).toContain('Desks in use: 1 of 2.');
+    expect(text).toContain('Next room: Back room, 4 desks, for 2.50K Points in the Real estate store.');
+  });
+
+  it('wraps rooms onto new rows to stay narrow enough for the terminal', () => {
+    const s = started();
+    s.office = officeRooms.map((r) => r.id);
+    s.monkeys[0].manager = true;
+    const text = plain(renderOffice(s));
+    expect(text).toContain('[&]');
+    expect(text).toContain('You own every room.');
+    for (const line of text.split('\n')) expect(line.length).toBeLessThanOrEqual(officeMapWidth);
   });
 });

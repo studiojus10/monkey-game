@@ -15,6 +15,8 @@ import {
   managers,
   maxOfflineSeconds,
   monkeyShop,
+  officeRooms,
+  type Room,
   startingLetters,
   typewriterKeys,
   wordSlots,
@@ -424,6 +426,44 @@ export function nextMonkeyCost(state: GameState): number {
   return monkeyCost(Math.max(1, total - milestones.actFreeMonkeys * state.actsDone.length));
 }
 
+/** The office rooms you own, in the order bought. */
+export function ownedRooms(state: GameState): Room[] {
+  return officeRooms.filter((r) => state.office.includes(r.id));
+}
+
+/** Desks in all your rooms: the most monkeys (managers included) you can have. */
+export function deskCount(state: GameState): number {
+  return ownedRooms(state).reduce((n, r) => n + r.desks, 0);
+}
+
+/** Desks with nobody at them. */
+export function freeDesks(state: GameState): number {
+  return Math.max(0, deskCount(state) - state.monkeys.length);
+}
+
+/** The next room for sale, or undefined once you own them all. */
+export function nextRoom(state: GameState): Room | undefined {
+  return officeRooms.find((r) => !state.office.includes(r.id));
+}
+
+/** Buys the next room with points. */
+export function buyRoom(state: GameState): boolean {
+  const room = nextRoom(state);
+  if (!room || state.currency < room.cost) return false;
+  state.currency -= room.cost;
+  state.office.push(room.id);
+  // Monkeys earned while the office was full move in at once if there's only one department to choose.
+  while (state.unassignedMonkeys > 0 && departmentsWithRoom(state).length <= 1 && assignMonkey(state));
+  return true;
+}
+
+/** Desk cells of a room as [x, y]: every other cell of every other row, in reading order. */
+export function deskCells(room: Room): [number, number][] {
+  const cells: [number, number][] = [];
+  for (let y = 1; y < room.height; y += 2) for (let x = 1; x < room.width; x += 2) cells.push([x, y]);
+  return cells.slice(0, room.desks);
+}
+
 /** Typing monkeys (managers not counted) in a department. */
 export function departmentTypists(state: GameState, genre: Genre | undefined): number {
   return departmentMonkeys(state, genre).filter((i) => !state.monkeys[i].manager).length;
@@ -437,9 +477,10 @@ export function departmentsWithRoom(state: GameState): Genre[] {
 /**
  * Where a new monkey goes: `genre` if it has room; with no genre given, the
  * only department with room. Null if that's not possible (full, or a choice
- * the player has to make). Before any department is open, '' (no department).
+ * the player has to make, or no free desk). Before any department is open, '' (no department).
  */
 function placeFor(state: GameState, genre?: Genre): string | null {
+  if (freeDesks(state) === 0) return null;
   const rooms = departmentsWithRoom(state);
   if (departmentGenres(state).length === 0) return departmentTypists(state, undefined) < departmentRules.maxTypists ? '' : null;
   if (genre) return rooms.includes(genre) ? genre : null;

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, officeRooms, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  buyRoom,
+  deskCells,
+  deskCount,
+  freeDesks,
+  nextRoom,
   buyFasterTyping,
   buyTypewriter,
   skillCap,
@@ -984,6 +989,7 @@ describe('department limits and slots', () => {
       s.departments = ['comedy'];
       s.letters = ['A'];
       s.lines = 1e9;
+      s.office = officeRooms.map((r) => r.id);
       while (s.monkeys.length < departmentRules.maxTypists) expect(buyMonkey(s)).toBe(true); // one department: automatic
       expect(buyMonkey(s)).toBe(false); // full of typists
       expect(toggleManager(s, 0)).toBe(true); // a manager frees a typing seat
@@ -1158,5 +1164,55 @@ describe('manager line choice', () => {
     } finally {
       setPlays([]);
     }
+  });
+});
+
+describe('office space', () => {
+  it('starts with the first room; its desks cap the monkeys, managers included', () => {
+    const s = createInitialState(0);
+    s.letters = ['A'];
+    s.lines = 1e9;
+    expect(s.office).toEqual([officeRooms[0].id]);
+    expect(deskCount(s)).toBe(officeRooms[0].desks);
+    while (freeDesks(s) > 0) expect(buyMonkey(s)).toBe(true);
+    expect(s.monkeys).toHaveLength(officeRooms[0].desks);
+    expect(buyMonkey(s)).toBe(false); // no free desk
+  });
+
+  it('sells rooms in order for points, adding desks', () => {
+    const s = createInitialState(0);
+    const room = nextRoom(s)!;
+    expect(room).toBe(officeRooms[1]);
+    s.currency = room.cost - 1;
+    expect(buyRoom(s)).toBe(false);
+    s.currency = room.cost;
+    expect(buyRoom(s)).toBe(true);
+    expect(s.currency).toBe(0);
+    expect(deskCount(s)).toBe(officeRooms[0].desks + officeRooms[1].desks);
+    expect(nextRoom(s)).toBe(officeRooms[2]);
+    s.office = officeRooms.map((r) => r.id);
+    expect(nextRoom(s)).toBeUndefined();
+    expect(buyRoom(s)).toBe(false);
+  });
+
+  it('has desks for four full departments, each fitting in its room', () => {
+    expect(officeRooms.reduce((n, r) => n + r.desks, 0)).toBe(4 * (departmentRules.maxTypists + 1));
+    for (const r of officeRooms) {
+      const cells = deskCells(r);
+      expect(cells).toHaveLength(r.desks);
+      for (const [x, y] of cells) expect(x < r.width && y < r.height).toBe(true);
+    }
+  });
+
+  it('holds an earned monkey until there is a desk, then seats it when a room is bought', () => {
+    const s = createInitialState(0);
+    s.letters = ['A'];
+    s.monkeys.push(createMonkey());
+    s.unassignedMonkeys = 1;
+    expect(assignMonkey(s)).toBe(false);
+    s.currency = officeRooms[1].cost;
+    expect(buyRoom(s)).toBe(true);
+    expect(s.unassignedMonkeys).toBe(0);
+    expect(s.monkeys).toHaveLength(3);
   });
 });

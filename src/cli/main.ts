@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { sceneName, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
+  buyRoom,
+  nextRoom,
   buyFasterTyping,
   buyTypewriter,
   skillCap,
@@ -78,6 +80,7 @@ import {
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
+import { renderOffice } from './office';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -103,6 +106,7 @@ let findIndex = -1;
 let showingKeys = false;
 let showingDev = false;
 let showingStats = false;
+let showingOffice = false;
 let showingDictionary = false;
 let dictionaryRow = 0;
 let shop: Store | null = null; // the open store; the shop starts closed and space opens and closes it
@@ -189,6 +193,11 @@ function buyItem(id: string): void {
     message = managerUpgradePrompt(state);
   } else if (id === 'script') {
     openScript();
+  } else if (id === 'room') {
+    const room = nextRoom(state);
+    if (room) message = buyRoom(state) ? `You moved into the ${room.name}: ${room.desks} more desks.` : `Not enough ${theme.currency}.`;
+  } else if (id === 'map') {
+    showingOffice = true;
   }
 }
 
@@ -218,6 +227,8 @@ function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
+    : showingOffice
+    ? renderOffice(state)
     : showingStats
     ? renderStats(state)
     : showingDictionary
@@ -513,6 +524,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingOffice) {
+    if (key.name === 'escape' || key.name === 'q' || str === 'o') showingOffice = false;
+    return draw();
+  }
+
   if (showingStats || showingDictionary) {
     const maxRow = Math.max(0, Math.ceil(dictionaryWords(state).length / dictionaryColumns) - dictionaryPageRows);
     if (key.name === 'escape' || key.name === 'q') {
@@ -603,6 +619,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     openScript();
   } else if (str === '`') {
     showingDev = true;
+  } else if (str === 'o') {
+    showingOffice = true;
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'w') {

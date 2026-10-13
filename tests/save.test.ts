@@ -63,3 +63,15 @@ describe('save/load', () => {
     expect(s.lastSaved).toBe(5);
   });
 });
+
+describe('office space in saves', () => {
+  it('keeps the rooms bought, and gives saves from before office space enough desks for their monkeys', () => {
+    const s = createInitialState(0);
+    s.office.push('backroom');
+    expect(deserialize(serialize(s)).office).toEqual(['cupboard', 'backroom']);
+    const old = JSON.parse(serialize(s));
+    delete old.state.office;
+    old.state.monkeys = Array.from({ length: 7 }, () => createMonkey());
+    expect(deserialize(JSON.stringify(old)).office).toEqual(['cupboard', 'backroom', 'office']);
+  });
+});

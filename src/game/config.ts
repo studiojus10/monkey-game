@@ -152,6 +152,32 @@ export const scriptShop = {
  * writes lines of plays in that department's genre, and only plays of a
  * department's genre can be bought.
  */
+/**
+ * Office space: rooms bought in this order from the Real estate store, with
+ * Points. Every monkey, managers included, needs a desk, so the desks in your
+ * rooms cap how many monkeys you can have. Rooms are grids of width x height
+ * floor cells; desks go on every other cell of every other row, in reading
+ * order. The first room is where you start. All 44 desks seat four full
+ * departments (10 typists and a manager each). Costs are placeholders.
+ */
+export interface Room {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  desks: number;
+  cost: number;
+}
+
+export const officeRooms: Room[] = [
+  { id: 'cupboard', name: 'Broom cupboard', width: 4, height: 3, desks: 2, cost: 0 },
+  { id: 'backroom', name: 'Back room', width: 6, height: 4, desks: 4, cost: 2_500 },
+  { id: 'office', name: 'Small office', width: 8, height: 4, desks: 6, cost: 100_000 },
+  { id: 'floor', name: 'Open-plan floor', width: 12, height: 5, desks: 10, cost: 5_000_000 },
+  { id: 'annex', name: 'Annex', width: 12, height: 5, desks: 10, cost: 250_000_000 },
+  { id: 'loft', name: 'Top-floor loft', width: 14, height: 5, desks: 12, cost: 10_000_000_000 },
+];
+
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],
   maxTypists: 10, // typing monkeys per department, plus one manager
