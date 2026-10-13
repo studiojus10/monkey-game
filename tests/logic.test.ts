@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, office, typewriterKeys, typing } from '../src/game/config';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, office, energy, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  breakLeft,
+  currentSpeed,
+  spendEnergy,
   buyFurniture,
   cellAt,
   furnitureSpot,
@@ -85,6 +88,15 @@ import {
   nextOwnedScene,
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
+
+// Most tests check typing exactly, so monkeys don't tire unless a test says so.
+const drainSeconds = energy.drainSeconds;
+beforeEach(() => {
+  energy.drainSeconds = Infinity;
+});
+afterEach(() => {
+  energy.drainSeconds = drainSeconds;
+});
 
 /** Gives a department a big room, so floor space doesn't get in a test's way. */
 function roomFor(s: GameState, genre: string): void {
@@ -1306,3 +1318,40 @@ describe('furniture', () => {
     expect(moveFurniture(s, 0, 'r1', 1, 1)).toBe(true);
   });
 });
+
+describe('energy', () => {
+  it('tires a typing monkey, slowing it, until it takes a break and comes back rested', () => {
+    energy.drainSeconds = drainSeconds;
+    const s = createInitialState(0);
+    s.letters = ['I'];
+    const m = s.monkeys[0];
+    expect(currentSpeed(s, m)).toBeCloseTo(typing.baseLettersPerSecond);
+    const worth = spendEnergy(m, energy.drainSeconds / 2);
+    expect(m.energy).toBeCloseTo(0.5);
+    expect(worth).toBeLessThan(energy.drainSeconds / 2);
+    expect(currentSpeed(s, m)).toBeCloseTo(typing.baseLettersPerSecond * (1 - energy.maxSlowdown / 2));
+    spendEnergy(m, energy.drainSeconds / 2);
+    expect(m.resting).toBe(true);
+    expect(currentSpeed(s, m)).toBe(0);
+    expect(breakLeft(m)).toBeCloseTo(energy.breakSeconds);
+    expect(spendEnergy(m, energy.breakSeconds / 2)).toBe(0); // no typing on a break
+    spendEnergy(m, energy.breakSeconds / 2);
+    expect(m.resting).toBe(false);
+    expect(m.energy).toBe(1);
+  });
+
+  it('works out long stretches exactly, breaks included', () => {
+    energy.drainSeconds = drainSeconds;
+    const cycle = energy.drainSeconds + energy.breakSeconds;
+    const one = spendEnergy(createMonkey(), cycle);
+    expect(one).toBeCloseTo(energy.drainSeconds * (1 - energy.maxSlowdown / 2));
+    const m = createMonkey();
+    expect(spendEnergy(m, cycle * 10)).toBeCloseTo(one * 10);
+    expect(m.energy).toBeCloseTo(1);
+    let steps = 0;
+    const n = createMonkey();
+    for (let t = 0; t < cycle * 2; t += 0.25) steps += spendEnergy(n, 0.25);
+    expect(steps).toBeCloseTo(one * 2, 3);
+  });
+});
+

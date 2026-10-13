@@ -28,6 +28,8 @@ import {
   letterWordsCost,
   canAffordLetter,
   monkeySpeed,
+  currentSpeed,
+  breakLeft,
   nextMonkeyCost,
   ownedProgress,
   ownsLine,
@@ -178,7 +180,14 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   // Pad names and multipliers so every monkey's text starts in the same column.
   // With more than one department, each monkey's line starts with its department's initial.
   const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
-  const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}(${monkeySpeed(state, m).toFixed(2)}/s)`, `x${comboMultiplier(state, m)}`]);
+  // A typist shows its speed now and its energy; on a break, how long is left.
+  const status = (m: MonkeyState) =>
+    m.manager
+      ? `${monkeySpeed(state, m).toFixed(2)}/s`
+      : m.resting
+        ? `break ${Math.ceil(breakLeft(m))}s`
+        : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
+  const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
   const nameWidth = Math.max(...labels.map(([n]) => n.length));
   const comboWidth = Math.max(...labels.map(([, c]) => c.length));
   lines.push(

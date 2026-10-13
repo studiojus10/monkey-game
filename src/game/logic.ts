@@ -16,6 +16,7 @@ import {
   maxOfflineSeconds,
   monkeyShop,
   office as officeRules,
+  energy as energyRules,
   desk,
   furnitureKinds,
   startingLetters,
@@ -254,6 +255,55 @@ export function speedMultiplier(state: GameState): number {
 /** Letters per second for a monkey, from its typing skill and act bonuses. */
 export function monkeySpeed(state: GameState, m: MonkeyState, skill = m.skill): number {
   return lettersPerSecond(skill) * speedMultiplier(state);
+}
+
+/** How fast a monkey's energy lets it type: 1 when rested, down to 1 - maxSlowdown when worn out. */
+export function energyFactor(energy: number): number {
+  return 1 - energyRules.maxSlowdown * (1 - energy);
+}
+
+/** A monkey's speed right now: tiredness slows it, and on a break it doesn't type. */
+export function currentSpeed(state: GameState, m: MonkeyState): number {
+  return m.manager || m.resting ? 0 : monkeySpeed(state, m) * energyFactor(m.energy);
+}
+
+/** Seconds of a break left. */
+export function breakLeft(m: MonkeyState): number {
+  return m.resting ? (1 - m.energy) * energyRules.breakSeconds : 0;
+}
+
+/**
+ * Runs a typing monkey's energy for `seconds`: it tires while typing, takes a
+ * break at 0% and goes back to work rested. Returns the seconds of full-speed
+ * typing that time was worth, exactly, however long it is.
+ */
+export function spendEnergy(m: MonkeyState, seconds: number): number {
+  const drain = 1 / energyRules.drainSeconds;
+  const rest = 1 / energyRules.breakSeconds;
+  const k = energyRules.maxSlowdown;
+  let worth = 0;
+  for (let left = seconds; left > 1e-9; ) {
+    if (m.resting) {
+      const t = Math.min(left, (1 - m.energy) / rest);
+      m.energy = Math.min(1, m.energy + t * rest);
+      left -= t;
+      if (m.energy >= 1 - 1e-9) {
+        m.energy = 1;
+        m.resting = false;
+      }
+    } else {
+      const t = Math.min(left, m.energy / drain);
+      const end = Math.max(0, m.energy - t * drain);
+      worth += t * (1 - k) + k * t * ((m.energy + end) / 2); // energyFactor averaged over the stretch
+      m.energy = end;
+      left -= t;
+      if (m.energy <= 1e-9) {
+        m.energy = 0;
+        m.resting = true;
+      }
+    }
+  }
+  return worth;
 }
 
 /** Points bonus for finishing a scene, by its length. */
@@ -1217,7 +1267,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
   manage(state);
   const due = state.monkeys.map((m) => {
     if (m.manager) return 0;
-    m.progress += monkeySpeed(state, m) * seconds;
+    m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds);
     const n = Math.floor(m.progress);
     m.progress -= n;
     return n;

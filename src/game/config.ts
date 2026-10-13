@@ -199,6 +199,19 @@ export const furnitureKinds: FurnitureKind[] = [
   { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2 },
 ];
 
+/**
+ * Monkey energy, from 1 (100%) to 0. Typing drains it in drainSeconds; a tired
+ * monkey types slower, down to (1 - maxSlowdown) of its speed at 0%, when it
+ * takes a break on its own and rests back to 100% in breakSeconds. Managers
+ * don't type, so they don't tire. Placeholders for the balance pass; furniture
+ * will change these rates.
+ */
+export const energy = {
+  drainSeconds: 600,
+  breakSeconds: 60,
+  maxSlowdown: 0.25,
+};
+
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],
   maxTypists: 10, // typing monkeys per department, plus one manager

@@ -84,7 +84,7 @@ describe('terminal screen', () => {
     expect(text).toContain('\x1b[1m1.23K Points\x1b[22m   0 Sentences   0 Lines'); // points in bold
     expect(text).toContain('Letters: I');
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
-    expect(text.split('\n')[2]).toBe('M-1(0.50/s) x1  \x1b[1mI\x1b[22m_');
+    expect(text.split('\n')[2]).toBe('M-1(0.50/s 100%) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
     expect(plain(text)).toContain('[1] ★Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
     expect(tools).toContain('[2] ★Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
@@ -384,4 +384,15 @@ describe('furniture', () => {
     expect(plain(renderScreen(s, '', 'furniture'))).toContain('New furniture opens the office map so you can place it.');
   });
 
+});
+
+describe('energy on screen', () => {
+  it('shows each typist speed and energy, and the time left on a break', () => {
+    const s = started();
+    s.monkeys[0].energy = 0.5;
+    expect(plain(renderScreen(s))).toContain('M-1(0.44/s 50%) x1');
+    s.monkeys[0].energy = 0.25;
+    s.monkeys[0].resting = true;
+    expect(plain(renderScreen(s))).toContain('M-1(break 45s) x1');
+  });
 });

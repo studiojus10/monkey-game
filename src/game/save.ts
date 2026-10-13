@@ -55,6 +55,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       // with the typewriter it needs.
       skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
       typewriter: Math.max(0, Math.floor(num(m?.typewriter, Math.max(0, Math.ceil(oldTypingLevel / typing.levelsPerTypewriter) - 1)))),
+      energy: Math.min(1, Math.max(0, num(m?.energy, 1))),
+      resting: !!m?.resting,
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
