@@ -13,7 +13,7 @@ import {
   happiness,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, officeBounds, roomAt } from '../game/layout';
-import type { GameState, Room } from '../game/state';
+import type { Furniture, GameState, Room, Side } from '../game/state';
 import { genreNames, hatOf, monkeyIconLegend, price } from './screen';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -37,6 +37,16 @@ export function roomName(state: GameState, room: Room): string {
 /** The furniture's glyph on the map. */
 const glyphOf = (kind: string) => (kind === desk.id ? desk.glyph : (furnitureKinds.find((k) => k.id === kind)?.glyph ?? '?'));
 
+const facingMark: Record<Side, string> = { n: '^', e: '>', s: 'v', w: '<' };
+export const facingName: Record<Side, string> = { n: 'north', e: 'east', s: 'south', w: 'west' };
+
+/** A piece of furniture in its square: its glyph, with a mark for the way it faces (< on the left when facing west). */
+function pieceCell(f: Furniture): string {
+  const g = glyphOf(f.kind);
+  const facing = f.facing ?? 's';
+  return facing === 'w' ? `<${g} ` : ` ${g}${facingMark[facing]}`;
+}
+
 /** The name of a piece of furniture, lower case. */
 export function furnitureName(state: GameState, index: number): string {
   const f = state.furniture[index];
@@ -54,9 +64,18 @@ function growingRoom(state: GameState, cursor: Cell | null, growing: string | bo
  * sits where and the furniture, hallways between them, and doors (/) in the
  * walls. Each room's number sits in its top wall. `cursor` marks the selected
  * square; `held` is the furniture being moved (an index into
- * state.furniture), or -1; `growing` shows (as +) where a room can grow.
+ * state.furniture), or -1; `growing` shows (as +) where a room can grow;
+ * `heldDoor` is the wall of the cursor's square where a door being moved
+ * would go.
  */
-export function renderOffice(state: GameState, message = '', cursor: Cell | null = null, held = -1, growing: string | boolean = false): string {
+export function renderOffice(
+  state: GameState,
+  message = '',
+  cursor: Cell | null = null,
+  held = -1,
+  growing: string | boolean = false,
+  heldDoor: Side | null = null,
+): string {
   const grow = growingRoom(state, cursor, growing);
   const options = grow ? expansionSquares(state, grow) : [];
   const b = officeBounds(state);
@@ -89,7 +108,7 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
       else if (state.furniture[f].kind === desk.id) {
         const monkey = state.monkeys[sitters.get(room.id)?.[roomDesks(state, room).indexOf(f)] ?? -1];
         text = !monkey ? '[ ]' : `${hatOf(monkey) ?? '['}${monkeyIcon}${monkey.manager ? '&' : ']'}`;
-      } else text = ` ${glyphOf(state.furniture[f].kind)} `;
+      } else text = pieceCell(state.furniture[f]);
     }
     return here ? `>${text[1]}<` : text;
   };
@@ -109,9 +128,17 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
     const [x, y] = top.sort((a, c) => a[1] - c[1] || a[0] - c[0]).find(([tx, ty]) => !doorAt(state, tx, ty, 'n')) ?? top[0];
     labels.set(`${x},${y}`, String(i + 1));
   });
+  // A door being moved shows where it would go, on the cursor's square.
+  const preview = (x: number, y: number, side: Side) => {
+    if (!heldDoor || !cursor) return false;
+    const [dx, dy] = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] }[heldDoor];
+    const flip: Record<Side, Side> = { n: 's', e: 'w', s: 'n', w: 'e' };
+    return (cursor.x === x && cursor.y === y && heldDoor === side) || (cursor.x + dx === x && cursor.y + dy === y && flip[heldDoor] === side);
+  };
+  const isDoor = (x: number, y: number, side: Side) => !!doorAt(state, x, y, side) || preview(x, y, side);
   const hWall = (x: number, y: number) => {
-    if (!wall(x, y - 1, x, y)) return '   ';
-    if (doorAt(state, x, y, 'n')) return '-/-';
+    if (!wall(x, y - 1, x, y)) return preview(x, y, 'n') ? ' / ' : '   ';
+    if (isDoor(x, y, 'n')) return '-/-';
     const label = labels.get(`${x},${y}`);
     return label ? `-${label}`.padEnd(3, '-') : '---';
   };
@@ -123,7 +150,7 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
     if (y > maxY) break;
     let row = '';
     for (let x = minX; x <= maxX + 1; x++) {
-      row += wall(x - 1, y, x, y) ? (doorAt(state, x, y, 'w') ? '/' : '|') : ' ';
+      row += wall(x - 1, y, x, y) ? (isDoor(x, y, 'w') ? '/' : '|') : preview(x, y, 'w') ? '/' : ' ';
       if (x <= maxX) row += cell(x, y);
     }
     lines.push(row.trimEnd());
@@ -150,10 +177,11 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
   });
   const furnished = furnitureKinds.filter((k) => state.furniture.some((f) => f.kind === k.id)).map((k) => `${k.glyph} ${k.name.toLowerCase()}`);
   const underCursor = cursor ? roomAt(state, cursor.x, cursor.y) : undefined;
+  const pieceHere = cursor && underCursor ? state.furniture.findIndex((f) => f.room === underCursor.id && f.x === cursor.x && f.y === cursor.y) : -1;
   const where = !cursor
     ? ''
     : underCursor
-      ? `Cursor: ${roomName(state, underCursor)}.`
+      ? `Cursor: ${roomName(state, underCursor)}${pieceHere >= 0 ? `, ${furnitureName(state, pieceHere)} facing ${facingName[state.furniture[pieceHere].facing ?? 's']}` : ''}.`
       : isHall(state, cursor.x, cursor.y)
         ? 'Cursor: hallway.'
         : 'Cursor: outside.';
@@ -174,11 +202,16 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
     ...(grow
       ? [`Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`, '[arrows] move   [x] or [esc] done']
       : held >= 0
-        ? [`Moving the ${furnitureName(state, held)}.`, '[arrows] move   [tab] next room   [enter] put it down   [esc] cancel']
-        : [
-            `${where}   [arrows] move   [tab] next room   [enter] pick up furniture   [x] grow this room`.trim(),
-            '[d] door on this square (again: next wall, then none)   [h] hallway here on/off   [r] buy a room   [esc] back',
-          ]),
+        ? [
+            `Moving the ${furnitureName(state, held)}, facing ${facingName[state.furniture[held].facing ?? 's']}.`,
+            '[arrows] move   [tab] next room   [space] put it down   [r] rotate   [esc] cancel',
+          ]
+        : heldDoor
+          ? [`Moving a door: the ${facingName[heldDoor]} wall of this square.`, '[arrows] move   [space] put it in   [r] next wall   [esc] cancel']
+          : [
+              `${where}   [arrows] move   [tab] next room   [space] pick up furniture or a door   [x] grow this room`.trim(),
+              '[d] door on this square (again: next wall, then none)   [h] hallway here on/off   [r] buy a room   [esc] back',
+            ]),
     '',
     message,
   ].join('\n');

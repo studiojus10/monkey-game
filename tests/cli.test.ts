@@ -393,12 +393,16 @@ describe('furniture', () => {
   it('draws furniture, the cursor and a piece being moved', () => {
     const s = started();
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
-    expect(plain(renderOffice(s))).toContain('|[@]  P |');
+    expect(plain(renderOffice(s))).toContain('|[@]  Pv|'); // the mark shows which way it faces
     expect(plain(renderOffice(s))).toContain('P potted plant');
+    s.furniture[1].facing = 'w';
+    expect(plain(renderOffice(s))).toContain('|[@] <P |');
+    expect(plain(renderOffice(s, '', { x: 1, y: 0 }))).toContain('Cursor: Comedies room, potted plant facing west.');
     expect(plain(renderOffice(s, '', { x: 0, y: 1 }))).toContain('|>.<  . |');
     const moving = plain(renderOffice(s, '', { x: 1, y: 1 }, 1));
     expect(moving).toContain('|[@]  . |\n    |       |\n    | .  >P<|');
-    expect(moving).toContain('Moving the potted plant.');
+    expect(moving).toContain('Moving the potted plant, facing west.');
+    expect(moving).toContain('[space] put it down   [r] rotate');
   });
 
   it('has an option to place furniture yourself', () => {
@@ -419,6 +423,19 @@ describe('energy on screen', () => {
     s.monkeys[0].energy = 0.25;
     s.monkeys[0].resting = true;
     expect(plain(renderScreen(s))).toContain('M-1(break 45s) x1');
+  });
+});
+
+describe('moving doors on the map', () => {
+  it('shows a door being moved in the wall it would go in', () => {
+    const s = started();
+    s.currency = 1e12;
+    buyRoom(s, 'break'); // a hallway square west of room 1, with a door into it at 0,0
+    s.doors = s.doors.filter((d) => !(d.x === 0 && d.y === 0));
+    const text = plain(renderOffice(s, '', { x: 0, y: 0 }, -1, false, 'w'));
+    expect(text).toContain('/>@<');
+    expect(text).toContain('Moving a door: the west wall of this square.');
+    expect(text).toContain('[r] next wall');
   });
 });
 

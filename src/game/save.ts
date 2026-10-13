@@ -1,7 +1,7 @@
 import { accessories, desk, furnitureKinds, typing } from './config';
 import { furnishOffice } from './logic';
 import { layOutOffice } from './layout';
-import { createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
+import { createInitialState, createMonkey, type Door, type GameState, type Side, type MonkeyState, type Pin, type Room, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
 // Version 2 had one chosen play (`play`) and pins as line numbers in it; it
@@ -134,7 +134,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),
       furniture: (Array.isArray(s.furniture) ? s.furniture : [])
         .filter((f) => f && (f.kind === desk.id || furnitureKinds.some((k) => k.id === f.kind)) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))
-        .map((f) => ({ kind: f.kind, room: f.room, x: f.x, y: f.y })),
+        .map((f) => ({ kind: f.kind, room: f.room, x: f.x, y: f.y, ...(['n', 'e', 'w'].includes(f.facing as string) ? { facing: f.facing as Side } : {}) })),
       departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,

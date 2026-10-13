@@ -297,6 +297,20 @@ export function cycleDoor(state: GameState, x: number, y: number): boolean {
   return true;
 }
 
+/** Puts a door in one wall of a room square, if that wall opens onto a hallway or another room and has none yet. */
+export function placeDoor(state: GameState, x: number, y: number, side: Side): boolean {
+  if (!doorSides(state, x, y).includes(side) || doorAt(state, x, y, side)) return false;
+  state.doors.push({ x, y, side });
+  return true;
+}
+
+/** Takes the door out of a room square's walls (the first one, north to west) and returns it. */
+export function takeDoor(state: GameState, x: number, y: number): Door | undefined {
+  const d = sideOrder.map((s) => doorAt(state, x, y, s)).find(Boolean);
+  if (d) state.doors = state.doors.filter((o) => o !== d);
+  return d && (d.x === x && d.y === y ? d : { x, y, side: opposite[d.side] });
+}
+
 /** Lays a hallway square on empty floor, or takes one up. Returns false for a room's square. */
 export function toggleHall(state: GameState, x: number, y: number): boolean {
   if (roomAt(state, x, y)) return false;

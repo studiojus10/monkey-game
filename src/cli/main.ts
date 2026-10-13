@@ -13,6 +13,7 @@ import {
   furnitureSpot,
   furnitureCost,
   moveFurniture,
+  rotateFurniture,
   buyRoom,
   expandRoom,
   roomlessDepartments,
@@ -66,7 +67,7 @@ import {
   toggleSlot,
 } from '../game/logic';
 import { load, save } from '../game/save';
-import { createInitialState } from '../game/state';
+import { createInitialState, type Door, type Side } from '../game/state';
 import { formatNumber } from '../format';
 import { fileStorage } from './fileStorage';
 import {
@@ -94,8 +95,8 @@ import {
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
-import { furnitureName, renderOffice, roomName, type Cell } from './office';
-import { cycleDoor, officeBounds, roomAt, toggleHall } from '../game/layout';
+import { facingName, furnitureName, renderOffice, roomName, type Cell } from './office';
+import { cycleDoor, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -127,6 +128,8 @@ let officeGrowing = ''; // id of the room whose new square is being chosen
 let buyingRoom = false; // choosing what room to buy on the office map
 let showingOptions = false;
 let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
+let heldFacing: Side = 's'; // the way it faced when picked up, for esc
+let heldDoor: { from: Door; side: Side } | null = null; // a door being moved on the office map
 let showingDictionary = false;
 let dictionaryRow = 0;
 let shop: Store | null = null; // the open store; the shop starts closed and space opens and closes it
@@ -306,7 +309,7 @@ function draw() {
     : showingOptions
     ? renderOptions(state)
     : showingOffice
-    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing)
+    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null)
     : showingStats
     ? renderStats(state)
     : showingDictionary
@@ -651,10 +654,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
     // The cursor roams the office and one square around it.
     const b = officeBounds(state);
+    const holding = heldFurniture >= 0 || !!heldDoor;
     if (key.name === 'escape' || key.name === 'q' || str === 'o') {
       if (officeGrowing) officeGrowing = '';
-      else if (heldFurniture >= 0) heldFurniture = -1; // it stays where it was
-      else showingOffice = false;
+      else if (heldFurniture >= 0) {
+        // It stays where it was, turned the way it was.
+        const f = state.furniture[heldFurniture];
+        if (heldFacing === 's') delete f.facing;
+        else f.facing = heldFacing;
+        heldFurniture = -1;
+      } else if (heldDoor) {
+        state.doors.push(heldDoor.from);
+        heldDoor = null;
+      } else showingOffice = false;
     } else if (key.name === 'up') c.y = Math.max(b.minY - 1, c.y - 1);
     else if (key.name === 'down') c.y = Math.min(b.maxY + 1, c.y + 1);
     else if (key.name === 'left') c.x = Math.max(b.minX - 1, c.x - 1);
@@ -664,19 +676,25 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const next = rooms[(rooms.indexOf(here!) + 1) % rooms.length];
       const [x, y] = [...next.cells].sort((p, q) => p[1] - q[1] || p[0] - q[0])[0];
       Object.assign(c, { x, y });
-    } else if (str === 'x' && heldFurniture < 0) {
+    } else if (str === 'r' && heldFurniture >= 0) {
+      rotateFurniture(state, heldFurniture);
+    } else if (str === 'r' && heldDoor) {
+      const turn: Record<Side, Side> = { n: 'e', e: 's', s: 'w', w: 'n' };
+      heldDoor.side = turn[heldDoor.side];
+    } else if (str === 'x' && !holding) {
       if (officeGrowing) officeGrowing = '';
       else if (here) officeGrowing = here.id;
       else message = 'Put the cursor in the room you want to grow.';
-    } else if (str === 'd' && heldFurniture < 0 && !officeGrowing) {
+    } else if (str === 'd' && !holding && !officeGrowing) {
       if (!cycleDoor(state, c.x, c.y)) message = here ? 'Doors go in walls onto a hallway or another room.' : 'Doors go on the edge of a room.';
-    } else if (str === 'h' && heldFurniture < 0 && !officeGrowing) {
+    } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
-    } else if (str === 'r' && heldFurniture < 0 && !officeGrowing) {
+    } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const roomless = roomlessDepartments(state).map((g, i) => `[${i + 1}] a room for ${genreNames[g]}`);
       message = `Buy a room (${formatNumber(roomCost(state))} ${theme.currency}): ${[...roomless, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
-    } else if (key.name === 'return' || key.name === 'enter') {
+    } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+      // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
       if (officeGrowing) {
         const room = state.office.find((r) => r.id === officeGrowing);
         if (here) message = 'That square is already part of a room. Choose a +.';
@@ -688,10 +706,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         else if (!here) message = 'Furniture goes inside a room.';
         else if (spot === 'floor') message = "Desks stay in their department's room.";
         else message = 'Something is already there.';
+      } else if (heldDoor) {
+        if (placeDoor(state, c.x, c.y, heldDoor.side)) heldDoor = null;
+        else message = here ? `No door fits the ${facingName[heldDoor.side]} wall here: it needs a hallway or another room behind it. [r] tries the next wall.` : 'Doors go in the walls of a room.';
       } else {
         const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
-        if (typeof spot === 'number') heldFurniture = spot;
-        else message = !here ? 'No furniture there.' : 'No furniture there. Buy some in the Furniture store.';
+        const door = typeof spot === 'number' || !here ? undefined : takeDoor(state, c.x, c.y);
+        if (typeof spot === 'number') {
+          heldFurniture = spot;
+          heldFacing = state.furniture[spot].facing ?? 's';
+        } else if (door) heldDoor = { from: door, side: door.side };
+        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Furniture store; [d] adds a door.';
       }
     }
     return draw();

@@ -28,7 +28,7 @@ import {
   typing,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
+import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type Side, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { autoConnect, connectedRooms, placeRoom, roomCanUse } from './layout';
 
@@ -748,6 +748,17 @@ export function buyFurniture(state: GameState, kind: string): boolean {
   if (!spot || state.currency < cost) return false;
   state.currency -= cost;
   state.furniture.push({ kind, ...spot });
+  return true;
+}
+
+/** Turns a piece of furniture a quarter turn clockwise (south, west, north, east). */
+export function rotateFurniture(state: GameState, index: number): boolean {
+  const f = state.furniture[index];
+  if (!f) return false;
+  const turn: Record<Side, Side> = { s: 'w', w: 'n', n: 'e', e: 's' };
+  const next = turn[f.facing ?? 's'];
+  if (next === 's') delete f.facing;
+  else f.facing = next;
   return true;
 }
 

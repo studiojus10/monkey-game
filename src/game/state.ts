@@ -83,6 +83,7 @@ export interface Furniture {
   room: string; // a Room id
   x: number;
   y: number;
+  facing?: Side; // which way it's turned; south when missing
 }
 
 /** A line pinned to the home screen. */

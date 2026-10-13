@@ -5,6 +5,7 @@ import {
   chainSentences,
   accessoryCost,
   addRoom,
+  rotateFurniture,
   canReachDesk,
   buyAccessory,
   wearing,
@@ -98,7 +99,7 @@ import {
   nextOwnedScene,
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
-import { autoConnect, connectedRooms, cycleDoor, doorSides, isConnected, layOutOffice, toggleHall } from '../src/game/layout';
+import { autoConnect, connectedRooms, cycleDoor, doorSides, isConnected, layOutOffice, placeDoor, takeDoor, toggleHall } from '../src/game/layout';
 
 // Most tests check typing exactly, so monkeys don't tire unless a test says so.
 const drainSeconds = energy.drainSeconds;
@@ -1486,6 +1487,16 @@ describe('sentences from long chains', () => {
 });
 
 
+describe('turning furniture', () => {
+  it('turns a quarter turn clockwise each time, starting from south', () => {
+    const s = createInitialState(0);
+    expect(s.furniture[0].facing).toBeUndefined(); // south
+    const turns = [1, 2, 3, 4].map(() => (rotateFurniture(s, 0), s.furniture[0].facing));
+    expect(turns).toEqual(['w', 'n', 'e', undefined]);
+    expect(rotateFurniture(s, 9)).toBe(false);
+  });
+});
+
 describe('doors and hallways', () => {
   it('places each new room apart from the others, with a hallway and doors back to the first room', () => {
     const s = createInitialState(0);
@@ -1531,6 +1542,19 @@ describe('doors and hallways', () => {
     tick(s, 10, rng);
     expect(m.progress).toBe(0); // it can't get to its desk to type
     expect(currentSpeed(s, m)).toBe(0);
+  });
+
+  it('picks a door up out of a wall and puts it in another', () => {
+    const s = createInitialState(0);
+    toggleHall(s, 0, -1);
+    toggleHall(s, -1, 0);
+    expect(placeDoor(s, 0, 0, 'n')).toBe(true);
+    expect(placeDoor(s, 0, 0, 'n')).toBe(false); // already one there
+    expect(placeDoor(s, 1, 1, 's')).toBe(false); // nothing behind that wall
+    expect(takeDoor(s, 0, 0)).toEqual({ x: 0, y: 0, side: 'n' });
+    expect(s.doors).toEqual([]);
+    expect(takeDoor(s, 0, 0)).toBeUndefined();
+    expect(placeDoor(s, 0, 0, 'w')).toBe(true);
   });
 
   it('cycles a door around the walls of a square, and lays or lifts hallway squares', () => {
