@@ -296,8 +296,8 @@ export function buyAccessory(state: GameState, index: number, id: string): boole
   const m = state.monkeys[index];
   const a = accessories.find((x) => x.id === id);
   const cost = accessoryCost(state, id);
-  if (!m || !a || m.manager || m.accessories.includes(id) || state.currency < cost) return false;
-  state.currency -= cost;
+  if (!m || !a || m.manager || m.accessories.includes(id) || state.sentences < cost) return false;
+  state.sentences -= cost;
   m.accessories = [...m.accessories.filter((x) => accessories.find((y) => y.id === x)?.slot !== a.slot), id];
   return true;
 }
@@ -565,12 +565,12 @@ export function buyLetter(state: GameState, letter: string): boolean {
   return true;
 }
 
-/** Cost in Sentences of the next monkey, given how many you have. */
+/** Cost in points of the next monkey, given how many you have. */
 export function monkeyCost(owned: number): number {
   return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
 }
 
-/** Cost in Sentences of the next monkey; free monkeys from acts don't raise it. */
+/** Cost in points of the next monkey; free monkeys from acts don't raise it. */
 export function nextMonkeyCost(state: GameState): number {
   const total = state.monkeys.length + state.unassignedMonkeys;
   return monkeyCost(Math.max(1, total - milestones.actFreeMonkeys * state.actsDone.length));
@@ -781,14 +781,14 @@ function placeFor(state: GameState, genre?: Genre): string | null {
 }
 
 /**
- * Buys a monkey with Sentences for a department. The department can be left out
+ * Buys a monkey with points for a department. The department can be left out
  * when only one has room; the player chooses otherwise.
  */
 export function buyMonkey(state: GameState, genre?: Genre): boolean {
   const cost = nextMonkeyCost(state);
   const dept = placeFor(state, genre);
-  if (state.letters.length === 0 || state.sentences < cost || dept === null) return false;
-  state.sentences -= cost;
+  if (state.letters.length === 0 || state.currency < cost || dept === null) return false;
+  state.currency -= cost;
   state.monkeys.push({ ...createMonkey(), department: dept });
   placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;

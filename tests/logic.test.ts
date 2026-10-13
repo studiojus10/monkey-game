@@ -312,18 +312,18 @@ describe('buying letters', () => {
 });
 
 describe('monkeys', () => {
-  it('buying a monkey costs Sentences and raises the next price', () => {
+  it('buying a monkey costs points and raises the next price', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.currency = 1e12;
+    s.sentences = 1e12;
     s.lines = 1e12;
-    expect(buyMonkey(s)).toBe(false); // points and Lines don't buy monkeys
-    s.lines = 0;
-    s.sentences = monkeyCost(1);
+    expect(buyMonkey(s)).toBe(false); // Sentences and Lines don't buy monkeys
+    s.sentences = 0;
+    s.currency = monkeyCost(1);
     expect(monkeyCost(1)).toBe(monkeyShop.baseCost);
     expect(buyMonkey(s)).toBe(true);
     expect(s.monkeys).toHaveLength(2);
-    expect(s.sentences).toBe(0);
+    expect(s.currency).toBe(0);
     expect(buyMonkey(s)).toBe(false);
     expect(monkeyCost(2)).toBeGreaterThan(monkeyCost(1));
   });
@@ -1027,7 +1027,7 @@ describe('department limits and slots', () => {
       s.departments = ['comedy'];
       s.letters = ['A'];
       s.lines = 1e9;
-      s.sentences = 1e9;
+      s.currency = 1e30;
       for (let i = 0; i < 40; i++) s.office[0].cells.push(bestExpansion(s.office[0]));
       while (s.monkeys.length < departmentRules.maxTypists) expect(buyMonkey(s)).toBe(true); // one department: automatic
       expect(buyMonkey(s)).toBe(false); // full of typists
@@ -1221,7 +1221,7 @@ describe('office space', () => {
     const s = createInitialState(0);
     s.letters = ['A'];
     s.lines = 1e9;
-    s.sentences = 1e9;
+    s.currency = 1e30;
     expect(s.office).toHaveLength(1);
     expect(s.office[0].cells).toHaveLength(office.starterWidth * office.starterHeight);
     expect(roomDesks(s, s.office[0])).toHaveLength(1);
@@ -1252,7 +1252,7 @@ describe('office space', () => {
       const s = createInitialState(0);
       s.letters = ['A'];
       s.lines = 1e9;
-      s.sentences = 1e9;
+      s.currency = 1e30;
       expect(openDepartment(s, 'comedy')).toBe(true);
       expect(departmentRoom(s, 'comedy')).toBe(s.office[0]); // the first department takes the starter room
       s.departments.push('tragedy');
@@ -1404,8 +1404,10 @@ describe('accessories', () => {
     s.monkeys.push(createMonkey());
     const glasses = accessories.find((a) => a.id === 'glasses')!;
     s.currency = 1e12;
+    expect(buyAccessory(s, 0, 'glasses')).toBe(false); // accessories cost Sentences
+    s.sentences = 1e12;
     expect(buyAccessory(s, 0, 'glasses')).toBe(true);
-    expect(s.currency).toBe(1e12 - glasses.cost);
+    expect(s.sentences).toBe(1e12 - glasses.cost);
     expect(buyAccessory(s, 0, 'glasses')).toBe(false); // already wears them
     expect(accessoryCost(s, 'glasses')).toBe(Math.ceil(glasses.cost * glasses.costGrowth));
     expect(buyAccessory(s, 1, 'glasses')).toBe(true);
@@ -1416,7 +1418,7 @@ describe('accessories', () => {
 
   it('applies its effects to the monkey wearing it', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.sentences = 1e12;
     const m = s.monkeys[0];
     const base = monkeySpeed(s, m);
     for (const id of ['glasses', 'headphones', 'slippers', 'mug', 'crown']) expect(buyAccessory(s, 0, id)).toBe(true);

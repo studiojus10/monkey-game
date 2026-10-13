@@ -42,13 +42,12 @@ export const letterShop = {
 };
 
 /**
- * You start with one monkey. More monkeys are paid in Sentences (renewable,
- * mostly from long chains); the n-th one you buy costs
- * baseCost x costGrowth^(n-1) Sentences.
+ * You start with one monkey. More monkeys are paid in Points, which keep
+ * growing all game; the n-th one you buy costs baseCost x costGrowth^(n-1).
  */
 export const monkeyShop = {
-  baseCost: 100, // scripts/simulate.ts: 2nd monkey after about 3h, a full department (10) after about 3 days
-  costGrowth: 3,
+  baseCost: 300_000, // scripts/simulate.ts: 2nd monkey after about 2.5h, a full department (10) after about 3 days
+  costGrowth: 6,
 };
 
 /**
@@ -259,15 +258,16 @@ export interface Accessory {
 /** A monkey's face in its icon; a hat goes on its left. All icons are ASCII. */
 export const monkeyIcon = '@';
 
+/** Accessories cost Sentences: a steady, renewable sink that grows with your staff. */
 export const accessories: Accessory[] = [
-  { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 5_000, costGrowth: 1.5, points: 0.1 },
-  { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 10_000, costGrowth: 1.5, drain: 0.15 },
-  { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 10_000, costGrowth: 1.5, rest: 0.3 },
-  { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 25_000, costGrowth: 1.5, speed: 0.1 },
-  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: 'd', cost: 2_000, costGrowth: 1.5, drain: 0.1 },
-  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '#', cost: 50_000, costGrowth: 1.5, points: 0.15 },
-  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '^', cost: 100_000, costGrowth: 2, combo: 1 },
-  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: 'W', cost: 10_000_000, costGrowth: 3, points: 0.1, speed: 0.1 },
+  { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 50, costGrowth: 1.5, points: 0.1 },
+  { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 100, costGrowth: 1.5, drain: 0.15 },
+  { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 100, costGrowth: 1.5, rest: 0.3 },
+  { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 250, costGrowth: 1.5, speed: 0.1 },
+  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: 'd', cost: 20, costGrowth: 1.5, drain: 0.1 },
+  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15 },
+  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '^', cost: 1_000, costGrowth: 2, combo: 1 },
+  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: 'W', cost: 100_000, costGrowth: 3, points: 0.1, speed: 0.1 },
 ];
 
 export const departmentRules = {

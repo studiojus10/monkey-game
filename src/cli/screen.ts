@@ -312,7 +312,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       return [
         typingShop.skill,
         canSeatMonkey(state)
-          ? { id: 'hire', star: state.sentences >= nextMonkey, text: `Hire a monkey (you have ${state.monkeys.length})   cost ${price(nextMonkey, state.sentences)} Sentences` }
+          ? { id: 'hire', star: state.currency >= nextMonkey, text: `Hire a monkey (you have ${state.monkeys.length})   cost ${price(nextMonkey, state.currency)} ${theme.currency}` }
           : { text: "Hire a monkey: no free square for its desk. Grow its department's room in Real estate." },
         ...(state.unassignedMonkeys > 0
           ? [
@@ -376,7 +376,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         ...accessories.map((a) => {
           const cost = accessoryCost(state, a.id);
           const someone = team.some((i) => !state.monkeys[i].accessories.includes(a.id));
-          return { id: `accessory:${a.id}`, star: someone && state.currency >= cost, text: `${a.name} [${a.icon ?? a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return { id: `accessory:${a.id}`, star: someone && state.sentences >= cost, text: `${a.name} [${a.icon ?? a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.sentences)} Sentences` };
         }),
         { text: "Each is for one monkey, one per slot (head, eyes, ears, hands, feet). A hat changes the monkey's icon; the rest show as letters after its name." },
       ];

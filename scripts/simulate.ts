@@ -132,7 +132,7 @@ function shop(): void {
     }
     for (const g of roomlessDepartments(s)) if (s.currency >= roomCost(s) && buyRoom(s, 'department', g)) bought = true;
     // Monkeys, with floor space for them.
-    if (s.sentences >= nextMonkeyCost(s)) {
+    if (s.currency >= nextMonkeyCost(s)) {
       if (!canSeatMonkey(s)) {
         const g = departmentGenres(s).find((x) => departmentTypists(s, x) < departmentRules.maxTypists && departmentRoom(s, x));
         const room = g && departmentRoom(s, g);
@@ -166,7 +166,7 @@ function shop(): void {
     if (!s.office.some((r) => r.kind === 'break') && s.monkeys.length >= 5 && s.currency >= roomCost(s) * 5 && buyRoom(s, 'break')) bought = true;
     for (const a of accessories) {
       const i = typists.find((k) => !s.monkeys[k].accessories.some((x) => accessories.find((y) => y.id === x)?.slot === a.slot));
-      if (i !== undefined && s.currency >= accessoryCost(s, a.id) * 10 && buyAccessory(s, i, a.id)) bought = true;
+      if (i !== undefined && s.sentences >= accessoryCost(s, a.id) * 2 && buyAccessory(s, i, a.id)) bought = true;
     }
     if (!bought) break;
   }
@@ -202,11 +202,13 @@ while (t < end) {
   if (s.slots.length >= 1) mark('first word slot', t);
   for (const w of [4, 6, 8]) if (s.stats.longestWord.length >= w) mark(`first ${w}-letter word`, t);
   if (s.monkeys.some((m) => m.typewriter > 0)) mark('first better typewriter', t);
+  const worn = s.monkeys.reduce((n, m) => n + m.accessories.length, 0);
+  for (const n of [1, 5, 10, 20, 40]) if (worn >= n) mark(`${n} accessories`, t);
   if (t >= nextReport) {
     const written = Object.values(s.completed).reduce((a, l) => a + l.length, 0);
     console.log(
       `   -- ${fmt(t)}: ${s.letters.length} letters, ${s.monkeys.length} monkeys, ${written} lines written, ` +
-        `points ${s.currency.toExponential(2)}, Lines ${s.lines}, Sentences ${s.sentences} (${s.stats.chainSentences} from chains), Words ${s.words}, ` +
+        `points ${s.currency.toExponential(2)} (earned ${s.totalEarned.toExponential(2)}), Lines ${s.lines}, Sentences ${s.sentences} (${s.stats.chainSentences} from chains), Words ${s.words}, ` +
         `skill ${s.monkeys.map((m) => m.skill).join('/')}, rooms ${s.office.length}, ` +
         `scenes owned ${s.owned.length}, lines in reach ${availablePlays().reduce((n, p) => n + reachableLines(s, p.id).length, 0)}`,
     );

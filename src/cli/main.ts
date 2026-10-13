@@ -182,7 +182,7 @@ function buyItem(id: string): void {
     }
   } else if (id === 'hire') {
     const rooms = departmentsWithRoom(state);
-    if (state.sentences < nextMonkeyCost(state)) message = 'Not enough Sentences. Sentences come from long chains of words and from lines of the play.';
+    if (state.currency < nextMonkeyCost(state)) message = `Not enough ${theme.currency}.`;
     else if (!canSeatMonkey(state)) message = noSeatMessage();
     else if (rooms.length > 1) {
       pickingDeptFor = 'buy';
@@ -196,7 +196,7 @@ function buyItem(id: string): void {
       message = deptPrompt('Which department gets the new monkey?');
     }
   } else if (id === 'combo') {
-    if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
+    if (!buyCapRaise(state)) message = noSentences;
   } else if (id === 'keys') {
     showingKeys = true;
   } else if (id === 'slots') {
@@ -225,7 +225,7 @@ function buyItem(id: string): void {
   } else if (id.startsWith('accessory:')) {
     const what = id.slice('accessory:'.length);
     const team = typists(state);
-    if (state.currency < accessoryCost(state, what)) message = `Not enough ${theme.currency}.`;
+    if (state.sentences < accessoryCost(state, what)) message = noSentences;
     else if (team.length === 1) message = buyAccessoryFor(team[0], what);
     else {
       pickingAccessory = what;
@@ -254,8 +254,10 @@ function buyItem(id: string): void {
 function buyAccessoryFor(i: number, id: string): string {
   const name = monkeyName(state, i);
   if (state.monkeys[i].accessories.includes(id)) return `${name} already has one.`;
-  return buyAccessory(state, i, id) ? `${name} looks sharp.` : `Not enough ${theme.currency}.`;
+  return buyAccessory(state, i, id) ? `${name} looks sharp.` : noSentences;
 }
+
+const noSentences = 'Not enough Sentences. They come from long chains of words and from lines of the play.';
 
 /** Why a new monkey can't be seated. */
 function noSeatMessage(): string {
