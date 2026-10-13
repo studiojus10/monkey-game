@@ -9,6 +9,8 @@ import {
   buyFasterTyping,
   buyLetter,
   availablePlays,
+  currentWork,
+  nextOwnedScene,
   buySection,
   getPlay,
   sceneOf,
@@ -299,6 +301,14 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           ? 'You can only pin lines from scenes you own.'
           : `You can pin up to ${maxPinnedLines} lines. Unpin one first.`;
       }
+    } else if (play && str && ',.<>'.includes(str)) {
+      const to = nextOwnedScene(state, play.id, scriptCursor, ',<'.includes(str) ? -1 : 1);
+      if (!to) message = 'You don\'t own any scenes yet.';
+      else {
+        scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === to.play));
+        scriptCursor = to.index;
+        findIndex = -1;
+      }
     } else if (key.name === 'tab') {
       scriptPlay = (scriptPlay + 1) % Math.max(1, availablePlays().length);
       scriptCursor = 0;
@@ -485,6 +495,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (key.name === 'p') {
     showingScript = true;
+    const work = currentWork(state);
+    if (work) {
+      scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === work.play));
+      scriptCursor = work.index;
+    }
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'w') {

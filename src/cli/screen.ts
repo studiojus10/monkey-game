@@ -463,7 +463,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
           `[a] ${section(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
           `[w] ${section('whole play', sectionPrice(state, play))}   (★ = affordable)`,
     '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] next play   [enter] pin/unpin',
-    '[f] next shortest line within reach   [esc] back to the typewriters',
+    '[,/.] previous/next scene you own   [f] next shortest line within reach   [esc] back to the typewriters',
     '',
     message,
   ].join('\n');

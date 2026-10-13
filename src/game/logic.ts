@@ -257,6 +257,40 @@ export function actBonus(play: Play, act: number): number {
 const samePin = (a: Pin, b: Pin) => a.play === b.play && a.index === b.index;
 
 /** Pins or unpins a line you own. Returns false if it isn't owned or the pin limit is reached. */
+/**
+ * Where the player is working, for opening the script browser: the most
+ * recent pin, else the first unwritten owned line of the play last written
+ * in, else of the first play owned. Null before any script is owned.
+ */
+export function currentWork(state: GameState): Pin | null {
+  const pin = state.pinned[state.pinned.length - 1];
+  if (pin && plays.has(pin.play)) return { ...pin };
+  const ids = [state.lastLine?.play, ...state.owned.map((k) => k.split(':')[0])];
+  const play = ids.map((id) => (id ? plays.get(id) : undefined)).find((p) => p && p.lines.some((_, i) => ownsLine(state, p, i)));
+  if (!play) return null;
+  const done = new Set(state.completed[play.id] ?? []);
+  const owned = play.lines.map((_, i) => i).filter((i) => ownsLine(state, play, i));
+  return { play: play.id, index: owned.find((i) => !done.has(i)) ?? owned[0] };
+}
+
+/**
+ * The first line of the next (dir 1) or previous (dir -1) owned scene from
+ * a line, across plays in order, wrapping around. Null if nothing is owned.
+ */
+export function nextOwnedScene(state: GameState, playId: string, index: number, dir: 1 | -1): Pin | null {
+  const all = [...plays.values()];
+  const starts = all.flatMap((p, order) =>
+    p.scenes.filter((sc) => ownsScene(state, p.id, sc)).map((sc) => ({ order, play: p.id, index: sc.lines[0] })),
+  ).sort((a, b) => a.order - b.order || a.index - b.index);
+  if (starts.length === 0) return null;
+  const here = Math.max(0, all.findIndex((p) => p.id === playId));
+  const play = plays.get(playId);
+  const at = play && sceneOf(play, index) ? sceneOf(play, index)!.lines[0] : index;
+  const cmp = (x: { order: number; index: number }) => x.order - here || x.index - at;
+  const pick = dir > 0 ? starts.find((x) => cmp(x) > 0) ?? starts[0] : [...starts].reverse().find((x) => cmp(x) < 0) ?? starts[starts.length - 1];
+  return { play: pick.play, index: pick.index };
+}
+
 export function togglePin(state: GameState, playId: string, index: number): boolean {
   const play = plays.get(playId);
   if (!play || !ownsLine(state, play, index)) return false;

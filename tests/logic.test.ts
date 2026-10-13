@@ -61,6 +61,8 @@ import {
   starterScenes,
   getPlay,
   openDepartment,
+  currentWork,
+  nextOwnedScene,
 } from '../src/game/logic';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -985,6 +987,61 @@ describe('department limits and slots', () => {
       typeLetter(s, 1, () => 0);
       expect(s.monkeys[0].line[0].text).toBe('AY');
       expect(s.monkeys[1].line[0].text).toBe('NO');
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
+describe('finding your place in the script', () => {
+  const playA = {
+    id: 'a',
+    title: 'A',
+    lines: [
+      [1, 1, 'X', 'No.'],
+      [1, 1, 'X', 'Ay.'],
+      [1, 2, 'X', 'No.'],
+      [2, 1, 'X', 'Ay.'],
+    ] as [number, number, string, string][],
+  };
+  const playB = { id: 'b', title: 'B', lines: [[1, 1, 'X', 'No.']] as [number, number, string, string][] };
+  const setup = () => {
+    setPlays([playA, playB]);
+    const s = createInitialState(0);
+    s.owned = ['a:1.1', 'a:2.1', 'b'];
+    return s;
+  };
+
+  it('opens on the latest pin, else the first unwritten line where monkeys last wrote', () => {
+    try {
+      const s = setup();
+      expect(currentWork(s)).toEqual({ play: 'a', index: 0 });
+      s.completed.a = [0];
+      expect(currentWork(s)).toEqual({ play: 'a', index: 1 });
+      s.lastLine = { play: 'b', index: 0, firstTime: true, points: 1, sentence: false };
+      expect(currentWork(s)).toEqual({ play: 'b', index: 0 });
+      togglePin(s, 'a', 3);
+      expect(currentWork(s)).toEqual({ play: 'a', index: 3 });
+      s.owned = [];
+      s.pinned = [];
+      s.lastLine = null;
+      expect(currentWork(s)).toBeNull();
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('skips to the next or previous owned scene, across plays and wrapping around', () => {
+    try {
+      const s = setup();
+      expect(nextOwnedScene(s, 'a', 1, 1)).toEqual({ play: 'a', index: 3 }); // skips unowned 1.2
+      expect(nextOwnedScene(s, 'a', 2, 1)).toEqual({ play: 'a', index: 3 }); // from an unowned scene too
+      expect(nextOwnedScene(s, 'a', 3, 1)).toEqual({ play: 'b', index: 0 });
+      expect(nextOwnedScene(s, 'b', 0, 1)).toEqual({ play: 'a', index: 0 });
+      expect(nextOwnedScene(s, 'a', 3, -1)).toEqual({ play: 'a', index: 0 });
+      expect(nextOwnedScene(s, 'a', 1, -1)).toEqual({ play: 'b', index: 0 });
+      s.owned = [];
+      expect(nextOwnedScene(s, 'a', 0, 1)).toBeNull();
     } finally {
       setPlays([]);
     }
