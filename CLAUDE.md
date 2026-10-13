@@ -18,7 +18,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck and tests on every PR. Run both b
 src/
   format.ts        number formatting (1.23K, 4.56M, ...), shared by any front end
   game/            pure game logic: no terminal, DOM, file system or timers
-    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, milestones, offline cap)
+    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, milestones, offline cap, per-second simulation cap)
     state.ts       GameState, MonkeyState and Stats shapes, createInitialState()
     plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()

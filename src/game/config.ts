@@ -201,3 +201,11 @@ export const maxOfflineSeconds = 8 * 60 * 60;
 // Offline time is simulated letter by letter up to this many letters; beyond
 // that, the rest is estimated from the simulated part so loading stays quick.
 export const maxOfflineLetters = 200_000;
+
+/**
+ * At most this many letters a second are simulated one by one while playing,
+ * shared across all monkeys. Faster typing than that is credited by scaling
+ * up the points and words of the letters that were simulated (as offline
+ * progress does), so huge speeds don't slow the game down.
+ */
+export const maxSimulatedLettersPerSecond = 4000;

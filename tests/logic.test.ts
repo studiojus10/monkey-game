@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   buyFasterTyping,
@@ -134,6 +134,18 @@ describe('typing', () => {
     expect(s.stats.bestWord).toBe('I');
     expect(s.stats.longestChain).toBe(5);
     expect(s.stats.secondsTyping).toBe(2);
+  });
+
+  it('simulates at most a budget of letters a tick, and credits the rest', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.monkeys.push(createMonkey());
+    s.typingLevel = 60; // far more letters a second than the budget
+    const due = Math.floor(monkeySpeed(s)) * 2;
+    tick(s, 1, rng);
+    expect(s.stats.letters.I).toBeLessThanOrEqual(maxSimulatedLettersPerSecond + 1);
+    expect(s.currency).toBeCloseTo(due, -2); // every I pays 1 point
+    expect(s.wordsTyped).toBeCloseTo(due, -2);
   });
 
   it('poking types one extra letter', () => {

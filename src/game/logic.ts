@@ -5,6 +5,7 @@ import {
   letterShop,
   lineWidth,
   maxOfflineLetters,
+  maxSimulatedLettersPerSecond,
   maxMonkeyNameLength,
   maxPinnedLines,
   milestones,
@@ -650,6 +651,9 @@ function dueSlot(state: GameState, m: MonkeyState, dict: Dictionary): string {
  * as a finished word (it can't run into the next letters); otherwise it
  * presses a random key (usually a letter, or a combination or word key).
  */
+/** Points paid for words (not line bonuses) since the module loaded; tick() uses the difference. */
+let wordEarnings = 0;
+
 export function typeLetter(state: GameState, index: number, rng: Rng = Math.random): void {
   const m = state.monkeys[index];
   if (!m || m.manager || state.letters.length === 0) return;
@@ -670,6 +674,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
     if (e.kind === 'word') {
       const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state) * managerMultiplier(state, m);
       earn(state, paid);
+      wordEarnings += paid;
       state.wordsTyped++;
       state.lastWord = e.text;
       state.lastWordPoints = paid;
@@ -954,14 +959,28 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
   if (seconds <= 0 || state.letters.length === 0) return;
   state.stats.secondsTyping += seconds;
   manage(state);
-  state.monkeys.forEach((m, i) => {
-    if (m.manager) return;
+  const due = state.monkeys.map((m) => {
+    if (m.manager) return 0;
     m.progress += monkeySpeed(state) * seconds;
-    while (m.progress >= 1) {
-      m.progress -= 1;
-      typeLetter(state, i, rng);
-    }
+    const n = Math.floor(m.progress);
+    m.progress -= n;
+    return n;
   });
+  const total = due.reduce((a, b) => a + b, 0);
+  const budget = Math.max(state.monkeys.length, Math.floor(maxSimulatedLettersPerSecond * seconds));
+  const share = total > budget ? budget / total : 1;
+  const before = wordEarnings;
+  const wordsBefore = state.wordsTyped;
+  due.forEach((n, i) => {
+    const typed = share < 1 ? Math.round(n * share) : n;
+    for (let k = 0; k < typed; k++) typeLetter(state, i, rng);
+  });
+  // Letters past the budget earn what the simulated ones did for words, on average.
+  if (share < 1) {
+    const extra = total / Math.max(1, due.reduce((a, n) => a + Math.round(n * share), 0)) - 1;
+    earn(state, (wordEarnings - before) * extra);
+    state.wordsTyped += Math.round((state.wordsTyped - wordsBefore) * extra);
+  }
 }
 
 /**
