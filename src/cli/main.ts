@@ -7,6 +7,9 @@ import { sceneName, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   buyFasterTyping,
+  buyTypewriter,
+  skillCap,
+  typewriterName,
   buyLetter,
   availablePlays,
   currentWork,
@@ -66,6 +69,8 @@ import {
   renderScreen,
   renderScript,
   renderContents,
+  typists,
+  typingPickPrompt,
   renderDevMenu,
   contentsPageSize,
   renderSlotsMenu,
@@ -107,6 +112,7 @@ let selectedSlot = 0; // index into state.slots
 let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
+let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
 let pickingDepartment = false;
 let pickingMonkeyToMove = false;
 let pickingManager = false;
@@ -131,6 +137,17 @@ function loadPlays(): PlayData[] {
     .filter((f) => f.endsWith('.json'))
     .sort()
     .map((f) => JSON.parse(readFileSync(dir + f, 'utf8')) as PlayData);
+}
+
+/** Buys a skill level or a typewriter for monkey `i`; returns the message to show. */
+function buyTyping(i: number, what: 'skill' | 'typewriter'): string {
+  const m = state.monkeys[i];
+  const name = monkeyName(state, i);
+  if (what === 'typewriter') {
+    return buyTypewriter(state, i) ? `${name} has a ${typewriterName(m.typewriter)} now.` : `Not enough ${theme.currency}.`;
+  }
+  if (m.skill >= skillCap(m)) return `${name}'s ${typewriterName(m.typewriter)} can't keep up. Buy a better typewriter with [7].`;
+  return buyFasterTyping(state, i) ? '' : `Not enough ${theme.currency}.`;
 }
 
 function draw() {
@@ -251,6 +268,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       str && /^[1-9]$/.test(str) && moveMonkey(state, i)
         ? `${monkeyName(state, i)} now works in ${genreNames[monkeyGenre(state, state.monkeys[i])!]}.`
         : 'No monkey moved. Moving needs a second department.';
+    return draw();
+  }
+
+  if (pickingTyping) {
+    const what = pickingTyping;
+    pickingTyping = '';
+    const i = Number(str) - 1;
+    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) message = 'Nothing bought.';
+    else message = buyTyping(i, what);
     return draw();
   }
 
@@ -488,10 +514,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     poke(state);
   } else if (key.name === 'space') {
     shopOpen = !shopOpen;
-  } else if (!shopOpen && str && /^[1-6aug]$/.test(str)) {
+  } else if (!shopOpen && str && /^[1-7aug]$/.test(str)) {
     message = 'Open the shop with [space] first.';
-  } else if (str === '1') {
-    if (!buyFasterTyping(state)) message = `Not enough ${theme.currency}.`;
+  } else if (str === '1' || str === '7') {
+    const what = str === '1' ? 'skill' : 'typewriter';
+    const team = typists(state);
+    if (team.length === 1) message = buyTyping(team[0], what);
+    else if (team.length > 1) {
+      pickingTyping = what;
+      message = typingPickPrompt(state, what);
+    }
   } else if (str === '2' && unownedLetters(state).length > 0) {
     if (state.currency < letterCost(state.letters.length)) {
       message = `Not enough ${theme.currency}.`;

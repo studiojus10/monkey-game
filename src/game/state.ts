@@ -17,6 +17,8 @@ export interface MonkeyState {
   chainPoints: number; // sum of the chain's word points, before the multiplier
   chainRecent: string[]; // the chain's latest words, enough to hold the longest play line
   chainLength: number; // words in the current chain, for word slots
+  skill: number; // typing skill level: "Faster typing" bought for this monkey
+  typewriter: number; // typewriter tier, 0 = the first; caps skill at (tier + 1) x levelsPerTypewriter
 }
 
 /**
@@ -78,7 +80,6 @@ export interface GameState {
   letters: string[]; // owned letters; empty until the player picks one
   monkeys: MonkeyState[];
   unassignedMonkeys: number; // earned monkeys waiting for the player to pick their department
-  typingLevel: number; // "Faster typing" upgrades bought
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
   lastWordPoints: number; // what it paid, combo included
@@ -106,7 +107,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, skill: 0, typewriter: 0 };
 }
 
 export function createInitialState(now = Date.now()): GameState {
@@ -133,7 +134,6 @@ export function createInitialState(now = Date.now()): GameState {
     letters: [],
     monkeys: [createMonkey()],
     unassignedMonkeys: 0,
-    typingLevel: 0,
     wordsTyped: 0,
     lastWord: '',
     lastWordPoints: 0,

@@ -83,7 +83,8 @@ describe('terminal screen', () => {
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
     expect(text.split('\n')[2]).toBe('M-1(0.50/s) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
-    expect(plain(text)).toContain('[1] ★Faster typing (level 0): 0.50 -> 0.63 letters/sec   cost 10 Points');
+    expect(plain(text)).toContain('[1] ★Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
+    expect(plain(text)).toContain('[7] ★Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
     expect(plain(text)).toContain('[2] ★Buy a letter   cost 25 Points'); // the 2nd letter costs no Words
     s.letters.push('A');
     expect(plain(renderScreen(s, '', true))).toContain('[2]  Buy a letter   cost 75 Points + 1 Words');
@@ -100,7 +101,7 @@ describe('terminal screen', () => {
     expect(closed).toContain('[enter] pet the monkey   [space] open the shop');
     const open = plain(renderScreen(s, '', true));
     expect(open).toContain('Faster typing');
-    expect(open).toContain('[space] close the shop   [1-6] buy');
+    expect(open).toContain('[space] close the shop   [1-7] buy');
   });
 
   it('celebrates the last line a monkey wrote', () => {

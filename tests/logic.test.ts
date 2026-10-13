@@ -3,6 +3,10 @@ import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetR
 import {
   applyOfflineProgress,
   buyFasterTyping,
+  buyTypewriter,
+  skillCap,
+  typewriterCost,
+  typewriterName,
   buyLetter,
   buyCapRaise,
   availableKeys,
@@ -142,8 +146,8 @@ describe('typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
-    s.typingLevel = 60; // far more letters a second than the budget
-    const due = Math.floor(monkeySpeed(s)) * 2;
+    for (const m of s.monkeys) m.skill = 60; // far more letters a second than the budget
+    const due = Math.floor(monkeySpeed(s, s.monkeys[0])) * 2;
     tick(s, 1, rng);
     expect(s.stats.letters.I).toBeLessThanOrEqual(maxSimulatedLettersPerSecond + 1);
     expect(s.currency).toBeCloseTo(due, -2); // every I pays 1 point
@@ -192,11 +196,34 @@ describe('faster typing', () => {
     s.currency = cost;
     expect(buyFasterTyping(s)).toBe(true);
     expect(s.currency).toBe(0);
-    expect(s.typingLevel).toBe(1);
+    expect(s.monkeys[0].skill).toBe(1);
     expect(typingUpgradeCost(1)).toBeGreaterThan(cost);
     expect(lettersPerSecond(1)).toBe(typing.baseLettersPerSecond * typing.speedPerLevel);
     tick(s, 8, rng);
     expect(s.currency).toBe(Math.floor(8 * lettersPerSecond(1)));
+  });
+
+  it('is per monkey and capped by its typewriter, which can be upgraded', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.monkeys.push(createMonkey());
+    s.currency = 1e12;
+    expect(buyFasterTyping(s, 1)).toBe(true);
+    expect(s.monkeys.map((m) => m.skill)).toEqual([0, 1]);
+    expect(monkeySpeed(s, s.monkeys[1])).toBeGreaterThan(monkeySpeed(s, s.monkeys[0]));
+    while (buyFasterTyping(s, 1));
+    expect(s.monkeys[1].skill).toBe(typing.levelsPerTypewriter); // the first typewriter's cap
+    expect(skillCap(s.monkeys[1])).toBe(typing.levelsPerTypewriter);
+    const price = typewriterCost(s.monkeys[1]);
+    expect(price).toBe(typing.typewriterBaseCost);
+    const before = s.currency;
+    expect(buyTypewriter(s, 1)).toBe(true);
+    expect(s.currency).toBe(before - price);
+    expect(typewriterName(s.monkeys[1].typewriter)).toBe(typing.typewriters[1]);
+    expect(typewriterCost(s.monkeys[1])).toBe(price * typing.typewriterCostGrowth);
+    expect(buyFasterTyping(s, 1)).toBe(true);
+    expect(s.monkeys[1].skill).toBe(typing.levelsPerTypewriter + 1);
+    expect(buyFasterTyping(s, 5)).toBe(false); // no such monkey
   });
 });
 
@@ -757,7 +784,7 @@ describe('departments, the scene shop and milestones', () => {
       expect(pointsMultiplier(s)).toBeCloseTo(1 + milestones.scenePointsPerLine);
 
       const cost = nextMonkeyCost(s);
-      const speed = monkeySpeed(s);
+      const speed = monkeySpeed(s, s.monkeys[0]);
       typeAll(s, 'XNOXLORD'); // scene 1.2 (2 lines), which finishes act 1 (3 lines)
       expect(s.scenesDone).toEqual(['one:1.1', 'one:1.2']);
       expect(pointsMultiplier(s)).toBeCloseTo(1 + 3 * milestones.scenePointsPerLine);
@@ -766,7 +793,7 @@ describe('departments, the scene shop and milestones', () => {
       expect(s.monkeys).toHaveLength(1 + milestones.actFreeMonkeys);
       expect(s.monkeys[1].department).toBe('comedy');
       expect(nextMonkeyCost(s)).toBe(cost); // free monkeys don't raise the price
-      expect(monkeySpeed(s)).toBeCloseTo(speed * (1 + 3 * milestones.actSpeedPerLine));
+      expect(monkeySpeed(s, s.monkeys[0])).toBeCloseTo(speed * (1 + 3 * milestones.actSpeedPerLine));
 
       typeAll(s, 'XNORMALX'); // the last line: act 2 and the play
       expect(s.playsDone).toEqual(['one']);

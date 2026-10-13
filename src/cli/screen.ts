@@ -1,4 +1,4 @@
-import { letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   availablePlays,
@@ -35,6 +35,9 @@ import {
   slotsUnlocked,
   monkeyName,
   typingUpgradeCost,
+  skillCap,
+  typewriterCost,
+  typewriterName,
 } from '../game/logic';
 import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
@@ -164,12 +167,11 @@ export function renderScreen(state: GameState, message = '', shopOpen = false): 
 
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
-  const speed = monkeySpeed(state);
   const shown = state.monkeys.slice(0, maxMonkeyLines);
   // Pad names and multipliers so every monkey's text starts in the same column.
   // With more than one department, each monkey's line starts with its department's initial.
   const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
-  const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}(${speed.toFixed(2)}/s)`, `x${comboMultiplier(state, m)}`]);
+  const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}(${monkeySpeed(state, m).toFixed(2)}/s)`, `x${comboMultiplier(state, m)}`]);
   const nameWidth = Math.max(...labels.map(([n]) => n.length));
   const comboWidth = Math.max(...labels.map(([, c]) => c.length));
   lines.push(
@@ -192,18 +194,64 @@ export function renderScreen(state: GameState, message = '', shopOpen = false): 
     ...pinnedText(state),
     '',
     ...(shopOpen ? shopLines(state) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-6] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shopOpen ? 'close the shop   [1-7] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );
   return lines.join('\n');
 }
 
+/** Monkeys that type (not managers), by index. */
+export function typists(state: GameState): number[] {
+  return state.monkeys.flatMap((m, i) => (m.manager ? [] : [i]));
+}
+
+/** Shop lines [1] (typing skill) and [7] (typewriters): spelled out for one monkey, the cheapest for several. */
+function typingShopLines(state: GameState): string[] {
+  const team = typists(state);
+  const mark = (n: number) => (state.currency >= n ? '★' : ' ');
+  const trainable = team.filter((i) => state.monkeys[i].skill < skillCap(state.monkeys[i]));
+  const cheapestSkill = Math.min(...trainable.map((i) => typingUpgradeCost(state.monkeys[i].skill)));
+  const cheapestWriter = Math.min(...team.map((i) => typewriterCost(state.monkeys[i])));
+  if (team.length === 1) {
+    const m = state.monkeys[team[0]];
+    const name = monkeyName(state, team[0]);
+    const cost = typingUpgradeCost(m.skill);
+    const writer = typewriterCost(m);
+    return [
+      m.skill < skillCap(m)
+        ? `  [1] ${mark(cost)}Faster typing for ${name} (skill ${m.skill}/${skillCap(m)}): ` +
+          `${monkeySpeed(state, m).toFixed(2)} -> ${monkeySpeed(state, m, m.skill + 1).toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`
+        : `  [1]  ${name}'s ${typewriterName(m.typewriter)} can't keep up: skill ${m.skill}/${skillCap(m)}. Buy a better typewriter with [7]`,
+      `  [7] ${mark(writer)}${typewriterName(m.typewriter + 1)} for ${name} (skill cap ${skillCap(m)} -> ${skillCap(m) + typing.levelsPerTypewriter})   ` +
+        `cost ${price(writer, state.currency)} ${theme.currency}`,
+    ];
+  }
+  return [
+    trainable.length > 0
+      ? `  [1] ${mark(cheapestSkill)}Faster typing for a monkey   from ${price(cheapestSkill, state.currency)} ${theme.currency}`
+      : `  [1]  Faster typing: every monkey's typewriter is maxed out. Buy better ones with [7]`,
+    ...(team.length > 0
+      ? [`  [7] ${mark(cheapestWriter)}Better typewriter for a monkey   from ${price(cheapestWriter, state.currency)} ${theme.currency}`]
+      : []),
+  ];
+}
+
+/** Picker prompt for [1] or [7]: each typing monkey with its skill and the price. */
+export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter'): string {
+  const rows = typists(state)
+    .filter((i) => i < 9)
+    .map((i) => {
+      const m = state.monkeys[i];
+      const cost = what === 'skill' ? typingUpgradeCost(m.skill) : typewriterCost(m);
+      const capped = what === 'skill' && m.skill >= skillCap(m);
+      return `[${i + 1}] ${monkeyName(state, i)} ${m.skill}/${skillCap(m)}${capped ? ' (needs a typewriter)' : ` ${price(cost, state.currency)}`}`;
+    });
+  return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}`;
+}
+
 /** The shop, shown while it is open. */
 function shopLines(state: GameState): string[] {
-  const speed = monkeySpeed(state);
-  const nextSpeed = monkeySpeed(state, state.typingLevel + 1);
-  const cost = typingUpgradeCost(state.typingLevel);
   const nextLetter = letterCost(state.letters.length);
   const nextLetterWords = letterWordsCost(state.letters.length);
   const nextMonkey = nextMonkeyCost(state);
@@ -211,8 +259,7 @@ function shopLines(state: GameState): string[] {
   const mark = (have: number, price: number) => (have >= price ? '★' : ' ');
   return [
     'Shop',
-    `  [1] ${mark(state.currency, cost)}Faster typing (level ${state.typingLevel}): ` +
-      `${speed.toFixed(2)} -> ${nextSpeed.toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`,
+    ...typingShopLines(state),
     ...(unownedLetters(state).length > 0
       ? [
           `  [2] ${canAffordLetter(state) ? '★' : ' '}Buy a letter   cost ${price(nextLetter, state.currency)} ${theme.currency}` +

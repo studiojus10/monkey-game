@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chooseFirstLetter, typeLetter } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
-import { createInitialState } from '../src/game/state';
+import { createInitialState, createMonkey } from '../src/game/state';
 
 describe('save/load', () => {
   it('round-trips state', () => {
@@ -40,6 +40,19 @@ describe('save/load', () => {
     const raw = JSON.parse(serialize(s));
     delete raw.state.words;
     expect(deserialize(JSON.stringify(raw)).words).toBe(2);
+  });
+
+  it('gives every monkey of an old save its shared typing level, with the typewriter it needs', () => {
+    const s = createInitialState(0);
+    s.monkeys.push(createMonkey());
+    const raw = JSON.parse(serialize(s));
+    raw.state.typingLevel = 23;
+    for (const m of raw.state.monkeys) {
+      delete m.skill;
+      delete m.typewriter;
+    }
+    const loaded = deserialize(JSON.stringify(raw));
+    expect(loaded.monkeys.map((m) => [m.skill, m.typewriter])).toEqual([[23, 2], [23, 2]]);
   });
 
   it('fills in missing fields', () => {

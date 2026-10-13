@@ -17,7 +17,8 @@ npm start
 | `a` or `i` | Pick your first letter (start of the game only) |
 | `enter` | Pet the monkey into typing an extra letter |
 | `space` | Open or close the shop (closed at the start); `1`–`6`, `a`, `u` and `g` work while it is open |
-| `1` | Buy "Faster typing" (★ marks what you can afford) |
+| `1` | Buy "Faster typing" for a monkey (pick which if you have several; ★ marks what you can afford) |
+| `7` | Buy a monkey a better typewriter, raising its typing skill cap by 10 levels |
 | `2` | Buy a letter (points, plus Words from the 3rd letter on), then press the letter you want |
 | `3` | Buy another monkey (costs Lines): pick its department if more than one has room, then type its name (`enter` keeps M-2, M-3, ...) |
 | `a` | Assign a monkey earned from an act to a department |
@@ -49,7 +50,7 @@ npm start
 - **More monkeys**, bought with Lines. Each types its own line and can be named. The first 10 are shown under the title, their text lined up in one column.
 - **Typewriter keys**, once you own 13 letters: combination keys (`TH`, `ING`, `QU`, ...) and word keys type their whole text in one keystroke. A word of 3+ letters becomes a word key once your monkeys have spelled it 100 times (10% more for each word key you own). Only useful keys are offered; a test showed junk clusters dilute the pool, while good keys roughly double points per keystroke.
 - **Word slots**, once you own 13 letters, bought with Lines: each locks one position in a chain to a word you choose ("3rd word: FRIEND"), typed as a finished word. Switch slots off any time for fully random typing. Pinned lines show slot words in bold where they match.
-- **Faster typing**, bought with points: each level makes the monkey type 25% faster and costs more than the last.
+- **Faster typing**, bought with points for each monkey separately: each level of a monkey's typing skill makes it type 25% faster and costs more than the last. Its typewriter caps the skill (10 levels on the Rusty typewriter); a better typewriter allows 10 more.
 - **Autosave** to `save.json` every 10 seconds and on quit. Set `IDLE_SAVE=path/to/file.json` to use a different file, which is handy for testing from a fresh start.
 - **Offline progress**: the monkeys keep typing while you're away, up to 8 hours.
 

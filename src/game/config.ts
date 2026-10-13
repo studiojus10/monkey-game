@@ -95,11 +95,20 @@ export const typewriterKeys = {
   combinations: ['TH', 'HE', 'IN', 'ER', 'AN', 'ST', 'ND', 'OU', 'QU', 'SH', 'CH', 'ING', 'ION', 'ENT'],
 };
 
+/**
+ * Each monkey has its own typing skill, trained one level at a time with
+ * points. Its typewriter caps the skill at levelsPerTypewriter levels per
+ * typewriter; a better typewriter (also points) allows another set of levels.
+ */
 export const typing = {
   baseLettersPerSecond: 0.5,
   speedPerLevel: 1.25,
   upgradeBaseCost: 10,
   upgradeCostGrowth: 1.5,
+  levelsPerTypewriter: 10,
+  typewriterBaseCost: 1000, // points for the 2nd typewriter
+  typewriterCostGrowth: 25, // x per typewriter after that
+  typewriters: ['Rusty typewriter', 'Portable typewriter', 'Office typewriter', 'Electric typewriter', 'Golden typewriter', 'Diamond typewriter'],
 };
 
 /**

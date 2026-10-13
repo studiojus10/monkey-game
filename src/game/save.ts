@@ -1,3 +1,4 @@
+import { typing } from './config';
 import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
@@ -28,6 +29,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const str = (v: unknown) => (typeof v === 'string' ? v : '');
     const strings = (v: unknown) =>
       Array.isArray(v) ? v.filter((w): w is string => typeof w === 'string') : [];
+    const oldTypingLevel = Math.max(0, Math.floor(num((s as { typingLevel?: unknown }).typingLevel, 0)));
     const monkey = (m: Partial<MonkeyState>): MonkeyState => ({
       name: str(m?.name),
       department: str(m?.department),
@@ -48,6 +50,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       chainPoints: num(m?.chainPoints, 0),
       chainRecent: strings(m?.chainRecent),
       chainLength: Math.max(0, Math.floor(num(m?.chainLength, 0))),
+      // Saves from before per-monkey skill had one shared "Faster typing" level: every monkey keeps it,
+      // with the typewriter it needs.
+      skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
+      typewriter: Math.max(0, Math.floor(num(m?.typewriter, Math.max(0, Math.ceil(oldTypingLevel / typing.levelsPerTypewriter) - 1)))),
     });
     const completed: Record<string, number[]> = {};
     if (s.completed && typeof s.completed === 'object') {
@@ -131,7 +137,6 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         : [],
       monkeys: monkeys.length > 0 ? monkeys : [createMonkey()],
       unassignedMonkeys: Math.max(0, Math.floor(num(s.unassignedMonkeys, 0))),
-      typingLevel: Math.max(0, Math.floor(num(s.typingLevel, 0))),
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastWordPoints: num(s.lastWordPoints, 0),

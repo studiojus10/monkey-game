@@ -240,9 +240,9 @@ export function speedMultiplier(state: GameState): number {
   return 1 + state.speedBonus;
 }
 
-/** Letters per second for each monkey, with "Faster typing" and act bonuses. */
-export function monkeySpeed(state: GameState, level = state.typingLevel): number {
-  return lettersPerSecond(level) * speedMultiplier(state);
+/** Letters per second for a monkey, from its typing skill and act bonuses. */
+export function monkeySpeed(state: GameState, m: MonkeyState, skill = m.skill): number {
+  return lettersPerSecond(skill) * speedMultiplier(state);
 }
 
 /** Points bonus for finishing a scene, by its length. */
@@ -970,7 +970,7 @@ export function manage(state: GameState): void {
   }
 }
 
-/** Letters per second for each monkey at a given "Faster typing" level. */
+/** Letters per second for a monkey at a given typing skill level (before bonuses). */
 export function lettersPerSecond(level: number): number {
   return typing.baseLettersPerSecond * Math.pow(typing.speedPerLevel, level);
 }
@@ -979,12 +979,40 @@ export function typingUpgradeCost(level: number): number {
   return Math.ceil(typing.upgradeBaseCost * Math.pow(typing.upgradeCostGrowth, level));
 }
 
-/** Buys one level of "Faster typing". */
-export function buyFasterTyping(state: GameState): boolean {
-  const cost = typingUpgradeCost(state.typingLevel);
-  if (state.letters.length === 0 || state.currency < cost) return false;
+/** The highest typing skill a monkey's typewriter allows. */
+export function skillCap(m: MonkeyState): number {
+  return (m.typewriter + 1) * typing.levelsPerTypewriter;
+}
+
+/** Name of a typewriter tier. */
+export function typewriterName(tier: number): string {
+  return typing.typewriters[tier] ?? `Typewriter Mk ${tier + 1}`;
+}
+
+/** Points price of a monkey's next typewriter. */
+export function typewriterCost(m: MonkeyState): number {
+  return Math.ceil(typing.typewriterBaseCost * Math.pow(typing.typewriterCostGrowth, m.typewriter));
+}
+
+/** Buys one level of typing skill ("Faster typing") for monkey `index`, up to its typewriter's cap. */
+export function buyFasterTyping(state: GameState, index = 0): boolean {
+  const m = state.monkeys[index];
+  if (!m || state.letters.length === 0 || m.skill >= skillCap(m)) return false;
+  const cost = typingUpgradeCost(m.skill);
+  if (state.currency < cost) return false;
   state.currency -= cost;
-  state.typingLevel++;
+  m.skill++;
+  return true;
+}
+
+/** Buys monkey `index` a better typewriter, allowing another set of skill levels. */
+export function buyTypewriter(state: GameState, index = 0): boolean {
+  const m = state.monkeys[index];
+  if (!m || state.letters.length === 0) return false;
+  const cost = typewriterCost(m);
+  if (state.currency < cost) return false;
+  state.currency -= cost;
+  m.typewriter++;
   return true;
 }
 
@@ -994,7 +1022,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
   manage(state);
   const due = state.monkeys.map((m) => {
     if (m.manager) return 0;
-    m.progress += monkeySpeed(state) * seconds;
+    m.progress += monkeySpeed(state, m) * seconds;
     const n = Math.floor(m.progress);
     m.progress -= n;
     return n;
@@ -1023,7 +1051,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
  */
 export function applyOfflineProgress(state: GameState, now: number, rng: Rng = Math.random): number {
   const seconds = Math.min(Math.max(0, (now - state.lastSaved) / 1000), maxOfflineSeconds);
-  const letters = seconds * monkeySpeed(state) * state.monkeys.length;
+  const letters = seconds * state.monkeys.reduce((n, m) => n + (m.manager ? 0 : monkeySpeed(state, m)), 0);
   const simulated = Math.min(1, maxOfflineLetters / Math.max(letters, 1));
   const before = state.currency;
   const wordsBefore = state.wordsTyped;

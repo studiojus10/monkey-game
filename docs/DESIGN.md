@@ -70,7 +70,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 ## Monkeys
 
 - You start with **one monkey**. More monkeys are a **late-game** upgrade bought with [Lines](#currencies). (Starting guess: 10 Lines, ×2 each.) The screen shows the first 10 monkey lines and sums up the rest.
-- Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with a repeatable "Faster typing" upgrade bought with points (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy.
+- Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with "Faster typing", bought with points **for each monkey separately** **(decided 2026-10-13)**: it trains that monkey's typing skill (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy. A monkey's **typewriter** caps its skill: the Rusty typewriter allows 10 levels, and each better typewriter (Portable, Office, Electric, Golden, Diamond, then Mk 7, ...) allows 10 more (starting guess: 1,000 points for the second, ×25 each after). New monkeys start at skill 0 on a Rusty typewriter, so each monkey is its own investment.
 - The player can name each monkey when buying it, or later with `n`; unnamed monkeys show as M-1, M-2, ...
 - Each monkey works in one [department](#departments).
 - Pressing **enter** pets your first monkey into typing one extra letter immediately, so the early game has something to do.
