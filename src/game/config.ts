@@ -64,6 +64,17 @@ export const combo = {
 };
 
 /**
+ * Sentences from babbling: when a monkey's chain ends, it pays a Sentence if
+ * it held at least chainWords words of wordMinLength+ letters, and one more
+ * for every extraEvery such words past that. Renewable and slow-paced.
+ */
+export const sentenceRules = {
+  chainWords: 3, // measured with scripts/simulate.ts: about 40 the first hour, about 100 an hour by hour 5
+  wordMinLength: 4, // the same long words that raise the combo
+  extraEvery: 3,
+};
+
+/**
  * Typing a line of the play word for word: every time it pays a Sentence
  * (lines of at least sentenceMinWords words only, so one-word lines can't be
  * farmed); the first time it pays a Line and a points bonus of

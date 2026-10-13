@@ -13,7 +13,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { accessories, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
+import { accessories, sentenceRules, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
 import {
   accessoryCost,
   availableKeys,
@@ -75,6 +75,9 @@ import type { PlayData } from '../src/game/plays';
 import { createInitialState, type GameState } from '../src/game/state';
 
 const hours = Number(process.argv[2] ?? 24);
+// Try other Sentence settings without editing config: SIM_CHAIN_WORDS=6 SIM_WORD_MIN=3
+if (process.env.SIM_CHAIN_WORDS) sentenceRules.chainWords = Number(process.env.SIM_CHAIN_WORDS);
+if (process.env.SIM_WORD_MIN) sentenceRules.wordMinLength = Number(process.env.SIM_WORD_MIN);
 let seed = Number(process.argv[3] ?? 1);
 const rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
@@ -200,7 +203,7 @@ while (t < end) {
     const written = Object.values(s.completed).reduce((a, l) => a + l.length, 0);
     console.log(
       `   -- ${fmt(t)}: ${s.letters.length} letters, ${s.monkeys.length} monkeys, ${written} lines written, ` +
-        `points ${s.currency.toExponential(2)}, Lines ${s.lines}, Sentences ${s.sentences}, Words ${s.words}, ` +
+        `points ${s.currency.toExponential(2)}, Lines ${s.lines}, Sentences ${s.sentences} (${s.stats.chainSentences} from chains), Words ${s.words}, ` +
         `skill ${s.monkeys.map((m) => m.skill).join('/')}, rooms ${s.office.length}, ` +
         `scenes owned ${s.owned.length}, lines in reach ${availablePlays().reduce((n, p) => n + reachableLines(s, p.id).length, 0)}`,
     );

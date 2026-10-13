@@ -18,7 +18,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck and tests on every PR. Run both b
 src/
   format.ts        number formatting (1.23K, 4.56M, ...), shared by any front end
   game/            pure game logic: no terminal, DOM, file system or timers
-    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture, energy, accessories, milestones, offline cap, per-second simulation cap)
+    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture, energy, accessories, milestones, sentenceRules (Sentences from long chains), offline cap, per-second simulation cap)
     state.ts       GameState, MonkeyState and Stats shapes, createInitialState()
     plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
@@ -34,7 +34,7 @@ src/
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line
 data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare
-scripts/           import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json; import-sonnets.ts builds data/plays/sonnets.json
+scripts/           simulate.ts plays headlessly with a greedy bot to check pacing (npx tsx scripts/simulate.ts [hours] [seed]); import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json; import-sonnets.ts builds data/plays/sonnets.json
 tests/             unit tests for logic, save, formatting and the terminal screen
 ```
 

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  chainSentences,
   accessoryCost,
   buyAccessory,
   wearing,
@@ -1424,6 +1425,36 @@ describe('accessories', () => {
     const rates = energyRates(s, m);
     expect(rates.drainSeconds).toBeCloseTo(600 / 0.85);
     expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.3);
+  });
+});
+
+describe('sentences from long chains', () => {
+  const typeAll = (s: GameState, text: string) => {
+    for (const ch of text) typeLetter(s, 0, () => (s.letters.indexOf(ch) + 0.5) / s.letters.length);
+  };
+
+  it('pays a Sentence for a chain of enough long words, and more for longer chains', () => {
+    const n = sentenceRules.chainWords;
+    expect(chainSentences(n - 1)).toBe(0);
+    expect(chainSentences(n)).toBe(1);
+    expect(chainSentences(n + sentenceRules.extraEvery)).toBe(2);
+  });
+
+  it('pays when the chain breaks, counting only long words', () => {
+    setWordList(['CATS', 'DOGS', 'BIRD', 'AT']);
+    try {
+      const s = createInitialState(0);
+      s.letters = ['C', 'A', 'T', 'S', 'D', 'O', 'G', 'B', 'I', 'R', 'X'];
+      typeAll(s, 'CATSATDOGSBIRDCATS'); // 4 long words (and AT)
+      expect(s.monkeys[0].chainCounted).toBe(4);
+      expect(s.sentences).toBe(0);
+      typeAll(s, 'XX'); // a letter that fits no word ends the chain
+      expect(s.sentences).toBe(chainSentences(4));
+      expect(s.stats.chainSentences).toBe(chainSentences(4));
+      expect(s.monkeys[0].chainCounted).toBe(0);
+    } finally {
+      setWordList([]);
+    }
   });
 });
 

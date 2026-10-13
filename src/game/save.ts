@@ -51,6 +51,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       chainPoints: num(m?.chainPoints, 0),
       chainRecent: strings(m?.chainRecent),
       chainLength: Math.max(0, Math.floor(num(m?.chainLength, 0))),
+      chainCounted: Math.max(0, Math.floor(num(m?.chainCounted, 0))),
       // Saves from before per-monkey skill had one shared "Faster typing" level: every monkey keeps it,
       // with the typewriter it needs.
       skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
@@ -110,6 +111,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
           : null,
       bestLinePoints: Math.max(0, num(st.bestLinePoints, 0)),
       pets: Math.max(0, Math.floor(num(st.pets, 0))),
+      chainSentences: Math.max(0, Math.floor(num(st.chainSentences, 0))),
       secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
     };
     const oldPlay = file.version === 2 ? str(s.play) : '';

@@ -2,6 +2,7 @@ import {
   combo,
   extraWords,
   lineRewards,
+  sentenceRules,
   letterShop,
   lineWidth,
   maxOfflineLetters,
@@ -1003,13 +1004,27 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
       countWord(state, m, e.text, paid, !!slot && e.text === slot);
       checkPlayLines(state, m);
     } else {
+      endChain(state, m);
       m.chainWords = [];
       m.chainPoints = 0;
       m.chainRecent = [];
       m.chainLength = 0;
+      m.chainCounted = 0;
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
+}
+
+/** Sentences a chain of `counted` long-enough words pays when it ends. */
+export function chainSentences(counted: number): number {
+  return counted < sentenceRules.chainWords ? 0 : 1 + Math.floor((counted - sentenceRules.chainWords) / sentenceRules.extraEvery);
+}
+
+/** A chain just broke: a long one pays Sentences. */
+function endChain(state: GameState, m: MonkeyState): void {
+  const n = chainSentences(m.chainCounted);
+  state.sentences += n;
+  state.stats.chainSentences += n;
 }
 
 /** Records a scored word in the statistics. Slot words count their letters as typed here. */
@@ -1024,6 +1039,7 @@ function countWord(state: GameState, m: MonkeyState, word: string, paid: number,
     st.bestWordPoints = paid;
   }
   st.longestChain = Math.max(st.longestChain, m.chainLength);
+  if (word.length >= sentenceRules.wordMinLength) m.chainCounted++;
 }
 
 /** The combo multiplier: how many different long words are in the chain, up to the cap. */

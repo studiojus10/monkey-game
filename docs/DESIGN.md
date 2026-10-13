@@ -103,6 +103,7 @@ Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is 
 
 - **Points** come from every word. They buy letters, typing speed and typewriter keys.
 - **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy repeatable upgrades such as raising the combo cap.
+- **Sentences also come from long chains (balance pass, 2026-10-13)**, so they are a slow but renewable currency: when a chain breaks, it pays 1 Sentence if it held 3+ words of 4+ letters, plus 1 for every 3 more (`sentenceRules` in config.ts). Measured with `scripts/simulate.ts`: about 40 in the first hour, about 100 an hour by hour 5. Looser rules gave far too many (any 3 words: 3K in the first hour); stricter ones (4 long words) almost none.
 - **Words** (2026-10-13) come from each **different** word your monkeys spell: one per new entry in the dictionary, so the supply is limited by the word list and your letters. An early-game limited currency. Words are spent on **letters** **(decided)**: each new letter costs points plus floor(¼ × letters owned²) Words (0, 1, 2, 4, 6, 9, ... 156 for the 26th; placeholder). The early steps stay small so a poor early letter like Q or J, which adds few new words, can't lock you out.
 - **Lines** come from completing a line of the play for the **first** time: one per line, so the supply is limited by the play's length. They're the rarest currency and buy the biggest, permanent upgrades: new monkeys and word slots.
 
