@@ -42,6 +42,7 @@ tests/             unit tests for logic, save, formatting and the terminal scree
 
 - Game content (names, costs, rates, words) goes in `config.ts` as data, not as new logic.
 - Logic functions mutate the `GameState` passed in and return a boolean for purchases; they never do I/O. Anything random takes an `rng` argument so tests can fix it.
+- Everything the game prints is ASCII (plus ANSI bold/colour codes) so it runs in any terminal on any system: no emoji, Unicode symbols or box-drawing. A test in `tests/cli.test.ts` checks this.
 - Keep rendering in `screen.ts` pure (state in, string out) so it stays testable; side effects belong in `cli/main.ts`.
 - A new front end (e.g. browser) gets its own folder next to `cli/` and its own `SaveStorage`.
 - Adding a field to `GameState`: give it a default in `createInitialState()` and a fallback in `deserialize()` so old saves still load. Bump `SAVE_VERSION` and migrate if a field's meaning changes.

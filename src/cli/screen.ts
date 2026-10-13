@@ -219,7 +219,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     ...pinnedText(state),
     '',
     ...(shop ? shopLines(state, shop) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (★ = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );
@@ -407,12 +407,17 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
   }
 }
 
-/** How monkeys show on the office map. */
-export const monkeyIconLegend = [`${monkeyIcon} monkey`, `&${monkeyIcon} manager`];
+/** How monkeys show on the office map: at a desk [@], a hat in place of the [, & marking a manager. */
+export const monkeyIconLegend = [`[${monkeyIcon}] monkey`, `[${monkeyIcon}& manager`, `#${monkeyIcon}] in a hat`];
 
-/** A monkey's icon: its hat if it wears one, else a plain monkey. Two columns wide. */
+/** A monkey's hat character, if it wears one. */
+export function hatOf(m: MonkeyState): string | undefined {
+  return accessoryIn(m, 'head')?.icon;
+}
+
+/** A monkey's icon, two ASCII characters: its hat (or a space) and its face, e.g. #@. */
 export function iconOf(m: MonkeyState): string {
-  return accessoryIn(m, 'head')?.icon ?? monkeyIcon;
+  return `${hatOf(m) ?? ' '}${monkeyIcon}`;
 }
 
 /** What an accessory does for the monkey wearing it, in a few words. */
@@ -460,16 +465,16 @@ export function storeChoices(state: GameState, store: Store): ShopItem[] {
 function shopLines(state: GameState, store: Store): string[] {
   let n = 0;
   return [
-    // A ★ on a tab means that store has something you can afford.
+    // A * on a tab means that store has something you can afford.
     'Shop   ' +
       stores
         .map((x) => {
-          const name = `${storeNames[x]}${storeItems(state, x).some((i) => i.star) ? '★' : ''}`;
+          const name = `${storeNames[x]}${storeItems(state, x).some((i) => i.star) ? '*' : ''}`;
           return x === store ? bold(`[${name}]`) : ` ${name} `;
         })
         .join(' ')
         .trimEnd(),
-    ...storeItems(state, store).map((x) => (x.id ? `  [${++n}] ${x.star ? '★' : ' '}${x.text}` : `       ${x.text}`)),
+    ...storeItems(state, store).map((x) => (x.id ? `  [${++n}] ${x.star ? '*' : ' '}${x.text}` : `       ${x.text}`)),
     '',
   ];
 }
@@ -538,7 +543,7 @@ export function renderSlotsMenu(
     ...(managed ? ["This department's manager sets these slots for you."] : []),
     ...(rows.length > 0 ? rows : ['  No slots yet.']),
     '',
-    ...(canBuy ? [`[b] ${state.lines >= next ? '★' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
+    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
     typing !== null
       ? 'Type the word, [enter] to set it, [esc] to cancel'
       : `[1-9] select   [w] set word   [o] on/off   [left/right] move position${many ? '   [tab] next department' : ''}   [esc] back`,
@@ -564,7 +569,7 @@ function nextWordKeys(state: GameState): string[] {
 
 /** The typewriter keys menu: combination keys and the word keys your monkeys have unlocked. */
 export function renderKeysMenu(state: GameState, message = ''): string {
-  const mark = (price: number) => (state.currency >= price ? '★' : ' ');
+  const mark = (price: number) => (state.currency >= price ? '*' : ' ');
   const owned = state.keys.length > 0 ? state.keys.join(' ') : 'none yet';
   return [
     '=== Typewriter keys ===',
@@ -583,7 +588,7 @@ export function renderKeysMenu(state: GameState, message = ''): string {
     ...(keyChoices(state).length === 0 ? ['  None available yet.'] : []),
     `  Owned: ${owned}`,
     '',
-    '[esc] back   (★ = affordable)',
+    '[esc] back   (* = affordable)',
     '',
     message,
   ].join('\n');
@@ -715,7 +720,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   }
   const sc = sceneOf(play, at)!;
   const section = (label: string, n: number) =>
-    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '★' : ''}${price(n, state.currency)} ${theme.currency}`;
+    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${price(n, state.currency)} ${theme.currency}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
     `=== ${play.title} (${genreNames[play.genre]}${locked ? ', locked' : ''}) ===   ` +
@@ -729,10 +734,10 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
       ? `Open a ${genreNames[play.genre]} department to buy these.`
       : play.genre === 'sonnet'
         ? `Buy  [b] ${section('this sonnet', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[w] ${section('all the sonnets', sectionPrice(state, play))}   (★ = affordable)`
+          `[w] ${section('all the sonnets', sectionPrice(state, play))}   (* = affordable)`
         : `Buy  [b] ${section('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
           `[a] ${section(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
-          `[w] ${section('whole play', sectionPrice(state, play))}   (★ = affordable)`,
+          `[w] ${section('whole play', sectionPrice(state, play))}   (* = affordable)`,
     '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] contents   [enter] pin/unpin',
     '[,/.] previous/next scene you own   [f] next shortest line within reach   [esc] back to the typewriters',
     '',

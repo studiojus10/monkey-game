@@ -85,11 +85,11 @@ describe('terminal screen', () => {
     expect(text).toContain('\x1b[1m1.23K Points\x1b[22m   0 Sentences   0 Lines'); // points in bold
     expect(text).toContain('Letters: I');
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
-    expect(text.split('\n')[2]).toBe('🐵 M-1(0.50/s 100%) x1  \x1b[1mI\x1b[22m_');
+    expect(text.split('\n')[2]).toBe(' @ M-1(0.50/s 100%) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
-    expect(plain(text)).toContain('[1] ★Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
-    expect(tools).toContain('[2] ★Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
-    expect(tools).toContain('[1] ★Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
+    expect(plain(text)).toContain('[1] *Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
+    expect(tools).toContain('[2] *Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
+    expect(tools).toContain('[1] *Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
     s.letters.push('A');
     expect(plain(renderScreen(s, '', 'typewriters'))).toContain('[1]  Buy a letter key   cost 75 Points + 1 Words');
     expect(plain(text)).toContain('[2]  Hire a monkey (you have 1)   cost 10 Lines');
@@ -107,8 +107,8 @@ describe('terminal screen', () => {
     expect(open).toContain('Faster typing');
     expect(open).toContain('[space] close the shop   [tab] next store   [1-9] buy');
     expect(open).toMatch(/^Shop +\[Staff\] +Typewriters +Furniture +Script +Accessories +Real estate$/m);
-    s.currency = 30; // enough for Faster typing and a letter key: a ★ on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Staff★ +Typewriters★ +Furniture +\[Script\] +Accessories +Real estate$/m);
+    s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
+    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Staff\* +Typewriters\* +Furniture +\[Script\] +Accessories +Real estate$/m);
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -136,7 +136,7 @@ describe('terminal screen', () => {
     s.monkeys[2].chainWords = ['ZZZZ', 'YYYY']; // pretend x3 vs x1
     const rows = renderScreen(s).split('\n').filter((r) => r.endsWith('_'));
     expect(rows).toHaveLength(3);
-    expect(rows[1].startsWith('🐵 Bartholomew(')).toBe(true);
+    expect(rows[1].startsWith(' @ Bartholomew(')).toBe(true);
     expect(new Set(rows.map((r) => r.indexOf('_'))).size).toBe(1);
   });
 
@@ -333,14 +333,14 @@ describe('office space on screen', () => {
     const s = started();
     s.monkeys[0].name = 'Bobo';
     const text = plain(renderOffice(s));
-    expect(text).toContain('Comedies room\n+-------+\n| 🐵  . |\n| .   . |\n+-------+');
+    expect(text).toContain('Comedies room\n+-------+\n|[@]  . |\n| .   . |\n+-------+');
     expect(text).toContain('  Comedies room      4 squares   1 monkey: Bobo');
   });
 
   it('draws rooms of any shape, and the squares a room can grow into', () => {
     const s = started();
     s.office[0].cells.push([2, 0]);
-    expect(plain(renderOffice(s))).toContain('+-----------+\n| 🐵  .   . |\n|       +---+\n| .   . |\n+-------+');
+    expect(plain(renderOffice(s))).toContain('+-----------+\n|[@]  .   . |\n|       +---+\n| .   . |\n+-------+');
     const growing = plain(renderOffice(s, '', { room: 'r1', x: 2, y: 1 }, -1, true));
     expect(growing).toContain('Growing the Comedies room');
     expect(growing).toContain(' + ');
@@ -351,7 +351,7 @@ describe('office space on screen', () => {
     for (let i = 0; i < 6; i++) s.office.push({ id: `b${i}`, kind: 'break', department: '', cells: [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0]] });
     s.monkeys[0].manager = true;
     const text = plain(renderOffice(s));
-    expect(text).toContain('&🐵');
+    expect(text).toContain('[@&');
     expect(text).toContain('Break room 6');
     for (const line of text.split('\n').slice(0, 20)) expect(line.length).toBeLessThanOrEqual(officeMapWidth);
   });
@@ -362,18 +362,18 @@ describe('furniture', () => {
     const s = started();
     s.currency = 600;
     const text = plain(renderScreen(s, '', 'furniture'));
-    expect(text).toContain("[1] ★Potted plant [P]: a department's monkeys tire 3% slower, +1% points   cost 500 Points");
+    expect(text).toContain("[1] *Potted plant [P]: a department's monkeys tire 3% slower, +1% points   cost 500 Points");
     expect(text).toContain('[6]  Television [T]: in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
   });
 
   it('draws furniture, the cursor and a piece being moved', () => {
     const s = started();
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
-    expect(plain(renderOffice(s))).toContain('| 🐵  P |');
+    expect(plain(renderOffice(s))).toContain('|[@]  P |');
     expect(plain(renderOffice(s))).toContain('P potted plant');
     expect(plain(renderOffice(s, '', { room: 'r1', x: 0, y: 1 }))).toContain('|>.<  . |');
     const moving = plain(renderOffice(s, '', { room: 'r1', x: 1, y: 1 }, 1));
-    expect(moving).toContain('| 🐵  . |\n| .  >P<|');
+    expect(moving).toContain('|[@]  . |\n| .  >P<|');
     expect(moving).toContain('Moving the potted plant.');
   });
 
@@ -402,15 +402,33 @@ describe('accessories on screen', () => {
   it('sells accessories and shows what each monkey wears', () => {
     const s = started();
     s.currency = 6000;
-    expect(plain(renderScreen(s, '', 'accessories'))).toContain('[1] ★Reading glasses [g], eyes: its words pay 10% more   cost 5.00K Points');
+    expect(plain(renderScreen(s, '', 'accessories'))).toContain('[1] *Reading glasses [g], eyes: its words pay 10% more   cost 5.00K Points');
     s.monkeys[0].accessories = ['glasses', 'mug'];
-    expect(plain(renderScreen(s))).toContain('🐵 M-1[gc](0.55/s 100%)');
+    expect(plain(renderScreen(s))).toContain(' @ M-1[gc](0.55/s 100%)');
     s.monkeys[0].accessories.push('tophat');
-    expect(plain(renderScreen(s))).toContain('🎩 M-1[gc](0.55/s 100%)'); // a hat changes the icon
-    expect(plain(renderOffice(s))).toContain('| 🎩  . |'); // on the map too
-    expect(plain(renderOffice(s, '', { room: 'r1', x: 0, y: 0 }))).toContain('|>🎩  . |');
+    expect(plain(renderScreen(s))).toContain('#@ M-1[gc](0.55/s 100%)'); // a hat changes the icon
+    expect(plain(renderOffice(s))).toContain('|#@]  . |'); // on the map too
+    expect(plain(renderOffice(s, '', { room: 'r1', x: 0, y: 0 }))).toContain('|>@<  . |');
     s.monkeys.push(createMonkey());
     expect(accessoryPickPrompt(s, 'glasses')).toBe('Reading glasses for which monkey? [1] M-1 (has one)   [2] M-2');
+  });
+});
+
+describe('plain ASCII', () => {
+  it('prints only ASCII (plus ANSI codes), so the game runs in any terminal', () => {
+    const s = started();
+    s.currency = 1e12;
+    s.monkeys[0].accessories = ['tophat', 'glasses'];
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
+    const screens = [
+      ...(['staff', 'typewriters', 'furniture', 'script', 'accessories', 'estate'] as const).map((store) => renderScreen(s, '', store)),
+      renderOffice(s, '', { room: 'r1', x: 0, y: 0 }, -1, true),
+      renderOptions(s),
+      renderKeysMenu(s),
+      renderStats(s),
+      renderDictionary(s, 0),
+    ];
+    for (const text of screens) expect(plain(text)).toMatch(/^[\x00-\x7f]*$/);
   });
 });
 

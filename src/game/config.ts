@@ -235,7 +235,7 @@ export interface Accessory {
   name: string;
   slot: 'head' | 'eyes' | 'ears' | 'hands' | 'feet';
   glyph: string; // one character, shown after the monkey's name
-  icon?: string; // hats: the monkey's icon while it wears it
+  icon?: string; // hats: one ASCII character worn on the monkey's icon, e.g. #@ for a top hat
   cost: number;
   costGrowth: number;
   points?: number;
@@ -245,18 +245,18 @@ export interface Accessory {
   combo?: number;
 }
 
-/** A monkey's icon with no hat on. */
-export const monkeyIcon = '🐵';
+/** A monkey's face in its icon; a hat goes on its left. All icons are ASCII. */
+export const monkeyIcon = '@';
 
 export const accessories: Accessory[] = [
   { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 5_000, costGrowth: 1.5, points: 0.1 },
   { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 10_000, costGrowth: 1.5, drain: 0.15 },
   { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 10_000, costGrowth: 1.5, rest: 0.3 },
   { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 25_000, costGrowth: 1.5, speed: 0.1 },
-  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: '🧢', cost: 2_000, costGrowth: 1.5, drain: 0.1 },
-  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '🎩', cost: 50_000, costGrowth: 1.5, points: 0.15 },
-  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '🎓', cost: 100_000, costGrowth: 2, combo: 1 },
-  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: '👑', cost: 10_000_000, costGrowth: 3, points: 0.1, speed: 0.1 },
+  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: 'd', cost: 2_000, costGrowth: 1.5, drain: 0.1 },
+  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '#', cost: 50_000, costGrowth: 1.5, points: 0.15 },
+  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '^', cost: 100_000, costGrowth: 2, combo: 1 },
+  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: 'W', cost: 10_000_000, costGrowth: 3, points: 0.1, speed: 0.1 },
 ];
 
 export const departmentRules = {
