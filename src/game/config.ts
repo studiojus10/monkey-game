@@ -177,7 +177,10 @@ export const office = {
  * Furniture, bought with points in the Furniture store. Each piece fills one
  * square, placed in the first free square of a break room (else any room); the
  * office map moves it. Each one of a kind costs costGrowth times the last.
- * What furniture does comes with monkey energy; costs are placeholders.
+ * Decor (drain) in a department's room slows its monkeys' tiring; comfort
+ * (rest) in a break room speeds up everyone's breaks; every piece adds a little
+ * happiness, a points bonus. Bonuses add up to the caps in `energy`. All
+ * numbers are placeholders.
  */
 export interface FurnitureKind {
   id: string;
@@ -185,18 +188,21 @@ export interface FurnitureKind {
   glyph: string; // one character on the office map
   cost: number;
   costGrowth: number;
+  drain: number; // decor: in a department's room, its monkeys tire this much slower (0.03 = 3%)
+  rest: number; // in a break room, every monkey's breaks go this much faster (0.15 = 15%)
+  happiness: number; // anywhere in the office: points x (1 + happiness), added up
 }
 
 /** The desk every monkey gets free, in its department's room. Not sold. */
-export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1 };
+export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0 };
 
 export const furnitureKinds: FurnitureKind[] = [
-  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5 },
-  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5 },
-  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5 },
-  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2 },
-  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2 },
-  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2 },
+  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01 },
+  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01 },
+  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02 },
+  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01 },
+  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02 },
+  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03 },
 ];
 
 /**
@@ -210,6 +216,9 @@ export const energy = {
   drainSeconds: 600,
   breakSeconds: 60,
   maxSlowdown: 0.25,
+  maxDrainCut: 0.5, // furniture slows tiring by at most half
+  maxRestBoost: 3, // and speeds up breaks by at most +300%
+  maxHappiness: 0.5, // and raises points by at most +50%
 };
 
 export const departmentRules = {

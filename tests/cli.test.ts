@@ -361,8 +361,8 @@ describe('furniture', () => {
     const s = started();
     s.currency = 600;
     const text = plain(renderScreen(s, '', 'furniture'));
-    expect(text).toContain('[1] ★Potted plant [P]   cost 500 Points');
-    expect(text).toContain('[2]  Floor lamp [L]   cost 2.00K Points');
+    expect(text).toContain("[1] ★Potted plant [P]: a department's monkeys tire 3% slower, +1% points   cost 500 Points");
+    expect(text).toContain('[6]  Television [T]: in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
   });
 
   it('draws furniture, the cursor and a piece being moved', () => {

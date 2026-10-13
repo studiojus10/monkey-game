@@ -9,9 +9,14 @@ import {
   roomGenre,
   roomlessDepartments,
   squareCost,
+  drainCut,
+  restBoost,
+  happiness,
 } from '../game/logic';
 import type { Furniture, GameState, Room } from '../game/state';
 import { genreNames, price } from './screen';
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 /** Widest the map may get before rooms wrap onto the next row. */
 export const officeMapWidth = 76;
@@ -122,7 +127,9 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
     const size = `${r.cells.length} squares`.padEnd(11);
     if (r.kind === 'department') {
       const names = departmentMonkeys(state, roomGenre(state, r)).map((i) => monkeyName(state, i));
-      return `  ${roomName(state, r).padEnd(18)} ${size} ${names.length} monkey${names.length === 1 ? '' : 's'}: ${names.join(', ')}`;
+      const cut = drainCut(state, roomGenre(state, r));
+      const decor = cut > 0 ? `tire ${pct(cut)} slower; ` : '';
+      return `  ${roomName(state, r).padEnd(18)} ${size} ${decor}${names.length} monkey${names.length === 1 ? '' : 's'}: ${names.join(', ')}`;
     }
     const pieces = state.furniture.filter((f) => f.room === r.id).length;
     return `  ${roomName(state, r).padEnd(18)} ${size} ${pieces} piece${pieces === 1 ? '' : 's'} of furniture`;
@@ -138,6 +145,7 @@ export function renderOffice(state: GameState, message = '', cursor: Cell | null
     ...summary,
     '',
     "Each monkey gets a desk in its department's room, so floor space limits a department.",
+    `Breaks go ${pct(restBoost(state))} faster (comforts in break rooms). Happiness: +${pct(happiness(state))} points (all furniture).`,
     ...roomlessDepartments(state).map((g) => `The ${genreNames[g]} department needs a room: buy one in the Real estate store.`),
     `New room: ${price(roomCost(state), state.currency)} ${theme.currency}. One more square for a room: ${price(squareCost(state), state.currency)} ${theme.currency}.`,
     '',

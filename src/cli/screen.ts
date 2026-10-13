@@ -1,4 +1,4 @@
-import { furnitureKinds, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   furnitureSpot,
@@ -30,6 +30,7 @@ import {
   monkeySpeed,
   currentSpeed,
   breakLeft,
+  energyRates,
   nextMonkeyCost,
   ownedProgress,
   ownsLine,
@@ -185,7 +186,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     m.manager
       ? `${monkeySpeed(state, m).toFixed(2)}/s`
       : m.resting
-        ? `break ${Math.ceil(breakLeft(m))}s`
+        ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
         : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
   const labels = shown.map((m, i) => [`${tag(m)}${monkeyName(state, i)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
   const nameWidth = Math.max(...labels.map(([n]) => n.length));
@@ -348,7 +349,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       return [
         ...furnitureKinds.map((k) => {
           const cost = furnitureCost(state, k.id);
-          return { id: `furniture:${k.id}`, star: spot && state.currency >= cost, text: `${k.name} [${k.glyph}]   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return { id: `furniture:${k.id}`, star: spot && state.currency >= cost, text: `${k.name} [${k.glyph}]: ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
         }),
         {
           text: !spot
@@ -358,7 +359,6 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
                 ...(state.office.some((r) => r.kind === 'break') ? [] : ['With no break room, it takes a square a desk could use.']),
               ].join(' '),
         },
-        { text: 'What furniture does for your monkeys is coming soon.' },
       ];
     }
     case 'script':
@@ -389,6 +389,16 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       ];
     }
   }
+}
+
+/** What a kind of furniture does, in a few words. */
+export function furnitureEffect(k: FurnitureKind): string {
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  return [
+    ...(k.drain ? [`a department's monkeys tire ${pct(k.drain)} slower`] : []),
+    ...(k.rest ? [`in a break room, breaks go ${pct(k.rest)} faster`] : []),
+    ...(k.happiness ? [`+${pct(k.happiness)} points`] : []),
+  ].join(', ');
 }
 
 /** The numbered (buyable) items of a store, in key order 1-9. */

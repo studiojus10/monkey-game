@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, furnitureKinds, office, energy, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  drainCut,
+  energyRates,
+  happiness,
+  restBoost,
   breakLeft,
   currentSpeed,
   spendEnergy,
@@ -1352,6 +1356,36 @@ describe('energy', () => {
     const n = createMonkey();
     for (let t = 0; t < cycle * 2; t += 0.25) steps += spendEnergy(n, 0.25);
     expect(steps).toBeCloseTo(one * 2, 3);
+  });
+});
+
+describe('furniture effects', () => {
+  it('decor slows tiring in its department room, comforts speed up breaks in break rooms, all of it adds happiness', () => {
+    const s = createInitialState(0);
+    s.currency = 1e15;
+    s.office[0].cells.push([2, 0], [2, 1]);
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'couch', room: 'r1', x: 2, y: 0 }); // a couch at work does nothing for breaks
+    expect(drainCut(s, undefined)).toBeCloseTo(0.03);
+    expect(restBoost(s)).toBe(0);
+    expect(buyRoom(s, 'break')).toBe(true);
+    s.furniture.push({ kind: 'tv', room: 'r2', x: 0, y: 0 }, { kind: 'bookshelf', room: 'r2', x: 1, y: 0 }); // decor in a break room only adds happiness
+    expect(restBoost(s)).toBeCloseTo(0.4);
+    expect(drainCut(s, undefined)).toBeCloseTo(0.03);
+    expect(happiness(s)).toBeCloseTo(0.01 + 0.02 + 0.03 + 0.02);
+    expect(pointsMultiplier(s)).toBeCloseTo(1.08);
+    const rates = energyRates(s, s.monkeys[0]);
+    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.4);
+    expect(rates.drainSeconds).toBeCloseTo(energy.drainSeconds / 0.97);
+  });
+
+  it('caps each effect', () => {
+    const s = createInitialState(0);
+    s.office.push({ id: 'r2', kind: 'break', department: '', cells: rectangle(10, 10) });
+    s.office[0].cells = rectangle(10, 10);
+    for (let i = 0; i < 40; i++) s.furniture.push({ kind: 'tv', room: 'r2', x: i % 10, y: Math.floor(i / 10) }, { kind: 'bookshelf', room: 'r1', x: i % 10, y: 5 + Math.floor(i / 10) });
+    expect(restBoost(s)).toBe(energy.maxRestBoost);
+    expect(drainCut(s, undefined)).toBe(energy.maxDrainCut);
+    expect(happiness(s)).toBe(energy.maxHappiness);
   });
 });
 

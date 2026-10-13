@@ -244,7 +244,7 @@ export function ownedProgress(state: GameState): [number, number] {
 
 /** Points earned are multiplied by this; finished scenes raise it. */
 export function pointsMultiplier(state: GameState): number {
-  return 1 + state.pointsBonus;
+  return (1 + state.pointsBonus) * (1 + happiness(state));
 }
 
 /** Typing speed is multiplied by this; finished acts raise it. */
@@ -267,9 +267,45 @@ export function currentSpeed(state: GameState, m: MonkeyState): number {
   return m.manager || m.resting ? 0 : monkeySpeed(state, m) * energyFactor(m.energy);
 }
 
+const kindOf = (id: string) => (id === desk.id ? desk : furnitureKinds.find((k) => k.id === id));
+
+/** How much slower a department's monkeys tire, from the decor in its room (0.1 = 10%). */
+export function drainCut(state: GameState, genre: Genre | undefined): number {
+  const room = departmentRoom(state, genre);
+  const sum = state.furniture.reduce((n, f) => n + (room && f.room === room.id ? (kindOf(f.kind)?.drain ?? 0) : 0), 0);
+  return Math.min(energyRules.maxDrainCut, sum);
+}
+
+/** How much faster breaks go, from the comforts in break rooms (0.5 = 50%). */
+export function restBoost(state: GameState): number {
+  const breaks = new Set(state.office.filter((r) => r.kind === 'break').map((r) => r.id));
+  const sum = state.furniture.reduce((n, f) => n + (breaks.has(f.room) ? (kindOf(f.kind)?.rest ?? 0) : 0), 0);
+  return Math.min(energyRules.maxRestBoost, sum);
+}
+
+/** Office happiness from all the furniture: points x (1 + happiness). */
+export function happiness(state: GameState): number {
+  const rooms = new Set(state.office.map((r) => r.id));
+  const sum = state.furniture.reduce((n, f) => n + (rooms.has(f.room) ? (kindOf(f.kind)?.happiness ?? 0) : 0), 0);
+  return Math.min(energyRules.maxHappiness, sum);
+}
+
+/** Seconds of typing that drain a monkey, and of rest that refill it, with the office's furniture. */
+export function energyRates(state: GameState, m: MonkeyState): EnergyRates {
+  return {
+    drainSeconds: energyRules.drainSeconds / (1 - drainCut(state, monkeyGenre(state, m))),
+    breakSeconds: energyRules.breakSeconds / (1 + restBoost(state)),
+  };
+}
+
+export interface EnergyRates {
+  drainSeconds: number;
+  breakSeconds: number;
+}
+
 /** Seconds of a break left. */
-export function breakLeft(m: MonkeyState): number {
-  return m.resting ? (1 - m.energy) * energyRules.breakSeconds : 0;
+export function breakLeft(m: MonkeyState, rates: EnergyRates = energyRules): number {
+  return m.resting ? (1 - m.energy) * rates.breakSeconds : 0;
 }
 
 /**
@@ -277,9 +313,9 @@ export function breakLeft(m: MonkeyState): number {
  * break at 0% and goes back to work rested. Returns the seconds of full-speed
  * typing that time was worth, exactly, however long it is.
  */
-export function spendEnergy(m: MonkeyState, seconds: number): number {
-  const drain = 1 / energyRules.drainSeconds;
-  const rest = 1 / energyRules.breakSeconds;
+export function spendEnergy(m: MonkeyState, seconds: number, rates: EnergyRates = energyRules): number {
+  const drain = 1 / rates.drainSeconds;
+  const rest = 1 / rates.breakSeconds;
   const k = energyRules.maxSlowdown;
   let worth = 0;
   for (let left = seconds; left > 1e-9; ) {
@@ -1267,7 +1303,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random):
   manage(state);
   const due = state.monkeys.map((m) => {
     if (m.manager) return 0;
-    m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds);
+    m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds, energyRates(state, m));
     const n = Math.floor(m.progress);
     m.progress -= n;
     return n;
