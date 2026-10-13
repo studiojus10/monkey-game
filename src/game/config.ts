@@ -42,9 +42,9 @@ export const letterShop = {
 };
 
 /**
- * You start with one monkey. More monkeys are a late upgrade paid in Lines
- * (first-time line completions); the n-th one you buy costs
- * baseCost x costGrowth^(n-1) Lines.
+ * You start with one monkey. More monkeys are paid in Sentences (renewable,
+ * mostly from long chains); the n-th one you buy costs
+ * baseCost x costGrowth^(n-1) Sentences.
  */
 export const monkeyShop = {
   baseCost: 10,

@@ -13,7 +13,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { accessories, sentenceRules, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
+import { accessories, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
 import {
   accessoryCost,
   availableKeys,
@@ -75,9 +75,12 @@ import type { PlayData } from '../src/game/plays';
 import { createInitialState, type GameState } from '../src/game/state';
 
 const hours = Number(process.argv[2] ?? 24);
-// Try other Sentence settings without editing config: SIM_CHAIN_WORDS=6 SIM_WORD_MIN=3
+// Try other settings without editing config: SIM_CHAIN_WORDS=6 SIM_WORD_MIN=3
 if (process.env.SIM_CHAIN_WORDS) sentenceRules.chainWords = Number(process.env.SIM_CHAIN_WORDS);
 if (process.env.SIM_WORD_MIN) sentenceRules.wordMinLength = Number(process.env.SIM_WORD_MIN);
+// ...and monkey prices: SIM_MONKEY_COST=10 SIM_MONKEY_GROWTH=1.5
+if (process.env.SIM_MONKEY_COST) monkeyShop.baseCost = Number(process.env.SIM_MONKEY_COST);
+if (process.env.SIM_MONKEY_GROWTH) monkeyShop.costGrowth = Number(process.env.SIM_MONKEY_GROWTH);
 let seed = Number(process.argv[3] ?? 1);
 const rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
@@ -129,7 +132,7 @@ function shop(): void {
     }
     for (const g of roomlessDepartments(s)) if (s.currency >= roomCost(s) && buyRoom(s, 'department', g)) bought = true;
     // Monkeys, with floor space for them.
-    if (s.lines >= nextMonkeyCost(s)) {
+    if (s.sentences >= nextMonkeyCost(s)) {
       if (!canSeatMonkey(s)) {
         const g = departmentGenres(s).find((x) => departmentTypists(s, x) < departmentRules.maxTypists && departmentRoom(s, x));
         const room = g && departmentRoom(s, g);

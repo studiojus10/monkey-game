@@ -312,7 +312,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       return [
         typingShop.skill,
         canSeatMonkey(state)
-          ? { id: 'hire', star: state.lines >= nextMonkey, text: `Hire a monkey (you have ${state.monkeys.length})   cost ${price(nextMonkey, state.lines)} Lines` }
+          ? { id: 'hire', star: state.sentences >= nextMonkey, text: `Hire a monkey (you have ${state.monkeys.length})   cost ${price(nextMonkey, state.sentences)} Sentences` }
           : { text: "Hire a monkey: no free square for its desk. Grow its department's room in Real estate." },
         ...(state.unassignedMonkeys > 0
           ? [

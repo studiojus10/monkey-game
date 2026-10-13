@@ -69,7 +69,7 @@ Letter values follow Scrabble tile values: 1 for A E I O U L N S T R; 2 for D G;
 
 ## Monkeys
 
-- You start with **one monkey**. More monkeys are a **late-game** upgrade bought with [Lines](#currencies). (Starting guess: 10 Lines, ×2 each.) The screen shows the first 10 monkey lines and sums up the rest.
+- You start with **one monkey**. More monkeys are bought with [Sentences](#currencies) **(changed in the balance pass, 2026-10-13)**: Lines were so rare that a simulated player was still on one monkey after 24 hours, while Sentences from long chains keep coming. (Starting guess: 10 Sentences, ×2 each.) The screen shows the first 10 monkey lines and sums up the rest.
 - Every monkey types its own stream. Monkeys start **slow** (one letter every 2 seconds) and get faster with "Faster typing", bought with points **for each monkey separately** **(decided 2026-10-13)**: it trains that monkey's typing skill (starting guess: ×1.25 speed per level, cost 10 growing ×1.5 per level). It's the first thing you can buy. A monkey's **typewriter** caps its skill: the Rusty typewriter allows 10 levels, and each better typewriter (Portable, Office, Electric, Golden, Diamond, then Mk 7, ...) allows 10 more (starting guess: 1,000 points for the second, ×25 each after). New monkeys start at skill 0 on a Rusty typewriter, so each monkey is its own investment.
 - The player can name each monkey when buying it, or later with `n`; unnamed monkeys show as M-1, M-2, ...
 - Each monkey works in one [department](#departments).
@@ -102,10 +102,10 @@ Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is 
 ## Currencies
 
 - **Points** come from every word. They buy letters, typing speed and typewriter keys.
-- **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy repeatable upgrades such as raising the combo cap.
+- **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy new monkeys and repeatable upgrades such as raising the combo cap.
 - **Sentences also come from long chains (balance pass, 2026-10-13)**, so they are a slow but renewable currency: when a chain breaks, it pays 1 Sentence if it held 3+ words of 4+ letters, plus 1 for every 3 more (`sentenceRules` in config.ts). Measured with `scripts/simulate.ts`: about 40 in the first hour, about 100 an hour by hour 5. Looser rules gave far too many (any 3 words: 3K in the first hour); stricter ones (4 long words) almost none.
 - **Words** (2026-10-13) come from each **different** word your monkeys spell: one per new entry in the dictionary, so the supply is limited by the word list and your letters. An early-game limited currency. Words are spent on **letters** **(decided)**: each new letter costs points plus floor(¼ × letters owned²) Words (0, 1, 2, 4, 6, 9, ... 156 for the 26th; placeholder). The early steps stay small so a poor early letter like Q or J, which adds few new words, can't lock you out.
-- **Lines** come from completing a line of the play for the **first** time: one per line, so the supply is limited by the play's length. They're the rarest currency and buy the biggest, permanent upgrades: new monkeys and word slots.
+- **Lines** come from completing a line of the play for the **first** time: one per line, so the supply is limited by the play's length. They're the rarest currency and buy the biggest, permanent upgrades: word slots and manager upgrades.
 
 Lines and Sentences are both rare, so the upgrades they buy can't be reached by grinding points. (Exact split of what each buys is for the balance pass.)
 

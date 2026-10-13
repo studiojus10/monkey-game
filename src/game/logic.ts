@@ -542,12 +542,12 @@ export function buyLetter(state: GameState, letter: string): boolean {
   return true;
 }
 
-/** Cost in Lines of the next monkey, given how many you have. */
+/** Cost in Sentences of the next monkey, given how many you have. */
 export function monkeyCost(owned: number): number {
   return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
 }
 
-/** Cost in Lines of the next monkey; free monkeys from acts don't raise it. */
+/** Cost in Sentences of the next monkey; free monkeys from acts don't raise it. */
 export function nextMonkeyCost(state: GameState): number {
   const total = state.monkeys.length + state.unassignedMonkeys;
   return monkeyCost(Math.max(1, total - milestones.actFreeMonkeys * state.actsDone.length));
@@ -758,14 +758,14 @@ function placeFor(state: GameState, genre?: Genre): string | null {
 }
 
 /**
- * Buys a monkey with Lines for a department. The department can be left out
+ * Buys a monkey with Sentences for a department. The department can be left out
  * when only one has room; the player chooses otherwise.
  */
 export function buyMonkey(state: GameState, genre?: Genre): boolean {
   const cost = nextMonkeyCost(state);
   const dept = placeFor(state, genre);
-  if (state.letters.length === 0 || state.lines < cost || dept === null) return false;
-  state.lines -= cost;
+  if (state.letters.length === 0 || state.sentences < cost || dept === null) return false;
+  state.sentences -= cost;
   state.monkeys.push({ ...createMonkey(), department: dept });
   placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;

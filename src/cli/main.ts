@@ -182,7 +182,7 @@ function buyItem(id: string): void {
     }
   } else if (id === 'hire') {
     const rooms = departmentsWithRoom(state);
-    if (state.lines < nextMonkeyCost(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
+    if (state.sentences < nextMonkeyCost(state)) message = 'Not enough Sentences. Sentences come from long chains of words and from lines of the play.';
     else if (!canSeatMonkey(state)) message = noSeatMessage();
     else if (rooms.length > 1) {
       pickingDeptFor = 'buy';
