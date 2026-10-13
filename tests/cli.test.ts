@@ -12,6 +12,7 @@ import {
   renderScreen,
   ordinal,
   renderScript,
+  renderContents,
   renderSlotsMenu,
   slotHighlight,
 } from '../src/cli/screen';
@@ -287,5 +288,20 @@ describe('statistics and dictionary', () => {
     expect(text.split('\n')[3]).toBe('ZAP x1');
     expect(dictionaryRowFor(s, 'z')).toBe(1);
     expect(dictionaryRowFor(s, 'b')).toBe(0);
+  });
+});
+
+describe('script contents', () => {
+  it('lists every play, then one play\'s acts and scenes, with the cursor', () => {
+    const s = started();
+    s.owned = ['test:1.1'];
+    s.completed.test = [0];
+    const plays = renderContents(s, null, 0);
+    expect(plays).toContain('=== Contents: all plays ===');
+    expect(plays).toMatch(/^> {3}Test Play +Comedies +1\/2 lines written, 1 of 2 scenes owned$/m);
+    const scenes = renderContents(s, 'test', 1).split('\n');
+    expect(scenes).toContain('  Act 1');
+    expect(scenes.find((r) => r.includes('Scene 1'))).toMatch(/^ {6}Scene 1 +1\/1 written, finished$/);
+    expect(scenes.find((r) => r.includes('Scene 2'))).toMatch(/^> {5}Scene 2 +1 lines, not owned$/);
   });
 });

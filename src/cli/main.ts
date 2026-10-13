@@ -65,6 +65,8 @@ import {
   renderKeysMenu,
   renderScreen,
   renderScript,
+  renderContents,
+  contentsPageSize,
   renderSlotsMenu,
   scriptPageSize,
   unownedLetters,
@@ -88,6 +90,8 @@ let confirmingReset = false;
 let pickingLetter = false;
 let showingScript = false;
 let scriptCursor = 0;
+let contents: '' | 'plays' | 'scenes' = ''; // the script's table of contents, when open
+let contentsCursor = 0;
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
@@ -128,7 +132,9 @@ function loadPlays(): PlayData[] {
 
 function draw() {
   // Clear the screen and move the cursor home, then redraw.
-  const screen = showingStats
+  const screen = showingScript && contents
+    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
+    : showingStats
     ? renderStats(state)
     : showingDictionary
       ? renderDictionary(state, dictionaryRow)
@@ -268,6 +274,43 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingScript && contents) {
+    message = '';
+    const play = availablePlays()[scriptPlay];
+    const size = contents === 'plays' ? availablePlays().length : (play?.scenes.length ?? 0);
+    if (key.name === 'q') return quit();
+    if (key.name === 'tab' || (key.name === 'escape' && contents === 'plays')) {
+      contents = '';
+    } else if (key.name === 'escape' || key.name === 'backspace' || key.name === 'left') {
+      if (contents === 'scenes') {
+        contents = 'plays';
+        contentsCursor = scriptPlay;
+      }
+    } else if (key.name === 'up' || key.name === 'k') {
+      contentsCursor = Math.max(0, contentsCursor - 1);
+    } else if (key.name === 'down' || key.name === 'j') {
+      contentsCursor = Math.min(size - 1, contentsCursor + 1);
+    } else if (key.name === 'pageup') {
+      contentsCursor = Math.max(0, contentsCursor - contentsPageSize);
+    } else if (key.name === 'pagedown') {
+      contentsCursor = Math.min(size - 1, contentsCursor + contentsPageSize);
+    } else if (key.name === 'return' || key.name === 'enter' || key.name === 'right') {
+      if (contents === 'plays') {
+        const chosen = availablePlays()[contentsCursor];
+        const sc = chosen && contentsCursor === scriptPlay ? sceneOf(chosen, scriptCursor) : undefined;
+        if (contentsCursor !== scriptPlay) scriptCursor = 0;
+        scriptPlay = contentsCursor;
+        contents = 'scenes';
+        contentsCursor = Math.max(0, sc && chosen ? chosen.scenes.indexOf(sc) : 0);
+      } else if (play?.scenes[contentsCursor]) {
+        scriptCursor = play.scenes[contentsCursor].lines[0];
+        findIndex = -1;
+        contents = '';
+      }
+    }
+    return draw();
+  }
+
   if (showingScript) {
     message = '';
     const play = availablePlays()[scriptPlay];
@@ -310,9 +353,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         findIndex = -1;
       }
     } else if (key.name === 'tab') {
-      scriptPlay = (scriptPlay + 1) % Math.max(1, availablePlays().length);
-      scriptCursor = 0;
-      findIndex = -1;
+      contents = 'plays';
+      contentsCursor = scriptPlay;
     } else if (play && (str === 'b' || (str === 'a' && play.genre !== 'sonnet') || str === 'w')) {
       const sc = sceneOf(play, scriptCursor)!;
       const [act, scene, what] =
@@ -495,6 +537,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (key.name === 'p') {
     showingScript = true;
+    contents = '';
     const work = currentWork(state);
     if (work) {
       scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === work.play));

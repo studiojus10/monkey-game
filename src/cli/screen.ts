@@ -462,8 +462,56 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
         : `Buy  [b] ${section('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
           `[a] ${section(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
           `[w] ${section('whole play', sectionPrice(state, play))}   (★ = affordable)`,
-    '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] next play   [enter] pin/unpin',
+    '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] contents   [enter] pin/unpin',
     '[,/.] previous/next scene you own   [f] next shortest line within reach   [esc] back to the typewriters',
+    '',
+    message,
+  ].join('\n');
+}
+
+/** Rows of the table of contents shown at once. */
+export const contentsPageSize = 20;
+
+/**
+ * The script's table of contents: every play (when playId is null), or one
+ * play's acts and scenes. `cursor` indexes availablePlays() or play.scenes.
+ */
+export function renderContents(state: GameState, playId: string | null, cursor: number, message = ''): string {
+  const play = playId ? getPlay(playId) : undefined;
+  const open = departmentGenres(state);
+  const items: { text: string; header?: string }[] = play
+    ? play.scenes.map((sc, i) => {
+        const [w, total] = sceneProgress(state, play, sc);
+        const status = ownsScene(state, play.id, sc)
+          ? `${count(w)}/${count(total)} written${w === total ? ', finished' : ''}`
+          : `${count(total)} lines, not owned`;
+        const prev = play.scenes[i - 1];
+        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `Act ${sc.act}` : undefined;
+        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `  Scene ${sc.scene}`;
+        return { text: `${name.padEnd(12)} ${status}`, header };
+      })
+    : availablePlays().map((p) => {
+        const owned = p.scenes.filter((sc) => ownsScene(state, p.id, sc)).length;
+        const done = (state.completed[p.id] ?? []).length;
+        const status = !open.includes(p.genre)
+          ? 'locked'
+          : `${count(done)}/${count(p.lines.length)} lines written, ${count(owned)} of ${count(p.scenes.length)} ${p.genre === 'sonnet' ? 'sonnets' : 'scenes'} owned`;
+        return { text: `${p.title.padEnd(28)} ${genreNames[p.genre].padEnd(10)} ${status}` };
+      });
+  const at = Math.max(0, Math.min(cursor, items.length - 1));
+  const first = Math.max(0, Math.min(at - Math.floor(contentsPageSize / 2), items.length - contentsPageSize));
+  const rows = items.slice(first, first + contentsPageSize).flatMap((item, k) => [
+    ...(item.header ? [`  ${item.header}`] : []),
+    `${first + k === at ? '>' : ' '}   ${item.text}`,
+  ]);
+  return [
+    play ? `=== Contents: ${play.title} ===` : '=== Contents: all plays ===',
+    '',
+    ...rows,
+    '',
+    play
+      ? '[up/down] choose   [enter] go to this scene   [esc] back to all plays   [tab] close'
+      : '[up/down] choose   [enter] open this play\'s contents   [esc/tab] close',
     '',
     message,
   ].join('\n');
