@@ -1906,6 +1906,8 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'keys': return state.keys.length;
     case 'slots': return state.slots.length;
     case 'pets': return state.stats.pets;
+    case 'flipsWon': return state.stats.flipsWon;
+    case 'flipsLost': return state.stats.flipsLost;
     case 'happiest': return ms.filter((m) => m.petHappiness >= petting.maxHappiness - 1e-9).length;
     case 'longestWord': return state.stats.longestWord.length;
     case 'dictionary': return Object.keys(state.stats.words).length;
@@ -2115,5 +2117,25 @@ export function hrHappiness(state: GameState): number {
 /** How much cheaper HR makes new typing monkeys (0.1 = 10%). */
 export function hrDiscount(state: GameState): number {
   return Math.min(0.9, hrWorking(state) * hr.discountEach);
+}
+
+/**
+ * The coin flip, just for fun (Justin, 2026-10-14: "flip a coin and bet to
+ * double all of their points or lose all of their points"): heads doubles
+ * every banana you have, tails loses them all. Needs some bananas. Returns
+ * whether it won, or null if there was nothing to bet.
+ */
+export function flipCoin(state: GameState, rng: Rng): boolean | null {
+  if (state.currency <= 0) return null;
+  const won = rng() < 0.5;
+  if (won) {
+    state.currency *= 2; // winnings don't count as earned, so they unlock no earning achievements
+    state.stats.flipsWon++;
+  } else {
+    state.currency = 0;
+    state.stats.flipsLost++;
+  }
+  checkAchievements(state);
+  return won;
 }
 

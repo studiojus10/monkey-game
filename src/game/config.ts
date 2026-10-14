@@ -533,6 +533,8 @@ export const achievements: Achievement[] = [
   { id: 'pets-100', name: 'Best friends', text: 'Pet the monkeys 100 times', stat: 'pets', at: 100 },
   { id: 'pets-1000', name: 'Pet project', text: 'Pet the monkeys 1,000 times', stat: 'pets', at: 1_000 },
   { id: 'pets-10000', name: 'Spoiled rotten', text: 'Pet the monkeys 10,000 times', stat: 'pets', at: 10_000 },
+  { id: 'flip-won', name: 'Double or nothing', text: 'Win a coin flip', stat: 'flipsWon', at: 1 },
+  { id: 'flip-lost', name: 'Bananas gone', text: 'Lose a coin flip', stat: 'flipsLost', at: 1 },
   { id: 'happiest', name: 'Over the moon', text: 'Pet a monkey until it can be no happier', stat: 'happiest', at: 1 },
   { id: 'chain-10', name: 'On a roll', text: 'Spell 10 words in a row', stat: 'chain', at: 10 },
   { id: 'word-8', name: 'Big words', text: 'Spell a word of 8 letters', stat: 'longestWord', at: 8 },

@@ -74,7 +74,7 @@ export function renderStats(state: GameState, columns = 0): string {
       stat('Plays finished', formatNumber(state.playsDone.length)),
       stat('Sonnets finished', formatNumber(state.scenesDone.filter(sonnet).length)),
     ]),
-    ...section('MONKEYS', [stat('Petted', plural(st.pets, 'time'))]),
+    ...section('MONKEYS', [stat('Petted', plural(st.pets, 'time')), ...(st.flipsWon + st.flipsLost > 0 ? [stat('Coin flips', `${formatNumber(st.flipsWon)} won, ${formatNumber(st.flipsLost)} lost`)] : [])]),
     // Folios only once there is one.
     ...(state.folios > 0
       ? section('FOLIOS', [

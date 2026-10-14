@@ -341,6 +341,7 @@ export function renderHomeKeys(state: GameState): string {
     ]),
     ...group('GAME', [
       ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
+      ['$', `flip a coin: double all your ${theme.currency} or lose them all`],
       ['s', 'save now (the game also saves on its own)'],
       ['r', 'reset: start a new game'],
       ['`', 'dev tools'],

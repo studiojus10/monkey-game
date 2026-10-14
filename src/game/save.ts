@@ -130,6 +130,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       longestSentence: strings(st.longestSentence).filter((w) => /^[A-Z]+$/.test(w)),
       secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
       dyes: Math.max(0, Math.floor(num(st.dyes, 0))),
+      flipsWon: Math.max(0, Math.floor(num(st.flipsWon, 0))),
+      flipsLost: Math.max(0, Math.floor(num(st.flipsLost, 0))),
     };
     const oldPlay = file.version === 2 ? str(s.play) : '';
     const pinned = (Array.isArray(s.pinned) ? (s.pinned as unknown[]) : [])

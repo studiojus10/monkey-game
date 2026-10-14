@@ -176,10 +176,12 @@ export interface Stats {
   longestSentence: string[]; // the words of the longest chain that paid a Sentence
   secondsTyping: number; // time the monkeys have been at work, offline included
   dyes: number; // hats dyed
+  flipsWon: number; // coin flips won (all bananas doubled)
+  flipsLost: number; // coin flips lost (all bananas gone)
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0, flipsWon: 0, flipsLost: 0 };
 }
 
 export function createMonkey(): MonkeyState {

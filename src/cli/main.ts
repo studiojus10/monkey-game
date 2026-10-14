@@ -85,6 +85,7 @@ import {
   setLineWidth,
   publishFolio,
   canPublishFolio,
+  flipCoin,
   folioMultiplier,
   tick,
   togglePin,
@@ -158,6 +159,7 @@ let message =
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
 let confirmingReset = false;
 let confirmingFolio = false;
+let confirmingFlip = false;
 let pickingLetter = false;
 let showingScript = false;
 let scriptCursor = 0;
@@ -502,6 +504,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       save(state, storage);
       message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Bananas x${folioMultiplier(state).toFixed(2)} for good. The monkeys start again.`;
     } else message = 'Not published. The monkeys keep typing.';
+    return draw();
+  }
+
+  if (confirmingFlip) {
+    confirmingFlip = false;
+    const bet = state.currency;
+    const won = key.name === 'y' ? flipCoin(state, Math.random) : null;
+    message =
+      won === null
+        ? 'You keep your bananas.'
+        : won
+          ? `Heads! Your ${formatNumber(bet)} ${theme.currency} became ${formatNumber(state.currency)}.`
+          : `Tails. ${formatNumber(bet)} ${theme.currency} gone. The monkeys keep typing.`;
     return draw();
   }
 
@@ -1093,6 +1108,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === 'w') {
     showingDictionary = true;
     dictionaryRow = 0;
+  } else if (str === '$') {
+    if (state.currency <= 0) message = `You have no ${theme.currency} to bet.`;
+    else {
+      confirmingFlip = true;
+      message = `Flip a coin for all ${formatNumber(state.currency)} ${theme.currency}? Heads doubles them, tails loses them all. [y] flip   (any other key: no)`;
+    }
   } else if (str === 'f' && canPublishFolio(state)) {
     confirmingFolio = true;
     message = folioPrompt(state);

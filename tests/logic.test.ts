@@ -1897,7 +1897,7 @@ describe('achievements', () => {
   });
 
   it('every achievement has a known measure and a unique id', () => {
-    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios', 'researchers', 'researched', 'hrStaff']);
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios', 'researchers', 'researched', 'hrStaff', 'flipsWon', 'flipsLost']);
     for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
     expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
   });
@@ -1957,5 +1957,20 @@ describe('publishing a Folio', () => {
     chooseFirstLetter(third, 'i');
     typeLetter(third, 0, rng);
     expect(third.currency).toBeCloseTo(1 + 12 * folio.bonusPerPage); // the word I pays 1 point, times the Folio
+  });
+});
+
+describe('coin flip', () => {
+  it('doubles every banana or loses them all, just for fun', async () => {
+    const { flipCoin } = await import('../src/game/logic');
+    const s = createInitialState(0);
+    expect(flipCoin(s, () => 0)).toBeNull(); // nothing to bet
+    s.currency = 300;
+    expect(flipCoin(s, () => 0.2)).toBe(true);
+    expect(s.currency).toBe(600);
+    expect(flipCoin(s, () => 0.7)).toBe(false);
+    expect(s.currency).toBe(0);
+    expect(s.stats).toMatchObject({ flipsWon: 1, flipsLost: 1 });
+    expect(s.achievements).toEqual(expect.arrayContaining(['flip-won', 'flip-lost']));
   });
 });
