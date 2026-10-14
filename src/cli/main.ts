@@ -1,13 +1,14 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, departmentRules, desk, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, departmentRules, desk, dyeCost, hatColors, hats, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
-  accessoryCost,
-  buyAccessory,
+  dyeHat,
+  hatCost,
+  wearHat,
   buyFurniture,
   cellAt,
   pieceSize,
@@ -98,7 +99,9 @@ import {
   renderSlotsMenu,
   scriptPageSize,
   renderOptions,
-  accessoryPickPrompt,
+  dyeColorPrompt,
+  dyePickPrompt,
+  hatPickPrompt,
 } from './screen';
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -159,7 +162,9 @@ let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
-let pickingAccessory = ''; // choosing a monkey for this accessory
+let pickingHat = ''; // choosing a monkey for this hat
+let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
+let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
 let pickingMonkeyToMove = false;
 let pickingManager = false;
@@ -241,14 +246,18 @@ function buyItem(id: string): void {
     message = managerUpgradePrompt(state);
   } else if (id === 'script') {
     openScript();
-  } else if (id.startsWith('accessory:')) {
-    const what = id.slice('accessory:'.length);
-    const team = typists(state);
-    if (state.sentences < accessoryCost(state, what)) message = noSentences;
-    else if (team.length === 1) message = buyAccessoryFor(team[0], what);
+  } else if (id.startsWith('hat:')) {
+    const what = id.slice('hat:'.length);
+    if (state.monkeys.length === 1) message = wearHatOn(0, what);
     else {
-      pickingAccessory = what;
-      message = accessoryPickPrompt(state, what);
+      pickingHat = what;
+      message = hatPickPrompt(state, what);
+    }
+  } else if (id === 'dye') {
+    if (!state.monkeys.some((m) => m.hat)) message = 'No monkey is wearing a hat to dye.';
+    else {
+      pickingDyeColor = true;
+      message = dyeColorPrompt();
     }
   } else if (id.startsWith('furniture:')) {
     const kind = id.slice('furniture:'.length);
@@ -272,11 +281,26 @@ function buyItem(id: string): void {
   }
 }
 
-/** Buys an accessory for monkey `i`; returns the message to show. */
-function buyAccessoryFor(i: number, id: string): string {
+/** Puts hat `id` on monkey `i` (or takes it off); returns the message to show. */
+function wearHatOn(i: number, id: string): string {
+  const m = state.monkeys[i];
   const name = monkeyName(state, i);
-  if (state.monkeys[i].accessories.includes(id)) return `${name} already has one.`;
-  return buyAccessory(state, i, id) ? `${name} looks sharp.` : noSentences;
+  const hatName = hats.find((h) => h.id === id)!.name.toLowerCase();
+  if (m.hat === id) return wearHat(state, i, id) ? `${name} takes off its ${hatName}.` : '';
+  const free = m.hats.includes(id);
+  if (!free && state.sentences < hatCost(state, id)) return noSentences;
+  return wearHat(state, i, id) ? `${name} puts on ${free ? 'its' : 'a new'} ${hatName}.` : noSentences;
+}
+
+/** Dyes monkey `i`'s hat `color` ('' washes it out); returns the message to show. */
+function dyeHatOn(i: number, color: string): string {
+  const m = state.monkeys[i];
+  const name = monkeyName(state, i);
+  if (!m.hat) return `${name} isn't wearing a hat.`;
+  if (m.hatColor === color) return `${name}'s hat is that colour already.`;
+  if (color && state.sentences < dyeCost) return noSentences;
+  dyeHat(state, i, color);
+  return color ? `${name}'s hat is ${hatColors.find((c) => c.id === color)!.name.toLowerCase()} now.` : `${name}'s hat is washed clean.`;
 }
 
 const noSentences = 'Not enough Sentences. They come from long chains of words and from lines of the play.';
@@ -480,13 +504,39 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingAccessory) {
-    const what = pickingAccessory;
+  if (pickingHat) {
+    const what = pickingHat;
     const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) {
-      pickingAccessory = '';
+    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
+      pickingHat = '';
       message = 'Done.';
-    } else message = `${buyAccessoryFor(i, what)}  ${accessoryPickPrompt(state, what)}`;
+    } else message = `${wearHatOn(i, what)}  ${hatPickPrompt(state, what)}`;
+    return draw();
+  }
+
+  if (pickingDyeColor) {
+    pickingDyeColor = false;
+    const c = Number(str);
+    if (!str || !/^[0-9]$/.test(str) || c > hatColors.length) message = 'No hat dyed.';
+    else {
+      const color = c === 0 ? '' : hatColors[c - 1].id;
+      const wearers = state.monkeys.flatMap((m, i) => (m.hat ? [i] : []));
+      if (wearers.length === 1) message = dyeHatOn(wearers[0], color);
+      else {
+        pickingDye = color;
+        message = dyePickPrompt(state, color);
+      }
+    }
+    return draw();
+  }
+
+  if (pickingDye !== null) {
+    const color = pickingDye;
+    const i = Number(str) - 1;
+    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
+      pickingDye = null;
+      message = 'Done.';
+    } else message = `${dyeHatOn(i, color)}  ${dyePickPrompt(state, color)}`;
     return draw();
   }
 

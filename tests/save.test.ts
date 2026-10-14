@@ -14,6 +14,21 @@ describe('save/load', () => {
     expect(deserialize(serialize(s))).toEqual(s);
   });
 
+  it('keeps hats and their dye, and turns old accessory hats into hats', () => {
+    const s = createInitialState(0);
+    s.monkeys[0].hats = ['tophat', 'crown'];
+    s.monkeys[0].hat = 'crown';
+    s.monkeys[0].hatColor = 'cyan';
+    s.stats.dyes = 2;
+    expect(deserialize(serialize(s))).toEqual(s);
+    const raw = JSON.parse(serialize(s));
+    raw.state.monkeys[0] = { ...raw.state.monkeys[0], hats: undefined, hat: undefined, hatColor: 'plaid', accessories: ['glasses', 'cap'] };
+    const m = deserialize(JSON.stringify(raw)).monkeys[0];
+    expect(m.hats).toEqual(['cap']); // glasses aren't a hat any more
+    expect(m.hat).toBe('cap');
+    expect(m.hatColor).toBe('');
+  });
+
   it('falls back to a fresh state on missing or corrupt saves', () => {
     expect(deserialize(null, 5)).toEqual(createInitialState(5));
     expect(deserialize('not json', 5)).toEqual(createInitialState(5));

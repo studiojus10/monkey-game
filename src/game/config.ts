@@ -268,7 +268,7 @@ export const folio = {
  * Achievements: no reward, just a record on the achievements page ([a]).
  * Each one unlocks when its measure (see achievementValue in logic.ts)
  * reaches `at`. Measures named word:XYZ count how often the monkeys spelled
- * XYZ; wearing:id counts monkeys wearing that accessory. Secret ones show as
+ * XYZ; wearing:id counts monkeys wearing that hat. Secret ones show as
  * ??? until unlocked.
  */
 export interface Achievement {
@@ -296,7 +296,8 @@ export const achievements: Achievement[] = [
   { id: 'first-department', name: 'Expansion', text: 'Open a second department', stat: 'departments', at: 2 },
   { id: 'first-room', name: 'Room to breathe', text: 'Buy a new room', stat: 'rooms', at: 2 },
   { id: 'first-furniture', name: 'Interior design', text: 'Buy a piece of furniture', stat: 'furniture', at: 1 },
-  { id: 'first-accessory', name: 'Dress code', text: 'Give a monkey an accessory', stat: 'accessories', at: 1 },
+  { id: 'first-hat', name: 'Hat trick', text: 'Give a monkey a hat', stat: 'hats', at: 1 },
+  { id: 'first-dye', name: 'Dressed to the nines', text: 'Dye a hat', stat: 'dyed', at: 1 },
   { id: 'first-faster', name: 'Practice', text: 'Teach a monkey to type faster', stat: 'skill', at: 1 },
   { id: 'first-typewriter', name: 'Upgrade', text: 'Give a monkey a better typewriter', stat: 'typewriter', at: 1 },
   { id: 'first-key', name: 'Shortcut', text: 'Buy a typewriter key', stat: 'keys', at: 1 },
@@ -319,6 +320,8 @@ export const achievements: Achievement[] = [
   { id: 'full-department', name: 'Full house', text: 'Fill a department with 10 monkeys', stat: 'biggestDepartment', at: 10 },
   { id: 'day-job', name: 'Day job', text: 'Keep the monkeys typing for 24 hours', stat: 'hoursTyping', at: 24 },
   { id: 'crown', name: 'Long live the king', text: 'Crown a monkey', stat: 'wearing:crown', at: 1 },
+  { id: 'halo', name: 'Angelic', text: 'Give a monkey a halo', stat: 'wearing:halo', at: 1 },
+  { id: 'hats-all', name: 'Mad hatter', text: 'Own 7 different kinds of hat', stat: 'hatKinds', at: 7 },
   { id: 'billion', name: 'Billionaire', text: 'Earn a billion Points', stat: 'points', at: 1e9 },
   // Secrets: words the monkeys might stumble on.
   { id: 'word-monkey', name: 'Self-aware', text: 'The monkeys spelled MONKEY', stat: 'word:MONKEY', at: 1, secret: true },
@@ -330,20 +333,21 @@ export const achievements: Achievement[] = [
 ];
 
 /**
- * Accessories, bought with points for one monkey at a time in the
- * Accessories store. A monkey wears one per slot. Each one of a kind costs
- * costGrowth times the last, across all monkeys. Effects, for the monkey
- * wearing it: points (its words and lines pay this much more), speed (types
- * faster), drain (tires slower), rest (breaks go faster), combo (its combo cap
- * is this much higher). A hat changes the monkey's icon (a plain monkey
- * without one). Numbers are placeholders.
+ * Hats, the only thing monkeys wear (Justin, 2026-10-14: hats are what
+ * change how a monkey looks). Bought with Sentences in the Hats store for one
+ * monkey at a time; a monkey keeps every hat it was given and wears one, and
+ * changing hats is free. Each one of a kind costs costGrowth times the last,
+ * across all monkeys. Hats come in price tiers, several hats to a tier, with
+ * two absurdly expensive ones at the top. Effects, for the monkey wearing it:
+ * points (its words and lines pay this much more), speed (types faster), drain
+ * (tires slower), rest (breaks go faster), combo (its combo cap is this much
+ * higher). The icon is the hat's ASCII character, worn on the monkey's icon
+ * (#@ for a top hat). Numbers are placeholders.
  */
-export interface Accessory {
+export interface Hat {
   id: string;
   name: string;
-  slot: 'head' | 'eyes' | 'ears' | 'hands' | 'feet';
-  glyph: string; // one character, shown after the monkey's name
-  icon?: string; // hats: one ASCII character worn on the monkey's icon, e.g. #@ for a top hat
+  icon: string; // one ASCII character, worn left of the monkey's face
   cost: number;
   costGrowth: number;
   points?: number;
@@ -356,17 +360,30 @@ export interface Accessory {
 /** A monkey's face in its icon; a hat goes on its left. All icons are ASCII. */
 export const monkeyIcon = '@';
 
-/** Accessories cost Sentences: a steady, renewable sink that grows with your staff. */
-export const accessories: Accessory[] = [
-  { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 50, costGrowth: 1.5, points: 0.1 },
-  { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 100, costGrowth: 1.5, drain: 0.15 },
-  { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 100, costGrowth: 1.5, rest: 0.3 },
-  { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 250, costGrowth: 1.5, speed: 0.1 },
-  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: 'd', cost: 20, costGrowth: 1.5, drain: 0.1 },
-  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15 },
-  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '^', cost: 1_000, costGrowth: 2, combo: 1 },
-  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: 'W', cost: 100_000, costGrowth: 3, points: 0.1, speed: 0.1 },
+export const hats: Hat[] = [
+  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 25, costGrowth: 1.5, drain: 0.1 },
+  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 25, costGrowth: 1.5, rest: 0.2 },
+  { id: 'party', name: 'Party hat', icon: 'A', cost: 25, costGrowth: 1.5, speed: 0.05 },
+  { id: 'tophat', name: 'Top hat', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15 },
+  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 500, costGrowth: 1.5, drain: 0.25 },
+  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 5_000, costGrowth: 2, combo: 1 },
+  { id: 'crown', name: 'Crown', icon: 'W', cost: 1_000_000, costGrowth: 3, points: 0.25, speed: 0.25 },
+  { id: 'halo', name: 'Halo', icon: 'o', cost: 1_000_000_000, costGrowth: 10, points: 0.5, speed: 0.5, drain: 0.5 },
 ];
+
+/**
+ * Dyes for hats: any monkey's hat can be dyed one of these colours (ANSI
+ * codes, so any terminal shows them), for dyeCost Sentences. Just for looks.
+ */
+export const hatColors = [
+  { id: 'red', name: 'Red', ansi: 31 },
+  { id: 'green', name: 'Green', ansi: 32 },
+  { id: 'yellow', name: 'Yellow', ansi: 33 },
+  { id: 'blue', name: 'Blue', ansi: 34 },
+  { id: 'magenta', name: 'Magenta', ansi: 35 },
+  { id: 'cyan', name: 'Cyan', ansi: 36 },
+];
+export const dyeCost = 10;
 
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],

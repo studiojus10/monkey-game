@@ -1,12 +1,11 @@
-import { accessories, departmentRules, folio, monkeyIcon, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { dyeCost, departmentRules, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
   folioMultiplier,
   folioPagesNow,
   furnitureSpot,
-  accessoryCost,
-  accessoryIn,
+  hatCost,
   furnitureCost,
   canSeatMonkey,
   availablePlays,
@@ -137,7 +136,7 @@ export function departmentPrompt(state: GameState): string {
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
 /**
- * Each shown monkey's label (icon, name, accessories, speed and energy) and
+ * Each shown monkey's label (icon, name, speed and energy) and
  * multiplier, padded so every monkey's text starts in the same column.
  */
 function monkeyLabels(state: GameState): { labels: string[][]; nameWidth: number; comboWidth: number } {
@@ -152,13 +151,9 @@ function monkeyLabels(state: GameState): { labels: string[][]; nameWidth: number
       : m.resting
         ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
         : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
-  // Each monkey has an icon, its hat if it wears one; other accessories show as letters after its name.
-  const worn = (m: MonkeyState) => {
-    const glyphs = accessories.filter((a) => !a.icon && m.accessories.includes(a.id)).map((a) => a.glyph).join('');
-    return glyphs ? `[${glyphs}]` : '';
-  };
+  // Each monkey has an icon: its hat, if it wears one, on the left of its face.
   // A monkey petted lately shows a heart, <3, until it wears off.
-  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}${m.petHappiness > 0 ? '<3' : ''}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
+  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${m.petHappiness > 0 ? '<3' : ''}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
   return { labels, nameWidth: Math.max(...labels.map(([n]) => n.length)), comboWidth: Math.max(...labels.map(([, c]) => c.length)) };
 }
 
@@ -225,7 +220,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   const { labels, nameWidth, comboWidth } = monkeyLabels(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
   lines.push(
-    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m, room)}`),
+    ...shown.map((m, i) => `${dyed(m, labels[i][0].padEnd(nameWidth))} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m, room)}`),
     ...(state.monkeys.length > maxMonkeyLines
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),
@@ -312,14 +307,14 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
 }
 
 /** The shop's stores, shown as tabs; tab or left/right switches between them. */
-export const stores = ['typewriters', 'staff', 'script', 'furniture', 'accessories'] as const;
+export const stores = ['typewriters', 'staff', 'script', 'furniture', 'hats'] as const;
 export type Store = (typeof stores)[number];
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
   staff: 'Staff',
   script: 'Script',
   furniture: 'Furniture',
-  accessories: 'Accessories',
+  hats: 'Hats',
 };
 
 /** Something for sale in a store. Items without an id are information only and get no number. */
@@ -411,15 +406,20 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
     }
     case 'script':
       return [{ id: 'script', text: `Browse and buy scenes, acts and plays (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})` }];
-    case 'accessories': {
-      const team = typists(state);
+    case 'hats': {
+      const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
-        ...accessories.map((a) => {
-          const cost = accessoryCost(state, a.id);
-          const someone = team.some((i) => !state.monkeys[i].accessories.includes(a.id));
-          return { id: `accessory:${a.id}`, star: someone && state.sentences >= cost, text: `${a.name} [${a.icon ?? a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.sentences)} Sentences` };
+        ...hats.map((h) => {
+          const cost = hatCost(state, h.id);
+          const someone = team.some((i) => !state.monkeys[i].hats.includes(h.id));
+          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name} [${h.icon}${monkeyIcon}]: ${hatEffect(h)}   cost ${price(cost, state.sentences)} Sentences` };
         }),
-        { text: "Each is for one monkey, one per slot (head, eyes, ears, hands, feet). A hat changes the monkey's icon; the rest show as letters after its name." },
+        {
+          id: 'dye',
+          star: state.monkeys.some((m) => m.hat) && state.sentences >= dyeCost,
+          text: `Dye a hat... (${hatColors.map((c) => paint(c.id, c.name)).join(', ')})   cost ${price(dyeCost, state.sentences)} Sentences each`,
+        },
+        { text: 'Each monkey keeps every hat it is given and wears one: putting on a hat it has is free, and choosing its own hat again takes it off.' },
       ];
     }
   }
@@ -430,7 +430,7 @@ export const monkeyIconLegend = [`[${monkeyIcon}] monkey`, `[${monkeyIcon}& mana
 
 /** A monkey's hat character, if it wears one. */
 export function hatOf(m: MonkeyState): string | undefined {
-  return accessoryIn(m, 'head')?.icon;
+  return hats.find((h) => h.id === m.hat)?.icon;
 }
 
 /** A monkey's icon, two ASCII characters: its hat (or a space) and its face, e.g. #@. */
@@ -438,30 +438,56 @@ export function iconOf(m: MonkeyState): string {
   return `${hatOf(m) ?? ' '}${monkeyIcon}`;
 }
 
-/** What an accessory does for the monkey wearing it, in a few words. */
-export function accessoryEffect(a: Accessory): string {
+/** Text in a hat colour (ANSI), or as it is for no colour. */
+export function paint(color: string, text: string): string {
+  const c = hatColors.find((x) => x.id === color);
+  return c ? `\x1b[${c.ansi}m${text}\x1b[39m` : text;
+}
+
+/** Text that starts with a monkey's hat character, with the hat in its dye colour. */
+export function dyed(m: MonkeyState, text: string): string {
+  return m.hat && m.hatColor ? paint(m.hatColor, text[0]) + text.slice(1) : text;
+}
+
+/** What a hat does for the monkey wearing it, in a few words. */
+export function hatEffect(h: Hat): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return [
-    ...(a.points ? [`its words pay ${pct(a.points)} more`] : []),
-    ...(a.speed ? [`it types ${pct(a.speed)} faster`] : []),
-    ...(a.drain ? [`it tires ${pct(a.drain)} slower`] : []),
-    ...(a.rest ? [`its breaks go ${pct(a.rest)} faster`] : []),
-    ...(a.combo ? [`its combo cap +${a.combo}`] : []),
+    ...(h.points ? [`its words pay ${pct(h.points)} more`] : []),
+    ...(h.speed ? [`it types ${pct(h.speed)} faster`] : []),
+    ...(h.drain ? [`it tires ${pct(h.drain)} slower`] : []),
+    ...(h.rest ? [`its breaks go ${pct(h.rest)} faster`] : []),
+    ...(h.combo ? [`its combo cap +${h.combo}`] : []),
   ].join(', ');
 }
 
-/** The prompt for choosing which monkey gets an accessory. */
-export function accessoryPickPrompt(state: GameState, id: string): string {
-  const a = accessories.find((x) => x.id === id)!;
-  const rows = typists(state)
-    .filter((i) => i < 9)
-    .map((i) => {
-      const m = state.monkeys[i];
-      const worn = accessoryIn(m, a.slot);
-      const note = m.accessories.includes(id) ? ' (has one)' : worn ? ` (swaps its ${worn.name.toLowerCase()})` : '';
-      return `[${i + 1}] ${monkeyName(state, i)}${note}`;
-    });
-  return `${a.name} (${price(accessoryCost(state, id), state.sentences)} Sentences) for which monkey? ${rows.join('   ')}   (any other key: done)`;
+/** The monkeys a picker offers (keys 1-9), with a note for each. */
+function monkeyChoices(state: GameState, note: (m: MonkeyState) => string): string {
+  return state.monkeys
+    .slice(0, 9)
+    .map((m, i) => `[${i + 1}] ${monkeyName(state, i)}${note(m)}`)
+    .join('   ');
+}
+
+/** The prompt for choosing which monkey gets a hat. */
+export function hatPickPrompt(state: GameState, id: string): string {
+  const h = hats.find((x) => x.id === id)!;
+  const rows = monkeyChoices(state, (m) =>
+    m.hat === id ? ' (wearing it: takes it off)' : m.hats.includes(id) ? ' (has one: free)' : hatOf(m) ? ` (swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()})` : '',
+  );
+  return `${h.name} (${price(hatCost(state, id), state.sentences)} Sentences) for which monkey? ${rows}   (any other key: done)`;
+}
+
+/** The prompt for choosing a dye. */
+export function dyeColorPrompt(): string {
+  return `Dye which colour? ${hatColors.map((c, i) => `[${i + 1}] ${paint(c.id, c.name)}`).join('   ')}   [0] undyed   (any other key cancels)`;
+}
+
+/** The prompt for choosing which monkey's hat to dye. */
+export function dyePickPrompt(state: GameState, color: string): string {
+  const name = hatColors.find((c) => c.id === color)?.name ?? 'Undyed';
+  const rows = monkeyChoices(state, (m) => (!m.hat ? ' (no hat)' : m.hatColor === color ? ' (already)' : ''));
+  return `${paint(color, name)} (${color ? `${price(dyeCost, state.sentences)} Sentences` : 'free'}) for which monkey's hat? ${rows}   (any other key: done)`;
 }
 
 /** What a kind of furniture does, in a few words. */

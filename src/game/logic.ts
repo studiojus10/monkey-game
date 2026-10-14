@@ -18,8 +18,9 @@ import {
   monkeyShop,
   office as officeRules,
   energy as energyRules,
-  accessories,
-  type Accessory,
+  hats,
+  hatColors,
+  dyeCost,
   desk,
   furnitureKinds,
   startingLetters,
@@ -311,32 +312,55 @@ export function monkeySpeed(state: GameState, m: MonkeyState, skill = m.skill): 
   return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed'));
 }
 
-/** What a monkey's accessories add up to for one effect. */
+/** What a monkey's hat gives it for one effect. */
 export function wearing(m: MonkeyState, effect: 'points' | 'speed' | 'drain' | 'rest' | 'combo'): number {
-  return m.accessories.reduce((n, id) => n + (accessories.find((a) => a.id === id)?.[effect] ?? 0), 0);
+  return hats.find((h) => h.id === m.hat)?.[effect] ?? 0;
 }
 
-/** Points for the next accessory of a kind. */
-export function accessoryCost(state: GameState, id: string): number {
-  const a = accessories.find((x) => x.id === id);
-  if (!a) return Infinity;
-  const owned = state.monkeys.filter((m) => m.accessories.includes(id)).length;
-  return Math.ceil(a.cost * Math.pow(a.costGrowth, owned));
+/** Sentences for the next hat of a kind: each costs costGrowth times the last, across all monkeys. */
+export function hatCost(state: GameState, id: string): number {
+  const h = hats.find((x) => x.id === id);
+  if (!h) return Infinity;
+  const owned = state.monkeys.filter((m) => m.hats.includes(id)).length;
+  return Math.ceil(h.cost * Math.pow(h.costGrowth, owned));
 }
 
-/** The accessory a monkey wears in a slot, if any. */
-export function accessoryIn(m: MonkeyState, slot: Accessory['slot']): Accessory | undefined {
-  return accessories.find((a) => a.slot === slot && m.accessories.includes(a.id));
-}
-
-/** Buys an accessory for a typing monkey; it replaces whatever that monkey wore in the same slot. */
-export function buyAccessory(state: GameState, index: number, id: string): boolean {
+/**
+ * Puts a hat on a monkey: free if it has that hat already, else bought with
+ * Sentences (it keeps it). A monkey already wearing that hat takes it off.
+ */
+export function wearHat(state: GameState, index: number, id: string): boolean {
   const m = state.monkeys[index];
-  const a = accessories.find((x) => x.id === id);
-  const cost = accessoryCost(state, id);
-  if (!m || !a || m.manager || m.accessories.includes(id) || state.sentences < cost) return false;
-  state.sentences -= cost;
-  m.accessories = [...m.accessories.filter((x) => accessories.find((y) => y.id === x)?.slot !== a.slot), id];
+  if (!m || !hats.some((h) => h.id === id)) return false;
+  if (m.hat === id) {
+    m.hat = '';
+    return true;
+  }
+  if (!m.hats.includes(id)) {
+    const cost = hatCost(state, id);
+    if (state.sentences < cost) return false;
+    state.sentences -= cost;
+    m.hats.push(id);
+  }
+  m.hat = id;
+  return true;
+}
+
+/**
+ * Dyes a monkey's hat a colour (a hatColors id) for dyeCost Sentences; '' washes
+ * the dye out for free. It needs to be wearing a hat.
+ */
+export function dyeHat(state: GameState, index: number, color: string): boolean {
+  const m = state.monkeys[index];
+  if (!m || !m.hat || m.hatColor === color) return false;
+  if (!color) {
+    m.hatColor = '';
+    return true;
+  }
+  if (!hatColors.some((c) => c.id === color) || state.sentences < dyeCost) return false;
+  state.sentences -= dyeCost;
+  m.hatColor = color;
+  state.stats.dyes++;
   return true;
 }
 
@@ -1533,7 +1557,7 @@ export function achievementValue(state: GameState, stat: string): number {
   const ms = state.monkeys;
   const most = (f: (m: MonkeyState) => number) => ms.reduce((n, m) => Math.max(n, f(m)), 0);
   if (stat.startsWith('word:')) return state.stats.words[stat.slice(5)] ?? 0;
-  if (stat.startsWith('wearing:')) return ms.filter((m) => m.accessories.includes(stat.slice(8))).length;
+  if (stat.startsWith('wearing:')) return ms.filter((m) => m.hat === stat.slice(8)).length;
   switch (stat) {
     case 'wordsSpelled': return state.wordsTyped;
     case 'lettersOwned': return state.letters.length;
@@ -1549,7 +1573,9 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'departments': return state.departments.length;
     case 'rooms': return state.office.length;
     case 'furniture': return state.furniture.filter((f) => f.kind !== desk.id).length;
-    case 'accessories': return ms.reduce((n, m) => n + m.accessories.length, 0);
+    case 'hats': return ms.reduce((n, m) => n + m.hats.length, 0);
+    case 'hatKinds': return new Set(ms.flatMap((m) => m.hats)).size;
+    case 'dyed': return state.stats.dyes;
     case 'skill': return most((m) => m.skill);
     case 'typewriter': return most((m) => m.typewriter);
     case 'keys': return state.keys.length;

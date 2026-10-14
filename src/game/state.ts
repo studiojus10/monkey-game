@@ -24,7 +24,9 @@ export interface MonkeyState {
   typewriter: number; // typewriter tier, 0 = the first; caps skill at (tier + 1) x levelsPerTypewriter
   energy: number; // 1 = rested, 0 = worn out; a tired monkey types slower
   resting: boolean; // on a break until its energy is back to full
-  accessories: string[]; // ids of the accessories it wears, one per slot
+  hats: string[]; // ids of the hats it was given (it keeps them all)
+  hat: string; // the hat it wears, '' for none
+  hatColor: string; // its hat's dye (a hatColors id), '' for undyed
   petHappiness: number; // happiness from petting (0.01 = 1%), wearing off
 }
 
@@ -156,14 +158,15 @@ export interface Stats {
   pets: number; // times the player petted a monkey
   chainSentences: number; // Sentences paid by long chains
   secondsTyping: number; // time the monkeys have been at work, offline included
+  dyes: number; // hats dyed
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, secondsTyping: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, secondsTyping: 0, dyes: 0 };
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, skill: 0, typewriter: 0, energy: 1, resting: false, accessories: [], petHappiness: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0 };
 }
 
 /** A rectangle of squares from (0, 0). */

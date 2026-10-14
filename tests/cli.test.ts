@@ -17,7 +17,9 @@ import {
   renderContents,
   renderSlotsMenu,
   renderOptions,
-  accessoryPickPrompt,
+  hatPickPrompt,
+  dyeColorPrompt,
+  dyePickPrompt,
   slotHighlight,
   stores,
 } from '../src/cli/screen';
@@ -91,7 +93,7 @@ describe('terminal screen', () => {
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
     expect(text.split('\n')[2]).toBe(' @ M-1(0.50/s 100%) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
-    expect(plain(text)).toMatch(/^Shop +Typewriters\* +\[Staff\*\] +Script +Furniture\* +Accessories$/m); // letters come first
+    expect(plain(text)).toMatch(/^Shop +Typewriters\* +\[Staff\*\] +Script +Furniture\* +Hats$/m); // letters come first
     expect(plain(text)).toContain('[1] *Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
     expect(tools).toContain('[2] *Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
     expect(tools).toContain('[1] *Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
@@ -111,9 +113,9 @@ describe('terminal screen', () => {
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[space] close the shop   [tab] next store   [1-9] buy');
-    expect(open).toMatch(/^Shop +Typewriters +\[Staff\] +Script +Furniture +Accessories$/m);
+    expect(open).toMatch(/^Shop +Typewriters +\[Staff\] +Script +Furniture +Hats$/m);
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Typewriters\* +Staff\* +\[Script\] +Furniture +Accessories$/m);
+    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Typewriters\* +Staff\* +\[Script\] +Furniture +Hats$/m);
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -466,19 +468,32 @@ describe('moving doors on the map', () => {
   });
 });
 
-describe('accessories on screen', () => {
-  it('sells accessories and shows what each monkey wears', () => {
+describe('hats on screen', () => {
+  it('sells hats and dye, and shows each monkey in its hat', () => {
     const s = started();
     s.sentences = 60;
-    expect(plain(renderScreen(s, '', 'accessories'))).toContain('[1] *Reading glasses [g], eyes: its words pay 10% more   cost 50 Sentences');
-    s.monkeys[0].accessories = ['glasses', 'mug'];
-    expect(plain(renderScreen(s))).toContain(' @ M-1[gc](0.55/s 100%)');
-    s.monkeys[0].accessories.push('tophat');
-    expect(plain(renderScreen(s))).toContain('#@ M-1[gc](0.55/s 100%)'); // a hat changes the icon
+    const store = plain(renderScreen(s, '', 'hats'));
+    expect(store).toContain('[1] *Baseball cap [d@]: it tires 10% slower   cost 25 Sentences');
+    expect(store).toContain('Crown [W@]');
+    expect(store).toContain('Dye');
+    expect(plain(renderScreen(s))).toContain(' @ M-1(0.50/s 100%)');
+    s.monkeys[0].hats = ['tophat'];
+    s.monkeys[0].hat = 'tophat';
+    expect(plain(renderScreen(s))).toContain('#@ M-1(0.50/s 100%)'); // a hat changes the icon
     expect(plain(renderOffice(s))).toContain('|#@]  . |'); // on the map too
     expect(plain(renderOffice(s, '', { x: 0, y: 0 }))).toContain('|>@<  . |');
+    s.monkeys[0].hatColor = 'red';
+    expect(renderScreen(s)).toContain('\x1b[31m#\x1b[39m@ M-1'); // a dyed hat shows in its colour
+    expect(renderOffice(s)).toContain('|\x1b[31m#\x1b[39m@]');
     s.monkeys.push(createMonkey());
-    expect(plain(accessoryPickPrompt(s, 'glasses'))).toBe('Reading glasses (75 Sentences) for which monkey? [1] M-1 (has one)   [2] M-2   (any other key: done)');
+    expect(plain(hatPickPrompt(s, 'tophat'))).toBe('Top hat (750 Sentences) for which monkey? [1] M-1 (wearing it: takes it off)   [2] M-2   (any other key: done)');
+    s.monkeys[0].hat = 'cap';
+    s.monkeys[0].hats.push('cap');
+    expect(plain(hatPickPrompt(s, 'tophat'))).toContain('[1] M-1 (has one: free)');
+    expect(plain(hatPickPrompt(s, 'crown'))).toContain('[1] M-1 (swaps its thinking cap)');
+    expect(plain(dyeColorPrompt())).toContain('[1] Red   [2] Green');
+    expect(plain(dyePickPrompt(s, 'red'))).toBe("Red (10 Sentences) for which monkey's hat? [1] M-1 (already)   [2] M-2 (no hat)   (any other key: done)");
+    expect(plain(dyePickPrompt(s, ''))).toContain('Undyed (free)');
   });
 });
 
@@ -527,7 +542,9 @@ describe('plain ASCII', () => {
   it('prints only ASCII (plus ANSI codes), so the game runs in any terminal', () => {
     const s = started();
     s.currency = 1e12;
-    s.monkeys[0].accessories = ['tophat', 'glasses'];
+    s.monkeys[0].hats = ['tophat'];
+    s.monkeys[0].hat = 'tophat';
+    s.monkeys[0].hatColor = 'blue';
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
     const screens = [
       ...stores.map((store) => renderScreen(s, '', store)),

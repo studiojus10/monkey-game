@@ -15,8 +15,8 @@ import {
   happiness,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, officeBounds, roomAt } from '../game/layout';
-import type { GameState, Room, Side } from '../game/state';
-import { genreNames, hatOf, monkeyIconLegend, price } from './screen';
+import type { GameState, MonkeyState, Room, Side } from '../game/state';
+import { dyed, genreNames, hatOf, monkeyIconLegend, price } from './screen';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -105,17 +105,19 @@ export function renderOffice(
     const room = roomAt(state, x, y);
     const f = piece(x, y);
     let text: string;
+    let wearer: MonkeyState | undefined; // a monkey in a hat sits here: its hat shows in its dye
     if (f >= 0 && state.furniture[f].kind === desk.id && f !== held) {
       const own = state.office.find((r) => r.id === state.furniture[f].room);
       const monkey = own && state.monkeys[sitters.get(own.id)?.[roomDesks(state, own).indexOf(f)] ?? -1];
       text = !monkey ? '[ ]' : `${hatOf(monkey) ?? '['}${monkeyIcon}${monkey.manager ? '&' : ']'}`;
+      if (monkey && monkey.hat) wearer = monkey;
     } else if (f >= 0) {
       const left = joined(x - 1, y, x, y) ? '=' : ' ';
       const right = joined(x, y, x + 1, y) ? '=' : ' ';
       text = `${left}${glyphOf(state.furniture[f].kind)}${right}`;
     } else if (!room) text = options.some(([ox, oy]) => ox === x && oy === y) ? ' + ' : '   ';
     else text = ' . ';
-    return here ? `>${text[1]}<` : text;
+    return here ? `>${text[1]}<` : wearer ? dyed(wearer, text) : text;
   };
   // Walls run between squares of different spaces; + only where they turn or meet.
   const corner = (x: number, y: number) => {

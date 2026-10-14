@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dyeCost, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   chainSentences,
-  accessoryCost,
+  hatCost,
   addRoom,
   rotateFurniture,
   achievementValue,
@@ -17,7 +17,8 @@ import {
   footprint,
   fitsAt,
   canReachDesk,
-  buyAccessory,
+  wearHat,
+  dyeHat,
   wearing,
   drainCut,
   energyRates,
@@ -1464,40 +1465,86 @@ describe('furniture effects', () => {
   });
 });
 
-describe('accessories', () => {
-  it('buys an accessory for one typing monkey, one per slot, each of a kind dearer than the last', () => {
+describe('hats', () => {
+  it('buys a hat with Sentences, each of a kind dearer than the last', () => {
     const s = createInitialState(0);
     s.monkeys.push(createMonkey());
-    const glasses = accessories.find((a) => a.id === 'glasses')!;
+    const top = hats.find((h) => h.id === 'tophat')!;
     s.currency = 1e12;
-    expect(buyAccessory(s, 0, 'glasses')).toBe(false); // accessories cost Sentences
+    expect(wearHat(s, 0, 'tophat')).toBe(false); // hats cost Sentences
     s.sentences = 1e12;
-    expect(buyAccessory(s, 0, 'glasses')).toBe(true);
-    expect(s.sentences).toBe(1e12 - glasses.cost);
-    expect(buyAccessory(s, 0, 'glasses')).toBe(false); // already wears them
-    expect(accessoryCost(s, 'glasses')).toBe(Math.ceil(glasses.cost * glasses.costGrowth));
-    expect(buyAccessory(s, 1, 'glasses')).toBe(true);
-    expect(buyAccessory(s, 0, 'nonsense')).toBe(false);
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(s.sentences).toBe(1e12 - top.cost);
+    expect(s.monkeys[0].hat).toBe('tophat');
+    expect(hatCost(s, 'tophat')).toBe(Math.ceil(top.cost * top.costGrowth));
+    expect(wearHat(s, 1, 'tophat')).toBe(true);
+    expect(s.sentences).toBe(1e12 - top.cost - Math.ceil(top.cost * top.costGrowth));
+    expect(wearHat(s, 0, 'nonsense')).toBe(false);
     s.monkeys[1].manager = true;
-    expect(buyAccessory(s, 1, 'mug')).toBe(false); // managers don't type
+    expect(wearHat(s, 1, 'cap')).toBe(true); // managers can dress up too
   });
 
-  it('applies its effects to the monkey wearing it', () => {
+  it('keeps the hats a monkey owns: swapping back is free, picking the one it wears takes it off', () => {
+    const s = createInitialState(0);
+    s.sentences = 1e12;
+    const m = s.monkeys[0];
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(wearHat(s, 0, 'cowboy')).toBe(true);
+    expect(m.hats).toEqual(['tophat', 'cowboy']);
+    const left = s.sentences;
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(s.sentences).toBe(left);
+    expect(m.hat).toBe('tophat');
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(m.hat).toBe('');
+    expect(m.hats).toEqual(['tophat', 'cowboy']);
+  });
+
+  it('has hats that share a price, and some very dear ones', () => {
+    const prices = hats.map((h) => h.cost);
+    expect(new Set(prices).size).toBeLessThan(prices.length);
+    expect(Math.max(...prices)).toBeGreaterThanOrEqual(1e9);
+    for (let i = 1; i < hats.length; i++) expect(hats[i].cost).toBeGreaterThanOrEqual(hats[i - 1].cost); // cheapest first
+    expect(new Set(hats.map((h) => h.icon)).size).toBe(hats.length); // each looks different
+  });
+
+  it('applies only the worn hat to the monkey wearing it', () => {
     const s = createInitialState(0);
     s.sentences = 1e12;
     const m = s.monkeys[0];
     const base = monkeySpeed(s, m);
-    for (const id of ['glasses', 'headphones', 'slippers', 'mug', 'crown']) expect(buyAccessory(s, 0, id)).toBe(true);
-    expect(monkeySpeed(s, m)).toBeCloseTo(base * 1.2); // mug and crown
-    expect(wearing(m, 'points')).toBeCloseTo(0.2); // glasses and crown
-    expect(buyAccessory(s, 0, 'cap')).toBe(true); // a new hat replaces the crown: one per slot
-    expect(m.accessories).toHaveLength(5);
-    expect(m.accessories).not.toContain('crown');
+    expect(wearHat(s, 0, 'crown')).toBe(true);
+    expect(monkeySpeed(s, m)).toBeCloseTo(base * 1.25);
+    expect(wearing(m, 'points')).toBeCloseTo(0.25);
+    expect(wearHat(s, 0, 'cap')).toBe(true); // a monkey wears one hat at a time
+    expect(monkeySpeed(s, m)).toBeCloseTo(base);
+    expect(wearing(m, 'points')).toBe(0);
     expect(comboMultiplier(s, { ...m, chainWords: ['AAAA', 'BBBB', 'CCCC', 'DDDD', 'EEEE'] })).toBe(comboCap(s) + 1);
+    expect(wearHat(s, 0, 'cowboy')).toBe(true);
     energy.drainSeconds = 600;
-    const rates = energyRates(s, m);
-    expect(rates.drainSeconds).toBeCloseTo(600 / 0.85);
-    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.3);
+    expect(energyRates(s, m).drainSeconds).toBeCloseTo(600 / 0.75);
+    expect(wearHat(s, 0, 'beanie')).toBe(true);
+    expect(energyRates(s, m).breakSeconds).toBeCloseTo(energy.breakSeconds / 1.2);
+  });
+
+  it('dyes a worn hat for Sentences, and washes it out for free', () => {
+    const s = createInitialState(0);
+    const m = s.monkeys[0];
+    s.sentences = 100;
+    expect(dyeHat(s, 0, 'red')).toBe(false); // no hat to dye
+    expect(wearHat(s, 0, 'baseball')).toBe(true);
+    const left = s.sentences;
+    expect(dyeHat(s, 0, 'red')).toBe(true);
+    expect(m.hatColor).toBe('red');
+    expect(s.sentences).toBe(left - dyeCost);
+    expect(s.stats.dyes).toBe(1);
+    expect(dyeHat(s, 0, 'red')).toBe(false); // already red
+    expect(dyeHat(s, 0, 'plaid')).toBe(false);
+    expect(dyeHat(s, 0, '')).toBe(true);
+    expect(m.hatColor).toBe('');
+    expect(s.sentences).toBe(left - dyeCost);
+    s.sentences = dyeCost - 1;
+    expect(dyeHat(s, 0, hatColors[1].id)).toBe(false);
   });
 });
 
@@ -1702,20 +1749,21 @@ describe('achievements', () => {
     expect(s.achievements).toContain('pets-1000');
   });
 
-  it('measures each stat, including secret words and worn accessories', () => {
+  it('measures each stat, including secret words and worn hats', () => {
     const s = createInitialState(0);
     s.stats.words = { MONKEY: 2, CAT: 1 };
-    s.monkeys[0].accessories = ['crown'];
+    s.monkeys[0].hats = ['crown'];
+    s.monkeys[0].hat = 'crown';
     expect(achievementValue(s, 'word:MONKEY')).toBe(2);
     expect(achievementValue(s, 'dictionary')).toBe(2);
     expect(achievementValue(s, 'wearing:crown')).toBe(1);
     expect(achievementValue(s, 'biggestDepartment')).toBe(1);
     checkAchievements(s);
-    expect(s.achievements).toEqual(expect.arrayContaining(['word-monkey', 'crown', 'first-accessory']));
+    expect(s.achievements).toEqual(expect.arrayContaining(['word-monkey', 'crown', 'first-hat']));
   });
 
   it('every achievement has a known measure and a unique id', () => {
-    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'accessories', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios']);
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios']);
     for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
     expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
   });
