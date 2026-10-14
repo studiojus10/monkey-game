@@ -32,6 +32,7 @@ npm start
 | `d` | Move a monkey to its next department (on the home screen) |
 | `m` | Promote a monkey to manager (department of 6+ monkeys) or send one back to typing; a manager pins the line with the fewest words, preferring lines within reach (earliest first on ties) and fills your word slots |
 | `n` | Name a monkey (pick which one with `1`–`9` if you have several) |
+| `f` | Publish a Folio, once a whole play is finished: start over, keeping achievements and statistics, with a points bonus for good from every line written (finished plays count twice); asks to confirm |
 | `s` | Save now |
 | `r` | Reset progress (asks to confirm; on the home screen) |
 | `q` or `Ctrl+C` | Save and quit |

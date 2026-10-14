@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, petting, achievements, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   chainSentences,
@@ -7,6 +7,10 @@ import {
   addRoom,
   rotateFurniture,
   achievementValue,
+  canPublishFolio,
+  folioPagesNow,
+  folioMultiplier,
+  publishFolio,
   checkAchievements,
   setLineWidth,
   pieceSize,
@@ -1711,8 +1715,65 @@ describe('achievements', () => {
   });
 
   it('every achievement has a known measure and a unique id', () => {
-    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'accessories', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points']);
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'accessories', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios']);
     for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
     expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
+  });
+});
+
+describe('publishing a Folio', () => {
+  const play = {
+    id: 'folio-test',
+    title: 'Folio Test',
+    lines: [
+      [1, 1, 'A', 'I.'],
+      [1, 1, 'B', 'I.'],
+      [1, 2, 'A', 'I.'],
+    ] as [number, number, string, string][],
+  };
+  afterEach(() => setPlays([]));
+
+  it('opens once a play is finished, and banks a page per line written plus each finished play again', () => {
+    setPlays([play]);
+    const s = createInitialState(0);
+    expect(canPublishFolio(s)).toBe(false);
+    expect(publishFolio(s)).toBeNull();
+    s.completed = { 'folio-test': [0, 1, 2], other: [5] };
+    s.playsDone = ['folio-test'];
+    expect(canPublishFolio(s)).toBe(true);
+    expect(folioPagesNow(s)).toBe(4 + 3 * folio.finishedPlayPages);
+  });
+
+  it('starts over, keeping achievements, statistics, options and the Folio, which raises points for good', () => {
+    setPlays([play]);
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.currency = 1e9;
+    s.monkeys.push(createMonkey());
+    s.completed = { 'folio-test': [0, 1, 2] };
+    s.playsDone = ['folio-test'];
+    s.stats.pets = 5;
+    s.achievements = ['first-pet'];
+    s.settings.autoPlaceFurniture = false;
+    const next = publishFolio(s)!;
+    expect(next.currency).toBe(0);
+    expect(next.monkeys).toHaveLength(1);
+    expect(next.letters).toEqual([]);
+    expect(next.playsDone).toEqual([]);
+    expect(next.folios).toBe(1);
+    expect(next.folioPages).toBe(6);
+    expect(next.stats.pets).toBe(5);
+    expect(next.settings.autoPlaceFurniture).toBe(false);
+    expect(next.achievements).toEqual(['first-pet', 'first-folio']);
+    expect(folioMultiplier(next)).toBeCloseTo(1 + 6 * folio.bonusPerPage);
+    // A second Folio adds to the first.
+    next.completed = { 'folio-test': [0, 1, 2] };
+    next.playsDone = ['folio-test'];
+    const third = publishFolio(next)!;
+    expect(third.folios).toBe(2);
+    expect(third.folioPages).toBe(12);
+    chooseFirstLetter(third, 'i');
+    typeLetter(third, 0, rng);
+    expect(third.currency).toBeCloseTo(1 + 12 * folio.bonusPerPage); // the word I pays 1 point, times the Folio
   });
 });

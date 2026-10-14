@@ -1,5 +1,5 @@
 import { achievements, theme } from '../game/config';
-import { achievementValue, getPlay } from '../game/logic';
+import { achievementValue, folioMultiplier, getPlay } from '../game/logic';
 import { lineLocation } from '../game/plays';
 import type { GameState } from '../game/state';
 import { formatNumber } from '../format';
@@ -40,6 +40,7 @@ export function renderStats(state: GameState): string {
     `Longest line:       ${line && play ? `"${line.text}" (${play.title} ${lineLocation(line, play.genre)}, ${line.letters.length} letters)` : '-'}`,
     `Best line payout:   ${st.bestLinePoints > 0 ? `+${formatNumber(st.bestLinePoints)} ${theme.currency}` : '-'}`,
     `Monkeys petted:     ${formatNumber(st.pets)} time${st.pets === 1 ? '' : 's'}`,
+    `Folios published:   ${formatNumber(state.folios)}${state.folios > 0 ? ` (${formatNumber(state.folioPages)} pages: points x${folioMultiplier(state).toFixed(2)})` : ''}`,
     '',
     'Letters typed',
     ...(letterCells.length > 0

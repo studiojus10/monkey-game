@@ -252,6 +252,19 @@ export const petting = {
 };
 
 /**
+ * Publishing a Folio (the prestige reset), open once a whole play is
+ * finished (Justin, 2026-10-14: the player chooses when). Everything starts
+ * over except achievements, statistics, options and the Folio itself, which
+ * keeps a page for every play line written, in every department, plus
+ * finishedPlayPages more per line of each finished play. Every page banked
+ * raises points by bonusPerPage for good. Placeholders.
+ */
+export const folio = {
+  bonusPerPage: 0.001, // +0.1% points a page: a finished Midsummer (2,160 lines, counted twice) is about +432%
+  finishedPlayPages: 1,
+};
+
+/**
  * Achievements: no reward, just a record on the achievements page ([a]).
  * Each one unlocks when its measure (see achievementValue in logic.ts)
  * reaches `at`. Measures named word:XYZ count how often the monkeys spelled
@@ -289,6 +302,7 @@ export const achievements: Achievement[] = [
   { id: 'first-key', name: 'Shortcut', text: 'Buy a typewriter key', stat: 'keys', at: 1 },
   { id: 'first-slot', name: 'Fill in the blank', text: 'Buy a word slot', stat: 'slots', at: 1 },
   { id: 'first-pet', name: 'Good monkey', text: 'Pet a monkey', stat: 'pets', at: 1 },
+  { id: 'first-folio', name: 'First Folio', text: 'Publish a Folio', stat: 'folios', at: 1 },
   // Just for fun.
   { id: 'pets-100', name: 'Best friends', text: 'Pet the monkeys 100 times', stat: 'pets', at: 100 },
   { id: 'pets-1000', name: 'Pet project', text: 'Pet the monkeys 1,000 times', stat: 'pets', at: 1_000 },

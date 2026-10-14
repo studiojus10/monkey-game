@@ -1,6 +1,9 @@
-import { accessories, departmentRules, monkeyIcon, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { accessories, departmentRules, folio, monkeyIcon, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
+  canPublishFolio,
+  folioMultiplier,
+  folioPagesNow,
   furnitureSpot,
   accessoryCost,
   accessoryIn,
@@ -239,11 +242,12 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
     ...lastLineText(state),
     ...lastMilestoneText(state),
+    ...folioOffer(state),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...pinnedText(state),
     '',
     ...(shop ? shopLines(state, shop) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   ${canPublishFolio(state) ? '[f] publish a Folio   ' : ''}[s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );
@@ -648,14 +652,31 @@ function scenesOwned(state: GameState): number {
 /** Permanent bonuses from finished scenes and acts, once there are any. */
 function milestoneSummary(state: GameState): string[] {
   const scenesDone = state.scenesDone.filter((k) => getPlay(k.split(':')[0])?.genre !== 'sonnet').length;
-  if (scenesDone === 0) return [];
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  const scenes = `Bonuses: points +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`;
-  const acts =
-    state.actsDone.length === 0
-      ? ''
-      : `   typing +${pct(state.speedBonus)} (${plural(state.actsDone.length, 'act')} finished)`;
-  return [scenes + acts];
+  const parts = [
+    ...(scenesDone > 0 ? [`points +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`] : []),
+    ...(state.actsDone.length > 0 ? [`typing +${pct(state.speedBonus)} (${plural(state.actsDone.length, 'act')} finished)`] : []),
+    ...(state.folios > 0 ? [`Folio points +${pct(folioMultiplier(state) - 1)} (${plural(state.folios, 'Folio')} published)`] : []),
+  ];
+  return parts.length > 0 ? [`Bonuses: ${parts.join('   ')}`] : [];
+}
+
+/** The offer to publish a Folio, once a play is finished. */
+export function folioOffer(state: GameState): string[] {
+  if (!canPublishFolio(state)) return [];
+  const pages = folioPagesNow(state);
+  return [`* You can publish a Folio: [f] start over with ${count(pages)} more pages, points +${pct(pages * folio.bonusPerPage)} for good.`];
+}
+
+/** The question before publishing a Folio. */
+export function folioPrompt(state: GameState): string {
+  const pages = folioPagesNow(state);
+  const after = 1 + (state.folioPages + pages) * folio.bonusPerPage;
+  return (
+    `Publish a Folio? Everything starts over: monkeys, letters, office, script and currencies. ` +
+    `You keep achievements and statistics, and the Folio gains ${count(pages)} pages (one per line written, finished plays twice): ` +
+    `points x${after.toFixed(2)} for good. Press y to publish, any other key to keep playing.`
+  );
 }
 
 function lastMilestoneText(state: GameState): string[] {

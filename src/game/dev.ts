@@ -1,4 +1,5 @@
 import { letterValues } from './config';
+import { getPlay } from './logic';
 import type { GameState } from './state';
 
 /** A development tool for testing: a label and what it does to the game. */
@@ -32,6 +33,15 @@ export const devTools: DevTool[] = [
     label: 'Own every letter',
     apply(state) {
       for (const l of Object.keys(letterValues)) if (!state.letters.includes(l)) state.letters.push(l);
+    },
+  },
+  {
+    label: 'Finish the first play you own (to try publishing a Folio)',
+    apply(state) {
+      const play = getPlay(state.owned[0]?.split(':')[0] ?? '');
+      if (!play) return;
+      state.completed[play.id] = play.lines.map((_, i) => i);
+      if (!state.playsDone.includes(play.id)) state.playsDone.push(play.id);
     },
   },
 ];
