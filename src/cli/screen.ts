@@ -57,11 +57,19 @@ import { formatNumber } from '../format';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
- * then any letters still waiting to become a word and a cursor.
+ * then any letters still waiting to become a word and a cursor. At most
+ * `room` letters show: the newest ones.
  * Uses ANSI bold, which every common terminal supports.
  */
-export function renderLine(m: MonkeyState): string {
-  const text = m.line.map((s) => s.text.toUpperCase());
+export function renderLine(m: MonkeyState, room = Infinity): string {
+  let text = m.line.map((s) => s.text.toUpperCase());
+  // On a screen narrower than the line, its oldest letters drop off the left.
+  let over = text.join('').length + m.pending.length - room;
+  for (let i = 0; over > 0 && i < text.length; i++) {
+    const cut = Math.min(over, text[i].length);
+    text = text.map((t, j) => (j === i ? t.slice(cut) : t));
+    over -= cut;
+  }
   // The live part is bold: the current run of back-to-back words plus any
   // letters still forming a word. If the newest letter was skipped, just it.
   let lastSkip = m.line.length - 1;
@@ -125,8 +133,39 @@ export function departmentPrompt(state: GameState): string {
 /** A bonus as a percentage, e.g. 0.215 -> "21.5%". */
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
+/**
+ * Each shown monkey's label (icon, name, accessories, speed and energy) and
+ * multiplier, padded so every monkey's text starts in the same column.
+ */
+function monkeyLabels(state: GameState): { labels: string[][]; nameWidth: number; comboWidth: number } {
+  const shown = state.monkeys.slice(0, maxMonkeyLines);
+  // Pad names and multipliers so every monkey's text starts in the same column.
+  // With more than one department, each monkey's line starts with its department's initial.
+  const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
+  // A typist shows its speed now and its energy; on a break, how long is left.
+  const status = (m: MonkeyState) =>
+    m.manager
+      ? `${monkeySpeed(state, m).toFixed(2)}/s`
+      : m.resting
+        ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
+        : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
+  // Each monkey has an icon, its hat if it wears one; other accessories show as letters after its name.
+  const worn = (m: MonkeyState) => {
+    const glyphs = accessories.filter((a) => !a.icon && m.accessories.includes(a.id)).map((a) => a.glyph).join('');
+    return glyphs ? `[${glyphs}]` : '';
+  };
+  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
+  return { labels, nameWidth: Math.max(...labels.map(([n]) => n.length)), comboWidth: Math.max(...labels.map(([, c]) => c.length)) };
+}
+
+/** Letters a monkey's line has room for on a screen this many columns wide (after its label, keeping the last column and the cursor free). */
+export function lineRoom(state: GameState, columns: number): number {
+  const { nameWidth, comboWidth } = monkeyLabels(state);
+  return columns - (nameWidth + 1 + comboWidth + 2) - 2;
+}
+
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = '', shop: Store | null = null): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0): string {
   const lines = [`=== ${theme.title} ===`, ''];
 
   if (state.owned.length === 0 && state.departments.length === 0) {
@@ -179,26 +218,10 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
   const shown = state.monkeys.slice(0, maxMonkeyLines);
-  // Pad names and multipliers so every monkey's text starts in the same column.
-  // With more than one department, each monkey's line starts with its department's initial.
-  const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
-  // A typist shows its speed now and its energy; on a break, how long is left.
-  const status = (m: MonkeyState) =>
-    m.manager
-      ? `${monkeySpeed(state, m).toFixed(2)}/s`
-      : m.resting
-        ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
-        : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
-  // Each monkey has an icon, its hat if it wears one; other accessories show as letters after its name.
-  const worn = (m: MonkeyState) => {
-    const glyphs = accessories.filter((a) => !a.icon && m.accessories.includes(a.id)).map((a) => a.glyph).join('');
-    return glyphs ? `[${glyphs}]` : '';
-  };
-  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
-  const nameWidth = Math.max(...labels.map(([n]) => n.length));
-  const comboWidth = Math.max(...labels.map(([, c]) => c.length));
+  const { labels, nameWidth, comboWidth } = monkeyLabels(state);
+  const room = columns > 0 ? lineRoom(state, columns) : Infinity;
   lines.push(
-    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m)}`),
+    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m, room)}`),
     ...(state.monkeys.length > maxMonkeyLines
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),

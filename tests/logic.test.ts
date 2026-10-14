@@ -6,6 +6,7 @@ import {
   accessoryCost,
   addRoom,
   rotateFurniture,
+  setLineWidth,
   pieceSize,
   footprint,
   fitsAt,
@@ -223,6 +224,20 @@ describe('typing', () => {
     chooseFirstLetter(s, 'i');
     for (let i = 0; i < lineWidth + 1; i++) typeLetter(s, 0, rng);
     expect(s.monkeys[0].line).toHaveLength(1);
+  });
+
+  it('lets a front end set how long a line runs, to fit its screen', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    try {
+      setLineWidth(150);
+      for (let i = 0; i < 150; i++) typeLetter(s, 0, rng);
+      expect(s.monkeys[0].line).toHaveLength(150);
+      typeLetter(s, 0, rng);
+      expect(s.monkeys[0].line).toHaveLength(1);
+    } finally {
+      setLineWidth(lineWidth);
+    }
   });
 
   it('offline typing is credited and capped', () => {

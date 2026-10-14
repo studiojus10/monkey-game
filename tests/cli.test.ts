@@ -9,6 +9,7 @@ import {
   maxMonkeyLines,
   renderKeysMenu,
   renderLine,
+  lineRoom,
   renderScreen,
   ordinal,
   renderScript,
@@ -140,6 +141,19 @@ describe('terminal screen', () => {
     expect(rows).toHaveLength(3);
     expect(rows[1].startsWith(' @ Bartholomew(')).toBe(true);
     expect(new Set(rows.map((r) => r.indexOf('_'))).size).toBe(1);
+  });
+
+  it('runs monkey lines to the edge of the screen, dropping the oldest letters if the screen is narrower', () => {
+    const s = started();
+    s.monkeys[0].line = [{ text: 'X'.repeat(200), scored: false }];
+    for (const columns of [60, 100, 160]) {
+      const row = plain(renderScreen(s, '', null, columns)).split('\n').find((r) => r.endsWith('_'))!;
+      expect(row.length).toBe(columns - 1); // the last column stays free
+      expect(lineRoom(s, columns)).toBe(row.length - row.indexOf('X') - 1);
+    }
+    expect(renderLine({ ...createMonkey(), pending: 'IT', line: [{ text: 'CAT', scored: true }, { text: 'X', scored: false }] }, 4)).toBe(
+      'TX\x1b[1mIT\x1b[22m_',
+    );
   });
 
   it('keeps the current run of words bold until a letter breaks it', () => {

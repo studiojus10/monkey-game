@@ -63,6 +63,7 @@ import {
   setSlotWord,
   setPlays,
   setWordList,
+  setLineWidth,
   tick,
   togglePin,
   toggleSlot,
@@ -80,6 +81,7 @@ import {
   managerUpgradePrompt,
   renderKeysMenu,
   renderScreen,
+  lineRoom,
   renderScript,
   renderContents,
   stores,
@@ -109,6 +111,14 @@ const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
 const storage = fileStorage(savePath);
 
 let state = load(storage);
+/** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
+function fitLines(): number {
+  const columns = process.stdout.columns || 80;
+  if (state.monkeys.length > 0) setLineWidth(lineRoom(state, columns));
+  return columns;
+}
+
+fitLines();
 const offline = applyOfflineProgress(state, Date.now());
 let message =
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
@@ -307,6 +317,7 @@ function buyTyping(i: number, what: 'skill' | 'typewriter'): string {
 }
 
 function draw() {
+  const columns = fitLines();
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
@@ -326,7 +337,7 @@ function draw() {
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message, shop);
+        : renderScreen(state, message, shop, columns);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 

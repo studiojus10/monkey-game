@@ -86,7 +86,7 @@ Heavier letter keys were dropped (2026-10-13): choosing odds for 26 letters was 
 
 ### The typewriter line and carriage return
 
-Each monkey's line on screen is **60 letters** wide **(default)**. When it's full, the carriage returns and a fresh line starts. This is display only: words and chains carry on across the return, since play lines can be longer than 60 letters.
+Each monkey's line on screen runs to the edge of the terminal (Justin, 2026-10-14), or 60 letters where a front end doesn't say how wide it is. When it's full, the carriage returns and a fresh line starts. If the window is made narrower, a line's oldest letters drop off the left. This is display only: words and chains carry on across the return, since play lines can be longer than a screen line.
 
 ## Combos
 

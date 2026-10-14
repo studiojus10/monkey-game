@@ -914,8 +914,15 @@ function lineLength(m: MonkeyState): number {
   return m.line.reduce((n, s) => n + s.text.length, 0) + m.pending.length;
 }
 
+let lineLimit = lineWidth;
+
+/** How many letters a monkey's line holds before it starts over: a front end sets this to fit its screen. */
+export function setLineWidth(letters: number): void {
+  lineLimit = Math.max(10, Math.floor(letters) || lineWidth);
+}
+
 function addToLine(m: MonkeyState, segment: Segment): void {
-  if (lineLength(m) + segment.text.length > lineWidth) m.line = [];
+  if (lineLength(m) + segment.text.length > lineLimit) m.line = [];
   m.line.push(segment);
 }
 

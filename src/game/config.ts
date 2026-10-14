@@ -314,7 +314,7 @@ export const managers = {
   upgradeCostGrowth: 2,
 };
 
-/** Letters per typewriter line on screen. */
+/** Letters per typewriter line until a front end sets its own (the terminal sets it to reach the screen's edge). */
 export const lineWidth = 60;
 
 /**
