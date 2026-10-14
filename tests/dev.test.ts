@@ -3,6 +3,8 @@ import { renderDevMenu } from '../src/cli/screen';
 import { devTools } from '../src/game/dev';
 import { createInitialState } from '../src/game/state';
 
+const plain = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
+
 describe('development tools', () => {
   const use = (label: string) => {
     const s = createInitialState(0);
@@ -23,6 +25,6 @@ describe('development tools', () => {
   });
 
   it('lists each tool with its number key', () => {
-    expect(renderDevMenu()).toContain('[1] Add 1 billion bananas');
+    expect(plain(renderDevMenu(createInitialState(0)))).toContain('[1] Add 1 billion bananas');
   });
 });

@@ -1632,6 +1632,13 @@ describe('sentences from long chains', () => {
       expect(s.sentences).toBe(chainSentences(4));
       expect(s.stats.chainSentences).toBe(chainSentences(4));
       expect(s.monkeys[0].chainCounted).toBe(0);
+      // The words of the longest sentence so far are kept, and each one written is counted.
+      expect(s.stats.sentencesWritten).toBe(1);
+      expect(s.stats.longestSentence).toEqual(['CATS', 'AT', 'DOGS', 'BIRD', 'CATS']);
+      expect(s.monkeys[0].chainAll).toEqual([]);
+      typeAll(s, 'DOGSBIRDCATSX'); // a shorter one doesn't replace it
+      expect(s.stats.sentencesWritten).toBe(2);
+      expect(s.stats.longestSentence).toHaveLength(5);
     } finally {
       setWordList([]);
     }

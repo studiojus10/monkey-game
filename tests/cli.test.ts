@@ -77,12 +77,16 @@ describe('terminal screen', () => {
   it('asks for a genre first, then a free scene, then the first letter', () => {
     setPlays([testPlay]);
     const s = createInitialState(0);
-    expect(renderScreen(s)).toContain('[1] Comedies: Test Play');
+    const genres = plain(renderScreen(s, '', null, 80));
+    expect(genres.split('\n')[0]).toBe(' INFINITE MONKEYS ');
+    expect(genres).toContain('   [1] Comedies   Test Play');
+    expect(genres).toContain(' [1] choose   [q] quit');
     openDepartment(s, 'comedy');
-    expect(renderScreen(s)).toContain('[1] Test Play, Act 1, scene 1 (1 lines)');
+    expect(plain(renderScreen(s))).toContain('   [1] Test Play, Act 1, scene 1   1 line');
     chooseStarterScene(s, 'test', '1.1');
-    const text = renderScreen(s);
-    expect(text).toContain('[a] A    [i] I');
+    const text = plain(renderScreen(s));
+    expect(text).toContain('   [a] A\n   [i] I\n');
+    expect(text).toContain(' [a/i] choose   [q] quit');
     expect(text).not.toContain('Bananas');
   });
 
@@ -316,12 +320,15 @@ describe('typewriter keys menu', () => {
     s.stats.words = { THE: 100, LORD: 40, NOR: 12 };
     expect(squash(renderScreen(s, '', 'typewriters'))).toContain('[3] Typewriter keys... letter combos and whole words');
     const text = plain(renderKeysMenu(s));
-    expect(text).toContain('Closest: LORD 40/100   NOR 12/100');
-    expect(text).toContain('Owned: TH');
+    expect(text).toContain(' Closest LORD 40/100   NOR 12/100');
+    expect(text).toContain(' Owned  TH');
     expect(keyChoices(s)).not.toContain('TH');
     expect(keyChoices(s)).toContain('HE');
-    expect(text).toMatch(/\[1\]  HE \(combination\)   cost [\d.]+[KMBT]? Bananas/);
-    expect(text).toMatch(/\[2\]  THE \(word\)/);
+    expect(text).toMatch(/ \[1\] HE   combination    [\d.]+[KMBT]? Bananas/);
+    expect(text).toMatch(/ \[2\] THE  word /);
+    s.currency = 1e9;
+    expect(renderKeysMenu(s)).toContain('\x1b[32m* \x1b[1m4.00M\x1b[22m Bananas\x1b[39m'); // affordable: green with a *
+    expect(plain(renderKeysMenu(s, '', 80)).split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 });
 
@@ -342,9 +349,10 @@ describe('word slots on screen', () => {
     s.lines = 2;
     s.slots = [{ department: '', position: 3, word: 'FRIEND', on: true }];
     const text = plain(renderSlotsMenu(s, 'comedy', 0, null));
-    expect(text).toContain('> [1] 3rd  word: FRIEND           ON');
-    expect(text).toContain('[b]  buy a slot   cost 6 Lines');
-    expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word: FRI_');
+    expect(text).toContain('> [1] 3rd  word  FRIEND           ON');
+    expect(renderSlotsMenu(s, 'comedy', 0, null)).toContain('\x1b[7m> [1] 3rd'); // the selected slot is inverse
+    expect(text).toContain(' [b] buy a slot   6 Lines');
+    expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word  FRI_');
     expect(ordinal(1) + ordinal(2) + ordinal(11) + ordinal(22)).toBe('1st2nd11th22nd');
   });
 });
@@ -353,23 +361,52 @@ describe('statistics and dictionary', () => {
   it('shows totals, records, letter counts and the most spelled words', () => {
     const s = started();
     for (let i = 0; i < 3; i++) typeLetter(s, 0, () => 0);
-    const text = renderStats(s);
-    expect(text).toContain('Letters typed:      3');
-    expect(text).toContain('Words spelled:      3 (1 different)');
-    expect(text).toContain('Longest word:       I (1 letters)');
-    expect(text).toContain('Longest line:       "I." (Test Play 1.1, 1 letters)');
-    expect(text).toContain('  I 3');
-    expect(text).toContain('   1. I                x3');
+    const text = plain(renderStats(s));
+    expect(text).toContain(' INFINITE MONKEYS > STATS ');
+    expect(text).toContain('   Letters typed      3\n');
+    expect(text).toContain('   Words spelled      3   1 different');
+    expect(text).toContain('   Longest word       I   1 letter\n');
+    expect(text).toContain('   Longest line       "I."   Test Play 1.1, 1 letter\n');
+    expect(text).toContain('   Scenes finished    1');
+    expect(text).toContain('\n LETTERS TYPED\n   I 3\n');
+    expect(text).toContain('    1. I           3');
+    expect(renderStats(s)).toContain('\x1b[2m TYPING\x1b[22m'); // headings are dim
+  });
+
+  it('shows Folios only once one is published', () => {
+    const s = started();
+    expect(plain(renderStats(s))).not.toContain('FOLIOS');
+    s.folios = 1;
+    s.folioPages = 12;
+    expect(plain(renderStats(s))).toContain(' FOLIOS\n   Published          1\n   Pages              12');
+  });
+
+  it('lists letters by how often they were typed, most first', () => {
+    const s = started();
+    s.stats.letters = { A: 5, E: 90, I: 12, T: 12 };
+    expect(plain(renderStats(s))).toContain('   E 90        I 12        T 12        A 5');
+  });
+
+  it('counts sentences and shows the longest one, wrapped under the values', () => {
+    const s = started();
+    expect(plain(renderStats(s))).toContain('   Longest sentence   -');
+    s.stats.sentencesWritten = 4;
+    s.stats.chainSentences = 1;
+    s.stats.longestSentence = Array.from({ length: 30 }, () => 'MONKEY');
+    const text = plain(renderStats(s, 80));
+    expect(text).toContain('   Sentences written  4   1 Sentence earned');
+    expect(text).toContain('   Longest sentence   30 words\n                      MONKEY MONKEY');
+    expect(text.split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 
   it('lists every word spelled from A to Z with its count, and jumps to a letter', () => {
     const s = started();
     expect(renderDictionary(s, 0)).toContain('No words yet');
     s.stats.words = { ZAP: 1, CAT: 4, ALE: 2, MOO: 1, BEE: 3 };
-    const text = renderDictionary(s, 0);
+    const text = plain(renderDictionary(s, 0));
     expect(text).toContain('5 words spelled');
-    expect(text.split('\n')[2].split(/\s{2,}/)).toEqual(['ALE x2', 'BEE x3', 'CAT x4', 'MOO x1']);
-    expect(text.split('\n')[3]).toBe('ZAP x1');
+    expect(text.split('\n')[4].trim().split(/\s{2,}/)).toEqual(['ALE 2', 'BEE 3', 'CAT 4', 'MOO 1']);
+    expect(text.split('\n')[5]).toBe(' ZAP 1');
     expect(dictionaryRowFor(s, 'z')).toBe(1);
     expect(dictionaryRowFor(s, 'b')).toBe(0);
   });
@@ -546,10 +583,10 @@ describe('furniture', () => {
 
   it('has an option to place furniture yourself', () => {
     const s = started();
-    expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: ON');
+    expect(squash(renderOptions(s))).toContain('[1] Furniture places itself ON');
     s.settings.autoPlaceFurniture = false;
-    expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: off');
-    expect(plain(renderOptions(s))).toContain('[2] Light background: off');
+    expect(squash(renderOptions(s))).toContain('[1] Furniture places itself off');
+    expect(squash(renderOptions(s))).toContain('[2] Light background off');
     // On a light background the pale colours turn darker; the rest stay.
     expect(forLightBackground(`${yellow('Bananas')} ${cyan('Words')} ${green('*')} ${red('NO WAY IN')}`)).toBe(
       '\x1b[38;5;130mBananas\x1b[39m \x1b[38;5;30mWords\x1b[39m \x1b[38;5;28m*\x1b[39m \x1b[31mNO WAY IN\x1b[39m',
@@ -665,13 +702,13 @@ describe('achievements on screen', () => {
     const text = plain(renderAchievements(s, 0));
     expect(text).toContain(`1 of ${achievements.length} unlocked`);
     expect(text).toMatch(/\[x\] Good monkey +Pet a monkey/);
-    expect(text).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   \(37 \/ 100\)/);
+    expect(text).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   37 \/ 100/);
+    expect(renderAchievements(s, 0)).toContain('\x1b[32m[x]\x1b[39m'); // unlocked: a green mark
     const last = plain(renderAchievements(s, 999));
     expect(last).toMatch(/\[ \] \?\?\? +A secret/);
-    expect(last).not.toContain('MONKEY');
+    expect(last.split('\n').slice(1).join('\n')).not.toContain('MONKEY'); // past the title bar
     s.achievements.push('word-monkey');
     expect(plain(renderAchievements(s, 999))).toContain('Self-aware');
-    expect(text).toContain('Milestones');
   });
 
   it('shows a heart by a monkey petted lately', () => {

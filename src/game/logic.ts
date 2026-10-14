@@ -1250,6 +1250,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
       m.chainRecent = [];
       m.chainLength = 0;
       m.chainCounted = 0;
+      m.chainAll = [];
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
@@ -1265,6 +1266,9 @@ function endChain(state: GameState, m: MonkeyState): void {
   const n = chainSentences(m.chainCounted);
   state.sentences += n;
   state.stats.chainSentences += n;
+  if (n === 0) return;
+  state.stats.sentencesWritten++;
+  if (m.chainAll.length > state.stats.longestSentence.length) state.stats.longestSentence = [...m.chainAll];
 }
 
 /** Records a scored word in the statistics. Slot words count their letters as typed here. */
@@ -1298,6 +1302,7 @@ function scoreInChain(state: GameState, m: MonkeyState, word: string): number {
   m.chainPoints += wordPoints(word);
   m.chainLength++;
   m.chainRecent.push(word);
+  if (m.chainAll.length < sentenceRules.maxRecordWords) m.chainAll.push(word);
   let kept = m.chainRecent.reduce((n, w) => n + w.length, 0);
   while (m.chainRecent.length > 1 && kept - m.chainRecent[0].length >= longestLine) {
     kept -= m.chainRecent.shift()!.length;

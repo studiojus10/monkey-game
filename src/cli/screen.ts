@@ -114,14 +114,25 @@ export const genreNames: Record<Genre, string> = {
   sonnet: 'Sonnets',
 };
 
-function genreMenu(state: GameState): string[] {
-  return departmentChoices(state).map(
-    (g, i) =>
-      `  [${i + 1}] ${genreNames[g]}: ${availablePlays()
-        .filter((p) => p.genre === g)
-        .map((p) => p.title)
-        .join(', ')}`,
-  );
+/**
+ * One of the opening screens (genre, free scene, first letter): the title,
+ * a line of story, a dim explanation, the choices with dim details lined up
+ * after them, and the keys.
+ */
+function openingScreen(intro: string, explain: string[], choices: [string, string, string][], keys: [string, string][], message: string, columns: number): string {
+  const width = Math.max(...choices.map(([, name]) => name.length));
+  return [
+    bold(inverse(` ${theme.title.toUpperCase()} `)),
+    '',
+    ...(intro ? [` ${intro}`] : []),
+    ...explain.map((r) => dim(` ${r}`)),
+    '',
+    ...choices.map(([key, name, details]) => `   ${bold(`[${key}]`)} ${details ? `${name.padEnd(width)}   ${dim(details)}` : name}`),
+    ...(message ? ['', ` ${bold(message)}`] : []),
+    '',
+    rule(columns),
+    keyRow(keys, columns),
+  ].join('\n');
 }
 
 /** The prompt for unlocking another genre. */
@@ -250,53 +261,39 @@ export function renderHomeKeys(state: GameState): string {
 
 /** Renders the whole game screen as plain text. */
 export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, page = 0): string {
-  const lines = [`=== ${theme.title} ===`, ''];
-
   if (state.owned.length === 0 && state.departments.length === 0) {
-    lines.push(
+    const genres = departmentChoices(state);
+    return openingScreen(
       'Somewhere, infinite monkeys are trying to write Shakespeare.',
-      'Choose their first department. Each department works on one genre;',
-      'the others open as you gather more monkeys.',
-      '',
-      ...genreMenu(state),
-      '',
-      '[q] quit',
-      '',
+      ['Choose their first department. Each works on one genre; the others', 'open as you gather more monkeys.'],
+      genres.map((g, i) => [String(i + 1), genreNames[g], availablePlays().filter((p) => p.genre === g).map((p) => p.title).join(', ')]),
+      [[genres.length === 1 ? '1' : `1-${genres.length}`, 'choose'], ['q', 'quit']],
       message,
+      columns,
     );
-    return lines.join('\n');
   }
 
   if (state.owned.length === 0) {
-    lines.push(
-      'Choose a free first scene for your monkeys to work toward:',
-      '',
-      ...starterScenes(state).map(
-        ({ play, scene }, i) =>
-          `  [${i + 1}] ${play.title}, ${sceneName(scene.act, scene.scene)} (${count(scene.lines.length)} lines)`,
-      ),
-      '',
-      'Later you can buy more scenes, acts and whole plays in the script.',
-      '',
-      '[q] quit',
-      '',
+    const scenes = starterScenes(state);
+    return openingScreen(
+      'Choose a free first scene for your monkeys to work toward.',
+      ['Later you can buy more scenes, acts and whole plays in the script.'],
+      scenes.map(({ play, scene }, i) => [String(i + 1), `${play.title}, ${sceneName(scene.act, scene.scene)}`, `${count(scene.lines.length)} line${scene.lines.length === 1 ? '' : 's'}`]),
+      [[scenes.length === 1 ? '1' : `1-${scenes.length}`, 'choose'], ['q', 'quit']],
       message,
+      columns,
     );
-    return lines.join('\n');
   }
 
   if (state.letters.length === 0) {
-    lines.push(
+    return openingScreen(
       'Your monkey sits at a typewriter with no keys.',
-      'Pick its first letter. It has to be a word on its own:',
-      '',
-      '  ' + startingLetters.map((l) => `[${l.toLowerCase()}] ${l}`).join('    '),
-      '',
-      '[q] quit',
-      '',
+      ['Pick its first letter. It has to be a word on its own.'],
+      startingLetters.map((l) => [l.toLowerCase(), l, ''] as [string, string, string]),
+      [[startingLetters.map((l) => l.toLowerCase()).join('/'), 'choose'], ['q', 'quit']],
       message,
+      columns,
     );
-    return lines.join('\n');
   }
 
   if (shop) return renderShop(state, shop, page, message, columns);
@@ -305,8 +302,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   const ownedScenes = scenesOwned(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
   const label = (s: string) => dim(` ${s.padEnd(8)}`);
-  lines.length = 0;
-  lines.push(
+  const lines = [
     titleBar(state),
     '',
     monkeyHeadings(state),
@@ -321,7 +317,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     '',
     rule(columns),
     ...homeKeys(state, columns),
-  );
+  ];
   return lines.join('\n');
 }
 
@@ -730,32 +726,34 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
 }
 
 /** The options menu. */
-export function renderOptions(state: GameState): string {
-  const onOff = (on: boolean) => (on ? bold('ON') : 'off');
+export function renderOptions(state: GameState, columns = 0): string {
+  const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
+  const option = (key: string, label: string, on: boolean, notes: string[]) => [` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`, ...notes.map((n) => dim(`     ${n}`)), ''];
   return [
-    '=== Options ===',
+    titleBar(state, 'Options', columns),
     '',
-    `  [1] Furniture places itself: ${onOff(state.settings.autoPlaceFurniture)}`,
-    '      On: new furniture goes in the first free square (a break room first).',
-    '      Off: buying furniture opens the office map so you can place it.',
-    '',
-    `  [2] Light background: ${onOff(state.settings.lightBackground)}`,
-    "      On: darker colours that are easy to read when your terminal's theme is light.",
-    '',
-    '[1-2] switch   [esc] back',
+    ...option('1', 'Furniture places itself', state.settings.autoPlaceFurniture, [
+      'On: new furniture goes in the first free square (a break room first).',
+      'Off: buying furniture opens the office map so you can place it.',
+    ]),
+    ...option('2', 'Light background', state.settings.lightBackground, ["On: darker colours that are easy to read when your terminal's theme is light."]),
+    rule(columns),
+    keyRow([['1-2', 'switch'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
 /** The development tools menu, for testing features. */
-export function renderDevMenu(message = ''): string {
+export function renderDevMenu(state: GameState, message = '', columns = 0): string {
   return [
-    '=== Development tools ===   (for testing; these change your save)',
+    titleBar(state, 'Dev tools', columns),
     '',
-    ...devTools.map((t, i) => `  [${i + 1}] ${t.label}`),
+    dim(' For testing: these change your save.'),
     '',
-    `[1-${devTools.length}] use a tool   [esc] back`,
+    ...devTools.map((t, i) => ` ${bold(`[${i + 1}]`)} ${t.label}`),
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    message,
+    rule(columns),
+    keyRow([[`1-${devTools.length}`, 'use a tool'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
@@ -775,33 +773,47 @@ export function renderSlotsMenu(
   selected: number,
   typing: string | null,
   message = '',
+  columns = 0,
 ): string {
   const mine = departmentSlots(state, genre);
   const next = slotCost(mine.length);
   const canBuy = mine.length < wordSlots.maxSlots;
   const rows = mine.map((i, k) => {
     const x = state.slots[i];
-    const word = i === selected && typing !== null ? `${typing}_` : x.word || '(no word)';
-    return `${i === selected ? '>' : ' '} [${k + 1}] ${ordinal(x.position).padEnd(4)} word: ${word.padEnd(16)} ${x.on ? 'ON' : 'off'}`;
+    const word = i === selected && typing !== null ? `${typing}_` : x.word || dim('(no word)');
+    const row = `${i === selected ? '>' : ' '} [${k + 1}] ${ordinal(x.position).padEnd(4)} word  ${padVisible(word, 16)} ${x.on ? green('ON') : dim('off')}`;
+    return i === selected ? inverse(plainText(row) + ' ') : row;
   });
   const managed = !!managerOf(state, genre);
   const many = departmentGenres(state).length > 1;
   return [
-    `=== Word slots${genre ? `: ${genreNames[genre]} department` : ''} ===`,
+    titleBar(state, 'Word slots', columns),
     '',
-    `${formatNumber(state.lines)} Lines`,
-    'Each slot makes the word at its position in a chain always the word you choose,',
-    'e.g. 3rd word: FRIEND. Switch slots off for fully random typing.',
+    ...(genre ? [` ${bold(`${genreNames[genre]} department`)}`, ''] : []),
+    dim(' Each slot makes the word at its position in a chain always the word you'),
+    dim(' choose, e.g. 3rd word: FRIEND. Switch slots off for fully random typing.'),
     '',
-    ...(managed ? ["This department's manager sets these slots for you."] : []),
-    ...(rows.length > 0 ? rows : ['  No slots yet.']),
+    ...(managed ? [" This department's manager sets these slots for you.", ''] : []),
+    ...(rows.length > 0 ? rows : [dim('   No slots yet.')]),
+    ...(canBuy
+      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? green(`* ${bold(formatNumber(next))} Lines`) : `${formatNumber(next)} Lines`}`]
+      : []),
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
+    rule(columns),
     typing !== null
-      ? 'Type the word, [enter] to set it, [esc] to cancel'
-      : `[1-9] select   [w] set word   [o] on/off   [left/right] move position${many ? '   [tab] next department' : ''}   [esc] back`,
-    '',
-    message,
+      ? keyRow([['a-z', 'type the word'], ['enter', 'set it'], ['esc', 'cancel']], columns)
+      : keyRow(
+          [
+            ['1-9', 'select'],
+            ['w', 'set word'],
+            ['o', 'on/off'],
+            ['left/right', 'move position'],
+            ...(many ? [['tab', 'next department'] as [string, string]] : []),
+            ['esc', 'back'],
+          ],
+          columns,
+        ),
   ].join('\n');
 }
 
@@ -821,29 +833,31 @@ function nextWordKeys(state: GameState): string[] {
 }
 
 /** The typewriter keys menu: combination keys and the word keys your monkeys have unlocked. */
-export function renderKeysMenu(state: GameState, message = ''): string {
-  const mark = (price: number) => (state.currency >= price ? '*' : ' ');
-  const owned = state.keys.length > 0 ? state.keys.join(' ') : 'none yet';
+export function renderKeysMenu(state: GameState, message = '', columns = 0): string {
+  const owned = state.keys.length > 0 ? state.keys.join(' ') : dim('none yet');
+  const choices = keyChoices(state).map((k) => ({ k, kind: typewriterKeys.combinations.includes(k) ? 'combination' : 'word', cost: keyCost(state, k) }));
+  const keyWidth = Math.max(3, ...choices.map((c) => c.k.length));
   return [
-    '=== Typewriter keys ===',
+    titleBar(state, 'Typewriter keys', columns),
     '',
-    bold(`${formatNumber(state.currency)} ${theme.currency}`),
+    dim(` Each key types its whole text in one keystroke. Words of ${typewriterKeys.wordMinLength}+ letters become`),
+    dim(
+      ` keys after ${wordKeySpellsNeeded(state)} spellings` +
+        ` (${Math.round((typewriterKeys.wordSpellsGrowth - 1) * 100)}% more for each word key you own).`,
+    ),
+    ...nextWordKeys(state).map((r) => ` ${dim('Closest')} ${r.replace(/^ *Closest: /, '')}`),
     '',
-    'Each key types its whole text in one keystroke.',
-    `A word of ${typewriterKeys.wordMinLength}+ letters becomes a key once your monkeys have spelled it ${wordKeySpellsNeeded(state)} times` +
-      ` (+${Math.round((typewriterKeys.wordSpellsGrowth - 1) * 100)}% for each word key you own).`,
-    ...nextWordKeys(state),
-    '',
-    ...keyChoices(state).map((k, i) => {
-      const kind = typewriterKeys.combinations.includes(k) ? 'combination' : 'word';
-      return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${price(keyCost(state, k), state.currency)} ${theme.currency}`;
+    ...choices.map(({ k, kind, cost }, i) => {
+      const row = ` [${i + 1}] ${k.padEnd(keyWidth)}  ${kind.padEnd(11)}  `;
+      return state.currency >= cost ? `${row}${green(`* ${bold(formatNumber(cost))} ${theme.currency}`)}` : dim(`${row}  ${formatNumber(cost)} ${theme.currency}`);
     }),
-    ...(keyChoices(state).length === 0 ? ['  None available yet.'] : []),
-    `  Owned: ${owned}`,
+    ...(choices.length === 0 ? [dim('   None available yet.')] : []),
     '',
-    '[esc] back   (* = affordable)',
+    ` ${dim('Owned')}  ${owned}`,
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    message,
+    rule(columns),
+    keyRow([...(choices.length > 0 ? [[`1-${choices.length}`, 'buy'] as [string, string]] : []), ['esc', 'back']], columns),
   ].join('\n');
 }
 

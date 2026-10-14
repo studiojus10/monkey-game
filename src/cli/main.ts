@@ -379,7 +379,7 @@ function draw() {
   const screen = showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message, columns)
     : showingOptions
-    ? renderOptions(state)
+    ? renderOptions(state, columns)
     : showingOffice && readingBook
     ? renderFengShuiBook(state)
     : showingOffice && officeHelp
@@ -387,19 +387,19 @@ function draw() {
     : showingOffice
     ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
-    ? renderAchievements(state, achievementRow)
+    ? renderAchievements(state, achievementRow, columns)
     : showingStats
-    ? renderStats(state)
+    ? renderStats(state, columns)
     : showingDictionary
-      ? renderDictionary(state, dictionaryRow)
+      ? renderDictionary(state, dictionaryRow, columns)
       : showingScript
     ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message, columns)
     : showingDev
-      ? renderDevMenu(message)
+      ? renderDevMenu(state, message, columns)
       : showingKeys
-      ? renderKeysMenu(state, message)
+      ? renderKeysMenu(state, message, columns)
       : showingSlots
-        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
+        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message, columns)
         : showingHelp
           ? renderHomeKeys(state)
           : renderScreen(state, message, shop, columns, storePage);

@@ -75,6 +75,7 @@ export const sentenceRules = {
   chainWords: 3, // measured with scripts/simulate.ts: about 40 the first hour, about 100 an hour by hour 5
   wordMinLength: 4, // the same long words that raise the combo
   extraEvery: 3,
+  maxRecordWords: 500, // the longest-sentence record keeps at most this many words of a chain
 };
 
 /**
