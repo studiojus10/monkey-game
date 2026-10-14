@@ -430,9 +430,12 @@ describe('office space on screen', () => {
     const s = started();
     s.monkeys.push(createMonkey(), createMonkey(), createMonkey());
     s.furniture.push({ kind: 'desk', room: 'r1', x: 1, y: 0 }, { kind: 'desk', room: 'r1', x: 0, y: 1 }, { kind: 'desk', room: 'r1', x: 1, y: 1 });
-    const staff = plain(renderScreen(s, '', 'staff'));
-    expect(staff).toContain("Hire a monkey: no free square for its desk. Grow its department's room on the office map ([o]).");
-    expect(staff).not.toContain('[3] Hire a monkey');
+    s.currency = 1e30;
+    const staff = renderScreen(s, '', 'staff');
+    expect(squash(staff)).toContain('[2] Hire a monkey you have 4 desk needed\n'); // no price: a desk is what it needs
+    expect(staff).toContain(red('desk needed'));
+    s.departments = ['comedy', 'tragedy'];
+    expect(squash(renderScreen(s, '', 'staff'))).toContain('Hire a monkey for Tragedies (0/10) room needed\n');
   });
 
   it('lists a hire line for each department, each with its own price', () => {

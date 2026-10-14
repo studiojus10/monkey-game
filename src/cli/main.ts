@@ -225,13 +225,14 @@ function buyItem(id: string): void {
     }
   } else if (id.startsWith('hire:')) {
     const g = id.slice('hire:'.length) as Genre;
-    if (state.currency < nextMonkeyCost(state, g)) message = `Not enough ${theme.currency}.`;
+    if (!departmentsWithRoom(state).includes(g)) message = noSeatMessage();
+    else if (state.currency < nextMonkeyCost(state, g)) message = `Not enough ${theme.currency}.`;
     else if (buyMonkey(state, g)) startNaming(state.monkeys.length - 1);
     else message = noSeatMessage();
   } else if (id === 'hire') {
     const rooms = departmentsWithRoom(state);
-    if (state.currency < nextMonkeyCost(state)) message = `Not enough ${theme.currency}.`;
-    else if (!canSeatMonkey(state)) message = noSeatMessage();
+    if (!canSeatMonkey(state)) message = noSeatMessage();
+    else if (state.currency < nextMonkeyCost(state)) message = `Not enough ${theme.currency}.`;
     else if (rooms.length > 1) {
       pickingDeptFor = 'buy';
       message = deptPrompt('Which department gets the new monkey?');

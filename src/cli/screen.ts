@@ -32,7 +32,8 @@ import {
   currentSpeed,
   nextMonkeyCost,
   departmentTypists,
-  departmentsWithRoom,
+  hasDeskSpace,
+  departmentRoom,
   ownedProgress,
   ownsLine,
   ownsScene,
@@ -418,6 +419,8 @@ export interface ShopItem {
   cost?: [number, Currency][];
   /** The price is the cheapest of several ("from"). */
   costFrom?: boolean;
+  /** Why it can't be bought however much you have, shown in red where the price goes (e.g. "desk needed"). */
+  blocked?: string;
 }
 
 const currencyNames: Record<Currency, string> = { currency: theme.currency, words: 'Words', sentences: 'Sentences', lines: 'Lines' };
@@ -430,12 +433,16 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       const nextCap = capRaiseCost(state.comboCapLevel);
       const open = departmentGenres(state);
       // With several departments each has its own price, so each gets its own line.
+      // A department with no free square for a desk (or no room yet) says so where the price goes.
       const hire = (genre?: Genre): ShopItem => {
         const cost = nextMonkeyCost(state, genre);
         const where = genre ? `for ${genreNames[genre]} (${departmentTypists(state, genre)}/${departmentRules.maxTypists})` : `you have ${state.monkeys.length}`;
-        return { id: genre ? `hire:${genre}` : 'hire', star: state.currency >= cost, text: 'Hire a monkey', effect: where, cost: [[cost, 'currency']] };
+        const item: ShopItem = { id: genre ? `hire:${genre}` : 'hire', text: 'Hire a monkey', effect: where };
+        return hasDeskSpace(state, genre ?? open[0])
+          ? { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] }
+          : { ...item, blocked: departmentRoom(state, genre ?? open[0]) ? 'desk needed' : 'room needed' };
       };
-      const rooms = departmentsWithRoom(state);
+      const hiring = open.filter((g) => departmentTypists(state, g) < departmentRules.maxTypists);
       return [
         ...(departmentPicks(state) > 0
           ? [{ id: 'department', star: true, text: 'Open a new department!' }]
@@ -443,11 +450,11 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
             ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }]
             : []),
         typingShop.skill,
-        ...(!canSeatMonkey(state)
-          ? [{ text: "Hire a monkey: no free square for its desk. Grow its department's room on the office map ([o])." }]
-          : open.length > 1
-            ? rooms.map((g) => hire(g))
-            : [hire()]),
+        ...(open.length > 1
+          ? hiring.map((g) => hire(g))
+          : hiring.length > 0 || open.length === 0
+            ? [hire()]
+            : [{ text: 'Hire a monkey: the department is full. Open another to hire more.' }]),
         ...(state.unassignedMonkeys > 0
           ? [
               canSeatMonkey(state)
@@ -675,7 +682,7 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
   const glyphWidth = width((x) => x.glyph);
   const elementWidth = numbered.some((x) => x.element) ? Math.max('ELEMENT'.length, width((x) => x.element)) : 0;
   const effectWidth = width((x) => x.effect);
-  const costWidth = Math.max('PRICE'.length, width((x) => (x.cost ? `* ${costText(x)}` : '')));
+  const costWidth = Math.max('PRICE'.length, width((x) => (x.cost ? `* ${costText(x)}` : (x.blocked ?? ''))));
   // Columns are two spaces apart, or one when that's what fits the screen.
   const widths = [5 + nameWidth, glyphWidth, elementWidth, effectWidth, costWidth].filter((w) => w > 0);
   const gap = columns > 0 && widths.reduce((a, b) => a + b, 0) + 2 * (widths.length - 1) >= columns ? ' ' : '  ';
@@ -695,7 +702,7 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
     if (!x.id) return [`     ${dim(x.text)}`];
     const n = k++ - page * storePageSize;
     if (n < 0 || n >= storePageSize) return [];
-    const cost = !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
+    const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
     const text = row(`[${n + 1}]`, x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
     return [x.cost && !x.star ? dim(plainText(text)) : text];
   });
