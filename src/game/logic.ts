@@ -40,6 +40,7 @@ import {
   research,
   type ResearchProject,
   hr,
+  monkeyStats,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
@@ -341,7 +342,7 @@ export function speedMultiplier(state: GameState): number {
 
 /** Letters per second for a monkey, from its typing skill and act bonuses. */
 export function monkeySpeed(state: GameState, m: MonkeyState, skill = m.skill): number {
-  return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed')) * (1 + traitBonus(state, m, 'speed'));
+  return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed')) * (1 + traitBonus(state, m, 'speed')) * (m.speedStat || 1) * (1 + jobBonus(m));
 }
 
 let hour = 12;
@@ -361,9 +362,42 @@ export function traitOf(m: MonkeyState): Trait | undefined {
   return traits.find((t) => t.id === m.trait);
 }
 
-/** Gives every monkey without a trait a random one. Traits work from then on, seen or not. */
+/** Gives every monkey without a trait a random one, and without hidden stats random ones. They work from then on, seen or not. */
 export function giveTraits(state: GameState, rng: Rng): void {
-  for (const m of state.monkeys) if (!m.trait) m.trait = traits[Math.min(traits.length - 1, Math.floor(rng() * traits.length))].id;
+  for (const m of state.monkeys) {
+    if (!m.trait) m.trait = traits[Math.min(traits.length - 1, Math.floor(rng() * traits.length))].id;
+    const stat = () => Math.round((monkeyStats.min + rng() * (monkeyStats.max - monkeyStats.min)) * 100) / 100;
+    if (!m.speedStat) m.speedStat = stat();
+    if (!m.stamina) m.stamina = stat();
+    if (Object.keys(m.jobs).length === 0)
+      m.jobs = Object.fromEntries(
+        monkeyStats.jobs.map((j) => {
+          let r = rng();
+          const f = monkeyStats.feelings.find((x) => (r -= x.weight) < 0) ?? monkeyStats.feelings[monkeyStats.feelings.length - 1];
+          return [j.id, f.id];
+        }),
+      );
+  }
+}
+
+/** The job a monkey does: managing, research, hr or typing (a monkeyStats.jobs id). */
+export function jobOf(m: MonkeyState): string {
+  return m.manager ? 'managing' : isResearcher(m) ? 'research' : isHR(m) ? 'hr' : 'typing';
+}
+
+/** How a monkey feels about a job (fine until its stats are picked). */
+export function jobFeeling(m: MonkeyState, job: string): (typeof monkeyStats.feelings)[number] {
+  return monkeyStats.feelings.find((f) => f.id === m.jobs[job]) ?? monkeyStats.feelings.find((f) => f.id === 'fine')!;
+}
+
+/** What a monkey's feeling about the job it does adds (0.2 = +20%), seen or not. */
+export function jobBonus(m: MonkeyState): number {
+  return jobFeeling(m, jobOf(m)).bonus;
+}
+
+/** Whether the hidden stats show: once an HR office is built. */
+export function statsShown(state: GameState): boolean {
+  return !!hrRoom(state);
 }
 
 /** The room a monkey works in: a manager's office, else its department's room. */
@@ -541,7 +575,7 @@ export function monkeyHappiness(state: GameState, m: MonkeyState): number {
 export function energyRates(state: GameState, m: MonkeyState): EnergyRates {
   const happy = 1 + monkeyHappiness(state, m);
   return {
-    drainSeconds: (energyRules.drainSeconds * happy) / ((1 - drainCut(state, monkeyGenre(state, m))) * (1 - Math.min(0.9, wearing(m, 'drain'))) * (1 - Math.min(0.9, researchBonus(state, 'drain')))),
+    drainSeconds: (energyRules.drainSeconds * happy * (m.stamina || 1)) / ((1 - drainCut(state, monkeyGenre(state, m))) * (1 - Math.min(0.9, wearing(m, 'drain'))) * (1 - Math.min(0.9, researchBonus(state, 'drain')))),
     breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state, monkeyGenre(state, m))) * (1 + wearing(m, 'rest')) * (1 + traitBonus(state, m, 'rest')) * (1 + researchBonus(state, 'rest')) * happy),
   };
 }
@@ -1658,7 +1692,7 @@ export function hireManager(state: GameState, genre: Genre | undefined): boolean
 /** Points multiplier from a monkey's department manager: x1 plus bonusPerLevel per upgrade. */
 export function managerMultiplier(state: GameState, m: MonkeyState): number {
   const boss = managerOf(state, monkeyGenre(state, m));
-  return 1 + (boss ? managers.bonusPerLevel * boss.managerLevel : 0);
+  return boss ? (1 + managers.bonusPerLevel * boss.managerLevel) * (1 + jobBonus(boss)) : 1;
 }
 
 /** Lines price of a manager's next upgrade: grows with its department's size and each level. */
@@ -1988,7 +2022,7 @@ export function startResearch(state: GameState, id: string): boolean {
 export function researchRate(state: GameState): number {
   return researchers(state).reduce((n, i) => {
     const m = state.monkeys[i];
-    return n + (canReachDesk(state, m) && deskOf(state, i) !== undefined ? 1 + traitBonus(state, m, 'speed') : 0);
+    return n + (canReachDesk(state, m) && deskOf(state, i) !== undefined ? (1 + traitBonus(state, m, 'speed')) * (1 + jobBonus(m)) : 0);
   }, 0);
 }
 
@@ -2066,9 +2100,11 @@ export function hireHR(state: GameState): boolean {
   return true;
 }
 
-/** HR monkeys at work: those who can reach their desks. */
+/** HR monkeys at work (those who can reach their desks), each counted more or less by how it feels about HR. */
 export function hrWorking(state: GameState): number {
-  return hrStaff(state).filter((i) => canReachDesk(state, state.monkeys[i]) && deskOf(state, i) !== undefined).length;
+  return hrStaff(state)
+    .filter((i) => canReachDesk(state, state.monkeys[i]) && deskOf(state, i) !== undefined)
+    .reduce((n, i) => n + 1 + jobBonus(state.monkeys[i]), 0);
 }
 
 /** Happiness HR adds to every typing monkey. */

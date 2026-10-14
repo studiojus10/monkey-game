@@ -130,6 +130,9 @@ function roomFor(s: GameState, genre: string): void {
 
 const rng = () => 0;
 
+/** No trait, average hidden stats and no feelings about any job: for tests that check exact amounts. */
+const plainMonkey = { trait: 'none', speedStat: 1, stamina: 1, jobs: { typing: 'fine', managing: 'fine', hr: 'fine', research: 'fine' } };
+
 describe('first letter', () => {
   it('can be A or I, and only once', () => {
     const s = createInitialState(0);
@@ -203,7 +206,7 @@ describe('typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
-    for (const m of s.monkeys) Object.assign(m, { skill: 60, trait: 'none' }); // far more letters a second than the budget; no trait
+    for (const m of s.monkeys) Object.assign(m, { skill: 60, ...plainMonkey }); // far more letters a second than the budget; no trait
     const due = Math.floor(monkeySpeed(s, s.monkeys[0])) * 2;
     tick(s, 1, rng);
     expect(s.stats.letters.I).toBeLessThanOrEqual(maxSimulatedLettersPerSecond + 1);
@@ -273,7 +276,7 @@ describe('typing', () => {
   it('offline typing is credited and capped', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.monkeys[0].trait = 'none';
+    Object.assign(s.monkeys[0], plainMonkey);
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
     expect(earned).toBe(maxOfflineSeconds * typing.baseLettersPerSecond);
   });
@@ -414,6 +417,7 @@ describe('monkeys', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey(), createMonkey());
+    for (const m of s.monkeys) Object.assign(m, plainMonkey);
     tick(s, 10, rng);
     expect(s.currency).toBe(3 * 10 * typing.baseLettersPerSecond);
     for (const m of s.monkeys) expect(m.line).toHaveLength(10 * typing.baseLettersPerSecond);
@@ -422,7 +426,7 @@ describe('monkeys', () => {
   it('long absences with many monkeys are estimated past the simulation limit', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.monkeys = Array.from({ length: 100 }, () => ({ ...createMonkey(), trait: 'none' }));
+    s.monkeys = Array.from({ length: 100 }, () => ({ ...createMonkey(), ...plainMonkey }));
     const letters = 100 * maxOfflineSeconds * typing.baseLettersPerSecond;
     expect(letters).toBeGreaterThan(maxOfflineLetters);
     const earned = applyOfflineProgress(s, maxOfflineSeconds * 1000, rng);

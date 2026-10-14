@@ -403,6 +403,34 @@ export const hr = {
   discountEach: 0.05,
 };
 
+/**
+ * Hidden stats (Justin, 2026-10-14: "monkeys can have hidden stats like typing
+ * speed, total energy... specialties in their jobs"). Every monkey gets, at
+ * random when it joins: speed (its typing speed x this) and stamina (how long
+ * its energy lasts x this), each from min to max; and a feeling about each
+ * job, picked by weight, whose bonus applies while it does that job: typing
+ * (speed), managing (its department's bananas), hr (its happiness and
+ * discount), research (its research speed). They work from the start but
+ * only show once an HR office is built. Placeholders.
+ */
+export const monkeyStats = {
+  min: 0.8,
+  max: 1.2,
+  jobs: [
+    { id: 'typing', name: 'Typing' },
+    { id: 'managing', name: 'Managing' },
+    { id: 'hr', name: 'HR' },
+    { id: 'research', name: 'Research' },
+  ],
+  feelings: [
+    { id: 'loves', name: 'loves', bonus: 0.2, weight: 0.1 },
+    { id: 'good', name: 'good', bonus: 0.1, weight: 0.25 },
+    { id: 'fine', name: 'fine', bonus: 0, weight: 0.4 },
+    { id: 'unsuited', name: 'unsuited', bonus: -0.1, weight: 0.2 },
+    { id: 'detests', name: 'detests', bonus: -0.4, weight: 0.05 },
+  ],
+};
+
 export const traitRules = {
   dayStart: 6, // 6am
   nightStart: 20, // 8pm
