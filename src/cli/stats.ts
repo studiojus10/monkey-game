@@ -2,7 +2,7 @@ import { achievements, theme } from '../game/config';
 import { achievementValue, folioMultiplier, getPlay } from '../game/logic';
 import { lineLocation } from '../game/plays';
 import type { GameState } from '../game/state';
-import { formatNumber } from '../format';
+import { formatDuration, formatNumber } from '../format';
 import { dim, green, keyRow, rule, titleBar } from './style';
 
 /** Rows of the dictionary page shown at once. */
@@ -10,11 +10,7 @@ export const dictionaryPageRows = 20;
 /** Words per row on the dictionary page. */
 export const dictionaryColumns = 4;
 
-function duration(seconds: number): string {
-  const s = Math.floor(seconds);
-  const [d, h, m] = [Math.floor(s / 86400), Math.floor(s / 3600) % 24, Math.floor(s / 60) % 60];
-  return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s % 60}s` : `${s % 60}s`;
-}
+const duration = formatDuration;
 
 /** Words in rows at most `width` long. */
 function wrapWords(words: string[], width: number): string[] {

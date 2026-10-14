@@ -8,3 +8,11 @@ export function formatNumber(n: number): string {
   if (tier >= suffixes.length) return n.toExponential(2);
   return (n / Math.pow(1000, tier)).toFixed(2) + suffixes[tier];
 }
+
+/** A length of time: 45s, 12m 5s, 3h 20m, 2d 4h 0m. */
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds)) return 'never';
+  const s = Math.floor(seconds);
+  const [d, h, m] = [Math.floor(s / 86400), Math.floor(s / 3600) % 24, Math.floor(s / 60) % 60];
+  return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s % 60}s` : `${s % 60}s`;
+}

@@ -1,10 +1,9 @@
-import { desk, elements, fengShui, furnitureKinds, monkeyIcon, office as officeRules, theme } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, monkeyIcon, office as officeRules, research, theme, traits } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
   monkeyName,
   roomCost,
-  roomDesks,
   roomGenre,
   roomlessDepartments,
   squareCost,
@@ -15,11 +14,17 @@ import {
   happiness,
   cellAt,
   hidesBook,
+  hidesManagerBook,
+  deskOf,
+  managerOf,
+  officeOf,
+  traitOf,
+  researchers,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
-import { dyed, genreNames, hatOf, monkeyIconLegend, price } from './screen';
+import { dyed, genreNames, hatOf, monkeyIconLegend, price, traitNow } from './screen';
 import { bold, dim, keyRow, red, rule, titleBar } from './style';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -30,14 +35,26 @@ export const officeMapWidth = officeRules.mapWidth * 4 + 1;
 /** A square of the office map. (room is ignored: the square says which room it's in.) */
 export type Cell = { x: number; y: number; room?: string };
 
-/** A room's name: its department's, or Break room (numbered when there are several). */
+/** A room's name: its department's, its department's manager's office, or Break room (numbered when there are several). */
 export function roomName(state: GameState, room: Room): string {
   if (room.kind === 'department') {
     const g = roomGenre(state, room);
     return g ? `${genreNames[g]} room` : 'Your room';
   }
+  if (room.kind === 'lab') return `${research.name} lab`;
+  if (room.kind === 'office') return `${genreNames[room.department as keyof typeof genreNames] ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
+}
+
+/** Who sits at each desk: furniture index -> monkey index (see deskOf). */
+function deskSitters(state: GameState): Map<number, number> {
+  const out = new Map<number, number>();
+  state.monkeys.forEach((_, i) => {
+    const f = deskOf(state, i);
+    if (f !== undefined) out.set(f, i);
+  });
+  return out;
 }
 
 /** The furniture's glyph on the map. */
@@ -48,7 +65,7 @@ export const sideName: Record<Side, string> = { n: 'north', e: 'east', s: 'south
 /** The name of a piece of furniture, lower case. */
 export function furnitureName(state: GameState, index: number): string {
   const f = state.furniture[index];
-  return f?.kind === desk.id ? 'desk' : (furnitureKinds.find((k) => k.id === f?.kind)?.name ?? 'furniture').toLowerCase();
+  return f?.kind === desk.id ? 'desk' : f?.kind === managerDesk.id ? "manager's desk" : (furnitureKinds.find((k) => k.id === f?.kind)?.name ?? 'furniture').toLowerCase();
 }
 
 /** The room being grown: the one named, or (for true) the one under the cursor, else the first. */
@@ -92,8 +109,7 @@ export function renderOffice(
   for (const [x, y] of state.halls) spaceOf.set(`${x},${y}`, 'hall');
   const space = (x: number, y: number) => spaceOf.get(`${x},${y}`) ?? '';
   const wall = (ax: number, ay: number, bx: number, by: number) => space(ax, ay) !== space(bx, by);
-  const sitters = new Map<string, number[]>();
-  for (const r of state.office) if (r.kind === 'department') sitters.set(r.id, departmentMonkeys(state, roomGenre(state, r)));
+  const sitter = deskSitters(state);
 
   // Which piece (an index into state.furniture) stands on each square; the one being moved stands at the cursor.
   const pieceAt = new Map<string, number>();
@@ -111,10 +127,13 @@ export function renderOffice(
     const f = piece(x, y);
     let text: string;
     let wearer: MonkeyState | undefined; // a monkey in a hat sits here: its hat shows in its dye
+    const monkey = f >= 0 && f !== held ? state.monkeys[sitter.get(f) ?? -1] : undefined;
     if (f >= 0 && state.furniture[f].kind === desk.id && f !== held) {
-      const own = state.office.find((r) => r.id === state.furniture[f].room);
-      const monkey = own && state.monkeys[sitters.get(own.id)?.[roomDesks(state, own).indexOf(f)] ?? -1];
       text = !monkey ? '[ ]' : `${hatOf(monkey) ?? '['}${monkeyIcon}${monkey.manager ? '&' : ']'}`;
+      if (monkey && monkey.hat) wearer = monkey;
+    } else if (monkey) {
+      // A manager at the manager's desk.
+      text = `${hatOf(monkey) ?? '{'}${monkeyIcon}&`;
       if (monkey && monkey.hat) wearer = monkey;
     } else if (f >= 0) {
       const left = joined(x - 1, y, x, y) ? '=' : ' ';
@@ -194,7 +213,7 @@ export function renderOffice(
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
             [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['i', 'inspect'], ['x', 'grow']],
-            [['r', 'buy a room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
+            [['r', 'buy a room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
           ];
   const doing = grow
     ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
@@ -237,8 +256,9 @@ function roomTable(state: GameState, columns = 0): string[] {
   const rows = state.office.map((r, i) => {
     const g = r.kind === 'department' ? roomGenre(state, r) : undefined;
     const lounge = r.kind === 'department' ? loungeOf(state, r) : undefined;
+    const boss = r.kind === 'office' ? managerOf(state, r.department as never) : undefined;
     const effects =
-      r.kind === 'break'
+      r.kind !== 'department'
         ? '-'
         : [
             ...(drainCut(state, g) > 0 ? [`tire ${pct(drainCut(state, g))} slower`] : []),
@@ -251,14 +271,20 @@ function roomTable(state: GameState, columns = 0): string[] {
         String(i + 1),
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [pct(roomChi(state, r))] : []),
-        r.kind === 'break' ? '-' : lounge ? roomName(state, lounge) : 'none',
+        ...(state.fengShuiBook ? [r.kind === 'office' || r.kind === 'lab' ? '-' : pct(roomChi(state, r))] : []),
+        r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
       // A break room's "who" is the departments it's the lounge of.
       who:
-        r.kind === 'department'
-          ? departmentMonkeys(state, g).map((k) => monkeyName(state, k))
+        r.kind === 'lab'
+          ? researchers(state).map((k) => monkeyName(state, k))
+          : r.kind === 'office'
+          ? [boss ? `${monkeyName(state, state.monkeys.indexOf(boss))} (manager)` : 'no manager yet']
+          : r.kind === 'department'
+          ? departmentMonkeys(state, g)
+              .filter((k) => !(state.monkeys[k].manager && officeOf(state, g)))
+              .map((k) => monkeyName(state, k))
           : [`lounge of ${servedBy(state, r).map((d) => roomName(state, d)).join(', ') || 'no department'}`],
     };
   });
@@ -301,6 +327,9 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     '',
     dim(' ROOMS'),
     "   Each monkey gets a desk in its department's room.",
+    "   A manager works in its department's office: a small room next door,",
+    "   with a door between them and a manager's desk (D).",
+    `   ${research.name} researchers work in the ${research.name} lab.`,
     '   Every room needs a way in from room 1: doors (/) and hallways.',
     '   A room grows one square at a time ([x] on the map).',
     '   Windows (: or ===) go in walls that face outside.',
@@ -329,17 +358,52 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
   const spot = held >= 0 ? held : room ? cellAt(state, room.id, x, y) : 'floor';
   if (typeof spot === 'number') {
     const f = state.furniture[spot];
-    if (f.kind === desk.id) {
-      const own = state.office.find((r) => r.id === f.room);
-      const who = own ? departmentMonkeys(state, roomGenre(state, own))[roomDesks(state, own).indexOf(spot)] : undefined;
-      return { text: `${who === undefined ? 'An empty desk.' : `${monkeyName(state, who)}'s desk.`} ${desk.description}`, book: -1 };
-    }
+    const who = deskSitters(state).get(spot);
+    const sits = who === undefined ? [] : [`${monkeyName(state, who)}'s desk.`, ...(state.managerBook ? [traitSentence(state, who)] : [])];
+    if (f.kind === desk.id) return { text: [...(who === undefined ? ['An empty desk.'] : sits), desk.description].join(' '), book: -1 };
     const k = furnitureKinds.find((x) => x.id === f.kind);
-    const book = hidesBook(state, spot);
-    return { text: [k?.description ?? fengShui.nothing, ...(book ? [fengShui.found, '[y] read it'] : [])].join('  '), book: book ? spot : -1 };
+    const found = hidesBook(state, spot) ? fengShui.found : hidesManagerBook(state, spot) ? managerBook.found : '';
+    return { text: [...(f.kind === managerDesk.id ? sits : []), k?.description ?? fengShui.nothing, ...(found ? [found, '[y] read it'] : [])].join('  '), book: found ? spot : -1 };
   }
   if (room && (['n', 'e', 's', 'w'] as Side[]).some((s) => windowAt(state, x, y, s))) return { text: fengShui.window, book: -1 };
   return { text: fengShui.nothing, book: -1 };
+}
+
+/** A sentence on a monkey's trait, for once the manager's book is read: "Bo is a night owl: ... (now +15% speed)". */
+function traitSentence(state: GameState, i: number): string {
+  const m = state.monkeys[i];
+  const t = traitOf(m);
+  if (!t) return '';
+  return `${monkeyName(state, i)} is ${/^[aeiou]/i.test(t.name) ? 'an' : 'a'} ${t.name.toLowerCase()} (${traitNow(state, m)}).`;
+}
+
+/**
+ * The manager's book: every trait and what it does, then each monkey's, and
+ * what it's doing for the monkey right now.
+ */
+export function renderManagerBook(state: GameState, columns = 0): string {
+  const width = Math.max(...traits.map((t) => t.name.length));
+  const nameWidth = Math.max(4, ...state.monkeys.map((_, i) => monkeyName(state, i).length));
+  const staff = state.monkeys.map((m, i) => {
+    const t = traitOf(m);
+    return `  ${monkeyName(state, i).padEnd(nameWidth)}  ${(t?.name ?? '?').padEnd(width)}  ${traitNow(state, m)}${m.manager ? dim('  (manager)') : ''}`;
+  });
+  return [
+    titleBar(state, "Manager's book", columns),
+    '',
+    ` ${bold(managerBook.title)}`,
+    '',
+    dim(' "No two monkeys are alike. Learn what each one needs, and give it that."'),
+    '',
+    dim(' TRAITS'),
+    ...traits.map((t) => `  ${t.name.padEnd(width)}  ${t.text}`),
+    '',
+    dim(' YOUR MONKEYS'),
+    ...staff,
+    '',
+    rule(columns),
+    keyRow([['e', 'back to the map'], ['esc', 'back']], columns),
+  ].join('\n');
 }
 
 /** The feng shui book: the five rules, the elements, and what each room keeps and lacks. */
@@ -350,7 +414,8 @@ export function renderFengShuiBook(state: GameState): string {
     return `  ${e[0].toUpperCase()}${e.slice(1).padEnd(6)} ${names.join(', ')}`;
   });
   const open = connectedRooms(state);
-  const rooms = state.office.map((r, i) => {
+  const rooms = state.office.flatMap((r, i) => {
+    if (r.kind === 'office') return []; // offices are too small to count
     const kept = roomRules(state, r);
     const lacks = chiRules.filter((x) => !kept[x.id]).map((x) => x.name);
     const state_ = open.has(r.id) ? (lacks.length === 0 ? 'perfect' : `lacks ${lacks.join(', ')}`) : 'no way in: it counts for nothing';

@@ -203,7 +203,7 @@ describe('typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
-    for (const m of s.monkeys) m.skill = 60; // far more letters a second than the budget
+    for (const m of s.monkeys) Object.assign(m, { skill: 60, trait: 'none' }); // far more letters a second than the budget; no trait
     const due = Math.floor(monkeySpeed(s, s.monkeys[0])) * 2;
     tick(s, 1, rng);
     expect(s.stats.letters.I).toBeLessThanOrEqual(maxSimulatedLettersPerSecond + 1);
@@ -273,6 +273,7 @@ describe('typing', () => {
   it('offline typing is credited and capped', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
+    s.monkeys[0].trait = 'none';
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
     expect(earned).toBe(maxOfflineSeconds * typing.baseLettersPerSecond);
   });
@@ -421,7 +422,7 @@ describe('monkeys', () => {
   it('long absences with many monkeys are estimated past the simulation limit', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.monkeys = Array.from({ length: 100 }, createMonkey);
+    s.monkeys = Array.from({ length: 100 }, () => ({ ...createMonkey(), trait: 'none' }));
     const letters = 100 * maxOfflineSeconds * typing.baseLettersPerSecond;
     expect(letters).toBeGreaterThan(maxOfflineLetters);
     const earned = applyOfflineProgress(s, maxOfflineSeconds * 1000, rng);
@@ -735,6 +736,29 @@ describe('word slots', () => {
       s.slots.forEach((slot) => (slot.on = false));
       typeLetter(s, 0, x);
       expect(s.monkeys[0].line.at(-1)).toEqual({ text: 'X', scored: false });
+    } finally {
+      setWordList([]);
+    }
+  });
+
+  it("don't wait for letters that aren't a word yet: the monkey drops them and types the slot's word", () => {
+    const s = setup();
+    setWordList(['AY', 'MY', 'LORD']);
+    try {
+      s.slots = [
+        { department: '', position: 1, word: 'AY', on: true },
+        { department: '', position: 2, word: 'MY', on: true },
+      ];
+      const m = s.monkeys[0];
+      const x = () => (letters.indexOf('X') + 0.5) / letters.length;
+      m.pending = 'LO'; // on the way to LORD, at the start of a chain
+      typeLetter(s, 0, x);
+      expect(m.line.map((seg) => seg.text)).toEqual(['AY']);
+      m.pending = 'LO'; // and mid-chain
+      typeLetter(s, 0, x);
+      expect(m.line.map((seg) => seg.text)).toEqual(['AY', 'MY']);
+      expect(m.chainLength).toBe(2);
+      expect(m.pending).toBe('');
     } finally {
       setWordList([]);
     }
@@ -1078,6 +1102,27 @@ describe('manager monkeys', () => {
       expect(s.monkeys[0].target).toEqual({ play: 'm', index: 2 });
       expect(s.pinned).toEqual([{ play: 'm', index: 2 }]);
       expect(s.slots[0].word).toBe('NO');
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
+describe('manager monkeys, reconsidering', () => {
+  it('switch to a shorter line when a new letter brings one within reach', () => {
+    setWordList([]);
+    setPlays([{ id: 'g', title: 'G', genre: 'comedy', lines: [[1, 1, 'A', 'Ay, my lord.'], [1, 1, 'B', 'Go.']] }]);
+    try {
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.owned = ['g'];
+      s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D'];
+      while (s.monkeys.length <= managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
+      toggleManager(s, 0);
+      expect(s.monkeys[0].target).toEqual({ play: 'g', index: 0 }); // GO needs a G
+      s.letters.push('G');
+      manage(s);
+      expect(s.monkeys[0].target).toEqual({ play: 'g', index: 1 });
     } finally {
       setPlays([]);
     }
@@ -1848,7 +1893,7 @@ describe('achievements', () => {
   });
 
   it('every achievement has a known measure and a unique id', () => {
-    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios']);
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios', 'researchers', 'researched']);
     for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
     expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
   });

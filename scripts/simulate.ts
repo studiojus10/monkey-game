@@ -11,9 +11,10 @@
  * hats, and aims word slots at the best line in reach like a manager
  * would. It never pets the monkey and doesn't design the office.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { hats, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
+import * as config from '../src/game/config';
+import { hats, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typewriterKeys, managers } from '../src/game/config';
 import {
   availableKeys,
   availablePlays,
@@ -27,7 +28,8 @@ import {
   buySection,
   buySlot,
   buyTypewriter,
-  canPromote,
+  managerBlocker,
+  hireManager,
   canSeatMonkey,
   capRaiseCost,
   chooseFirstLetter,
@@ -61,7 +63,10 @@ import {
   squareCost,
   starterScenes,
   tick,
-  toggleManager,
+  upgradeManager,
+  managerUpgradeCost,
+  folioPagesNow,
+  folioMultiplier,
   typewriterCost,
   typingUpgradeCost,
   assignMonkey,
@@ -73,6 +78,7 @@ import {
 } from '../src/game/logic';
 import type { PlayData } from '../src/game/plays';
 import { createInitialState, type GameState } from '../src/game/state';
+import { deserialize, serialize } from '../src/game/save';
 
 const hours = Number(process.argv[2] ?? 24);
 // Try other settings without editing config: SIM_CHAIN_WORDS=6 SIM_WORD_MIN=3
@@ -82,6 +88,16 @@ if (process.env.SIM_WORD_MIN) sentenceRules.wordMinLength = Number(process.env.S
 if (process.env.SIM_MONKEY_COST) monkeyShop.baseCost = Number(process.env.SIM_MONKEY_COST);
 if (process.env.SIM_MONKEY_GROWTH) monkeyShop.costGrowth = Number(process.env.SIM_MONKEY_GROWTH);
 if (process.env.SIM_DEPT_GROWTH) monkeyShop.departmentGrowth = Number(process.env.SIM_DEPT_GROWTH);
+// Letters a second simulated one by one (the game itself does maxSimulatedLettersPerSecond;
+// fewer runs faster, but Lines and Sentences, which need real letters, come slower): SIM_CAP=4000
+const simCap = Number(process.env.SIM_CAP ?? 300);
+// ...or any number in config.ts: SIM_SET='wordSlots.baseCost=2,managers.linesPerMonkey=20'
+for (const pair of (process.env.SIM_SET ?? '').split(',').filter(Boolean)) {
+  const [path, value] = pair.split('=');
+  const keys = path.split('.');
+  const target = keys.slice(0, -1).reduce((o: any, k) => o[k], config as any);
+  target[keys[keys.length - 1]] = Number(value);
+}
 let seed = Number(process.argv[3] ?? 1);
 const rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
@@ -90,11 +106,15 @@ setWordList(readFileSync(fileURLToPath(new URL('data/words.txt', root)), 'utf8')
 const dir = fileURLToPath(new URL('data/plays/', root));
 setPlays(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => JSON.parse(readFileSync(dir + f, 'utf8')) as PlayData));
 
-const s: GameState = createInitialState(0);
-openDepartment(s, departmentChoices(s)[0]);
-const starter = starterScenes(s)[0];
-chooseStarterScene(s, starter.play.id, starter.scene.key);
-chooseFirstLetter(s, 'A');
+// Continue from a save the simulator wrote (SIM_LOAD=file), and write one at the end (SIM_SAVE=file),
+// to try late-game numbers without replaying the early game. Times count from the save.
+const s: GameState = process.env.SIM_LOAD ? deserialize(readFileSync(process.env.SIM_LOAD, 'utf8'), 0) : createInitialState(0);
+if (!process.env.SIM_LOAD) {
+  openDepartment(s, departmentChoices(s)[0]);
+  const starter = starterScenes(s)[0];
+  chooseStarterScene(s, starter.play.id, starter.scene.key);
+  chooseFirstLetter(s, 'A');
+}
 
 const letterOrder = 'ETOINSHRDLUCMWFGYPBVKJXQZ'.split('');
 const seen = new Map<string, number>();
@@ -152,10 +172,14 @@ function shop(): void {
       .flatMap((p) => p.scenes.filter((sc) => !ownsScene(s, p.id, sc)).map((sc) => ({ p, sc, price: scenePrice(sc) })))
       .sort((a, b) => a.price - b.price);
     if (scenes[0] && s.currency >= scenes[0].price * 4 && buySection(s, scenes[0].p.id, scenes[0].sc.act, scenes[0].sc.key)) bought = true;
-    // A manager for each department of 6+.
+    // A manager for each department big enough, in an office next door.
     for (const g of departmentGenres(s)) {
-      const i = departmentMonkeys(s, g).find((k) => canPromote(s, k));
-      if (i !== undefined && toggleManager(s, i)) bought = true;
+      if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;
+      if (!managerBlocker(s, g) && hireManager(s, g)) bought = true;
+    }
+    // Manager upgrades with spare Lines, once the department's word slots are bought.
+    for (const i of s.monkeys.flatMap((m, k) => (m.manager ? [k] : []))) {
+      if (s.lines >= managerUpgradeCost(s, s.monkeys[i]) * 2 && upgradeManager(s, i)) bought = true;
     }
     // Word slots (managers fill them) and typewriter keys.
     if (slotsUnlocked(s)) for (const g of departmentGenres(s)) if (buySlot(s, g)) bought = true;
@@ -190,7 +214,7 @@ let t = 0;
 let nextReport = 3600;
 while (t < end) {
   const step = t < 600 ? 1 : 5;
-  tick(s, step, rng, 300);
+  tick(s, step, rng, simCap);
   t += step;
   shop();
   for (const n of [2, 3, 5, 8, 10, 13, 18, 22, 26]) if (s.letters.length >= n) mark(`${n} letters`, t);
@@ -212,10 +236,14 @@ while (t < end) {
       `   -- ${fmt(t)}: ${s.letters.length} letters, ${s.monkeys.length} monkeys, ${written} lines written, ` +
         `points ${s.currency.toExponential(2)} (earned ${s.totalEarned.toExponential(2)}), Lines ${s.lines}, Sentences ${s.sentences} (${s.stats.chainSentences} from chains), Words ${s.words}, ` +
         `skill ${s.monkeys.map((m) => m.skill).join('/')}, rooms ${s.office.length}, ` +
-        `scenes owned ${s.owned.length}, lines in reach ${availablePlays().reduce((n, p) => n + reachableLines(s, p.id).length, 0)}`,
+        `scenes owned ${s.owned.length}, lines in reach ${availablePlays().reduce((n, p) => n + reachableLines(s, p.id).length, 0)}, ` +
+        `departments ${departmentGenres(s).length}, managers ${s.monkeys.filter((m) => m.manager).map((m) => m.managerLevel).join('/') || '-'}, ` +
+        `Folio pages ${folioPagesNow(s)} (would make points x${folioMultiplier({ ...s, folioPages: s.folioPages + folioPagesNow(s) }).toFixed(2)})`,
     );
+    if (process.env.SIM_SAVE) writeFileSync(`${process.env.SIM_SAVE.replace(/\.json$/, '')}-${Math.round(t / 3600)}h.json`, serialize(s));
     nextReport += 3600 * (hours > 24 ? 6 : 1);
   }
 }
 console.log(`typewriter keys unlock at ${typewriterKeys.unlockLetters} letters`);
+if (process.env.SIM_SAVE) writeFileSync(process.env.SIM_SAVE, serialize(s)); // and one at every report: <name>-<hours>h.json
 void monkeyGenre;
