@@ -8,17 +8,15 @@
  * would: letters (common ones first), faster typing and typewriters, monkeys
  * and the floor space for them, combo cap raises, cheap scenes, departments
  * and their rooms, managers and word slots, and some furniture and
- * accessories, and aims word slots at the best line in reach like a manager
+ * hats, and aims word slots at the best line in reach like a manager
  * would. It never pets the monkey and doesn't design the office.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { accessories, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
+import { hats, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
 import {
-  accessoryCost,
   availableKeys,
   availablePlays,
-  buyAccessory,
   buyCapRaise,
   buyFasterTyping,
   buyFurniture,
@@ -44,6 +42,8 @@ import {
   expandRoom,
   furnitureCost,
   furnitureSpot,
+  hatCost,
+  wearHat,
   keyCost,
   letterCost,
   canAffordLetter,
@@ -161,13 +161,14 @@ function shop(): void {
     if (slotsUnlocked(s)) for (const g of departmentGenres(s)) if (buySlot(s, g)) bought = true;
     const key = availableKeys(s).find((k) => s.currency >= keyCost(s, k) * 3);
     if (key && buyKey(s, key)) bought = true;
-    // A little furniture and some accessories, with spare points.
+    // A little furniture with spare points, and better hats with spare Sentences.
     const f = furnitureKinds.find((k) => s.currency >= furnitureCost(s, k.id) * 10 && furnitureSpot(s, k.id));
     if (f && s.office.some((r) => r.kind === 'break') && buyFurniture(s, f.id)) bought = true;
     if (!s.office.some((r) => r.kind === 'break') && s.monkeys.length >= 5 && s.currency >= roomCost(s) * 5 && buyRoom(s, 'break')) bought = true;
-    for (const a of accessories) {
-      const i = typists.find((k) => !s.monkeys[k].accessories.some((x) => accessories.find((y) => y.id === x)?.slot === a.slot));
-      if (i !== undefined && s.sentences >= accessoryCost(s, a.id) * 2 && buyAccessory(s, i, a.id)) bought = true;
+    const rank = (id: string) => hats.findIndex((h) => h.id === id);
+    for (const h of [...hats].reverse()) {
+      const i = typists.find((k) => rank(s.monkeys[k].hat) < rank(h.id));
+      if (i !== undefined && s.sentences >= hatCost(s, h.id) * 2 && wearHat(s, i, h.id)) bought = true;
     }
     if (!bought) break;
   }
@@ -203,8 +204,8 @@ while (t < end) {
   if (s.slots.length >= 1) mark('first word slot', t);
   for (const w of [4, 6, 8]) if (s.stats.longestWord.length >= w) mark(`first ${w}-letter word`, t);
   if (s.monkeys.some((m) => m.typewriter > 0)) mark('first better typewriter', t);
-  const worn = s.monkeys.reduce((n, m) => n + m.accessories.length, 0);
-  for (const n of [1, 5, 10, 20, 40]) if (worn >= n) mark(`${n} accessories`, t);
+  const worn = s.monkeys.reduce((n, m) => n + m.hats.length, 0);
+  for (const n of [1, 5, 10, 20, 40]) if (worn >= n) mark(`${n} hats`, t);
   if (t >= nextReport) {
     const written = Object.values(s.completed).reduce((a, l) => a + l.length, 0);
     console.log(

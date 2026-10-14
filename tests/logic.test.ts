@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dyeCost, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   chainSentences,
-  accessoryCost,
+  hatCost,
   addRoom,
   rotateFurniture,
+  allowedIn,
   achievementValue,
   canPublishFolio,
   folioPagesNow,
@@ -17,7 +18,8 @@ import {
   footprint,
   fitsAt,
   canReachDesk,
-  buyAccessory,
+  wearHat,
+  dyeHat,
   wearing,
   drainCut,
   energyRates,
@@ -109,7 +111,7 @@ import {
   nextOwnedScene,
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
-import { autoConnect, connectedRooms, cycleDoor, doorSides, isConnected, layOutOffice, placeDoor, takeDoor, toggleHall } from '../src/game/layout';
+import { autoConnect, connectedRooms, cycleDoor, doorBetween, doorSides, isConnected, layOutOffice, loungeOf, placeDoor, servedBy, takeDoor, toggleHall } from '../src/game/layout';
 
 // Most tests check typing exactly, so monkeys don't tire unless a test says so.
 const drainSeconds = energy.drainSeconds;
@@ -1360,7 +1362,7 @@ describe('office space', () => {
 });
 
 describe('furniture', () => {
-  it('buys furniture into a free square, a break room first, each costing more than the last', () => {
+  it('buys furniture into a free square where it works, each costing more than the last; some pieces fit only one kind of room', () => {
     const s = createInitialState(0);
     const plant = furnitureKinds[0];
     s.currency = 1e12;
@@ -1368,9 +1370,17 @@ describe('furniture', () => {
     expect(buyFurniture(s, plant.id)).toBe(true);
     expect(s.furniture[1]).toEqual({ kind: plant.id, room: 'r1', x: 1, y: 0 }); // next to the desk
     expect(furnitureCost(s, plant.id)).toBe(Math.ceil(plant.cost * plant.costGrowth));
+    expect(buyFurniture(s, 'tv')).toBe(false); // break rooms only
     expect(buyRoom(s, 'break')).toBe(true);
     expect(buyFurniture(s, plant.id)).toBe(true);
-    expect(s.furniture[2].room).toBe('r2');
+    expect(s.furniture[2].room).toBe('r1'); // decor goes where it works: a department's room
+    expect(buyFurniture(s, plant.id, 'break')).toBe(true); // unless asked for a break room
+    expect(s.furniture[3].room).toBe('r2');
+    expect(buyFurniture(s, 'tv')).toBe(true);
+    expect(s.furniture[4].room).toBe('r2');
+    expect(buyFurniture(s, 'clock', 'break')).toBe(false); // departments' rooms only
+    expect(allowedIn(s, 'tv', 'r1')).toBe(false);
+    expect(moveFurniture(s, 4, 'r1', 0, 1)).toBe(false);
     expect(buyFurniture(s, 'nonsense')).toBe(false);
   });
 
@@ -1435,22 +1445,55 @@ describe('energy', () => {
 });
 
 describe('furniture effects', () => {
-  it('decor slows tiring in its department room, comforts speed up breaks in break rooms, all of it adds happiness (points and energy)', () => {
+  it('gives a department the furniture in its own room and in its lounge, all of it adding happiness (points and energy)', () => {
     const s = createInitialState(0);
     s.currency = 1e15;
     s.office[0].cells.push([2, 0], [2, 1]);
-    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'couch', room: 'r1', x: 2, y: 0 }); // a couch at work does nothing for breaks
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'armchair', room: 'r1', x: 2, y: 0 });
     expect(drainCut(s, undefined)).toBeCloseTo(0.03);
-    expect(restBoost(s)).toBe(0);
+    expect(restBoost(s, undefined)).toBeCloseTo(0.08);
     expect(buyRoom(s, 'break')).toBe(true);
-    s.furniture.push({ kind: 'tv', room: 'r2', x: 0, y: 0 }, { kind: 'bookshelf', room: 'r2', x: 1, y: 0 }); // decor in a break room only adds happiness
-    expect(restBoost(s)).toBeCloseTo(0.4);
-    expect(drainCut(s, undefined)).toBeCloseTo(0.03);
-    expect(happiness(s)).toBeCloseTo(0.01 + 0.02 + 0.03 + 0.02);
-    expect(pointsMultiplier(s)).toBeCloseTo(1.08);
+    const lounge = s.office[1];
+    expect(loungeOf(s, s.office[0])).toBe(lounge);
+    s.furniture.push(
+      { kind: 'tv', room: lounge.id, x: lounge.cells[0][0], y: lounge.cells[0][1] },
+      { kind: 'fountain', room: lounge.id, x: lounge.cells[1][0], y: lounge.cells[1][1] },
+    );
+    expect(restBoost(s, undefined)).toBeCloseTo(0.48);
+    expect(drainCut(s, undefined)).toBeCloseTo(0.09);
+    expect(happiness(s, undefined)).toBeCloseTo(0.01 + 0.01 + 0.03 + 0.02);
+    expect(pointsMultiplier(s, s.monkeys[0])).toBeCloseTo(1.07);
     const rates = energyRates(s, s.monkeys[0]);
-    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.4 / 1.08); // happiness helps too
-    expect(rates.drainSeconds).toBeCloseTo((energy.drainSeconds * 1.08) / 0.97);
+    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.48 / 1.07); // happiness helps too
+    expect(rates.drainSeconds).toBeCloseTo((energy.drainSeconds * 1.07) / 0.91);
+  });
+
+  it("gives each department only its lounge: the nearest break room, then the biggest, then the most furnished", () => {
+    const s = createInitialState(0); // room 1: 2x2 at 0,0
+    const add = (id: string, x0: number, y0: number) => s.office.push({ id, kind: 'break', department: '', cells: rectangle(2, 2).map(([x, y]) => [x + x0, y + y0]) });
+    add('r2', 2, 0); // against room 1's east wall
+    add('r3', -4, 0); // two hallway squares west
+    s.halls = [[-1, 0], [-2, 0]];
+    s.doors = [{ x: 1, y: 0, side: 'e' }, { x: 0, y: 0, side: 'w' }, { x: -3, y: 0, side: 'e' }];
+    s.furniture.push({ kind: 'tv', room: 'r3', x: -4, y: 0 });
+    expect(loungeOf(s, s.office[0])?.id).toBe('r2'); // a door straight in is nearest
+    expect(restBoost(s, undefined)).toBe(0); // so the TV down the hall does nothing
+    s.doors.shift();
+    expect(loungeOf(s, s.office[0])?.id).toBe('r3');
+    expect(restBoost(s, undefined)).toBeCloseTo(0.4);
+    expect(servedBy(s, s.office[2]).map((r) => r.id)).toEqual(['r1']);
+
+    s.office.pop();
+    s.halls = [];
+    add('r3', 0, 2); // against room 1's south wall
+    s.doors = [{ x: 1, y: 0, side: 'e' }, { x: 0, y: 1, side: 's' }];
+    s.furniture = s.furniture.filter((f) => f.kind === 'desk');
+    expect(loungeOf(s, s.office[0])?.id).toBe('r2'); // as near and as big: the first
+    s.furniture.push({ kind: 'plant', room: 'r3', x: 0, y: 2 });
+    expect(loungeOf(s, s.office[0])?.id).toBe('r3'); // the most furnished
+    s.office[1].cells.push([4, 0]);
+    expect(loungeOf(s, s.office[0])?.id).toBe('r2'); // the biggest
+    expect(drainCut(s, undefined)).toBe(0); // the plant is in the other one
   });
 
   it('caps each effect', () => {
@@ -1458,46 +1501,92 @@ describe('furniture effects', () => {
     s.office[0].cells = rectangle(10, 10);
     const r2 = addRoom(s, 'break', '', 10, 10);
     for (let i = 0; i < 40; i++) s.furniture.push({ kind: 'tv', room: 'r2', x: r2.cells[i][0], y: r2.cells[i][1] }, { kind: 'bookshelf', room: 'r1', x: i % 10, y: 5 + Math.floor(i / 10) });
-    expect(restBoost(s)).toBe(energy.maxRestBoost);
+    expect(restBoost(s, undefined)).toBe(energy.maxRestBoost);
     expect(drainCut(s, undefined)).toBe(energy.maxDrainCut);
-    expect(happiness(s)).toBe(energy.maxHappiness);
+    expect(happiness(s, undefined)).toBe(energy.maxHappiness);
   });
 });
 
-describe('accessories', () => {
-  it('buys an accessory for one typing monkey, one per slot, each of a kind dearer than the last', () => {
+describe('hats', () => {
+  it('buys a hat with Sentences, each of a kind dearer than the last', () => {
     const s = createInitialState(0);
     s.monkeys.push(createMonkey());
-    const glasses = accessories.find((a) => a.id === 'glasses')!;
+    const top = hats.find((h) => h.id === 'tophat')!;
     s.currency = 1e12;
-    expect(buyAccessory(s, 0, 'glasses')).toBe(false); // accessories cost Sentences
+    expect(wearHat(s, 0, 'tophat')).toBe(false); // hats cost Sentences
     s.sentences = 1e12;
-    expect(buyAccessory(s, 0, 'glasses')).toBe(true);
-    expect(s.sentences).toBe(1e12 - glasses.cost);
-    expect(buyAccessory(s, 0, 'glasses')).toBe(false); // already wears them
-    expect(accessoryCost(s, 'glasses')).toBe(Math.ceil(glasses.cost * glasses.costGrowth));
-    expect(buyAccessory(s, 1, 'glasses')).toBe(true);
-    expect(buyAccessory(s, 0, 'nonsense')).toBe(false);
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(s.sentences).toBe(1e12 - top.cost);
+    expect(s.monkeys[0].hat).toBe('tophat');
+    expect(hatCost(s, 'tophat')).toBe(Math.ceil(top.cost * top.costGrowth));
+    expect(wearHat(s, 1, 'tophat')).toBe(true);
+    expect(s.sentences).toBe(1e12 - top.cost - Math.ceil(top.cost * top.costGrowth));
+    expect(wearHat(s, 0, 'nonsense')).toBe(false);
     s.monkeys[1].manager = true;
-    expect(buyAccessory(s, 1, 'mug')).toBe(false); // managers don't type
+    expect(wearHat(s, 1, 'cap')).toBe(true); // managers can dress up too
   });
 
-  it('applies its effects to the monkey wearing it', () => {
+  it('keeps the hats a monkey owns: swapping back is free, picking the one it wears takes it off', () => {
+    const s = createInitialState(0);
+    s.sentences = 1e12;
+    const m = s.monkeys[0];
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(wearHat(s, 0, 'cowboy')).toBe(true);
+    expect(m.hats).toEqual(['tophat', 'cowboy']);
+    const left = s.sentences;
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(s.sentences).toBe(left);
+    expect(m.hat).toBe('tophat');
+    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(m.hat).toBe('');
+    expect(m.hats).toEqual(['tophat', 'cowboy']);
+  });
+
+  it('has hats that share a price, and some very dear ones', () => {
+    const prices = hats.map((h) => h.cost);
+    expect(new Set(prices).size).toBeLessThan(prices.length);
+    expect(Math.max(...prices)).toBeGreaterThanOrEqual(1e9);
+    for (let i = 1; i < hats.length; i++) expect(hats[i].cost).toBeGreaterThanOrEqual(hats[i - 1].cost); // cheapest first
+    expect(new Set(hats.map((h) => h.icon)).size).toBe(hats.length); // each looks different
+  });
+
+  it('applies only the worn hat to the monkey wearing it', () => {
     const s = createInitialState(0);
     s.sentences = 1e12;
     const m = s.monkeys[0];
     const base = monkeySpeed(s, m);
-    for (const id of ['glasses', 'headphones', 'slippers', 'mug', 'crown']) expect(buyAccessory(s, 0, id)).toBe(true);
-    expect(monkeySpeed(s, m)).toBeCloseTo(base * 1.2); // mug and crown
-    expect(wearing(m, 'points')).toBeCloseTo(0.2); // glasses and crown
-    expect(buyAccessory(s, 0, 'cap')).toBe(true); // a new hat replaces the crown: one per slot
-    expect(m.accessories).toHaveLength(5);
-    expect(m.accessories).not.toContain('crown');
+    expect(wearHat(s, 0, 'crown')).toBe(true);
+    expect(monkeySpeed(s, m)).toBeCloseTo(base * 1.25);
+    expect(wearing(m, 'points')).toBeCloseTo(0.25);
+    expect(wearHat(s, 0, 'cap')).toBe(true); // a monkey wears one hat at a time
+    expect(monkeySpeed(s, m)).toBeCloseTo(base);
+    expect(wearing(m, 'points')).toBe(0);
     expect(comboMultiplier(s, { ...m, chainWords: ['AAAA', 'BBBB', 'CCCC', 'DDDD', 'EEEE'] })).toBe(comboCap(s) + 1);
+    expect(wearHat(s, 0, 'cowboy')).toBe(true);
     energy.drainSeconds = 600;
-    const rates = energyRates(s, m);
-    expect(rates.drainSeconds).toBeCloseTo(600 / 0.85);
-    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.3);
+    expect(energyRates(s, m).drainSeconds).toBeCloseTo(600 / 0.75);
+    expect(wearHat(s, 0, 'beanie')).toBe(true);
+    expect(energyRates(s, m).breakSeconds).toBeCloseTo(energy.breakSeconds / 1.2);
+  });
+
+  it('dyes a worn hat for Sentences, and washes it out for free', () => {
+    const s = createInitialState(0);
+    const m = s.monkeys[0];
+    s.sentences = 100;
+    expect(dyeHat(s, 0, 'red')).toBe(false); // no hat to dye
+    expect(wearHat(s, 0, 'baseball')).toBe(true);
+    const left = s.sentences;
+    expect(dyeHat(s, 0, 'red')).toBe(true);
+    expect(m.hatColor).toBe('red');
+    expect(s.sentences).toBe(left - dyeCost);
+    expect(s.stats.dyes).toBe(1);
+    expect(dyeHat(s, 0, 'red')).toBe(false); // already red
+    expect(dyeHat(s, 0, 'plaid')).toBe(false);
+    expect(dyeHat(s, 0, '')).toBe(true);
+    expect(m.hatColor).toBe('');
+    expect(s.sentences).toBe(left - dyeCost);
+    s.sentences = dyeCost - 1;
+    expect(dyeHat(s, 0, hatColors[1].id)).toBe(false);
   });
 });
 
@@ -1565,7 +1654,7 @@ describe('bigger furniture', () => {
     const [x, y] = [...room.cells].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
     expect(fitsAt(s, room.id, 'couch', x, y)).toBe(true);
     expect(fitsAt(s, room.id, 'couch', x - 1, y)).toBe(false); // half outside the room
-    buyFurniture(s, 'plant');
+    buyFurniture(s, 'plant', 'break');
     const plant = s.furniture.length - 1;
     expect(s.furniture[plant]).toMatchObject({ room: room.id, x, y });
     expect(fitsAt(s, room.id, 'couch', x, y)).toBe(false);
@@ -1596,22 +1685,39 @@ describe('bigger furniture', () => {
 });
 
 describe('doors and hallways', () => {
-  it('places each new room apart from the others, with a hallway and doors back to the first room', () => {
+  it('places each new room apart from rooms of its kind, with a hallway or a door straight in back to the first room', () => {
     const s = createInitialState(0);
     s.currency = 1e30;
+    s.departments = ['comedy', 'tragedy', 'history'];
     for (let i = 0; i < 4; i++) expect(buyRoom(s, 'break')).toBe(true);
+    expect(buyRoom(s, 'department', 'tragedy')).toBe(true);
+    expect(buyRoom(s, 'department', 'history')).toBe(true);
     expect(s.halls.length).toBeGreaterThan(0);
     for (const r of s.office) expect(isConnected(s, r)).toBe(true);
-    // No two rooms share a wall: a hallway's width is always between them.
-    const owner = new Map(s.office.flatMap((r) => r.cells.map(([x, y]) => [`${x},${y}`, r.id] as const)));
+    // Rooms of one kind never share a wall; a break room and a department's room that do have a door between them.
+    const owner = new Map(s.office.flatMap((r) => r.cells.map(([x, y]) => [`${x},${y}`, r] as const)));
     for (const r of s.office) {
       for (const [x, y] of r.cells) {
         for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
           const other = owner.get(`${x + dx},${y + dy}`);
-          expect(!other || other === r.id).toBe(true);
+          if (!other || other === r) continue;
+          expect(other.kind).not.toBe(r.kind);
+          expect(doorBetween(s, r, other)).toBe(true);
         }
       }
     }
+    // The first break room went against room 1, and every department has a lounge.
+    expect(doorBetween(s, s.office[0], s.office[1])).toBe(true);
+    for (const r of s.office.filter((r) => r.kind === 'department')) expect(loungeOf(s, r)).toBeDefined();
+  });
+
+  it('puts a door in when a room grows against a room of the other kind', () => {
+    const s = createInitialState(0); // room 1: 2x2 at 0,0
+    s.currency = 1e30;
+    s.office.push({ id: 'r2', kind: 'break', department: '', cells: [[3, 0]] });
+    expect(doorBetween(s, s.office[0], s.office[1])).toBe(false);
+    expect(expandRoom(s, 'r1', [2, 0])).toBe(true);
+    expect(doorBetween(s, s.office[0], s.office[1])).toBe(true);
   });
 
   it("stops a room's monkeys and furniture working when nothing leads to it", () => {
@@ -1620,12 +1726,13 @@ describe('doors and hallways', () => {
     s.letters = ['A'];
     const lounge = addRoom(s, 'break', '', 3, 3);
     s.furniture.push({ kind: 'tv', room: lounge.id, x: lounge.cells[0][0], y: lounge.cells[0][1] });
-    expect(restBoost(s)).toBeGreaterThan(0);
-    for (const [x, y] of [...s.halls]) toggleHall(s, x, y); // tear up the hallway
+    expect(restBoost(s, undefined)).toBeGreaterThan(0);
+    s.doors = s.doors.filter((d) => !lounge.cells.some(([x, y]) => x === d.x && y === d.y)); // take out its door
+    for (const [x, y] of [...s.halls]) toggleHall(s, x, y); // and any hallway
     expect(s.doors).toHaveLength(0); // doors onto nothing go too
     expect(isConnected(s, lounge)).toBe(false);
-    expect(restBoost(s)).toBe(0);
-    expect(happiness(s)).toBe(0);
+    expect(restBoost(s, undefined)).toBe(0);
+    expect(happiness(s, undefined)).toBe(0);
     autoConnect(s);
     expect(isConnected(s, lounge)).toBe(true);
 
@@ -1702,20 +1809,21 @@ describe('achievements', () => {
     expect(s.achievements).toContain('pets-1000');
   });
 
-  it('measures each stat, including secret words and worn accessories', () => {
+  it('measures each stat, including secret words and worn hats', () => {
     const s = createInitialState(0);
     s.stats.words = { MONKEY: 2, CAT: 1 };
-    s.monkeys[0].accessories = ['crown'];
+    s.monkeys[0].hats = ['crown'];
+    s.monkeys[0].hat = 'crown';
     expect(achievementValue(s, 'word:MONKEY')).toBe(2);
     expect(achievementValue(s, 'dictionary')).toBe(2);
     expect(achievementValue(s, 'wearing:crown')).toBe(1);
     expect(achievementValue(s, 'biggestDepartment')).toBe(1);
     checkAchievements(s);
-    expect(s.achievements).toEqual(expect.arrayContaining(['word-monkey', 'crown', 'first-accessory']));
+    expect(s.achievements).toEqual(expect.arrayContaining(['word-monkey', 'crown', 'first-hat']));
   });
 
   it('every achievement has a known measure and a unique id', () => {
-    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'accessories', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios']);
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios']);
     for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
     expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
   });

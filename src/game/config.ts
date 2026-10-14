@@ -189,13 +189,14 @@ export const office = {
 };
 
 /**
- * Furniture, bought with points in the Furniture store. Each piece fills one
+ * Furniture, bought with points in the Decor and Comforts stores. Each piece fills one
  * square, placed in the first free square of a break room (else any room); the
  * office map moves it. Each one of a kind costs costGrowth times the last.
- * Decor (drain) in a department's room slows its monkeys' tiring; comfort
- * (rest) in a break room speeds up everyone's breaks; every piece adds a little
- * happiness to every monkey (see `petting`). Bonuses add up to the caps in `energy`. All
- * numbers are placeholders.
+ * A department gets the furniture in its own room and in its lounge (the
+ * nearest break room, by a door or a hallway; see loungeOf): decor (drain)
+ * slows its monkeys' tiring, comfort (rest) speeds up their breaks, and every
+ * piece adds a little happiness (see `petting`). Bonuses add up, per
+ * department, to the caps in `energy`. All numbers are placeholders.
  */
 export interface FurnitureKind {
   id: string;
@@ -203,24 +204,69 @@ export interface FurnitureKind {
   glyph: string; // one character on the office map
   cost: number;
   costGrowth: number;
-  drain: number; // decor: in a department's room, its monkeys tire this much slower (0.03 = 3%)
-  rest: number; // in a break room, every monkey's breaks go this much faster (0.15 = 15%)
-  happiness: number; // anywhere in the office: points x (1 + happiness), added up; monkeys also tire slower and rest faster
+  drain: number; // decor: a department's monkeys tire this much slower (0.03 = 3%), with it in their room or their lounge
+  rest: number; // comfort: a department's breaks go this much faster (0.15 = 15%), with it in their room or their lounge
+  happiness: number; // a department's points x (1 + happiness), added up, with it in their room or their lounge; its monkeys also tire slower and rest faster
   size?: [number, number]; // squares across and down (1 x 1 when missing); turning a piece swaps them
+  element: Element; // its feng shui element
+  description?: string; // what inspecting it shows
+  seat?: boolean; // a seat: feng shui wants a wall behind it in a break room
+  rooms: RoomKind[]; // the kinds of room it can stand in
 }
 
+/** The kinds of room: a department's room (its monkeys' desks) or a break room. */
+export type RoomKind = 'department' | 'break';
+
+/** The five feng shui elements. A room with all five is balanced. */
+export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
+export const elements: Element[] = ['wood', 'fire', 'earth', 'metal', 'water'];
+
 /** The desk every monkey gets free, in its department's room. Not sold. */
-export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0 };
+export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal', rooms: ['department'], description: 'A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.' };
 
 export const furnitureKinds: FurnitureKind[] = [
-  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01 },
-  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01 },
-  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02 },
-  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1] },
-  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01 },
-  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1] },
-  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03 },
+  // Decor: a department's monkeys tire slower (with it in their room or their lounge). Pieces at the same price do as much. `rooms` says where each may stand.
+  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], description: 'A leafy friend in a clay pot. Wood, they say, feeds the fire of a busy mind.' },
+  { id: 'candle', name: 'Scented candle', glyph: 'I', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'fire', rooms: ['department', 'break'], description: 'It smells faintly of bananas. A small flame, but Fire all the same.' },
+  { id: 'clock', name: 'Wall clock', glyph: 'K', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department'], description: 'Tick, tock, type. A brass clock keeps the hours, and Metal keeps the mind sharp.' },
+  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department', 'break'], description: 'A brass floor lamp: cold Metal, warm light.' },
+  { id: 'fishtank', name: 'Fish tank', glyph: 'F', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'water', rooms: ['department', 'break'], description: 'Three goldfish, unimpressed by the typing. Moving Water calms the mind.' },
+  { id: 'bonsai', name: 'Bonsai tree', glyph: 'Y', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], description: 'A very old, very small tree. Patient Wood, the opposite of a monkey.' },
+  { id: 'sandgarden', name: 'Sand garden', glyph: 'Z', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'earth', rooms: ['department', 'break'], description: 'Raked sand and three smooth stones. Calm, quiet Earth.' },
+  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood', rooms: ['department'], description: 'Rows of dusty old books. One of them sticks out a little further than the rest.' },
+  { id: 'painting', name: 'Landscape painting', glyph: 'G', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'earth', rooms: ['department', 'break'], description: 'Rolling hills under a wide sky. Pictures of the land bring Earth indoors.' },
+  { id: 'mirror', name: 'Mirror', glyph: 'M', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department', 'break'], description: 'A silver-framed mirror. The monkeys make faces at it. Polished Metal sends chi back into the room.' },
+  { id: 'gong', name: 'Brass gong', glyph: 'O', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department'], description: 'Strictly for emergencies. And lunch. A deep note of Metal.' },
+  { id: 'fountain', name: 'Indoor fountain', glyph: 'Q', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'water', rooms: ['department', 'break'], description: 'Water trickles over smooth stones. Flowing Water carries good fortune in.' },
+  // Comforts: in a break room, every monkey's breaks go faster. Seats like a wall behind them.
+  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'A sturdy bench, solid as the Earth. It likes a wall at its back.' },
+  { id: 'armchair', name: 'Armchair', glyph: 'A', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], seat: true, description: 'Carved wood, worn smooth by many naps. Best with a wall at its back.' },
+  { id: 'beanbag', name: 'Beanbag', glyph: 'N', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, element: 'earth', rooms: ['break'], seat: true, description: 'Shapeless, squashy and close to the Earth. Best against a wall.' },
+  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'water', rooms: ['department', 'break'], description: "Glug. The office's only source of Water, and of gossip." },
+  { id: 'espresso', name: 'Espresso machine', glyph: 'E', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Chrome, hissing, and far too strong. Monkeys love it.' },
+  { id: 'vending', name: 'Vending machine', glyph: 'V', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Sells only bananas. A steel box of Metal, humming.' },
+  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'Deep, soft and low to the Earth. Monkeys nap best with a wall behind it.' },
+  { id: 'fireplace', name: 'Fireplace', glyph: 'R', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, element: 'fire', rooms: ['break'], description: 'Crackling logs. The real thing: warm, bright Fire.' },
+  { id: 'hammock', name: 'Hammock', glyph: 'J', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'wood', rooms: ['break'], seat: true, description: 'Strung between two wooden posts. Swaying Wood, and the best naps.' },
+  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', rooms: ['break'], description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
+  { id: 'hottub', name: 'Hot tub', glyph: 'U', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, size: [2, 1], element: 'water', rooms: ['break'], description: 'Nobody remembers approving this. Nobody is complaining.' },
 ];
+
+/**
+ * Feng shui: each room has five rules (see logic's roomChi), and its chi is
+ * the share it keeps. The office's chi (the average over rooms you can reach)
+ * adds up to maxHappiness to happiness once you find the feng shui book,
+ * hidden in a bookshelf (inspect one on the office map), which also shows the
+ * rules and each room's chi. Fire is the rarest element (the candle and the
+ * TV). Placeholders.
+ */
+export const fengShui = {
+  maxHappiness: 0.1,
+  hiddenIn: 'bookshelf', // the furniture kind the book is found in
+  found: 'Tucked behind the other books is a slim volume: "The Way of the Typewriter: feng shui for monkeys".',
+  window: 'A window. Every room wants light, though sunlight is no substitute for a real flame.',
+  nothing: 'Nothing of interest here.',
+};
 
 /**
  * Monkey energy, from 1 (100%) to 0. Typing drains it in drainSeconds; a tired
@@ -239,7 +285,7 @@ export const energy = {
 };
 
 /**
- * A monkey's happiness (the office's, from furniture, plus its own from
+ * A monkey's happiness (its department's, from furniture and feng shui, plus its own from
  * petting) makes it tire slower and rest faster: drain time x (1 + happiness),
  * break time / (1 + happiness). Petting (enter) makes the least happy typing
  * monkey a little happier; it's mostly for fun (Justin: "petting should have
@@ -268,7 +314,7 @@ export const folio = {
  * Achievements: no reward, just a record on the achievements page ([a]).
  * Each one unlocks when its measure (see achievementValue in logic.ts)
  * reaches `at`. Measures named word:XYZ count how often the monkeys spelled
- * XYZ; wearing:id counts monkeys wearing that accessory. Secret ones show as
+ * XYZ; wearing:id counts monkeys wearing that hat. Secret ones show as
  * ??? until unlocked.
  */
 export interface Achievement {
@@ -296,7 +342,9 @@ export const achievements: Achievement[] = [
   { id: 'first-department', name: 'Expansion', text: 'Open a second department', stat: 'departments', at: 2 },
   { id: 'first-room', name: 'Room to breathe', text: 'Buy a new room', stat: 'rooms', at: 2 },
   { id: 'first-furniture', name: 'Interior design', text: 'Buy a piece of furniture', stat: 'furniture', at: 1 },
-  { id: 'first-accessory', name: 'Dress code', text: 'Give a monkey an accessory', stat: 'accessories', at: 1 },
+  { id: 'harmony', name: 'Harmony', text: 'Give a room perfect chi (feng shui)', stat: 'harmony', at: 1 },
+  { id: 'first-hat', name: 'Hat trick', text: 'Give a monkey a hat', stat: 'hats', at: 1 },
+  { id: 'first-dye', name: 'Dressed to the nines', text: 'Dye a hat', stat: 'dyed', at: 1 },
   { id: 'first-faster', name: 'Practice', text: 'Teach a monkey to type faster', stat: 'skill', at: 1 },
   { id: 'first-typewriter', name: 'Upgrade', text: 'Give a monkey a better typewriter', stat: 'typewriter', at: 1 },
   { id: 'first-key', name: 'Shortcut', text: 'Buy a typewriter key', stat: 'keys', at: 1 },
@@ -319,6 +367,8 @@ export const achievements: Achievement[] = [
   { id: 'full-department', name: 'Full house', text: 'Fill a department with 10 monkeys', stat: 'biggestDepartment', at: 10 },
   { id: 'day-job', name: 'Day job', text: 'Keep the monkeys typing for 24 hours', stat: 'hoursTyping', at: 24 },
   { id: 'crown', name: 'Long live the king', text: 'Crown a monkey', stat: 'wearing:crown', at: 1 },
+  { id: 'halo', name: 'Angelic', text: 'Give a monkey a halo', stat: 'wearing:halo', at: 1 },
+  { id: 'hats-all', name: 'Mad hatter', text: 'Own 7 different kinds of hat', stat: 'hatKinds', at: 7 },
   { id: 'billion', name: 'Billionaire', text: 'Earn a billion Points', stat: 'points', at: 1e9 },
   // Secrets: words the monkeys might stumble on.
   { id: 'word-monkey', name: 'Self-aware', text: 'The monkeys spelled MONKEY', stat: 'word:MONKEY', at: 1, secret: true },
@@ -330,20 +380,22 @@ export const achievements: Achievement[] = [
 ];
 
 /**
- * Accessories, bought with points for one monkey at a time in the
- * Accessories store. A monkey wears one per slot. Each one of a kind costs
- * costGrowth times the last, across all monkeys. Effects, for the monkey
- * wearing it: points (its words and lines pay this much more), speed (types
- * faster), drain (tires slower), rest (breaks go faster), combo (its combo cap
- * is this much higher). A hat changes the monkey's icon (a plain monkey
- * without one). Numbers are placeholders.
+ * Hats, the only thing monkeys wear (Justin, 2026-10-14: hats are what
+ * change how a monkey looks). Bought with Sentences in the Hats store for one
+ * monkey at a time; a monkey keeps every hat it was given and wears one, and
+ * changing hats is free. Each one of a kind costs costGrowth times the last,
+ * across all monkeys. Hats come in price tiers, several hats to a tier, with
+ * two absurdly expensive ones at the top. Effects, for the monkey wearing it:
+ * points (its words and lines pay this much more), speed (types faster), drain
+ * (tires slower), rest (breaks go faster), combo (its combo cap is this much
+ * higher). The icon is the hat's ASCII character, worn on the monkey's icon
+ * (#@ for a top hat). Numbers are placeholders.
  */
-export interface Accessory {
+export interface Hat {
+  description?: string; // what inspecting it shows
   id: string;
   name: string;
-  slot: 'head' | 'eyes' | 'ears' | 'hands' | 'feet';
-  glyph: string; // one character, shown after the monkey's name
-  icon?: string; // hats: one ASCII character worn on the monkey's icon, e.g. #@ for a top hat
+  icon: string; // one ASCII character, worn left of the monkey's face
   cost: number;
   costGrowth: number;
   points?: number;
@@ -356,17 +408,30 @@ export interface Accessory {
 /** A monkey's face in its icon; a hat goes on its left. All icons are ASCII. */
 export const monkeyIcon = '@';
 
-/** Accessories cost Sentences: a steady, renewable sink that grows with your staff. */
-export const accessories: Accessory[] = [
-  { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 50, costGrowth: 1.5, points: 0.1 },
-  { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 100, costGrowth: 1.5, drain: 0.15 },
-  { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 100, costGrowth: 1.5, rest: 0.3 },
-  { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 250, costGrowth: 1.5, speed: 0.1 },
-  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: 'd', cost: 20, costGrowth: 1.5, drain: 0.1 },
-  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15 },
-  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '^', cost: 1_000, costGrowth: 2, combo: 1 },
-  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: 'W', cost: 100_000, costGrowth: 3, points: 0.1, speed: 0.1 },
+export const hats: Hat[] = [
+  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 25, costGrowth: 1.5, drain: 0.1, description: 'Worn backwards, naturally.' },
+  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 25, costGrowth: 1.5, rest: 0.2, description: 'Warm ears, calm mind.' },
+  { id: 'party', name: 'Party hat', icon: 'A', cost: 25, costGrowth: 1.5, speed: 0.05, description: "It is always someone's birthday somewhere." },
+  { id: 'tophat', name: 'Top hat', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15, description: 'Very distinguished. Possibly borrowed from a magician.' },
+  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 500, costGrowth: 1.5, drain: 0.25, description: 'Yeehaw, but quietly: this is an office.' },
+  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 5_000, costGrowth: 2, combo: 1, description: 'It whirs faintly while its wearer thinks.' },
+  { id: 'crown', name: 'Crown', icon: 'W', cost: 1_000_000, costGrowth: 3, points: 0.25, speed: 0.25, description: 'Heavy is the head that wears it. Heavier is the price.' },
+  { id: 'halo', name: 'Halo', icon: 'o', cost: 1_000_000_000, costGrowth: 10, points: 0.5, speed: 0.5, drain: 0.5, description: 'Nobody knows where it came from. It hums.' },
 ];
+
+/**
+ * Dyes for hats: any monkey's hat can be dyed one of these colours (ANSI
+ * codes, so any terminal shows them), for dyeCost Sentences. Just for looks.
+ */
+export const hatColors = [
+  { id: 'red', name: 'Red', ansi: 31 },
+  { id: 'green', name: 'Green', ansi: 32 },
+  { id: 'yellow', name: 'Yellow', ansi: 33 },
+  { id: 'blue', name: 'Blue', ansi: 34 },
+  { id: 'magenta', name: 'Magenta', ansi: 35 },
+  { id: 'cyan', name: 'Cyan', ansi: 36 },
+];
+export const dyeCost = 10;
 
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],

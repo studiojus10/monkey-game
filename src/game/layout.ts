@@ -58,7 +58,7 @@ export function doorSides(state: GameState, x: number, y: number): Side[] {
   });
 }
 
-/** Drops doors that no longer lead anywhere (a hallway or room was moved). */
+/** Drops doors that no longer lead anywhere, and windows that no longer face outside (a hallway or room was moved or grew). */
 export function tidyDoors(state: GameState): void {
   const plan = floorPlan(state);
   state.doors = state.doors.filter((d) => {
@@ -67,6 +67,75 @@ export function tidyDoors(state: GameState): void {
     const there = plan.get(at(bx, by));
     return !!here && !!there && here !== there && here !== 'hall';
   });
+  state.windows = state.windows.filter((w) => windowSides(state, w.x, w.y).includes(w.side));
+}
+
+/** The window in the wall on one side of a room square. */
+export function windowAt(state: GameState, x: number, y: number, side: Side): Door | undefined {
+  return state.windows.find((w) => w.x === x && w.y === y && w.side === side);
+}
+
+/** Sides of a room square that a window could go in: walls with nothing beyond them (no room, no hallway). */
+export function windowSides(state: GameState, x: number, y: number): Side[] {
+  const plan = floorPlan(state);
+  const here = plan.get(at(x, y));
+  if (!here || here === 'hall') return [];
+  return sideOrder.filter((s) => !plan.has(at(x + sides[s][0], y + sides[s][1])));
+}
+
+/**
+ * Turns the window on a room square to its next outside wall (north, east,
+ * south, west), then off. Returns false if no wall of the square faces outside.
+ */
+export function cycleWindow(state: GameState, x: number, y: number): boolean {
+  const options = windowSides(state, x, y);
+  if (options.length === 0) return false;
+  const current = options.findIndex((s) => windowAt(state, x, y, s));
+  state.windows = state.windows.filter((w) => w.x !== x || w.y !== y);
+  const next = options[current + 1];
+  if (next) state.windows.push({ x, y, side: next });
+  return true;
+}
+
+/**
+ * A door's path into a room: the square inside the door, then on in a straight
+ * line to the far wall. `side` is the way the path runs.
+ */
+export type DoorPath = { door: Door; side: Side; squares: Square[] };
+
+/** The straight paths in from each of a room's doors. */
+export function doorPaths(state: GameState, room: Room): DoorPath[] {
+  const inRoom = (x: number, y: number) => room.cells.some(([cx, cy]) => cx === x && cy === y);
+  const out: DoorPath[] = [];
+  for (const d of state.doors) {
+    // A door is stored from either side of its wall.
+    const [bx, by] = beyond(d);
+    const start: Square | null = inRoom(d.x, d.y) ? [d.x, d.y] : inRoom(bx, by) ? [bx, by] : null;
+    if (!start) continue;
+    const side = start[0] === d.x && start[1] === d.y ? opposite[d.side] : d.side;
+    const squares: Square[] = [];
+    for (let [x, y] = start; inRoom(x, y); x += sides[side][0], y += sides[side][1]) squares.push([x, y]);
+    out.push({ door: d, side, squares });
+  }
+  return out;
+}
+
+/**
+ * Gives a room a window if it has none: on the first outside wall (east, west,
+ * south, then north, so the room's number keeps its top wall) that no door
+ * looks straight at.
+ */
+export function addWindow(state: GameState, room: Room): void {
+  if (room.cells.some(([x, y]) => state.windows.some((w) => w.x === x && w.y === y))) return;
+  const paths = doorPaths(state, room);
+  const facing = (x: number, y: number, s: Side) =>
+    paths.some((p) => p.side === s && p.squares.some(([px, py]) => px === x && py === y));
+  const options: [number, number, Side][] = [];
+  for (const s of ['e', 'w', 's', 'n'] as Side[]) {
+    for (const [x, y] of [...room.cells].sort(readingOrder)) if (windowSides(state, x, y).includes(s)) options.push([x, y, s]);
+  }
+  const pick = options.find(([x, y, s]) => !facing(x, y, s)) ?? options[0];
+  if (pick) state.windows.push({ x: pick[0], y: pick[1], side: pick[2] });
 }
 
 let reachMemo: { key: string; reach: Reach } | null = null;
@@ -130,6 +199,69 @@ function reach(state: GameState): Reach {
   return reachMemo.reach;
 }
 
+let loungeMemo: { key: string; lounges: Map<string, string | undefined> } | null = null;
+
+/**
+ * A department's lounge: the break room nearest its room, through a door
+ * between them (nearest of all) or along a hallway (fewest hallway squares);
+ * if several are as near, the biggest, then the one with the most furniture,
+ * then the first built. Only this one break room's furniture
+ * helps the department, however many it connects to.
+ */
+export function loungeOf(state: GameState, room: Room | undefined): Room | undefined {
+  if (!room || room.kind !== 'department') return undefined;
+  const key = [
+    state.office.map((r) => `${r.id}${r.kind[0]}:${r.cells.length}:${r.cells[r.cells.length - 1]}`).join(','),
+    state.halls.map(([x, y]) => at(x, y)).join(';'),
+    state.doors.map((d) => `${d.x},${d.y}${d.side}`).join(';'),
+    state.furniture.map((f) => f.room).join(),
+  ].join('|');
+  if (loungeMemo?.key !== key) loungeMemo = { key, lounges: new Map() };
+  if (!loungeMemo.lounges.has(room.id)) loungeMemo.lounges.set(room.id, findLounge(state, room)?.id);
+  const id = loungeMemo.lounges.get(room.id);
+  return state.office.find((r) => r.id === id);
+}
+
+/** The departments' rooms a break room is the lounge of. */
+export function servedBy(state: GameState, lounge: Room): Room[] {
+  return state.office.filter((r) => r.kind === 'department' && loungeOf(state, r) === lounge);
+}
+
+function findLounge(state: GameState, room: Room): Room | undefined {
+  const plan = floorPlan(state);
+  const breaks = state.office.filter((r) => r.kind === 'break');
+  const dist = new Map<string, number>();
+  for (const b of breaks) if (doorBetween(state, room, b)) dist.set(b.id, 0);
+  // Doors are kept on a room's side of the wall: which break rooms open onto each hallway square.
+  const opensOnto = new Map<string, string[]>();
+  const starts: Square[] = [];
+  for (const d of state.doors) {
+    const [bx, by] = beyond(d);
+    if (plan.get(at(bx, by)) !== 'hall') continue;
+    const here = plan.get(at(d.x, d.y));
+    if (here === room.id) starts.push([bx, by]);
+    else if (breaks.some((b) => b.id === here)) opensOnto.set(at(bx, by), [...(opensOnto.get(at(bx, by)) ?? []), here!]);
+  }
+  // Walk the hallways out from the room's doors, one square at a time.
+  const seen = new Map<string, number>(starts.map(([x, y]) => [at(x, y), 1]));
+  const queue = [...starts];
+  while (queue.length > 0) {
+    const [x, y] = queue.shift()!;
+    const d = seen.get(at(x, y))!;
+    for (const id of opensOnto.get(at(x, y)) ?? []) if (!dist.has(id)) dist.set(id, d);
+    for (const s of sideOrder) {
+      const n = at(x + sides[s][0], y + sides[s][1]);
+      if (plan.get(n) === 'hall' && !seen.has(n)) {
+        seen.set(n, d + 1);
+        queue.push([x + sides[s][0], y + sides[s][1]]);
+      }
+    }
+  }
+  const pieces = (r: Room) => state.furniture.filter((f) => f.room === r.id).length;
+  const score = (r: Room) => [dist.get(r.id)!, -r.cells.length, -pieces(r)];
+  return breaks.filter((b) => dist.has(b.id)).reduce<Room | undefined>((best, b) => (!best || before(score(b), score(best)) ? b : best), undefined);
+}
+
 /** Whether a room can be reached from the office entrance (the first room). */
 export function isConnected(state: GameState, room: Room | undefined): boolean {
   return !!room && connectedRooms(state).has(room.id);
@@ -144,14 +276,57 @@ export function officeBounds(state: GameState): { minX: number; maxX: number; mi
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
-/** Whether a square is free for a room: empty, and not touching another room (rooms keep a hallway's width apart). */
-export function roomCanUse(state: GameState, x: number, y: number, room?: Room): boolean {
+/**
+ * Whether a square is free for a room: empty, and not touching another room
+ * (rooms keep a hallway's width apart), except that break rooms and
+ * departments' rooms may touch, so a door can lead straight from one to the
+ * other. `room` is the room it's for (or just its kind, for a new one).
+ */
+export function roomCanUse(state: GameState, x: number, y: number, room?: Pick<Room, 'id' | 'kind'>): boolean {
   const plan = floorPlan(state);
   if (plan.has(at(x, y))) return false;
   return sideOrder.every((s) => {
     const n = plan.get(at(x + sides[s][0], y + sides[s][1]));
-    return !n || n === 'hall' || n === room?.id;
+    if (!n || n === 'hall' || n === room?.id) return true;
+    const other = state.office.find((r) => r.id === n);
+    return !!room && !!other && other.kind !== room.kind;
   });
+}
+
+/** Whether a door leads straight from one room into the other. */
+export function doorBetween(state: GameState, a: Room, b: Room): boolean {
+  const has = (r: Room, x: number, y: number) => r.cells.some(([cx, cy]) => cx === x && cy === y);
+  return state.doors.some((d) => {
+    const [bx, by] = beyond(d);
+    return (has(a, d.x, d.y) && has(b, bx, by)) || (has(b, d.x, d.y) && has(a, bx, by));
+  });
+}
+
+/** Rooms that share a wall with a room (always of the other kind: rooms of one kind keep apart). */
+export function touchingRooms(state: GameState, room: Room): Room[] {
+  const plan = floorPlan(state);
+  const ids = new Set<string>();
+  for (const [x, y] of room.cells) {
+    for (const s of sideOrder) {
+      const n = plan.get(at(x + sides[s][0], y + sides[s][1]));
+      if (n && n !== 'hall' && n !== room.id) ids.add(n);
+    }
+  }
+  return state.office.filter((r) => ids.has(r.id));
+}
+
+/**
+ * Gives a room a door into every room it touches that it has no door to yet
+ * (the first shared wall, in reading order), except the rooms in `skip`.
+ */
+export function doorToTouching(state: GameState, room: Room, skip: Room[] = []): void {
+  for (const other of touchingRooms(state, room)) {
+    if (skip.includes(other) || doorBetween(state, room, other)) continue;
+    const spot = [...room.cells]
+      .sort(readingOrder)
+      .flatMap(([x, y]) => sideOrder.filter((s) => other.cells.some(([ox, oy]) => ox === x + sides[s][0] && oy === y + sides[s][1])).map((s) => ({ x, y, side: s })))[0];
+    if (spot) state.doors.push(spot);
+  }
 }
 
 /**
@@ -225,10 +400,12 @@ function before(a: number[], b: number[]): boolean {
 
 /**
  * Where a new w x h room goes: free squares that keep a hallway's width from
- * other rooms, needing the shortest new hallway, then keeping the office
- * compact and within the map's width.
+ * rooms of its own kind, needing the shortest new hallway (none against a
+ * room of the other kind, through a door between them), then for a break
+ * room touching the most departments' rooms, then keeping the office compact
+ * and within the map's width.
  */
-export function placeRoom(state: GameState, width: number, height: number): Square {
+export function placeRoom(state: GameState, width: number, height: number, kind: Room['kind'] = 'department'): Square {
   if (state.office.length === 0 && state.halls.length === 0) return [0, 0];
   const plan = floorPlan(state);
   const b = officeBounds(state);
@@ -256,24 +433,29 @@ export function placeRoom(state: GameState, width: number, height: number): Squa
   for (let y = b.minY - height - 1; y <= b.maxY + 2; y++) {
     for (let x = b.minX - width - 1; x <= b.maxX + 2; x++) {
       let ok = true;
-      for (let dy = 0; dy < height && ok; dy++) for (let dx = 0; dx < width && ok; dx++) ok = roomCanUse(state, x + dx, y + dy);
+      for (let dy = 0; dy < height && ok; dy++) for (let dx = 0; dx < width && ok; dx++) ok = roomCanUse(state, x + dx, y + dy, { id: '', kind });
       if (!ok) continue;
       // The cheapest way in: a hallway beside it (0), or the squares a new hallway needs.
       let hall = Infinity;
+      const touching = new Set<string>();
       for (let dy = -1; dy <= height; dy++) {
         for (let dx = -1; dx <= width; dx++) {
           const edge = dy === -1 || dy === height || dx === -1 || dx === width;
           const corner = (dy === -1 || dy === height) && (dx === -1 || dx === width);
           if (!edge || corner) continue;
           const k = at(x + dx, y + dy);
-          if (plan.get(k) === 'hall' && linkedHalls.has(k)) hall = 0;
-          else if (dist.has(k)) hall = Math.min(hall, dist.get(k)!);
+          const there = plan.get(k);
+          if (there === 'hall' && linkedHalls.has(k)) hall = 0;
+          else if (there && there !== 'hall' && connected.has(there)) {
+            hall = 0; // a door straight in
+            touching.add(there);
+          } else if (dist.has(k)) hall = Math.min(hall, dist.get(k)!);
         }
       }
       if (hall === Infinity) continue;
       const w = Math.max(b.maxX, x + width - 1) - Math.min(b.minX, x) + 1;
       const h = Math.max(b.maxY, y + height - 1) - Math.min(b.minY, y) + 1;
-      const score = [w > officeRules.mapWidth ? 1 : 0, hall, w * h, Math.max(w, h * 2), y, x];
+      const score = [w > officeRules.mapWidth ? 1 : 0, hall, kind === 'break' ? -touching.size : 0, w * h, Math.max(w, h * 2), y, x];
       if (!best || before(score, best.score)) best = { score, at: [x, y] };
     }
   }
@@ -314,12 +496,9 @@ export function takeDoor(state: GameState, x: number, y: number): Door | undefin
 /** Lays a hallway square on empty floor, or takes one up. Returns false for a room's square. */
 export function toggleHall(state: GameState, x: number, y: number): boolean {
   if (roomAt(state, x, y)) return false;
-  if (isHall(state, x, y)) {
-    state.halls = state.halls.filter(([hx, hy]) => hx !== x || hy !== y);
-    tidyDoors(state);
-  } else {
-    state.halls.push([x, y]);
-  }
+  if (isHall(state, x, y)) state.halls = state.halls.filter(([hx, hy]) => hx !== x || hy !== y);
+  else state.halls.push([x, y]);
+  tidyDoors(state); // doors that led there, or windows that looked out there
   return true;
 }
 
@@ -342,7 +521,7 @@ export function layOutOffice(state: GameState): void {
       const b = { minX: Math.min(...room.cells.map(([x]) => x)), minY: Math.min(...room.cells.map(([, y]) => y)) };
       const w = Math.max(...room.cells.map(([x]) => x)) - b.minX + 1;
       const h = Math.max(...room.cells.map(([, y]) => y)) - b.minY + 1;
-      const [px, py] = placeRoom(state, w, h);
+      const [px, py] = placeRoom(state, w, h, room.kind);
       shiftRoom(state, room, px - b.minX, py - b.minY);
     }
     state.office.push(room);

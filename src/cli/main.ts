@@ -1,14 +1,17 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, departmentRules, desk, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
-  accessoryCost,
-  buyAccessory,
+  dyeHat,
+  hatCost,
+  wearHat,
   buyFurniture,
+  allowedIn,
+  readFengShuiBook,
   cellAt,
   pieceSize,
   furnitureSpot,
@@ -90,6 +93,7 @@ import {
   renderContents,
   stores,
   storeChoices,
+  storePages,
   type Store,
   typists,
   typingPickPrompt,
@@ -98,12 +102,15 @@ import {
   renderSlotsMenu,
   scriptPageSize,
   renderOptions,
-  accessoryPickPrompt,
+  dyeColorPrompt,
+  dyePickPrompt,
+  hatPickPrompt,
+  inspectItem,
 } from './screen';
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { sideName, furnitureName, renderOffice, roomName, type Cell } from './office';
-import { cycleDoor, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
+import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, roomName, type Cell } from './office';
+import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -159,7 +166,13 @@ let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
-let pickingAccessory = ''; // choosing a monkey for this accessory
+let readingBook = false; // the feng shui book, open from the office map
+let offeredBook = -1; // the piece hiding the feng shui book, just inspected: [y] reads it
+let inspecting = false; // choosing a store item to inspect
+let storePage = 0; // the open store's page, for stores with more than 9 items
+let pickingHat = ''; // choosing a monkey for this hat
+let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
+let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
 let pickingMonkeyToMove = false;
 let pickingManager = false;
@@ -241,23 +254,28 @@ function buyItem(id: string): void {
     message = managerUpgradePrompt(state);
   } else if (id === 'script') {
     openScript();
-  } else if (id.startsWith('accessory:')) {
-    const what = id.slice('accessory:'.length);
-    const team = typists(state);
-    if (state.sentences < accessoryCost(state, what)) message = noSentences;
-    else if (team.length === 1) message = buyAccessoryFor(team[0], what);
+  } else if (id.startsWith('hat:')) {
+    const what = id.slice('hat:'.length);
+    if (state.monkeys.length === 1) message = wearHatOn(0, what);
     else {
-      pickingAccessory = what;
-      message = accessoryPickPrompt(state, what);
+      pickingHat = what;
+      message = hatPickPrompt(state, what);
+    }
+  } else if (id === 'dye') {
+    if (!state.monkeys.some((m) => m.hat)) message = 'No monkey is wearing a hat to dye.';
+    else {
+      pickingDyeColor = true;
+      message = dyeColorPrompt();
     }
   } else if (id.startsWith('furniture:')) {
-    const kind = id.slice('furniture:'.length);
-    if (!furnitureSpot(state, kind))
-      message = furnitureSpot(state)
-        ? `No room for a ${kind}: it needs ${pieceSize(kind).join(' x ')} free squares in one room. Make space on the office map ([o]).`
-        : 'No free floor left. Buy a break room or grow a room on the office map ([o]).';
+    // furniture:<kind>@<room kind>: the store's section says which kind of room it goes in.
+    const [kind, where] = id.slice('furniture:'.length).split('@') as [string, RoomKind];
+    const rooms = where === 'break' ? 'break room' : "department's room";
+    if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
+    else if (!furnitureSpot(state, kind, where))
+      message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
     else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
-    else if (buyFurniture(state, kind)) {
+    else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in. Move it on the office map with [o].`;
       else {
@@ -272,11 +290,26 @@ function buyItem(id: string): void {
   }
 }
 
-/** Buys an accessory for monkey `i`; returns the message to show. */
-function buyAccessoryFor(i: number, id: string): string {
+/** Puts hat `id` on monkey `i` (or takes it off); returns the message to show. */
+function wearHatOn(i: number, id: string): string {
+  const m = state.monkeys[i];
   const name = monkeyName(state, i);
-  if (state.monkeys[i].accessories.includes(id)) return `${name} already has one.`;
-  return buyAccessory(state, i, id) ? `${name} looks sharp.` : noSentences;
+  const hatName = hats.find((h) => h.id === id)!.name.toLowerCase();
+  if (m.hat === id) return wearHat(state, i, id) ? `${name} takes off its ${hatName}.` : '';
+  const free = m.hats.includes(id);
+  if (!free && state.sentences < hatCost(state, id)) return noSentences;
+  return wearHat(state, i, id) ? `${name} puts on ${free ? 'its' : 'a new'} ${hatName}.` : noSentences;
+}
+
+/** Dyes monkey `i`'s hat `color` ('' washes it out); returns the message to show. */
+function dyeHatOn(i: number, color: string): string {
+  const m = state.monkeys[i];
+  const name = monkeyName(state, i);
+  if (!m.hat) return `${name} isn't wearing a hat.`;
+  if (m.hatColor === color) return `${name}'s hat is that colour already.`;
+  if (color && state.sentences < dyeCost) return noSentences;
+  dyeHat(state, i, color);
+  return color ? `${name}'s hat is ${hatColors.find((c) => c.id === color)!.name.toLowerCase()} now.` : `${name}'s hat is washed clean.`;
 }
 
 const noSentences = 'Not enough Sentences. They come from long chains of words and from lines of the play.';
@@ -342,6 +375,8 @@ function draw() {
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
     : showingOptions
     ? renderOptions(state)
+    : showingOffice && readingBook
+    ? renderFengShuiBook(state)
     : showingOffice
     ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null)
     : showingAchievements
@@ -358,7 +393,7 @@ function draw() {
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message, shop, columns);
+        : renderScreen(state, message, shop, columns, storePage);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -480,13 +515,46 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingAccessory) {
-    const what = pickingAccessory;
+  if (pickingHat) {
+    const what = pickingHat;
     const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) {
-      pickingAccessory = '';
+    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
+      pickingHat = '';
       message = 'Done.';
-    } else message = `${buyAccessoryFor(i, what)}  ${accessoryPickPrompt(state, what)}`;
+    } else message = `${wearHatOn(i, what)}  ${hatPickPrompt(state, what)}`;
+    return draw();
+  }
+
+  if (inspecting) {
+    inspecting = false;
+    const item = shop && str && /^[1-9]$/.test(str) ? storeChoices(state, shop, storePage)[Number(str) - 1] : undefined;
+    message = item ? inspectItem(item.id) : 'Nothing inspected.';
+    return draw();
+  }
+
+  if (pickingDyeColor) {
+    pickingDyeColor = false;
+    const c = Number(str);
+    if (!str || !/^[0-9]$/.test(str) || c > hatColors.length) message = 'No hat dyed.';
+    else {
+      const color = c === 0 ? '' : hatColors[c - 1].id;
+      const wearers = state.monkeys.flatMap((m, i) => (m.hat ? [i] : []));
+      if (wearers.length === 1) message = dyeHatOn(wearers[0], color);
+      else {
+        pickingDye = color;
+        message = dyePickPrompt(state, color);
+      }
+    }
+    return draw();
+  }
+
+  if (pickingDye !== null) {
+    const color = pickingDye;
+    const i = Number(str) - 1;
+    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
+      pickingDye = null;
+      message = 'Done.';
+    } else message = `${dyeHatOn(i, color)}  ${dyePickPrompt(state, color)}`;
     return draw();
   }
 
@@ -683,10 +751,28 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingOffice && readingBook) {
+    if (key.name === 'escape' || key.name === 'q' || str === 'b' || str === 'o') readingBook = false;
+    return draw();
+  }
+
   if (showingOffice && officeCursor) {
     message = '';
     const c = officeCursor;
     const here = roomAt(state, c.x, c.y);
+    if (offeredBook >= 0) {
+      const piece = offeredBook;
+      offeredBook = -1;
+      if (str === 'y' && readFengShuiBook(state, piece)) readingBook = true;
+      else message = 'You leave the book where it was, for now.';
+      return draw();
+    }
+    if (str === 'i' && !officeGrowing) {
+      const seen = inspectSquare(state, c.x, c.y, heldFurniture);
+      message = seen.text;
+      offeredBook = seen.book;
+      return draw();
+    }
     if (buyingRoom) {
       buyingRoom = false;
       const roomless = roomlessDepartments(state);
@@ -696,7 +782,14 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else if (g ? buyRoom(state, 'department', g) : buyRoom(state, 'break')) {
         const room = state.office[state.office.length - 1];
         Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
-        message = `You have a new room, the ${roomName(state, room)}, with a hallway to the rest of the office.`;
+        const next = touchingRooms(state, room).filter((r) => doorBetween(state, room, r)).map((r) => `the ${roomName(state, r)}`);
+        const served = room.kind === 'break' ? servedBy(state, room).map((r) => `the ${roomName(state, r)}`) : [];
+        const lounge = room.kind === 'department' ? loungeOf(state, room) : undefined;
+        message = [
+          `You have a new room, the ${roomName(state, room)}, ${next.length > 0 ? `with a door straight into ${next.join(' and ')}` : 'with a hallway to the rest of the office'}.`,
+          ...(served.length > 0 ? [`It's the lounge of ${served.join(' and ')}.`] : []),
+          ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
+        ].join(' ');
       }
       return draw();
     }
@@ -735,6 +828,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else message = 'Put the cursor in the room you want to grow.';
     } else if (str === 'd' && !holding && !officeGrowing) {
       if (!cycleDoor(state, c.x, c.y)) message = here ? 'Doors go in walls onto a hallway or another room.' : 'Doors go on the edge of a room.';
+    } else if (str === 'w' && !holding && !officeGrowing) {
+      if (!cycleWindow(state, c.x, c.y)) message = here ? 'Windows go in walls that face outside: no hallway or room beyond.' : 'Windows go in the walls of a room.';
+    } else if (str === 'b' && !holding && !officeGrowing) {
+      if (state.fengShuiBook) readingBook = true;
+      else message = 'You have no feng shui book. Perhaps one is hidden somewhere: inspect things with [i].';
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
@@ -753,6 +851,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         if (here && moveFurniture(state, heldFurniture, here.id, c.x, c.y)) heldFurniture = -1;
         else if (!here) message = 'Furniture goes inside a room.';
         else if (f.kind === desk.id && f.room !== here.id) message = "Desks stay in their department's room.";
+        else if (!allowedIn(state, f.kind, here.id))
+          message = `The ${furnitureName(state, heldFurniture)} only goes in ${furnitureKinds.find((k) => k.id === f.kind)?.rooms.includes('break') ? 'break rooms' : "departments' rooms"}.`;
         else message = `It doesn't fit there: every square it takes must be free floor in one room.${pieceSize(f.kind).join() === '1,1' ? '' : ' [r] turns it.'}`;
       } else if (heldDoor) {
         if (placeDoor(state, c.x, c.y, heldDoor.side)) heldDoor = null;
@@ -766,7 +866,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           // A bigger piece is held by its top left square.
           Object.assign(c, { x: state.furniture[spot].x, y: state.furniture[spot].y });
         } else if (door) heldDoor = { from: door, side: door.side };
-        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Furniture store; [d] adds a door.';
+        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Decor and Comforts stores; [d] adds a door.';
       }
     }
     return draw();
@@ -844,11 +944,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;
   } else if (key.name === 'space') {
     shop = shop ? null : lastStore;
+    storePage = 0;
   } else if (shop && (key.name === 'tab' || key.name === 'right' || key.name === 'left')) {
     const step = key.name === 'left' ? stores.length - 1 : 1;
     shop = lastStore = stores[(stores.indexOf(shop) + step) % stores.length];
+    storePage = 0;
+  } else if (shop && (key.name === 'up' || key.name === 'down')) {
+    const pages = storePages(state, shop);
+    storePage = (storePage + (key.name === 'up' ? pages - 1 : 1)) % pages;
+  } else if (shop && str === 'i') {
+    inspecting = true;
+    message = 'Inspect which item? Press 1-9.';
   } else if (shop && str && /^[1-9]$/.test(str)) {
-    const item = storeChoices(state, shop)[Number(str) - 1];
+    const item = storeChoices(state, shop, storePage)[Number(str) - 1];
     if (item?.id) buyItem(item.id);
   } else if (str === 'm') {
     pickingManager = true;
