@@ -740,6 +740,29 @@ describe('word slots', () => {
     }
   });
 
+  it("don't wait for letters that aren't a word yet: the monkey drops them and types the slot's word", () => {
+    const s = setup();
+    setWordList(['AY', 'MY', 'LORD']);
+    try {
+      s.slots = [
+        { department: '', position: 1, word: 'AY', on: true },
+        { department: '', position: 2, word: 'MY', on: true },
+      ];
+      const m = s.monkeys[0];
+      const x = () => (letters.indexOf('X') + 0.5) / letters.length;
+      m.pending = 'LO'; // on the way to LORD, at the start of a chain
+      typeLetter(s, 0, x);
+      expect(m.line.map((seg) => seg.text)).toEqual(['AY']);
+      m.pending = 'LO'; // and mid-chain
+      typeLetter(s, 0, x);
+      expect(m.line.map((seg) => seg.text)).toEqual(['AY', 'MY']);
+      expect(m.chainLength).toBe(2);
+      expect(m.pending).toBe('');
+    } finally {
+      setWordList([]);
+    }
+  });
+
   it('type slot words as finished words, even ones that could grow', () => {
     const s = setup();
     setWordList(['AY', 'AYS', 'MY', 'MYTH', 'LORD', 'LORDS']);

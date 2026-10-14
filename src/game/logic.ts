@@ -1197,11 +1197,13 @@ export function moveSlot(state: GameState, slot: number, delta: 1 | -1): boolean
 /**
  * The slot due for this monkey's next word, if any. Slots apply at a word
  * break; if the letters waiting are already a word, they count as the
- * previous word so the slot can follow them.
+ * previous word so the slot can follow them. Letters waiting that aren't a
+ * word yet don't hold a slot up: the monkey drops them and types the slot's
+ * word (with many letters and keys there's nearly always something waiting,
+ * so otherwise slots would hardly ever apply).
  */
 function dueSlot(state: GameState, m: MonkeyState, dict: Dictionary): string {
-  const ready = m.pending === '' ? 0 : dict.isWord(m.pending) ? 1 : -1;
-  if (ready < 0) return '';
+  const ready = m.pending !== '' && dict.isWord(m.pending) ? 1 : 0;
   const genre = monkeyGenre(state, m);
   const s = state.slots.find(
     (x) => x.on && x.word && x.position === m.chainLength + ready + 1 && slotGenre(state, x) === genre,
@@ -1224,7 +1226,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   const events: ReadEvent[] = [];
   const slot = dueSlot(state, m, dict);
   if (slot) {
-    if (m.pending) events.push({ kind: 'word', text: m.pending });
+    if (m.pending && dict.isWord(m.pending)) events.push({ kind: 'word', text: m.pending });
     events.push({ kind: 'word', text: slot });
     m.pending = '';
   } else {
