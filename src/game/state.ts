@@ -140,10 +140,11 @@ export interface GameState {
 /** Player options, from the options menu. */
 export interface Settings {
   autoPlaceFurniture: boolean; // new furniture places itself; off opens the office map to place it
+  lightBackground: boolean; // colours for a terminal with a light background (darker yellow, cyan and green)
 }
 
 export function createSettings(): Settings {
-  return { autoPlaceFurniture: true };
+  return { autoPlaceFurniture: true, lightBackground: false };
 }
 
 /** Lifetime statistics, for the statistics page. They never affect play. */

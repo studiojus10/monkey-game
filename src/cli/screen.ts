@@ -739,7 +739,10 @@ export function renderOptions(state: GameState): string {
     '      On: new furniture goes in the first free square (a break room first).',
     '      Off: buying furniture opens the office map so you can place it.',
     '',
-    '[1] switch   [esc] back',
+    `  [2] Light background: ${onOff(state.settings.lightBackground)}`,
+    "      On: darker colours that are easy to read when your terminal's theme is light.",
+    '',
+    '[1-2] switch   [esc] back',
   ].join('\n');
 }
 

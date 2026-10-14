@@ -27,7 +27,7 @@ import {
   storePages,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, green, inverse } from '../src/cli/style';
+import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook } from '../src/cli/office';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
@@ -549,6 +549,11 @@ describe('furniture', () => {
     expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: ON');
     s.settings.autoPlaceFurniture = false;
     expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: off');
+    expect(plain(renderOptions(s))).toContain('[2] Light background: off');
+    // On a light background the pale colours turn darker; the rest stay.
+    expect(forLightBackground(`${yellow('Bananas')} ${cyan('Words')} ${green('*')} ${red('NO WAY IN')}`)).toBe(
+      '\x1b[38;5;130mBananas\x1b[39m \x1b[38;5;30mWords\x1b[39m \x1b[38;5;28m*\x1b[39m \x1b[31mNO WAY IN\x1b[39m',
+    );
     expect(plain(renderScreen(s, '', 'department'))).toContain('New furniture opens the office map so you can place it.');
   });
 

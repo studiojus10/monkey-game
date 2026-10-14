@@ -21,6 +21,16 @@ export const blue = color(34);
 export const magenta = color(35);
 export const cyan = color(36);
 
+/**
+ * A screen recoloured for a terminal with a light background: yellow, cyan
+ * and green are too pale on white, so they become darker shades (256-colour
+ * codes, which every common terminal supports). Everything else stays.
+ */
+export function forLightBackground(screen: string): string {
+  const darker: Record<string, string> = { '32': '38;5;28', '33': '38;5;130', '36': '38;5;30' };
+  return screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`);
+}
+
 /** Text without its ANSI codes. */
 export const plainText = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
 

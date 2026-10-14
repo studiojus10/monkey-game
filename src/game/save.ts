@@ -173,7 +173,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastWordPoints: num(s.lastWordPoints, 0),
-      settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false },
+      settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false, lightBackground: s.settings?.lightBackground === true },
       stats,
       achievements: strings(s.achievements),
       folios: Math.max(0, Math.floor(num(s.folios, 0))),

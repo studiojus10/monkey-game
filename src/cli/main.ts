@@ -109,6 +109,7 @@ import {
   hatPickPrompt,
   inspectItem,
 } from './screen';
+import { forLightBackground } from './style';
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
@@ -402,7 +403,7 @@ function draw() {
         : showingHelp
           ? renderHomeKeys(state)
           : renderScreen(state, message, shop, columns, storePage);
-  process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
+  process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
 }
 
 function quit() {
@@ -764,6 +765,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (showingOptions) {
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
+    else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
     return draw();
   }
 
