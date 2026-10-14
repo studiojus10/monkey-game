@@ -1,4 +1,4 @@
-import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, monkeyIcon, office as officeRules, research, theme, traits } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, monkeyIcon, office as officeRules, research, traits } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
@@ -24,8 +24,8 @@ import {
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
-import { dyed, genreNames, hatOf, monkeyIconLegend, price, traitNow } from './screen';
-import { bold, dim, keyRow, red, rule, titleBar } from './style';
+import { dyed, genreNames, hatOf, monkeyIconLegend, priceNamed, traitNow } from './screen';
+import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -58,6 +58,7 @@ function deskSitters(state: GameState): Map<number, number> {
 }
 
 /** The furniture's glyph on the map. */
+const kindOf = (kind: string) => (kind === desk.id ? desk : furnitureKinds.find((k) => k.id === kind));
 const glyphOf = (kind: string) => (kind === desk.id ? desk.glyph : (furnitureKinds.find((k) => k.id === kind)?.glyph ?? '?'));
 
 export const sideName: Record<Side, string> = { n: 'north', e: 'east', s: 'south', w: 'west' };
@@ -139,6 +140,7 @@ export function renderOffice(
       const left = joined(x - 1, y, x, y) ? '=' : ' ';
       const right = joined(x, y, x + 1, y) ? '=' : ' ';
       text = `${left}${glyphOf(state.furniture[f].kind)}${right}`;
+      if (!here) return furnitureColor(kindOf(state.furniture[f].kind)?.color, text);
     } else if (!room) text = options.some(([ox, oy]) => ox === x && oy === y) ? ' + ' : '   ';
     else text = ' . ';
     return here ? `>${text[1]}<` : wearer ? dyed(wearer, text) : text;
@@ -235,7 +237,7 @@ export function renderOffice(
     ...roomTable(state, columns),
     ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
     '',
-    ` ${dim('New room')} ${price(roomCost(state), state.currency)} ${theme.currency}   ${dim('One more square')} ${price(squareCost(state), state.currency)} ${theme.currency}`,
+    ` ${label('New room', roomCost(state), state.currency)} ${priceNamed(roomCost(state), state.currency)}   ${label('One more square', squareCost(state), state.currency)} ${priceNamed(squareCost(state), state.currency)}`,
     '',
     ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
     ...(message ? [` ${bold(message)}`] : []),
@@ -445,4 +447,9 @@ export function renderFengShuiBook(state: GameState): string {
     '',
     '[b] or [esc] back to the map',
   ].join('\n');
+}
+
+/** A price's label: green when you can afford it, dim when you can't. */
+function label(text: string, cost: number, have: number): string {
+  return have >= cost ? green(text) : dim(text);
 }

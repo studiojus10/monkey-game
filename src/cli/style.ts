@@ -6,7 +6,7 @@
  * resting. Each currency has its own colour. All plain ANSI codes, which every
  * common terminal supports.
  */
-import { theme } from '../game/config';
+import { theme, type FurnitureColor } from '../game/config';
 import type { GameState } from '../game/state';
 import { formatNumber } from '../format';
 
@@ -20,6 +20,13 @@ export const yellow = color(33);
 export const blue = color(34);
 export const magenta = color(35);
 export const cyan = color(36);
+const brown = (s: string) => `\x1b[38;5;130m${s}\x1b[39m`;
+const gray = color(90);
+
+/** A furniture glyph in the colour of what the piece looks like (e.g. green plants, brown wood). */
+export function furnitureColor(kind: FurnitureColor | undefined, s: string): string {
+  return kind ? { brown, green, red, yellow, blue, cyan, magenta, gray }[kind](s) : s;
+}
 
 /**
  * A screen recoloured for a terminal with a light background: yellow, cyan

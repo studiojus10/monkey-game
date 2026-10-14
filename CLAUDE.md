@@ -18,7 +18,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck and tests on every PR. Run both b
 src/
   format.ts        number formatting (1.23K, 4.56M, ...), shared by any front end
   game/            pure game logic: no terminal, DOM, file system or timers
-    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture (each with a feng shui element; managerDesk), fengShui, managerOffice, managerBook, traits and traitRules, research (R&D projects), energy, hats (and hatColors, dyeCost), petting, achievements, folio, milestones, sentenceRules (Sentences from long chains), offline cap, per-second simulation cap)
+    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture (each with a feng shui element and a colour from its looks; managerDesk), fengShui, managerOffice, managerBook, traits and traitRules, research (R&D projects), energy, hats (and hatColors, dyeCost), petting, achievements, folio, milestones, sentenceRules (Sentences from long chains), offline cap, per-second simulation cap)
     state.ts       GameState, MonkeyState and Stats shapes, createInitialState()
     plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
@@ -30,7 +30,7 @@ src/
   cli/             terminal front end
     main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave
     screen.ts      renderScreen() (the home screen: monkey table with fixed columns, alphabet, LATELY feed, key rows) and renderScript() return screens as text (ANSI bold for the live part of a monkey line); renderHomeKeys() (the [?] page); the shop's stores (storeItems, storePages, inspectItem) and renderShop() (the shop's own screen: tabs, items in columns)
-    style.ts       terminal styling with one job per style (bold, dim, inverse, colours), titleBar() (screen name and currencies), keyRow() (keys that wrap to the screen), rule(), forLightBackground() (the light-background option, applied in main.ts)
+    style.ts       terminal styling with one job per style (bold, dim, inverse, colours; furnitureColor), titleBar() (screen name and currencies), keyRow() (keys that wrap to the screen), rule(), forLightBackground() (the light-background option, applied in main.ts)
     office.ts      renderOffice(): the office map (rooms of any shape, desks, who sits where, furniture, windows, chi, cursor, grow mode) with a table of rooms; renderOfficeHelp() (its [?] page); inspectSquare() (the [i] inspect text); renderFengShuiBook(); renderManagerBook()
     (screen.ts also has renderOptions(): the options menu, state.settings)
     roster.ts      renderRoster() and rosterOrder(): the [m] list of monkeys by department, then hire order, with details of the chosen one
