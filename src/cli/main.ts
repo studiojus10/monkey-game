@@ -110,7 +110,7 @@ import {
 } from './screen';
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, roomName, type Cell } from './office';
+import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
 
 const FRAME_MS = 250;
@@ -169,6 +169,7 @@ let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
 let readingBook = false; // the feng shui book, open from the office map
+let officeHelp = false; // the office map's [?] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding the feng shui book, just inspected: [y] reads it
 let inspecting = false; // choosing a store item to inspect
 let storePage = 0; // the open store's page, for stores with more than 9 items
@@ -379,8 +380,10 @@ function draw() {
     ? renderOptions(state)
     : showingOffice && readingBook
     ? renderFengShuiBook(state)
+    : showingOffice && officeHelp
+    ? renderOfficeHelp(state, columns)
     : showingOffice
-    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null)
+    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
     ? renderAchievements(state, achievementRow)
     : showingStats
@@ -760,6 +763,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingOffice && officeHelp) {
+    if (key.name === 'escape' || key.name === 'q' || str === '?' || str === 'o') officeHelp = false;
+    return draw();
+  }
+
   if (showingOffice && officeCursor) {
     message = '';
     const c = officeCursor;
@@ -837,6 +845,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'b' && !holding && !officeGrowing) {
       if (state.fengShuiBook) readingBook = true;
       else message = 'You have no feng shui book. Perhaps one is hidden somewhere: inspect things with [i].';
+    } else if (str === '?' && !holding && !officeGrowing) {
+      officeHelp = true;
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
@@ -870,7 +880,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           // A bigger piece is held by its top left square.
           Object.assign(c, { x: state.furniture[spot].x, y: state.furniture[spot].y });
         } else if (door) heldDoor = { from: door, side: door.side };
-        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Decor and Comforts stores; [d] adds a door.';
+        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Office and Breakroom stores; [d] adds a door.';
       }
     }
     return draw();
@@ -951,10 +961,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (key.name === 'return' || key.name === 'enter') {
     const i = poke(state);
     if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;
-  } else if (key.name === 'space') {
+  } else if (key.name === 'space' || (shop && key.name === 'escape')) {
     shop = shop ? null : lastStore;
     storePage = 0;
-  } else if (shop && (key.name === 'tab' || key.name === 'right' || key.name === 'left')) {
+  } else if (shop && (key.name === 'right' || key.name === 'left')) {
     const step = key.name === 'left' ? stores.length - 1 : 1;
     shop = lastStore = stores[(stores.indexOf(shop) + step) % stores.length];
     storePage = 0;

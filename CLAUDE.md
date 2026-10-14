@@ -29,9 +29,9 @@ src/
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave
-    screen.ts      renderScreen() (the home screen: monkey table with fixed columns, alphabet, LATELY feed, key rows) and renderScript() return screens as text (ANSI bold for the live part of a monkey line); renderHomeKeys() (the [?] page); the shop's stores (storeItems, storePages, shopLines, inspectItem)
+    screen.ts      renderScreen() (the home screen: monkey table with fixed columns, alphabet, LATELY feed, key rows) and renderScript() return screens as text (ANSI bold for the live part of a monkey line); renderHomeKeys() (the [?] page); the shop's stores (storeItems, storePages, inspectItem) and renderShop() (the shop's own screen: tabs, items in columns)
     style.ts       terminal styling with one job per style (bold, dim, inverse, colours), titleBar() (screen name and currencies), keyRow() (keys that wrap to the screen), rule()
-    office.ts      renderOffice(): the office map (rooms of any shape, desks, who sits where, furniture, windows, chi, cursor, grow mode); inspectSquare() (the [i] inspect text); renderFengShuiBook()
+    office.ts      renderOffice(): the office map (rooms of any shape, desks, who sits where, furniture, windows, chi, cursor, grow mode) with a table of rooms; renderOfficeHelp() (its [?] page); inspectSquare() (the [i] inspect text); renderFengShuiBook()
     (screen.ts also has renderOptions(): the options menu, state.settings)
     stats.ts       renderStats(), renderDictionary() and renderAchievements(): the statistics page, the A-Z dictionary of spelled words, the achievements page
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)

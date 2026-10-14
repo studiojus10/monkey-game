@@ -189,7 +189,7 @@ export const office = {
 };
 
 /**
- * Furniture, bought with points in the Decor and Comforts stores. Each piece fills one
+ * Furniture, bought with points in the Office and Breakroom stores. Each piece fills one
  * square, placed in the first free square of a break room (else any room); the
  * office map moves it. Each one of a kind costs costGrowth times the last.
  * A department gets the furniture in its own room and in its lounge (the

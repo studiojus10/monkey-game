@@ -20,6 +20,7 @@ import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedB
 import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { dyed, genreNames, hatOf, monkeyIconLegend, price } from './screen';
+import { bold, dim, keyRow, red, rule, titleBar } from './style';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -72,6 +73,7 @@ export function renderOffice(
   held = -1,
   growing: string | boolean = false,
   heldDoor: Side | null = null,
+  columns = 0,
 ): string {
   const grow = growingRoom(state, cursor, growing);
   const options = grow ? expansionSquares(state, grow) : [];
@@ -171,36 +173,6 @@ export function renderOffice(
   while (lines.length > 0 && lines[0] === '') lines.shift();
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 
-  const open = connectedRooms(state);
-  const summary = state.office.map((r, i) => {
-    const size = `${r.cells.length} squares`.padEnd(11);
-    const detail =
-      r.kind === 'department'
-        ? (() => {
-            const g = roomGenre(state, r);
-            const names = departmentMonkeys(state, g).map((k) => monkeyName(state, k));
-            const lounge = loungeOf(state, r);
-            const effects = [
-              ...(drainCut(state, g) > 0 ? [`tire ${pct(drainCut(state, g))} slower`] : []),
-              ...(restBoost(state, g) > 0 ? [`breaks ${pct(restBoost(state, g))} faster`] : []),
-              ...(happiness(state, g) > 0 ? [`+${pct(happiness(state, g))} happy`] : []),
-            ];
-            return [
-              `lounge: ${lounge ? roomName(state, lounge) : 'none'}`,
-              ...(effects.length > 0 ? [effects.join(', ')] : []),
-              `${names.length} monkey${names.length === 1 ? '' : 's'}: ${names.join(', ')}`,
-            ].join('; ');
-          })()
-        : (() => {
-            const pieces = state.furniture.filter((f) => f.room === r.id).length;
-            const serves = servedBy(state, r).map((d) => roomName(state, d));
-            return `${pieces} piece${pieces === 1 ? '' : 's'} of furniture; ${serves.length > 0 ? `lounge of ${serves.join(', ')}` : 'lounge of no office: each takes its nearest'}`;
-          })();
-    const locked = open.has(r.id) ? '' : '   NO WAY IN: add a door or hallway';
-    const chi = state.fengShuiBook ? `chi ${pct(roomChi(state, r)).padStart(4)}   ` : '';
-    return `  ${String(i + 1).padStart(2)} ${roomName(state, r).padEnd(18)} ${size} ${chi}${detail}${locked}`;
-  });
-  const furnished = furnitureKinds.filter((k) => state.furniture.some((f) => f.kind === k.id)).map((k) => `${k.glyph} ${k.name.toLowerCase()}`);
   const underCursor = cursor ? roomAt(state, cursor.x, cursor.y) : undefined;
   const pieceHere = cursor && underCursor ? piece(cursor.x, cursor.y) : -1;
   const where = !cursor
@@ -210,41 +182,122 @@ export function renderOffice(
       : isHall(state, cursor.x, cursor.y)
         ? 'Cursor: hallway.'
         : 'Cursor: outside.';
+  const furnished = furnitureKinds.filter((k) => state.furniture.some((f) => f.kind === k.id)).map((k) => `${k.glyph} ${k.name.toLowerCase()}`);
+  const keys: [string, string][][] = grow
+    ? [[['arrows', 'move'], ['enter', 'buy this square'], ['x', 'done']]]
+    : held >= 0
+      ? (() => {
+          const [w, h] = pieceSize(state.furniture[held].kind, state.furniture[held].turned);
+          return [[['arrows', 'move'], ['tab', 'next room'], ['space', 'put it down'], ...(w * h > 1 ? [['r', 'turn'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'cancel']]];
+        })()
+      : heldDoor
+        ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
+        : [
+            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['i', 'inspect'], ['x', 'grow']],
+            [['r', 'buy a room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
+          ];
+  const doing = grow
+    ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
+    : held >= 0
+      ? (() => {
+          const [w, h] = pieceSize(state.furniture[held].kind, state.furniture[held].turned);
+          return `Moving the ${furnitureName(state, held)}${w * h > 1 ? ` (${w} x ${h} squares, from the top left)` : ''}.`;
+        })()
+      : heldDoor
+        ? `Moving a door: the ${sideName[heldDoor]} wall of this square.`
+        : '';
   return [
-    '=== Office ===',
+    titleBar(state, 'Office', columns),
     '',
     ...lines,
     '',
-    [...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished].join('   '),
+    dim(' ' + [...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished].join('   ')),
     '',
-    ...summary,
+    ...roomTable(state, columns),
+    ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
     '',
-    "Each monkey gets a desk in its department's room. Every room needs a way in from room 1: doors (/) and hallways.",
-    "A department enjoys the furniture in its room and in its lounge: the nearest break room by a door or hallway",
-    `(as near: the biggest, then the most furnished). Happiness: +bananas, slower tiring, faster breaks.${state.fengShuiBook ? ` Feng shui: chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} everywhere.` : ''}`,
-    ...(state.fengShuiBook ? ['[b] read the feng shui book again: what each room needs for good chi.'] : []),
-    ...roomlessDepartments(state).map((g) => `The ${genreNames[g]} department needs a room: press [r] to buy one.`),
-    `New room: ${price(roomCost(state), state.currency)} ${theme.currency}. One more square for a room: ${price(squareCost(state), state.currency)} ${theme.currency}.`,
+    ` ${dim('New room')} ${price(roomCost(state), state.currency)} ${theme.currency}   ${dim('One more square')} ${price(squareCost(state), state.currency)} ${theme.currency}`,
     '',
-    ...(grow
-      ? [`Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`, '[arrows] move   [x] or [esc] done']
-      : held >= 0
-        ? (() => {
-            const [w, h] = pieceSize(state.furniture[held].kind, state.furniture[held].turned);
-            const big = w * h > 1;
-            return [
-              `Moving the ${furnitureName(state, held)}${big ? ` (${w} x ${h} squares, from the top left)` : ''}.`,
-              `[arrows] move   [tab] next room   [space] put it down   ${big ? '[r] turn   ' : ''}[i] inspect   [esc] cancel`,
-            ];
-          })()
-        : heldDoor
-          ? [`Moving a door: the ${sideName[heldDoor]} wall of this square.`, '[arrows] move   [space] put it in   [r] next wall   [esc] cancel']
-          : [
-              `${where}   [arrows] move   [tab] next room   [space] pick up furniture or a door   [i] inspect   [x] grow this room`.trim(),
-              '[d] door on this square (again: next wall, then none)   [w] window (outside walls)   [h] hallway here on/off   [r] buy a room   [esc] back',
-            ]),
+    ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
+    ...(message ? [` ${bold(message)}`] : []),
+    rule(columns),
+    ...keys.map((k) => keyRow(k, columns)),
+  ].join('\n');
+}
+
+/**
+ * The office's rooms as a table: each room's number (as on the map), name and
+ * size, its chi once the feng shui book is read, then for a department's room
+ * its lounge, what its furniture does for it and who works there, and for a
+ * break room the departments it is the lounge of. A room with no way in shows
+ * in red. On a screen `columns` wide, a long list of monkeys ends "+N more".
+ */
+function roomTable(state: GameState, columns = 0): string[] {
+  const open = connectedRooms(state);
+  const rows = state.office.map((r, i) => {
+    const g = r.kind === 'department' ? roomGenre(state, r) : undefined;
+    const lounge = r.kind === 'department' ? loungeOf(state, r) : undefined;
+    const effects =
+      r.kind === 'break'
+        ? `lounge of ${servedBy(state, r).map((d) => roomName(state, d)).join(', ') || 'no department'}`
+        : [
+            ...(drainCut(state, g) > 0 ? [`tire ${pct(drainCut(state, g))} slower`] : []),
+            ...(restBoost(state, g) > 0 ? [`breaks ${pct(restBoost(state, g))} faster`] : []),
+            ...(happiness(state, g) > 0 ? [`+${pct(happiness(state, g))} happy`] : []),
+          ].join(', ') || '-';
+    return {
+      locked: !open.has(r.id),
+      cols: [
+        String(i + 1),
+        roomName(state, r),
+        String(r.cells.length),
+        ...(state.fengShuiBook ? [pct(roomChi(state, r))] : []),
+        r.kind === 'break' ? '-' : lounge ? roomName(state, lounge) : 'none',
+        open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
+      ],
+      who: r.kind === 'department' ? departmentMonkeys(state, g).map((k) => monkeyName(state, k)) : [],
+    };
+  });
+  const headings = ['#', 'ROOM', 'SIZE', ...(state.fengShuiBook ? ['CHI'] : []), 'LOUNGE', 'EFFECTS'];
+  const right = (c: number) => c === 0 || c === 2 || (state.fengShuiBook && c === 3);
+  const widths = headings.map((h, c) => Math.max(h.length, ...rows.map((r) => r.cols[c].length)));
+  const line = (cols: string[]) => ' ' + cols.map((t, c) => (right(c) ? t.padStart(widths[c]) : t.padEnd(widths[c]))).join('  ');
+  const start = line(headings).length + 2;
+  return [
+    dim(`${line(headings)}  WHO`),
+    ...rows.map(({ locked, cols, who }) => {
+      let names = who.join(', ');
+      // Names that would run off the screen end with how many more there are.
+      for (let shown = who.length - 1; columns > 0 && shown > 0 && start + names.length >= columns; shown--)
+        names = `${who.slice(0, shown).join(', ')} +${who.length - shown} more`;
+      const text = `${line(cols)}  ${names}`.trimEnd();
+      return locked ? red(text) : text;
+    }),
+  ];
+}
+
+/** How rooms, lounges and feng shui work: the office map's [?] page. */
+export function renderOfficeHelp(state: GameState, columns = 0): string {
+  return [
+    titleBar(state, 'Office help', columns),
     '',
-    message,
+    dim(' ROOMS'),
+    "   Each monkey gets a desk in its department's room.",
+    '   Every room needs a way in from room 1: doors (/) and hallways.',
+    '   A room grows one square at a time ([x] on the map).',
+    '   Windows (: or ===) go in walls that face outside.',
+    '',
+    dim(' LOUNGES'),
+    '   A department enjoys the furniture in its own room and in its lounge:',
+    '   the nearest break room by a door or hallway. When two are as near,',
+    '   the bigger one wins, then the more furnished.',
+    '   Furniture makes monkeys happy: more bananas, slower tiring, faster breaks.',
+    ...(state.fengShuiBook
+      ? ['', dim(' FENG SHUI'), `   Office chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} happiness everywhere.`, '   [b] on the map opens the book: what each room needs for good chi.']
+      : []),
+    '',
+    rule(columns),
+    keyRow([['esc', 'back']]),
   ].join('\n');
 }
 

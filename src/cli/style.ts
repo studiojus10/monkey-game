@@ -33,16 +33,21 @@ export function padVisible(s: string, width: number, align: 'left' | 'right' = '
 /** Each currency's colour, wherever its total or a price in it shows. */
 export const currencyColors = { currency: yellow, words: cyan, sentences: magenta, lines: blue };
 
-/** The bar across the top of a screen: the game's name (and the screen's), then every currency in its colour. */
-export function titleBar(state: GameState, screen = ''): string {
-  const name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
+/**
+ * The bar across the top of a screen: the game's name (and the screen's), then
+ * every currency in its colour. On a screen `columns` wide that can't fit it
+ * all, a screen other than home shows just its own name.
+ */
+export function titleBar(state: GameState, screen = '', columns = 0): string {
   const totals = [
     currencyColors.currency(`${formatNumber(state.currency)} ${theme.currency}`),
     currencyColors.words(`${formatNumber(state.words)} Words`),
     currencyColors.sentences(`${formatNumber(state.sentences)} Sentences`),
     currencyColors.lines(`${formatNumber(state.lines)} Lines`),
-  ].map(bold);
-  return `${bold(inverse(name))}    ${totals.join('   ')}`;
+  ].map(bold).join('   ');
+  let name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
+  if (screen && columns > 0 && name.length + 4 + plainText(totals).length >= columns) name = ` ${screen.toUpperCase()} `;
+  return `${bold(inverse(name))}    ${totals}`;
 }
 
 /**
