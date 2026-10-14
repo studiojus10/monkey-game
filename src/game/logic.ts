@@ -1516,7 +1516,7 @@ export function managerLine(state: GameState, genre: Genre | undefined): Pin | n
   return best;
 }
 
-/** Letters and script owned when each department's manager last chose a line it couldn't reach. */
+/** Letters, script and slots owned when each department's manager last chose a line. */
 const managerChecked = new Map<string, string>();
 
 /**
@@ -1530,15 +1530,13 @@ export function manage(state: GameState): void {
     if (!boss) continue;
     const t = boss.target;
     const done = t && (state.completed[t.play] ?? []).includes(t.index);
-    // An out-of-reach target is reconsidered when letters or script change, in case a line came within reach.
-    const key = `${state.letters.join('')}|${state.owned.join('|')}`;
-    const line = t && plays.get(t.play)?.lines[t.index];
-    const stale = !!line && !inReach(state, line.letters) && managerChecked.get(genre) !== key;
+    // The target is reconsidered when letters, script or slots change, in case a better line came within reach.
+    const key = `${state.letters.join('')}|${state.owned.join('|')}|${departmentSlots(state, genre).length}`;
+    const stale = managerChecked.get(genre) !== key;
     if (!t || done || stale) {
       if (t) unpin(state, t);
       boss.target = managerLine(state, genre);
-      const picked = boss.target && plays.get(boss.target.play)?.lines[boss.target.index];
-      if (picked && !inReach(state, picked.letters)) managerChecked.set(genre, key);
+      managerChecked.set(genre, key);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
         state.pinned.push(boss.target);
       }

@@ -1107,6 +1107,27 @@ describe('manager monkeys', () => {
   });
 });
 
+describe('manager monkeys, reconsidering', () => {
+  it('switch to a shorter line when a new letter brings one within reach', () => {
+    setWordList([]);
+    setPlays([{ id: 'g', title: 'G', genre: 'comedy', lines: [[1, 1, 'A', 'Ay, my lord.'], [1, 1, 'B', 'Go.']] }]);
+    try {
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.owned = ['g'];
+      s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D'];
+      while (s.monkeys.length <= managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
+      toggleManager(s, 0);
+      expect(s.monkeys[0].target).toEqual({ play: 'g', index: 0 }); // GO needs a G
+      s.letters.push('G');
+      manage(s);
+      expect(s.monkeys[0].target).toEqual({ play: 'g', index: 1 });
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
 describe('department limits and slots', () => {
   const comedy = { id: 'c', title: 'C', genre: 'comedy' as const, lines: [[1, 1, 'A', 'Ay, my lord.']] as [number, number, string, string][] };
   const tragedy = { id: 't', title: 'T', genre: 'tragedy' as const, lines: [[1, 1, 'A', 'No, my lord.']] as [number, number, string, string][] };
