@@ -28,7 +28,7 @@ import {
   typing,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type Side, type WordSlot } from './state';
+import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { autoConnect, connectedRooms, placeRoom, roomCanUse } from './layout';
 
@@ -620,8 +620,32 @@ export function roomBounds(room: Room): { minX: number; maxX: number; minY: numb
 export function cellAt(state: GameState, roomId: string, x: number, y: number): number | 'floor' | null {
   const room = state.office.find((r) => r.id === roomId);
   if (!room || !hasCell(room, x, y)) return null;
-  const f = state.furniture.findIndex((p) => p.room === roomId && p.x === x && p.y === y);
+  const f = state.furniture.findIndex((p) => p.room === roomId && covers(p, x, y));
   return f >= 0 ? f : 'floor';
+}
+
+/** How many squares a kind of furniture takes, across and down. */
+export function pieceSize(kind: string, turned = false): [number, number] {
+  const [w, h] = (kind === desk.id ? desk : furnitureKinds.find((k) => k.id === kind))?.size ?? [1, 1];
+  return turned ? [h, w] : [w, h];
+}
+
+/** The squares a piece of furniture stands on: its own square and, for bigger pieces, those right of and below it. */
+export function footprint(f: Pick<Furniture, 'kind' | 'x' | 'y' | 'turned'>): [number, number][] {
+  const [w, h] = pieceSize(f.kind, f.turned);
+  const out: [number, number][] = [];
+  for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) out.push([f.x + dx, f.y + dy]);
+  return out;
+}
+
+const covers = (f: Furniture, x: number, y: number) => footprint(f).some(([px, py]) => px === x && py === y);
+
+/** Whether a piece fits with its first square at x, y: every square in the room and free (`ignore` is the piece being moved). */
+export function fitsAt(state: GameState, roomId: string, kind: string, x: number, y: number, turned = false, ignore = -1): boolean {
+  return footprint({ kind, x, y, turned }).every(([px, py]) => {
+    const here = cellAt(state, roomId, px, py);
+    return here === 'floor' || here === ignore;
+  });
 }
 
 /** A room's free squares, in reading order. */
@@ -723,12 +747,15 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   return true;
 }
 
-/** Where new furniture goes: the first free square of a break room, else of any room. */
-export function furnitureSpot(state: GameState): Omit<Furniture, 'kind'> | null {
+/** Where a new piece goes: the first spot it fits in a break room, else in any room (turned if only that fits). */
+export function furnitureSpot(state: GameState, kind = 'plant'): Omit<Furniture, 'kind'> | null {
   const rooms = [...state.office.filter((r) => r.kind === 'break'), ...state.office.filter((r) => r.kind !== 'break')];
+  const [w, h] = pieceSize(kind);
   for (const room of rooms) {
-    const square = freeSquares(state, room)[0];
-    if (square) return { room: room.id, x: square[0], y: square[1] };
+    for (const [x, y] of freeSquares(state, room)) {
+      if (fitsAt(state, room.id, kind, x, y)) return { room: room.id, x, y };
+      if (w !== h && fitsAt(state, room.id, kind, x, y, true)) return { room: room.id, x, y, turned: true };
+    }
   }
   return null;
 }
@@ -744,28 +771,32 @@ export function furnitureCost(state: GameState, kind: string): number {
 /** Buys a piece of furniture and stands it where it fits (see furnitureSpot). */
 export function buyFurniture(state: GameState, kind: string): boolean {
   const cost = furnitureCost(state, kind);
-  const spot = furnitureSpot(state);
+  const spot = furnitureSpot(state, kind);
   if (!spot || state.currency < cost) return false;
   state.currency -= cost;
   state.furniture.push({ kind, ...spot });
   return true;
 }
 
-/** Turns a piece of furniture a quarter turn clockwise (south, west, north, east). */
+/**
+ * Turns a piece bigger than one square a quarter turn (a 2 x 1 couch stands
+ * 1 x 2). It doesn't check the floor: that happens when the piece is put
+ * down (see moveFurniture). One-square pieces don't turn.
+ */
 export function rotateFurniture(state: GameState, index: number): boolean {
   const f = state.furniture[index];
   if (!f) return false;
-  const turn: Record<Side, Side> = { s: 'w', w: 'n', n: 'e', e: 's' };
-  const next = turn[f.facing ?? 's'];
-  if (next === 's') delete f.facing;
-  else f.facing = next;
+  const [w, h] = pieceSize(f.kind);
+  if (w === h) return false;
+  if (f.turned) delete f.turned;
+  else f.turned = true;
   return true;
 }
 
-/** Moves a piece of furniture to a free square. Desks stay in their department's room. */
+/** Moves a piece of furniture so its first square is x, y, if all its squares are free floor of one room. Desks stay in their department's room. */
 export function moveFurniture(state: GameState, index: number, roomId: string, x: number, y: number): boolean {
   const f = state.furniture[index];
-  if (!f || cellAt(state, roomId, x, y) !== 'floor' || (f.kind === desk.id && f.room !== roomId)) return false;
+  if (!f || !fitsAt(state, roomId, f.kind, x, y, f.turned, index) || (f.kind === desk.id && f.room !== roomId)) return false;
   Object.assign(f, { room: roomId, x, y });
   return true;
 }

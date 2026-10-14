@@ -6,6 +6,9 @@ import {
   accessoryCost,
   addRoom,
   rotateFurniture,
+  pieceSize,
+  footprint,
+  fitsAt,
   canReachDesk,
   buyAccessory,
   wearing,
@@ -1487,13 +1490,66 @@ describe('sentences from long chains', () => {
 });
 
 
-describe('turning furniture', () => {
-  it('turns a quarter turn clockwise each time, starting from south', () => {
+describe('bigger furniture', () => {
+  it('gives couches and benches two squares, turned or not', () => {
+    expect(pieceSize('couch')).toEqual([2, 1]);
+    expect(pieceSize('couch', true)).toEqual([1, 2]);
+    expect(pieceSize('bench')).toEqual([2, 1]);
+    expect(pieceSize('plant', true)).toEqual([1, 1]);
+    expect(footprint({ kind: 'couch', x: 3, y: 4 })).toEqual([[3, 4], [4, 4]]);
+    expect(footprint({ kind: 'couch', x: 3, y: 4, turned: true })).toEqual([[3, 4], [3, 5]]);
+  });
+
+  it('stands a new couch on two free squares, and both squares hold it', () => {
     const s = createInitialState(0);
-    expect(s.furniture[0].facing).toBeUndefined(); // south
-    const turns = [1, 2, 3, 4].map(() => (rotateFurniture(s, 0), s.furniture[0].facing));
-    expect(turns).toEqual(['w', 'n', 'e', undefined]);
-    expect(rotateFurniture(s, 9)).toBe(false);
+    s.currency = 1e12;
+    buyRoom(s, 'break');
+    const room = s.office[1];
+    expect(buyFurniture(s, 'couch')).toBe(true);
+    const i = s.furniture.length - 1;
+    expect(s.furniture[i].room).toBe(room.id);
+    for (const [x, y] of footprint(s.furniture[i])) expect(cellAt(s, room.id, x, y)).toBe(i);
+    // Fill the room with couches: each one fits whole, never overlapping another.
+    while (buyFurniture(s, 'couch'));
+    const squares = s.furniture.filter((f) => f.kind === 'couch').flatMap((f) => footprint(f).map(([x, y]) => `${x},${y}`));
+    expect(new Set(squares).size).toBe(squares.length);
+  });
+
+  it('only puts a piece down where all its squares are free floor', () => {
+    const s = createInitialState(0);
+    s.currency = 1e12;
+    buyRoom(s, 'break');
+    const room = s.office[1];
+    const [x, y] = [...room.cells].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
+    expect(fitsAt(s, room.id, 'couch', x, y)).toBe(true);
+    expect(fitsAt(s, room.id, 'couch', x - 1, y)).toBe(false); // half outside the room
+    buyFurniture(s, 'plant');
+    const plant = s.furniture.length - 1;
+    expect(s.furniture[plant]).toMatchObject({ room: room.id, x, y });
+    expect(fitsAt(s, room.id, 'couch', x, y)).toBe(false);
+    expect(fitsAt(s, room.id, 'couch', x, y, false, plant)).toBe(true); // the plant being moved doesn't count
+  });
+
+  it('turns only bigger pieces, and a piece can move onto its own old squares', () => {
+    const s = createInitialState(0);
+    s.currency = 1e12;
+    buyRoom(s, 'break');
+    buyFurniture(s, 'plant');
+    expect(rotateFurniture(s, s.furniture.length - 1)).toBe(false);
+    expect(rotateFurniture(s, 99)).toBe(false);
+    s.furniture.pop();
+    buyFurniture(s, 'couch');
+    const i = s.furniture.length - 1;
+    const room = s.office[1];
+    const [x, y] = [...room.cells].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
+    expect(s.furniture[i]).toMatchObject({ x, y });
+    expect(rotateFurniture(s, i)).toBe(true);
+    expect(s.furniture[i].turned).toBe(true);
+    expect(moveFurniture(s, i, room.id, x, y)).toBe(true); // stands 1 x 2 now
+    expect(cellAt(s, room.id, x, y + 1)).toBe(i);
+    expect(cellAt(s, room.id, x + 1, y)).toBe('floor');
+    expect(rotateFurniture(s, i)).toBe(true);
+    expect(s.furniture[i].turned).toBeUndefined();
   });
 });
 

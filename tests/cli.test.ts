@@ -387,22 +387,33 @@ describe('furniture', () => {
     s.currency = 600;
     const text = plain(renderScreen(s, '', 'furniture'));
     expect(text).toContain("[1] *Potted plant [P]: a department's monkeys tire 3% slower, +1% points   cost 500 Points");
-    expect(text).toContain('[6]  Television [T]: in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
+    expect(text).toContain('[7]  Television [T]: in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
   });
 
   it('draws furniture, the cursor and a piece being moved', () => {
     const s = started();
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
-    expect(plain(renderOffice(s))).toContain('|[@]  Pv|'); // the mark shows which way it faces
+    expect(plain(renderOffice(s))).toContain('|[@]  P |');
     expect(plain(renderOffice(s))).toContain('P potted plant');
-    s.furniture[1].facing = 'w';
-    expect(plain(renderOffice(s))).toContain('|[@] <P |');
-    expect(plain(renderOffice(s, '', { x: 1, y: 0 }))).toContain('Cursor: Comedies room, potted plant facing west.');
+    expect(plain(renderOffice(s, '', { x: 1, y: 0 }))).toContain('Cursor: Comedies room, potted plant.');
     expect(plain(renderOffice(s, '', { x: 0, y: 1 }))).toContain('|>.<  . |');
     const moving = plain(renderOffice(s, '', { x: 1, y: 1 }, 1));
     expect(moving).toContain('|[@]  . |\n    |       |\n    | .  >P<|');
-    expect(moving).toContain('Moving the potted plant, facing west.');
-    expect(moving).toContain('[space] put it down   [r] rotate');
+    expect(moving).toContain('Moving the potted plant.');
+    expect(moving).toContain('[space] put it down   [esc] cancel');
+  });
+
+  it('draws bigger pieces joined across their squares, and turned ones down', () => {
+    const s = started();
+    s.furniture.push({ kind: 'couch', room: 'r1', x: 0, y: 1 });
+    expect(plain(renderOffice(s))).toContain('|[@]  . |\n|       |\n| C===C |');
+    s.furniture.shift(); // no desk: room for the couch to stand 1 x 2
+    s.furniture[0] = { kind: 'couch', room: 'r1', x: 1, y: 0, turned: true };
+    expect(plain(renderOffice(s))).toContain('| .   C |\n|     | |\n| .   C |');
+    const moving = plain(renderOffice(s, '', { x: 0, y: 0 }, 0));
+    expect(moving).toContain('|>C<  . |\n    | |     |\n    | C   . |');
+    expect(moving).toContain('Moving the couch (1 x 2 squares, from the top left).');
+    expect(moving).toContain('[r] turn');
   });
 
   it('has an option to place furniture yourself', () => {

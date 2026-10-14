@@ -92,9 +92,9 @@ describe('office space in saves', () => {
     s.currency = 1e12;
     buyRoom(s, 'break');
     s.monkeysBought = { comedy: 3 };
-    s.furniture[0].facing = 'e';
+    s.furniture[0].turned = true;
     const back = deserialize(serialize(s));
-    expect(back.furniture[0].facing).toBe('e');
+    expect(back.furniture[0].turned).toBe(true);
     expect(back.halls).toEqual(s.halls);
     expect(back.doors).toEqual(s.doors);
     expect(back.monkeysBought).toEqual({ comedy: 3 });

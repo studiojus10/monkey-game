@@ -206,6 +206,7 @@ export interface FurnitureKind {
   drain: number; // decor: in a department's room, its monkeys tire this much slower (0.03 = 3%)
   rest: number; // in a break room, every monkey's breaks go this much faster (0.15 = 15%)
   happiness: number; // anywhere in the office: points x (1 + happiness), added up
+  size?: [number, number]; // squares across and down (1 x 1 when missing); turning a piece swaps them
 }
 
 /** The desk every monkey gets free, in its department's room. Not sold. */
@@ -215,8 +216,9 @@ export const furnitureKinds: FurnitureKind[] = [
   { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01 },
   { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01 },
   { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02 },
+  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1] },
   { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01 },
-  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02 },
+  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1] },
   { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03 },
 ];
 

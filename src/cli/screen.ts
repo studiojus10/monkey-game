@@ -369,7 +369,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       return [
         ...furnitureKinds.map((k) => {
           const cost = furnitureCost(state, k.id);
-          return { id: `furniture:${k.id}`, star: spot && state.currency >= cost, text: `${k.name} [${k.glyph}]: ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return { id: `furniture:${k.id}`, star: !!furnitureSpot(state, k.id) && state.currency >= cost, text: `${k.name} [${k.glyph}]: ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
         }),
         {
           text: !spot
@@ -443,7 +443,7 @@ export function furnitureEffect(k: FurnitureKind): string {
     ...(k.drain ? [`a department's monkeys tire ${pct(k.drain)} slower`] : []),
     ...(k.rest ? [`in a break room, breaks go ${pct(k.rest)} faster`] : []),
     ...(k.happiness ? [`+${pct(k.happiness)} points`] : []),
-  ].join(', ');
+  ].join(', ') + (k.size ? ` (takes ${k.size[0]} x ${k.size[1]} squares)` : '');
 }
 
 /** The numbered (buyable) items of a store, in key order 1-9. */

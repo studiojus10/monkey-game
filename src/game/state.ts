@@ -83,7 +83,7 @@ export interface Furniture {
   room: string; // a Room id
   x: number;
   y: number;
-  facing?: Side; // which way it's turned; south when missing
+  turned?: boolean; // a piece bigger than one square, turned a quarter turn (its width and height swap)
 }
 
 /** A line pinned to the home screen. */

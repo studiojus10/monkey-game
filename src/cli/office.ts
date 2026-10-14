@@ -8,12 +8,14 @@ import {
   roomGenre,
   roomlessDepartments,
   squareCost,
+  footprint,
+  pieceSize,
   drainCut,
   restBoost,
   happiness,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, officeBounds, roomAt } from '../game/layout';
-import type { Furniture, GameState, Room, Side } from '../game/state';
+import type { GameState, Room, Side } from '../game/state';
 import { genreNames, hatOf, monkeyIconLegend, price } from './screen';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -37,15 +39,7 @@ export function roomName(state: GameState, room: Room): string {
 /** The furniture's glyph on the map. */
 const glyphOf = (kind: string) => (kind === desk.id ? desk.glyph : (furnitureKinds.find((k) => k.id === kind)?.glyph ?? '?'));
 
-const facingMark: Record<Side, string> = { n: '^', e: '>', s: 'v', w: '<' };
-export const facingName: Record<Side, string> = { n: 'north', e: 'east', s: 'south', w: 'west' };
-
-/** A piece of furniture in its square: its glyph, with a mark for the way it faces (< on the left when facing west). */
-function pieceCell(f: Furniture): string {
-  const g = glyphOf(f.kind);
-  const facing = f.facing ?? 's';
-  return facing === 'w' ? `<${g} ` : ` ${g}${facingMark[facing]}`;
-}
+export const sideName: Record<Side, string> = { n: 'north', e: 'east', s: 'south', w: 'west' };
 
 /** The name of a piece of furniture, lower case. */
 export function furnitureName(state: GameState, index: number): string {
@@ -96,20 +90,31 @@ export function renderOffice(
   const sitters = new Map<string, number[]>();
   for (const r of state.office) if (r.kind === 'department') sitters.set(r.id, departmentMonkeys(state, roomGenre(state, r)));
 
+  // Which piece (an index into state.furniture) stands on each square; the one being moved stands at the cursor.
+  const pieceAt = new Map<string, number>();
+  state.furniture.forEach((f, i) => {
+    const at = i === held ? cursor : f;
+    if (at) for (const [x, y] of footprint({ ...f, x: at.x, y: at.y })) pieceAt.set(`${x},${y}`, i);
+  });
+  const piece = (x: number, y: number) => pieceAt.get(`${x},${y}`) ?? -1;
+  /** Whether two squares hold the same bigger piece (drawn joined: C===C across, | down). */
+  const joined = (ax: number, ay: number, bx: number, by: number) => piece(ax, ay) >= 0 && piece(ax, ay) === piece(bx, by);
+
   const cell = (x: number, y: number): string => {
     const here = cursor?.x === x && cursor.y === y;
     const room = roomAt(state, x, y);
+    const f = piece(x, y);
     let text: string;
-    if (here && held >= 0) text = ` ${glyphOf(state.furniture[held].kind)} `; // a piece being moved shows under the cursor
-    else if (!room) text = options.some(([ox, oy]) => ox === x && oy === y) ? ' + ' : '   ';
-    else {
-      const f = state.furniture.findIndex((p, i) => i !== held && p.room === room.id && p.x === x && p.y === y);
-      if (f < 0) text = ' . ';
-      else if (state.furniture[f].kind === desk.id) {
-        const monkey = state.monkeys[sitters.get(room.id)?.[roomDesks(state, room).indexOf(f)] ?? -1];
-        text = !monkey ? '[ ]' : `${hatOf(monkey) ?? '['}${monkeyIcon}${monkey.manager ? '&' : ']'}`;
-      } else text = pieceCell(state.furniture[f]);
-    }
+    if (f >= 0 && state.furniture[f].kind === desk.id && f !== held) {
+      const own = state.office.find((r) => r.id === state.furniture[f].room);
+      const monkey = own && state.monkeys[sitters.get(own.id)?.[roomDesks(state, own).indexOf(f)] ?? -1];
+      text = !monkey ? '[ ]' : `${hatOf(monkey) ?? '['}${monkeyIcon}${monkey.manager ? '&' : ']'}`;
+    } else if (f >= 0) {
+      const left = joined(x - 1, y, x, y) ? '=' : ' ';
+      const right = joined(x, y, x + 1, y) ? '=' : ' ';
+      text = `${left}${glyphOf(state.furniture[f].kind)}${right}`;
+    } else if (!room) text = options.some(([ox, oy]) => ox === x && oy === y) ? ' + ' : '   ';
+    else text = ' . ';
     return here ? `>${text[1]}<` : text;
   };
   // Walls run between squares of different spaces; + only where they turn or meet.
@@ -137,7 +142,7 @@ export function renderOffice(
   };
   const isDoor = (x: number, y: number, side: Side) => !!doorAt(state, x, y, side) || preview(x, y, side);
   const hWall = (x: number, y: number) => {
-    if (!wall(x, y - 1, x, y)) return preview(x, y, 'n') ? ' / ' : '   ';
+    if (!wall(x, y - 1, x, y)) return preview(x, y, 'n') ? ' / ' : joined(x, y - 1, x, y) ? ' | ' : '   ';
     if (isDoor(x, y, 'n')) return '-/-';
     const label = labels.get(`${x},${y}`);
     return label ? `-${label}`.padEnd(3, '-') : '---';
@@ -150,7 +155,7 @@ export function renderOffice(
     if (y > maxY) break;
     let row = '';
     for (let x = minX; x <= maxX + 1; x++) {
-      row += wall(x - 1, y, x, y) ? (isDoor(x, y, 'w') ? '/' : '|') : preview(x, y, 'w') ? '/' : ' ';
+      row += wall(x - 1, y, x, y) ? (isDoor(x, y, 'w') ? '/' : '|') : preview(x, y, 'w') ? '/' : joined(x - 1, y, x, y) ? '=' : ' ';
       if (x <= maxX) row += cell(x, y);
     }
     lines.push(row.trimEnd());
@@ -177,11 +182,11 @@ export function renderOffice(
   });
   const furnished = furnitureKinds.filter((k) => state.furniture.some((f) => f.kind === k.id)).map((k) => `${k.glyph} ${k.name.toLowerCase()}`);
   const underCursor = cursor ? roomAt(state, cursor.x, cursor.y) : undefined;
-  const pieceHere = cursor && underCursor ? state.furniture.findIndex((f) => f.room === underCursor.id && f.x === cursor.x && f.y === cursor.y) : -1;
+  const pieceHere = cursor && underCursor ? piece(cursor.x, cursor.y) : -1;
   const where = !cursor
     ? ''
     : underCursor
-      ? `Cursor: ${roomName(state, underCursor)}${pieceHere >= 0 ? `, ${furnitureName(state, pieceHere)} facing ${facingName[state.furniture[pieceHere].facing ?? 's']}` : ''}.`
+      ? `Cursor: ${roomName(state, underCursor)}${pieceHere >= 0 && pieceHere !== held ? `, ${furnitureName(state, pieceHere)}` : ''}.`
       : isHall(state, cursor.x, cursor.y)
         ? 'Cursor: hallway.'
         : 'Cursor: outside.';
@@ -202,12 +207,16 @@ export function renderOffice(
     ...(grow
       ? [`Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`, '[arrows] move   [x] or [esc] done']
       : held >= 0
-        ? [
-            `Moving the ${furnitureName(state, held)}, facing ${facingName[state.furniture[held].facing ?? 's']}.`,
-            '[arrows] move   [tab] next room   [space] put it down   [r] rotate   [esc] cancel',
-          ]
+        ? (() => {
+            const [w, h] = pieceSize(state.furniture[held].kind, state.furniture[held].turned);
+            const big = w * h > 1;
+            return [
+              `Moving the ${furnitureName(state, held)}${big ? ` (${w} x ${h} squares, from the top left)` : ''}.`,
+              `[arrows] move   [tab] next room   [space] put it down   ${big ? '[r] turn   ' : ''}[esc] cancel`,
+            ];
+          })()
         : heldDoor
-          ? [`Moving a door: the ${facingName[heldDoor]} wall of this square.`, '[arrows] move   [space] put it in   [r] next wall   [esc] cancel']
+          ? [`Moving a door: the ${sideName[heldDoor]} wall of this square.`, '[arrows] move   [space] put it in   [r] next wall   [esc] cancel']
           : [
               `${where}   [arrows] move   [tab] next room   [space] pick up furniture or a door   [x] grow this room`.trim(),
               '[d] door on this square (again: next wall, then none)   [h] hallway here on/off   [r] buy a room   [esc] back',

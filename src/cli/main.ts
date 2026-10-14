@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { departmentRules, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { departmentRules, desk, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -10,6 +10,7 @@ import {
   buyAccessory,
   buyFurniture,
   cellAt,
+  pieceSize,
   furnitureSpot,
   furnitureCost,
   moveFurniture,
@@ -95,7 +96,7 @@ import {
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
-import { facingName, furnitureName, renderOffice, roomName, type Cell } from './office';
+import { sideName, furnitureName, renderOffice, roomName, type Cell } from './office';
 import { cycleDoor, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
 
 const FRAME_MS = 250;
@@ -128,7 +129,7 @@ let officeGrowing = ''; // id of the room whose new square is being chosen
 let buyingRoom = false; // choosing what room to buy on the office map
 let showingOptions = false;
 let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
-let heldFacing: Side = 's'; // the way it faced when picked up, for esc
+let heldTurned = false; // whether it was turned when picked up, for esc
 let heldDoor: { from: Door; side: Side } | null = null; // a door being moved on the office map
 let showingDictionary = false;
 let dictionaryRow = 0;
@@ -233,7 +234,10 @@ function buyItem(id: string): void {
     }
   } else if (id.startsWith('furniture:')) {
     const kind = id.slice('furniture:'.length);
-    if (!furnitureSpot(state)) message = 'No free floor left. Buy a break room or grow a room on the office map ([o]).';
+    if (!furnitureSpot(state, kind))
+      message = furnitureSpot(state)
+        ? `No room for a ${kind}: it needs ${pieceSize(kind).join(' x ')} free squares in one room. Make space on the office map ([o]).`
+        : 'No free floor left. Buy a break room or grow a room on the office map ([o]).';
     else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
     else if (buyFurniture(state, kind)) {
       const i = state.furniture.length - 1;
@@ -660,8 +664,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else if (heldFurniture >= 0) {
         // It stays where it was, turned the way it was.
         const f = state.furniture[heldFurniture];
-        if (heldFacing === 's') delete f.facing;
-        else f.facing = heldFacing;
+        if (heldTurned) f.turned = true;
+        else delete f.turned;
         heldFurniture = -1;
       } else if (heldDoor) {
         state.doors.push(heldDoor.from);
@@ -677,7 +681,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const [x, y] = [...next.cells].sort((p, q) => p[1] - q[1] || p[0] - q[0])[0];
       Object.assign(c, { x, y });
     } else if (str === 'r' && heldFurniture >= 0) {
-      rotateFurniture(state, heldFurniture);
+      if (!rotateFurniture(state, heldFurniture)) message = 'Only pieces bigger than one square turn.';
     } else if (str === 'r' && heldDoor) {
       const turn: Record<Side, Side> = { n: 'e', e: 's', s: 'w', w: 'n' };
       heldDoor.side = turn[heldDoor.side];
@@ -701,20 +705,22 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         else if (state.currency < squareCost(state)) message = `Not enough ${theme.currency}.`;
         else if (!room || !expandRoom(state, room.id, [c.x, c.y])) message = 'Rooms grow onto empty squares next to them, not touching another room. Choose a +.';
       } else if (heldFurniture >= 0) {
-        const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
-        if (spot === heldFurniture || (here && moveFurniture(state, heldFurniture, here.id, c.x, c.y))) heldFurniture = -1;
+        const f = state.furniture[heldFurniture];
+        if (here && moveFurniture(state, heldFurniture, here.id, c.x, c.y)) heldFurniture = -1;
         else if (!here) message = 'Furniture goes inside a room.';
-        else if (spot === 'floor') message = "Desks stay in their department's room.";
-        else message = 'Something is already there.';
+        else if (f.kind === desk.id && f.room !== here.id) message = "Desks stay in their department's room.";
+        else message = `It doesn't fit there: every square it takes must be free floor in one room.${pieceSize(f.kind).join() === '1,1' ? '' : ' [r] turns it.'}`;
       } else if (heldDoor) {
         if (placeDoor(state, c.x, c.y, heldDoor.side)) heldDoor = null;
-        else message = here ? `No door fits the ${facingName[heldDoor.side]} wall here: it needs a hallway or another room behind it. [r] tries the next wall.` : 'Doors go in the walls of a room.';
+        else message = here ? `No door fits the ${sideName[heldDoor.side]} wall here: it needs a hallway or another room behind it. [r] tries the next wall.` : 'Doors go in the walls of a room.';
       } else {
         const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
         const door = typeof spot === 'number' || !here ? undefined : takeDoor(state, c.x, c.y);
         if (typeof spot === 'number') {
           heldFurniture = spot;
-          heldFacing = state.furniture[spot].facing ?? 's';
+          heldTurned = !!state.furniture[spot].turned;
+          // A bigger piece is held by its top left square.
+          Object.assign(c, { x: state.furniture[spot].x, y: state.furniture[spot].y });
         } else if (door) heldDoor = { from: door, side: door.side };
         else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Furniture store; [d] adds a door.';
       }
