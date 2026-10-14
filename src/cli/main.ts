@@ -274,7 +274,7 @@ function hire(h: Hiring): void {
   if (hrRoom(state)) {
     hiring = h;
     message = '';
-  } else if (doHire(h)) startNaming(state.monkeys.length - 1);
+  } else if (doHire(h)) welcome(state.monkeys.length - 1);
   else message = `Not enough ${theme.currency}.`;
 }
 
@@ -312,7 +312,7 @@ function buyItem(id: string): void {
     } else hire({ job: 'typing', genre: rooms[0] });
   } else if (id === 'assign') {
     if (!canSeatMonkey(state)) message = noSeatMessage();
-    else if (assignMonkey(state)) startNaming(state.monkeys.length - 1);
+    else if (assignMonkey(state)) welcome(state.monkeys.length - 1);
     else {
       pickingDeptFor = 'assign';
       message = deptPrompt('Which department gets the new monkey?');
@@ -535,7 +535,12 @@ function deptPrompt(question: string): string {
 }
 
 function namePrompt(): string {
-  return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for M-${state.monkeys[namingMonkey]?.number || namingMonkey + 1})`;
+  return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for a famous name)`;
+}
+
+/** A new monkey arrives with a name of its own; [n] renames it any time. */
+function welcome(index: number) {
+  message = `Say hello to ${monkeyName(state, index)}. ([n] renames a monkey any time.)`;
 }
 
 function startNaming(index: number) {
@@ -611,7 +616,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const h = hiring;
       if (doHire(h, n === 0 ? undefined : n - 1)) {
         hiring = null;
-        startNaming(state.monkeys.length - 1);
+        welcome(state.monkeys.length - 1);
       } else message = `Not enough ${theme.currency}.`;
     }
     return draw();
@@ -625,7 +630,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       hire({ job: 'typing', genre: g });
       return draw();
     }
-    if (g && assignMonkey(state, g)) startNaming(state.monkeys.length - 1);
+    if (g && assignMonkey(state, g)) welcome(state.monkeys.length - 1);
     else message = 'No monkey added.';
     return draw();
   }

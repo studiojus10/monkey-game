@@ -45,7 +45,7 @@ import {
   sellBack,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createInitialState, createMonkey, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
+import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, placeRoom, roomCanUse, tidyDoors, touchingRooms } from './layout';
 import { chiHappiness, roomChi, squareRank } from './fengshui';
@@ -1253,7 +1253,7 @@ export function monkeyName(state: GameState, index: number): string {
 /** Adds a new monkey with the next M-number (one past the highest, so nobody else's changes when a monkey leaves). */
 export function addMonkey(state: GameState, fields: Partial<MonkeyState>): MonkeyState {
   const number = Math.max(0, ...state.monkeys.map((m, i) => m.number || i + 1)) + 1;
-  const m = { ...createMonkey(), ...fields, number };
+  const m = { ...createMonkey(), name: monkeyNameFor(number, state.monkeys.map((o) => o.name)), ...fields, number };
   state.monkeys.push(m);
   return m;
 }
@@ -1266,6 +1266,13 @@ export function renameMonkey(state: GameState, index: number, name: string): boo
   const m = state.monkeys[index];
   const clean = name.trim().replace(/\s+/g, ' ');
   if (!m || clean.length > maxMonkeyNameLength || !/^[A-Za-z0-9 '-]*$/.test(clean)) return false;
+  if (!clean) {
+    // An empty name gives the monkey a famous name again.
+    const others = state.monkeys.filter((o) => o !== m).map((o) => o.name);
+    m.name = monkeyNameFor(m.number, others);
+    return true;
+  }
+  if (clean !== m.name) state.stats.renamed++;
   m.name = clean;
   return true;
 }
@@ -1918,7 +1925,7 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'acts': return state.actsDone.length;
     case 'plays': return state.playsDone.length;
     case 'monkeys': return ms.length;
-    case 'named': return ms.filter((m) => m.name).length;
+    case 'named': return state.stats.renamed;
     case 'managers': return ms.filter((m) => m.manager).length;
     case 'researchers': return ms.filter(isResearcher).length;
     case 'researched': return state.researched.length;

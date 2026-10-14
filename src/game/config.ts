@@ -538,7 +538,7 @@ export const achievements: Achievement[] = [
   { id: 'first-act', name: 'Curtain call', text: 'Finish an act', stat: 'acts', at: 1 },
   { id: 'first-play', name: 'Exeunt', text: 'Finish a whole play', stat: 'plays', at: 1 },
   { id: 'first-hire', name: 'Company', text: 'Hire a second monkey', stat: 'monkeys', at: 2 },
-  { id: 'first-name', name: "What's in a name?", text: 'Name a monkey', stat: 'named', at: 1 },
+  { id: 'first-name', name: "What's in a name?", text: 'Rename a monkey', stat: 'named', at: 1 },
   { id: 'first-manager', name: 'Middle management', text: 'Hire a manager', stat: 'managers', at: 1 },
   { id: 'first-researcher', name: 'Lab coats', text: 'Hire a researcher', stat: 'researchers', at: 1 },
   { id: 'first-hr', name: 'Human resources', text: 'Hire an HR monkey', stat: 'hrStaff', at: 1 },
@@ -702,6 +702,19 @@ export const maxPinnedLines = 5;
 
 /** Longest name a player can give a monkey. */
 export const maxMonkeyNameLength = 12;
+
+/**
+ * Names new monkeys get on their own (Justin, 2026-10-14: "automatically name
+ * all the monkeys random names... famous monkeys or monkey inspired names").
+ * Each fits maxMonkeyNameLength; players can still rename any monkey.
+ */
+export const monkeyNames = [
+  'Wukong', 'George', 'King Kong', 'Donkey Kong', 'Diddy Kong', 'Dixie Kong', 'Cranky Kong', 'Funky Kong', 'Tiny Kong',
+  'Caesar', 'Cornelius', 'Zira', 'Koba', 'Maurice', 'Rafiki', 'Abu', 'Marcel', 'Bubbles', 'Clyde', 'Cheeta',
+  'Mojo Jojo', 'Hanuman', 'Koko', 'Kanzi', 'Harambe', 'Ham', 'Enos', 'Able', 'Baker', 'Albert',
+  'Nim Chimpsky', 'Bonzo', 'Magilla', 'Grape Ape', 'Mighty Joe', 'Momo', 'Jack', 'Kiki', 'Darwin', 'Judy',
+  'Boots', 'Spike', 'Pippi', 'Bobo', 'Lancelot', 'Tarzan', 'Kong', 'Chim-Chim', 'Iago', 'Mr Teeny',
+];
 
 /**
  * How a typist's energy shows on the home screen: green above `green` percent,

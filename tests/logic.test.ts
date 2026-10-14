@@ -400,7 +400,7 @@ describe('monkeys', () => {
     expect(nextMonkeyCost(s, 'tragedy')).toBe(monkeyCost(0, 1)); // comedy hires don't raise tragedy's price
   });
 
-  it('monkeys can be named, and fall back to M-<number>', () => {
+  it('monkeys can be renamed, and an empty name gives a famous one back', () => {
     const s = createInitialState(0);
     s.monkeys.push(createMonkey());
     expect(monkeyName(s, 1)).toBe('M-2');
@@ -410,7 +410,7 @@ describe('monkeys', () => {
     expect(renameMonkey(s, 1, 'Bad*Name')).toBe(false);
     expect(renameMonkey(s, 5, 'Nobody')).toBe(false);
     expect(renameMonkey(s, 1, '')).toBe(true);
-    expect(monkeyName(s, 1)).toBe('M-2');
+    expect(monkeyName(s, 1)).not.toMatch(/^(Bubbles|M-2|)$/);
   });
 
   it('every monkey types its own line', () => {
@@ -1876,7 +1876,7 @@ describe('achievements', () => {
     tick(s, 0.1, rng);
     expect(s.achievements).toEqual(['first-word', 'first-pet']);
     expect(checkAchievements(s)).toEqual([]);
-    s.monkeys[0].name = 'Bobo';
+    renameMonkey(s, 0, 'Bobo');
     s.stats.pets = 999;
     expect(checkAchievements(s)).toEqual(['first-name', 'pets-100']);
     poke(s);

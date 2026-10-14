@@ -412,12 +412,43 @@ describe('M-numbers', () => {
   it('stay with a monkey for good, even when others leave', async () => {
     const L = await import('../src/game/logic');
     const s = department(3);
-    s.monkeys.forEach((m, i) => (m.number = i + 1));
+    s.monkeys.forEach((m, i) => ((m.number = i + 1), (m.name = '')));
     L.fireMonkey(s, 1);
     expect([0, 1].map((i) => L.monkeyName(s, i))).toEqual(['M-1', 'M-3']);
-    L.addMonkey(s, { department: 'comedy' });
+    L.addMonkey(s, { department: 'comedy', name: '' });
     expect(L.monkeyName(s, 2)).toBe('M-4');
     const back = deserialize(serialize(s));
     expect(back.monkeys.map((m) => m.number)).toEqual([1, 3, 4]);
+  });
+});
+
+describe('monkey names', () => {
+  it('every monkey gets a famous monkey name of its own, and can still be renamed', async () => {
+    const L = await import('../src/game/logic');
+    const { monkeyNames } = await import('../src/game/config');
+    const s = department(3);
+    for (let i = 0; i < 60; i++) L.addMonkey(s, { department: 'comedy' });
+    const names = s.monkeys.slice(3).map((m) => m.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((n) => n.length > 0 && n.length <= 12)).toBe(true);
+    expect(monkeyNames).toContain(names[0]);
+    expect(s.stats.renamed).toBe(0);
+    expect(L.renameMonkey(s, 3, 'Bob')).toBe(true);
+    expect(L.monkeyName(s, 3)).toBe('Bob');
+    expect(s.stats.renamed).toBe(1);
+  });
+});
+
+describe('old saves', () => {
+  it('give unnamed monkeys a famous name, and an empty rename gives one back', async () => {
+    const L = await import('../src/game/logic');
+    const s = department(3);
+    s.monkeys.forEach((m) => (m.name = ''));
+    const back = deserialize(serialize(s));
+    expect(back.monkeys.every((m) => m.name)).toBe(true);
+    expect(new Set(back.monkeys.map((m) => m.name)).size).toBe(3);
+    expect(L.renameMonkey(back, 0, '')).toBe(true);
+    expect(back.monkeys[0].name).not.toBe('');
+    expect(back.stats.renamed).toBe(0);
   });
 });

@@ -1,4 +1,4 @@
-import { office as officeRules } from './config';
+import { maxMonkeyNameLength, monkeyNames, office as officeRules } from './config';
 
 /** A piece of a monkey's current line: a scored word or a skipped letter. */
 export interface Segment {
@@ -190,10 +190,11 @@ export interface Stats {
   dyes: number; // hats dyed
   flipsWon: number; // coin flips won (all bananas doubled)
   flipsLost: number; // coin flips lost (all bananas gone)
+  renamed: number; // monkeys the player renamed (they all start with a name of their own)
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0, flipsWon: 0, flipsLost: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0, flipsWon: 0, flipsLost: 0, renamed: 0 };
 }
 
 export function createMonkey(): MonkeyState {
@@ -201,6 +202,22 @@ export function createMonkey(): MonkeyState {
 }
 
 /** A rectangle of squares from (0, 0). */
+/**
+ * A name for a new monkey: one of monkeyNames that nobody in `taken` has,
+ * picked by its M-number so it looks random but stays put (with " II", " III"
+ * and so on once every name is in use).
+ */
+export function monkeyNameFor(number: number, taken: string[]): string {
+  if (monkeyNames.length === 0) return '';
+  for (let round = 1; ; round++) {
+    const suffix = round === 1 ? '' : round <= 3 ? ` ${'I'.repeat(round)}` : ` ${round}`;
+    const free = monkeyNames
+      .map((n) => n + suffix)
+      .filter((n) => n.length <= maxMonkeyNameLength && !taken.includes(n));
+    if (free.length > 0) return free[(number * 7919) % free.length];
+  }
+}
+
 export function rectangle(width: number, height: number): [number, number][] {
   const cells: [number, number][] = [];
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) cells.push([x, y]);
@@ -250,7 +267,7 @@ export function createInitialState(now = Date.now()): GameState {
     keys: [],
     slots: [],
     letters: [],
-    monkeys: [{ ...createMonkey(), number: 1 }],
+    monkeys: [{ ...createMonkey(), number: 1, name: monkeyNameFor(1, []) }],
     monkeysBought: {},
     unassignedMonkeys: 0,
     wordsTyped: 0,

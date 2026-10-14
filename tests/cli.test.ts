@@ -33,7 +33,7 @@ import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFe
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
-import { achievements } from '../src/game/config';
+import { achievements, monkeyNames } from '../src/game/config';
 import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
@@ -60,6 +60,9 @@ const testPlay = {
     [1, 2, 'POLONIUS', 'Ay, my lord.'],
   ] as [number, number, string, string][],
 };
+
+// Screens below are checked with monkeys under their plain M-numbers, not famous names.
+monkeyNames.splice(0);
 
 /** Drops ANSI styling (bold prices and counters) so layout can be checked as plain text. */
 const plain = (text: string) => text.replace(/\x1b\[[\d;]+m/g, '');
