@@ -408,6 +408,13 @@ export const hr = {
   hireCostGrowth: 3,
   happierEach: 0.02,
   discountEach: 0.05,
+  // Hiring through HR (step 3): with an HR office, hiring shows a list of
+  // candidates whose stats you can see, priced by them (see candidateFactor).
+  // The list holds candidatesBase plus one per HR monkey (up to 9), and is
+  // drawn again every refreshHours.
+  candidatesBase: 3,
+  maxCandidates: 9,
+  refreshHours: 1,
 };
 
 /**

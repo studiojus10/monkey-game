@@ -117,6 +117,8 @@ export interface GameState {
   researchProgress: number; // researcher-seconds of work done on it
   researched: string[]; // finished projects
   researchersHired: number; // researchers hired, for their price
+  candidates: Candidate[]; // monkeys HR could hire now (see hr in config.ts)
+  candidatesIn: number; // seconds until HR draws a new list of candidates (0: at the next tick)
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
@@ -160,6 +162,14 @@ export function createSettings(): Settings {
 }
 
 /** Lifetime statistics, for the statistics page. They never affect play. */
+/** Someone HR could hire: a monkey's trait and hidden stats, before it joins. */
+export interface Candidate {
+  trait: string;
+  speedStat: number;
+  stamina: number;
+  jobs: Record<string, string>;
+}
+
 export interface Stats {
   letters: Record<string, number>; // letter -> times typed
   words: Record<string, number>; // word -> times spelled
@@ -218,6 +228,8 @@ export function createInitialState(now = Date.now()): GameState {
     researchProgress: 0,
     researched: [],
     researchersHired: 0,
+    candidates: [],
+    candidatesIn: 0,
     squaresBought: 0,
     furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
     departments: [],

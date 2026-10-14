@@ -194,6 +194,8 @@ Built 2026-10-14 (Justin: "lets add the HR department. Maybe this can unlock aft
 
 **Traits that rub off** (step 2, Justin: "traits that make other monkeys happier or work harder or slower"): four more traits act on every other monkey in the same room, all the time: Cheerleader (+5% happiness), Grump (-5% happiness), Motivator (+5% typing speed), Slacker (types 10% faster itself, room-mates 5% slower). They add up, capped at 50% either way (`room` on each trait, `traitRules.maxRoomEffect`). Like other traits they're hidden until the manager's book is read; then the TRAIT column colours them by whether they help or hurt their room-mates.
 
+**Hiring through HR** (step 3, Justin: "hiring through HR allows the player to look through a roster of potential hires that cost different amounts based on stats"): once there's an HR office, every hire (a typist, a manager, a researcher, an HR monkey) opens HR's list of candidates: each one's speed, stamina, feeling about that job, trait (once the manager's book is read) and price. A candidate's price is the usual price x ((speed + stamina) / 2 x (1 + its feeling about the job))^2: about 2x for the best, a quarter for the worst. `0` hires someone unseen at the usual price. The list holds 3 candidates plus one per HR monkey (up to 9) and is drawn again every hour, while you're away too (`hr` in config.ts, `drawCandidates`, `candidateFactor`). Before HR, hiring is blind as before.
+
 ### The Sonnets department
 
 A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a late way to earn more **Lines**. Verse lines run to a meter rather than ending at sentence breaks, so sonnets score differently:

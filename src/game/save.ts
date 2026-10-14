@@ -157,6 +157,11 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       researchOpen: s.researchOpen === true,
       researching: research.projects.some((p) => p.id === s.researching) ? str(s.researching) : '',
       researchProgress: Math.max(0, num(s.researchProgress, 0)),
+      candidates: (Array.isArray(s.candidates) ? (s.candidates as Partial<MonkeyState>[]) : [])
+        .map((c) => monkey(c))
+        .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
+        .map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs })),
+      candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
       researched: strings(s.researched).filter((id) => research.projects.some((p) => p.id === id)),
       researchersHired: Math.max(0, Math.floor(num(s.researchersHired, 0))),
       squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),

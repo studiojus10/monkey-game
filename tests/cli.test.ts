@@ -31,6 +31,7 @@ import {
 import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
+import { renderCandidates } from '../src/cli/hiring';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
 import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
@@ -902,5 +903,21 @@ describe('furniture colours', () => {
     const s = started();
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 1 });
     expect(renderOffice(s)).toContain(green(' P '));
+  });
+});
+
+describe('hiring screen', () => {
+  it('lists candidates with their stats and prices, and someone unseen at the usual price', () => {
+    const s = started();
+    s.candidates = [{ trait: 'loner', speedStat: 1.1, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' } }];
+    s.candidatesIn = 600;
+    const text = plain(renderCandidates(s, 'typing', 'a monkey for Comedies', 1000, '', 80));
+    expect(text).toContain('HIRING: A MONKEY FOR COMEDIES');
+    expect(squash(text)).toContain(`[1] 110% 90% loves ? 1.44K Bananas`);
+    expect(squash(text)).toContain('[0] someone unseen 1.00K Bananas');
+    expect(text).toContain('New candidates in 10m');
+    s.managerBook = true;
+    expect(plain(renderCandidates(s, 'typing', 'x', 1000))).toContain('Loner');
+    expect(text.split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 });

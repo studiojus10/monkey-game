@@ -329,3 +329,34 @@ describe('traits that rub off on a room', () => {
     expect(L.roomEffect(s, s.monkeys[1], 'happiness')).toBe(-traitRules.maxRoomEffect);
   });
 });
+
+describe('hiring through HR', () => {
+  it('draws candidates once there is an HR office, prices them by their stats, and hires them as they are', async () => {
+    const { hr } = await import('../src/game/config');
+    const L = await import('../src/game/logic');
+    const s = department(managers.minDepartmentMonkeys);
+    L.drawCandidates(s, 1, () => 0.5);
+    expect(s.candidates).toEqual([]); // no HR office yet
+    buyRoom(s, 'office', 'comedy');
+    hireManager(s, 'comedy');
+    buyRoom(s, 'hr');
+    let r = 0;
+    L.drawCandidates(s, 1, () => ((r += 0.37) % 1));
+    expect(s.candidates).toHaveLength(hr.candidatesBase);
+    expect(s.candidatesIn).toBe(hr.refreshHours * 3600);
+    const best = { trait: 'loner', speedStat: 1.2, stamina: 1.2, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' } };
+    const worst = { ...best, speedStat: 0.8, stamina: 0.8, jobs: { ...best.jobs, typing: 'detests' } };
+    expect(L.candidateFactor(best, 'typing')).toBeCloseTo((1.2 * 1.2) ** 2);
+    expect(L.candidateFactor(worst, 'typing')).toBeCloseTo((0.8 * 0.6) ** 2);
+    s.candidates = [best, worst];
+    const base = L.nextMonkeyCost(s, 'comedy');
+    s.currency = Math.ceil(base * L.candidateFactor(best, 'typing'));
+    expect(L.buyMonkey(s, 'comedy', 0)).toBe(true);
+    expect(s.currency).toBe(0);
+    expect(s.monkeys[s.monkeys.length - 1]).toMatchObject({ speedStat: 1.2, stamina: 1.2, department: 'comedy' });
+    expect(s.candidates).toEqual([worst]); // taken off the list
+    expect(deserialize(serialize(s)).candidates).toEqual([worst]);
+    L.drawCandidates(s, hr.refreshHours * 3600, () => 0.5); // a new list after refreshHours
+    expect(s.candidates).toHaveLength(hr.candidatesBase);
+  });
+});
