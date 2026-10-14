@@ -26,6 +26,8 @@ import {
   typewriterKeys,
   wordSlots,
   typing,
+  petting,
+  achievements,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
@@ -337,18 +339,24 @@ export function restBoost(state: GameState): number {
   return Math.min(energyRules.maxRestBoost, sum);
 }
 
-/** Office happiness from the furniture in rooms you can reach: points x (1 + happiness). */
+/** Office happiness from the furniture in rooms you can reach: points x (1 + happiness), and every monkey tires slower and rests faster. */
 export function happiness(state: GameState): number {
   const rooms = connectedRooms(state);
   const sum = state.furniture.reduce((n, f) => n + (rooms.has(f.room) ? (kindOf(f.kind)?.happiness ?? 0) : 0), 0);
   return Math.min(energyRules.maxHappiness, sum);
 }
 
-/** Seconds of typing that drain a monkey, and of rest that refill it, with the office's furniture. */
+/** A monkey's happiness: the office's (furniture) plus its own from petting. Happier monkeys tire slower and rest faster. */
+export function monkeyHappiness(state: GameState, m: MonkeyState): number {
+  return happiness(state) + m.petHappiness;
+}
+
+/** Seconds of typing that drain a monkey, and of rest that refill it, with the office's furniture and its happiness. */
 export function energyRates(state: GameState, m: MonkeyState): EnergyRates {
+  const happy = 1 + monkeyHappiness(state, m);
   return {
-    drainSeconds: energyRules.drainSeconds / ((1 - drainCut(state, monkeyGenre(state, m))) * (1 - Math.min(0.9, wearing(m, 'drain')))),
-    breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state)) * (1 + wearing(m, 'rest'))),
+    drainSeconds: (energyRules.drainSeconds * happy) / ((1 - drainCut(state, monkeyGenre(state, m))) * (1 - Math.min(0.9, wearing(m, 'drain')))),
+    breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state)) * (1 + wearing(m, 'rest')) * happy),
   };
 }
 
@@ -1264,12 +1272,21 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
   }
 }
 
-/** The player pets the first monkey into typing one extra letter. */
-export function poke(state: GameState, rng: Rng = Math.random): void {
-  const i = state.monkeys.findIndex((m) => !m.manager);
-  if (i < 0 || state.letters.length === 0) return;
+/**
+ * The player pets the least happy typing monkey (the first, on a tie): it
+ * gets a little happier (see `petting`). Returns its index, or -1.
+ */
+export function poke(state: GameState): number {
+  let i = -1;
+  state.monkeys.forEach((m, k) => {
+    if (!m.manager && (i < 0 || m.petHappiness < state.monkeys[i].petHappiness)) i = k;
+  });
+  if (i < 0) return -1;
+  const m = state.monkeys[i];
+  m.petHappiness = Math.min(petting.maxHappiness, m.petHappiness + petting.happinessPerPet);
   state.stats.pets++;
-  typeLetter(state, i, rng);
+  checkAchievements(state);
+  return i;
 }
 
 /** Monkeys working in a department (managers included). */
@@ -1449,6 +1466,7 @@ export function buyTypewriter(state: GameState, index = 0): boolean {
 export function tick(state: GameState, seconds: number, rng: Rng = Math.random, lettersPerSecondCap = maxSimulatedLettersPerSecond): void {
   if (seconds <= 0 || state.letters.length === 0) return;
   state.stats.secondsTyping += seconds;
+  for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state);
   const due = state.monkeys.map((m) => {
     if (m.manager || !canReachDesk(state, m)) return 0;
@@ -1472,6 +1490,61 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
     earn(state, (wordEarnings - before) * extra);
     state.wordsTyped += Math.round((state.wordsTyped - wordsBefore) * extra);
   }
+  checkAchievements(state);
+}
+
+/** How far along an achievement's measure is (see `achievements` in config.ts). */
+export function achievementValue(state: GameState, stat: string): number {
+  const ms = state.monkeys;
+  const most = (f: (m: MonkeyState) => number) => ms.reduce((n, m) => Math.max(n, f(m)), 0);
+  if (stat.startsWith('word:')) return state.stats.words[stat.slice(5)] ?? 0;
+  if (stat.startsWith('wearing:')) return ms.filter((m) => m.accessories.includes(stat.slice(8))).length;
+  switch (stat) {
+    case 'wordsSpelled': return state.wordsTyped;
+    case 'lettersOwned': return state.letters.length;
+    case 'chain': return state.stats.longestChain;
+    case 'chainSentences': return state.stats.chainSentences;
+    case 'linesWritten': return Object.values(state.completed).reduce((n, l) => n + l.length, 0);
+    case 'scenes': return state.scenesDone.length;
+    case 'acts': return state.actsDone.length;
+    case 'plays': return state.playsDone.length;
+    case 'monkeys': return ms.length;
+    case 'named': return ms.filter((m) => m.name).length;
+    case 'managers': return ms.filter((m) => m.manager).length;
+    case 'departments': return state.departments.length;
+    case 'rooms': return state.office.length;
+    case 'furniture': return state.furniture.filter((f) => f.kind !== desk.id).length;
+    case 'accessories': return ms.reduce((n, m) => n + m.accessories.length, 0);
+    case 'skill': return most((m) => m.skill);
+    case 'typewriter': return most((m) => m.typewriter);
+    case 'keys': return state.keys.length;
+    case 'slots': return state.slots.length;
+    case 'pets': return state.stats.pets;
+    case 'happiest': return ms.filter((m) => m.petHappiness >= petting.maxHappiness - 1e-9).length;
+    case 'longestWord': return state.stats.longestWord.length;
+    case 'dictionary': return Object.keys(state.stats.words).length;
+    case 'lettersTyped': return Object.values(state.stats.letters).reduce((n, c) => n + c, 0);
+    case 'biggestDepartment': {
+      const sizes = new Map<string, number>();
+      for (const m of ms) sizes.set(monkeyGenre(state, m) ?? '', (sizes.get(monkeyGenre(state, m) ?? '') ?? 0) + 1);
+      return Math.max(0, ...sizes.values());
+    }
+    case 'hoursTyping': return state.stats.secondsTyping / 3600;
+    case 'points': return state.totalEarned;
+    default: return 0;
+  }
+}
+
+/** Unlocks every achievement whose measure is reached. Returns the ids newly unlocked. */
+export function checkAchievements(state: GameState): string[] {
+  const got: string[] = [];
+  for (const a of achievements) {
+    if (!state.achievements.includes(a.id) && achievementValue(state, a.stat) >= a.at) {
+      state.achievements.push(a.id);
+      got.push(a.id);
+    }
+  }
+  return got;
 }
 
 /**

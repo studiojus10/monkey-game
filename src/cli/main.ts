@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { departmentRules, desk, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, departmentRules, desk, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -97,7 +97,7 @@ import {
   accessoryPickPrompt,
 } from './screen';
 import { devTools } from '../game/dev';
-import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
+import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { sideName, furnitureName, renderOffice, roomName, type Cell } from './office';
 import { cycleDoor, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
 
@@ -119,6 +119,7 @@ function fitLines(): number {
 }
 
 fitLines();
+let achievementsSeen = state.achievements.length; // achievements unlocked by now; newer ones get a message
 const offline = applyOfflineProgress(state, Date.now());
 let message =
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
@@ -133,6 +134,8 @@ let findIndex = -1;
 let showingKeys = false;
 let showingDev = false;
 let showingStats = false;
+let showingAchievements = false;
+let achievementRow = 0;
 let showingOffice = false;
 let officeCursor: Cell | null = null; // the selected cell on the office map
 let officeGrowing = ''; // id of the room whose new square is being chosen
@@ -318,6 +321,16 @@ function buyTyping(i: number, what: 'skill' | 'typewriter'): string {
 
 function draw() {
   const columns = fitLines();
+  // New achievements get a message (offline ones too, on the first draw).
+  const fresh = state.achievements.slice(achievementsSeen);
+  if (fresh.length > 0) {
+    achievementsSeen = state.achievements.length;
+    const names = fresh.map((id) => achievements.find((a) => a.id === id)?.name ?? id);
+    message =
+      names.length > 3
+        ? `${names.length} achievements unlocked! [a] to see them.`
+        : `Achievement unlocked: ${names.join(', ')}! [a] to see ${names.length === 1 ? 'it' : 'them'}.`;
+  }
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
@@ -325,6 +338,8 @@ function draw() {
     ? renderOptions(state)
     : showingOffice
     ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null)
+    : showingAchievements
+    ? renderAchievements(state, achievementRow)
     : showingStats
     ? renderStats(state)
     : showingDictionary
@@ -739,16 +754,22 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (showingStats || showingDictionary) {
+  if (showingStats || showingDictionary || showingAchievements) {
     const maxRow = Math.max(0, Math.ceil(dictionaryWords(state).length / dictionaryColumns) - dictionaryPageRows);
+    const turnTo = (page: 't' | 'w' | 'a') => {
+      showingStats = page === 't';
+      showingDictionary = page === 'w';
+      showingAchievements = page === 'a';
+    };
     if (key.name === 'escape' || key.name === 'q') {
-      showingStats = showingDictionary = false;
-    } else if (showingStats && str === 'w') {
-      showingStats = false;
-      showingDictionary = true;
+      showingStats = showingDictionary = showingAchievements = false;
+    } else if (!showingDictionary && (str === 't' || str === 'w' || str === 'a')) {
+      turnTo(str);
     } else if (showingDictionary && str === 't') {
-      showingDictionary = false;
-      showingStats = true;
+      turnTo(str);
+    } else if (showingAchievements && (key.name === 'up' || key.name === 'down')) {
+      const last = Math.max(0, achievements.length - achievementPageRows);
+      achievementRow = Math.max(0, Math.min(last, achievementRow + (key.name === 'up' ? -1 : 1)));
     } else if (showingDictionary && key.name === 'up') {
       dictionaryRow = Math.max(0, Math.min(dictionaryRow, maxRow) - 1);
     } else if (showingDictionary && key.name === 'down') {
@@ -801,7 +822,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
   } else if (key.name === 'return' || key.name === 'enter') {
-    poke(state);
+    const i = poke(state);
+    if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;
   } else if (key.name === 'space') {
     shop = shop ? null : lastStore;
   } else if (shop && (key.name === 'tab' || key.name === 'right' || key.name === 'left')) {
@@ -835,6 +857,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     showingOptions = true;
   } else if (str === 't') {
     showingStats = true;
+  } else if (str === 'a') {
+    showingAchievements = true;
   } else if (str === 'w') {
     showingDictionary = true;
     dictionaryRow = 0;

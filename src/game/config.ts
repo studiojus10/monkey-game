@@ -194,7 +194,7 @@ export const office = {
  * office map moves it. Each one of a kind costs costGrowth times the last.
  * Decor (drain) in a department's room slows its monkeys' tiring; comfort
  * (rest) in a break room speeds up everyone's breaks; every piece adds a little
- * happiness, a points bonus. Bonuses add up to the caps in `energy`. All
+ * happiness to every monkey (see `petting`). Bonuses add up to the caps in `energy`. All
  * numbers are placeholders.
  */
 export interface FurnitureKind {
@@ -205,7 +205,7 @@ export interface FurnitureKind {
   costGrowth: number;
   drain: number; // decor: in a department's room, its monkeys tire this much slower (0.03 = 3%)
   rest: number; // in a break room, every monkey's breaks go this much faster (0.15 = 15%)
-  happiness: number; // anywhere in the office: points x (1 + happiness), added up
+  happiness: number; // anywhere in the office: points x (1 + happiness), added up; monkeys also tire slower and rest faster
   size?: [number, number]; // squares across and down (1 x 1 when missing); turning a piece swaps them
 }
 
@@ -235,8 +235,85 @@ export const energy = {
   maxSlowdown: 0.25,
   maxDrainCut: 0.5, // furniture slows tiring by at most half
   maxRestBoost: 3, // and speeds up breaks by at most +300%
-  maxHappiness: 0.5, // and raises points by at most +50%
+  maxHappiness: 0.5, // and adds at most +50% happiness: points x (1 + happiness), and see `petting`
 };
+
+/**
+ * A monkey's happiness (the office's, from furniture, plus its own from
+ * petting) makes it tire slower and rest faster: drain time x (1 + happiness),
+ * break time / (1 + happiness). Petting (enter) makes the least happy typing
+ * monkey a little happier; it's mostly for fun (Justin: "petting should have
+ * very little effect on the gameplay"), so it adds little and wears off.
+ */
+export const petting = {
+  happinessPerPet: 0.005,
+  maxHappiness: 0.05, // petting adds at most +5% to a monkey's happiness
+  fadePerMinute: 0.01, // and wears off this fast
+};
+
+/**
+ * Achievements: no reward, just a record on the achievements page ([a]).
+ * Each one unlocks when its measure (see achievementValue in logic.ts)
+ * reaches `at`. Measures named word:XYZ count how often the monkeys spelled
+ * XYZ; wearing:id counts monkeys wearing that accessory. Secret ones show as
+ * ??? until unlocked.
+ */
+export interface Achievement {
+  id: string;
+  name: string;
+  text: string;
+  stat: string;
+  at: number;
+  secret?: boolean;
+}
+
+export const achievements: Achievement[] = [
+  // Every first.
+  { id: 'first-word', name: 'Hello, world', text: 'Spell your first word', stat: 'wordsSpelled', at: 1 },
+  { id: 'first-letter', name: 'Second letter', text: 'Buy a second letter', stat: 'lettersOwned', at: 2 },
+  { id: 'first-combo', name: 'Combo', text: 'Spell two words in a row', stat: 'chain', at: 2 },
+  { id: 'first-sentence', name: 'Full stop', text: 'Earn a Sentence from a long chain', stat: 'chainSentences', at: 1 },
+  { id: 'first-line', name: 'To be...', text: 'Write your first line of a play', stat: 'linesWritten', at: 1 },
+  { id: 'first-scene', name: 'Scene!', text: 'Finish a scene', stat: 'scenes', at: 1 },
+  { id: 'first-act', name: 'Curtain call', text: 'Finish an act', stat: 'acts', at: 1 },
+  { id: 'first-play', name: 'Exeunt', text: 'Finish a whole play', stat: 'plays', at: 1 },
+  { id: 'first-hire', name: 'Company', text: 'Hire a second monkey', stat: 'monkeys', at: 2 },
+  { id: 'first-name', name: "What's in a name?", text: 'Name a monkey', stat: 'named', at: 1 },
+  { id: 'first-manager', name: 'Middle management', text: 'Promote a monkey to manager', stat: 'managers', at: 1 },
+  { id: 'first-department', name: 'Expansion', text: 'Open a second department', stat: 'departments', at: 2 },
+  { id: 'first-room', name: 'Room to breathe', text: 'Buy a new room', stat: 'rooms', at: 2 },
+  { id: 'first-furniture', name: 'Interior design', text: 'Buy a piece of furniture', stat: 'furniture', at: 1 },
+  { id: 'first-accessory', name: 'Dress code', text: 'Give a monkey an accessory', stat: 'accessories', at: 1 },
+  { id: 'first-faster', name: 'Practice', text: 'Teach a monkey to type faster', stat: 'skill', at: 1 },
+  { id: 'first-typewriter', name: 'Upgrade', text: 'Give a monkey a better typewriter', stat: 'typewriter', at: 1 },
+  { id: 'first-key', name: 'Shortcut', text: 'Buy a typewriter key', stat: 'keys', at: 1 },
+  { id: 'first-slot', name: 'Fill in the blank', text: 'Buy a word slot', stat: 'slots', at: 1 },
+  { id: 'first-pet', name: 'Good monkey', text: 'Pet a monkey', stat: 'pets', at: 1 },
+  // Just for fun.
+  { id: 'pets-100', name: 'Best friends', text: 'Pet the monkeys 100 times', stat: 'pets', at: 100 },
+  { id: 'pets-1000', name: 'Pet project', text: 'Pet the monkeys 1,000 times', stat: 'pets', at: 1_000 },
+  { id: 'pets-10000', name: 'Spoiled rotten', text: 'Pet the monkeys 10,000 times', stat: 'pets', at: 10_000 },
+  { id: 'happiest', name: 'Over the moon', text: 'Pet a monkey until it can be no happier', stat: 'happiest', at: 1 },
+  { id: 'chain-10', name: 'On a roll', text: 'Spell 10 words in a row', stat: 'chain', at: 10 },
+  { id: 'word-8', name: 'Big words', text: 'Spell a word of 8 letters', stat: 'longestWord', at: 8 },
+  { id: 'word-12', name: 'Sesquipedalian', text: 'Spell a word of 12 letters', stat: 'longestWord', at: 12 },
+  { id: 'dictionary-100', name: 'Vocabulary', text: 'Spell 100 different words', stat: 'dictionary', at: 100 },
+  { id: 'dictionary-1000', name: 'Lexicon', text: 'Spell 1,000 different words', stat: 'dictionary', at: 1_000 },
+  { id: 'dictionary-10000', name: 'Walking dictionary', text: 'Spell 10,000 different words', stat: 'dictionary', at: 10_000 },
+  { id: 'letters-1m', name: 'A million monkeys', text: 'Type a million letters', stat: 'lettersTyped', at: 1_000_000 },
+  { id: 'alphabet', name: 'A to Z', text: 'Own all 26 letters', stat: 'lettersOwned', at: 26 },
+  { id: 'full-department', name: 'Full house', text: 'Fill a department with 10 monkeys', stat: 'biggestDepartment', at: 10 },
+  { id: 'day-job', name: 'Day job', text: 'Keep the monkeys typing for 24 hours', stat: 'hoursTyping', at: 24 },
+  { id: 'crown', name: 'Long live the king', text: 'Crown a monkey', stat: 'wearing:crown', at: 1 },
+  { id: 'billion', name: 'Billionaire', text: 'Earn a billion Points', stat: 'points', at: 1e9 },
+  // Secrets: words the monkeys might stumble on.
+  { id: 'word-monkey', name: 'Self-aware', text: 'The monkeys spelled MONKEY', stat: 'word:MONKEY', at: 1, secret: true },
+  { id: 'word-banana', name: 'Snack break', text: 'The monkeys spelled BANANA', stat: 'word:BANANA', at: 1, secret: true },
+  { id: 'word-hamlet', name: 'Prince of Denmark', text: 'The monkeys spelled HAMLET', stat: 'word:HAMLET', at: 1, secret: true },
+  { id: 'word-bard', name: 'The Bard', text: 'The monkeys spelled BARD', stat: 'word:BARD', at: 1, secret: true },
+  { id: 'word-typewriter', name: 'Know your tools', text: 'The monkeys spelled TYPEWRITER', stat: 'word:TYPEWRITER', at: 1, secret: true },
+  { id: 'word-infinite', name: 'To infinity', text: 'The monkeys spelled INFINITE', stat: 'word:INFINITE', at: 1, secret: true },
+];
 
 /**
  * Accessories, bought with points for one monkey at a time in the

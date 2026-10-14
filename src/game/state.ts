@@ -25,6 +25,7 @@ export interface MonkeyState {
   energy: number; // 1 = rested, 0 = worn out; a tired monkey types slower
   resting: boolean; // on a break until its energy is back to full
   accessories: string[]; // ids of the accessories it wears, one per slot
+  petHappiness: number; // happiness from petting (0.01 = 1%), wearing off
 }
 
 /**
@@ -126,6 +127,7 @@ export interface GameState {
   lastWordPoints: number; // what it paid, combo included
   settings: Settings;
   stats: Stats;
+  achievements: string[]; // ids of achievements unlocked, in order
   lastSaved: number; // epoch ms
 }
 
@@ -159,7 +161,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, skill: 0, typewriter: 0, energy: 1, resting: false, accessories: [] };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, skill: 0, typewriter: 0, energy: 1, resting: false, accessories: [], petHappiness: 0 };
 }
 
 /** A rectangle of squares from (0, 0). */
@@ -209,6 +211,7 @@ export function createInitialState(now = Date.now()): GameState {
     lastWordPoints: 0,
     settings: createSettings(),
     stats: createStats(),
+    achievements: [],
     lastSaved: now,
   };
 }

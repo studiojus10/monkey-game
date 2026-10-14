@@ -21,8 +21,9 @@ import {
   stores,
 } from '../src/cli/screen';
 import { officeMapWidth, renderOffice } from '../src/cli/office';
-import { dictionaryRowFor, renderDictionary, renderStats } from '../src/cli/stats';
-import { typeLetter, buyRoom, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
+import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
+import { achievements } from '../src/game/config';
+import { poke, typeLetter, buyRoom, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -480,6 +481,31 @@ describe('accessories on screen', () => {
   });
 });
 
+describe('achievements on screen', () => {
+  it('lists every achievement, marks unlocked ones, shows progress and hides secrets', () => {
+    const s = started();
+    s.stats.pets = 37;
+    s.achievements = ['first-pet'];
+    const text = plain(renderAchievements(s, 0));
+    expect(text).toContain(`1 of ${achievements.length} unlocked`);
+    expect(text).toMatch(/\[x\] Good monkey +Pet a monkey/);
+    expect(text).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   \(37 \/ 100\)/);
+    const last = plain(renderAchievements(s, 999));
+    expect(last).toMatch(/\[ \] \?\?\? +A secret/);
+    expect(last).not.toContain('MONKEY');
+    s.achievements.push('word-monkey');
+    expect(plain(renderAchievements(s, 999))).toContain('Self-aware');
+    expect(text).toContain('Milestones');
+  });
+
+  it('shows a heart by a monkey petted lately', () => {
+    const s = started();
+    expect(plain(renderScreen(s))).not.toContain('<3');
+    poke(s);
+    expect(plain(renderScreen(s))).toContain('M-1<3(');
+  });
+});
+
 describe('plain ASCII', () => {
   it('prints only ASCII (plus ANSI codes), so the game runs in any terminal', () => {
     const s = started();
@@ -493,6 +519,7 @@ describe('plain ASCII', () => {
       renderKeysMenu(s),
       renderStats(s),
       renderDictionary(s, 0),
+      renderAchievements(s, 0),
     ];
     for (const text of screens) expect(plain(text)).toMatch(/^[\x00-\x7f]*$/);
   });
