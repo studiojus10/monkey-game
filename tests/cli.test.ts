@@ -9,6 +9,7 @@ import {
   maxMonkeyLines,
   renderKeysMenu,
   renderLine,
+  folioPrompt,
   lineRoom,
   renderScreen,
   ordinal,
@@ -503,6 +504,22 @@ describe('achievements on screen', () => {
     expect(plain(renderScreen(s))).not.toContain('<3');
     poke(s);
     expect(plain(renderScreen(s))).toContain('M-1<3(');
+  });
+});
+
+describe('publishing a Folio on screen', () => {
+  it('offers it once a play is finished, and shows the bonus after', () => {
+    const s = started();
+    expect(plain(renderScreen(s))).not.toContain('publish a Folio');
+    s.completed = { test: [0, 1] };
+    s.playsDone = ['test'];
+    const text = plain(renderScreen(s));
+    expect(text).toContain('* You can publish a Folio: [f] start over with 4 more pages, points +0.4% for good.');
+    expect(text).toContain('[f] publish a Folio');
+    expect(folioPrompt(s)).toContain('points x1.00 for good. Press y to publish');
+    s.folios = 1;
+    s.folioPages = 500;
+    expect(plain(renderScreen(s))).toContain('Folio points +50% (1 Folio published)');
   });
 });
 

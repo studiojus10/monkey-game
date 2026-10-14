@@ -64,6 +64,9 @@ import {
   setPlays,
   setWordList,
   setLineWidth,
+  publishFolio,
+  canPublishFolio,
+  folioMultiplier,
   tick,
   togglePin,
   toggleSlot,
@@ -81,6 +84,7 @@ import {
   managerUpgradePrompt,
   renderKeysMenu,
   renderScreen,
+  folioPrompt,
   lineRoom,
   renderScript,
   renderContents,
@@ -124,6 +128,7 @@ const offline = applyOfflineProgress(state, Date.now());
 let message =
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
 let confirmingReset = false;
+let confirmingFolio = false;
 let pickingLetter = false;
 let showingScript = false;
 let scriptCursor = 0;
@@ -327,9 +332,10 @@ function draw() {
     achievementsSeen = state.achievements.length;
     const names = fresh.map((id) => achievements.find((a) => a.id === id)?.name ?? id);
     message =
-      names.length > 3
+      (message ? `${message}   ` : '') +
+      (names.length > 3
         ? `${names.length} achievements unlocked! [a] to see them.`
-        : `Achievement unlocked: ${names.join(', ')}! [a] to see ${names.length === 1 ? 'it' : 'them'}.`;
+        : `Achievement unlocked: ${names.join(', ')}! [a] to see ${names.length === 1 ? 'it' : 'them'}.`);
   }
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
@@ -384,6 +390,18 @@ function startNaming(index: number) {
 
 function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
   if (key.ctrl && key.name === 'c') return quit();
+
+  if (confirmingFolio) {
+    confirmingFolio = false;
+    const next = key.name === 'y' ? publishFolio(state) : null;
+    if (next) {
+      const gained = next.folioPages - state.folioPages;
+      state = next;
+      save(state, storage);
+      message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Points x${folioMultiplier(state).toFixed(2)} for good. The monkeys start again.`;
+    } else message = 'Not published. The monkeys keep typing.';
+    return draw();
+  }
 
   if (confirmingReset) {
     confirmingReset = false;
@@ -862,6 +880,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === 'w') {
     showingDictionary = true;
     dictionaryRow = 0;
+  } else if (str === 'f' && canPublishFolio(state)) {
+    confirmingFolio = true;
+    message = folioPrompt(state);
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;

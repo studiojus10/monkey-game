@@ -28,9 +28,10 @@ import {
   typing,
   petting,
   achievements,
+  folio,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
+import { createInitialState, createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { autoConnect, connectedRooms, placeRoom, roomCanUse } from './layout';
 
@@ -263,7 +264,41 @@ export function ownedProgress(state: GameState): [number, number] {
 
 /** Points earned are multiplied by this; finished scenes raise it. */
 export function pointsMultiplier(state: GameState): number {
-  return (1 + state.pointsBonus) * (1 + happiness(state));
+  return (1 + state.pointsBonus) * (1 + happiness(state)) * folioMultiplier(state);
+}
+
+/** Points are multiplied by this for good, from the pages of every Folio published. */
+export function folioMultiplier(state: GameState): number {
+  return 1 + state.folioPages * folio.bonusPerPage;
+}
+
+/** Whether a Folio can be published: a whole play is finished. */
+export function canPublishFolio(state: GameState): boolean {
+  return state.playsDone.length > 0;
+}
+
+/** Pages publishing a Folio now would bank: a page per line written, and the lines of each finished play once more. */
+export function folioPagesNow(state: GameState): number {
+  const written = Object.values(state.completed).reduce((n, lines) => n + lines.length, 0);
+  const finished = state.playsDone.reduce((n, id) => n + (getPlay(id)?.lines.length ?? 0), 0);
+  return written + finished * folio.finishedPlayPages;
+}
+
+/**
+ * Publishes a Folio: the prestige reset. Returns the new game, started over
+ * but keeping achievements, statistics, options and the Folio (its pages
+ * raise points for good). Returns null if no play is finished yet.
+ */
+export function publishFolio(state: GameState): GameState | null {
+  if (!canPublishFolio(state)) return null;
+  const next = createInitialState(state.lastSaved);
+  next.folios = state.folios + 1;
+  next.folioPages = state.folioPages + folioPagesNow(state);
+  next.achievements = [...state.achievements];
+  next.stats = state.stats;
+  next.settings = state.settings;
+  checkAchievements(next);
+  return next;
 }
 
 /** Typing speed is multiplied by this; finished acts raise it. */
@@ -1531,6 +1566,7 @@ export function achievementValue(state: GameState, stat: string): number {
     }
     case 'hoursTyping': return state.stats.secondsTyping / 3600;
     case 'points': return state.totalEarned;
+    case 'folios': return state.folios;
     default: return 0;
   }
 }

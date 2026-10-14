@@ -168,6 +168,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false },
       stats,
       achievements: strings(s.achievements),
+      folios: Math.max(0, Math.floor(num(s.folios, 0))),
+      folioPages: Math.max(0, Math.floor(num(s.folioPages, 0))),
       lastSaved: num(s.lastSaved, now),
     };
     // Saves from before rooms get an office that seats their monkeys.

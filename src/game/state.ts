@@ -128,6 +128,8 @@ export interface GameState {
   settings: Settings;
   stats: Stats;
   achievements: string[]; // ids of achievements unlocked, in order
+  folios: number; // Folios published (prestige resets)
+  folioPages: number; // pages banked by every Folio published: points x (1 + pages x folio.bonusPerPage)
   lastSaved: number; // epoch ms
 }
 
@@ -212,6 +214,8 @@ export function createInitialState(now = Date.now()): GameState {
     settings: createSettings(),
     stats: createStats(),
     achievements: [],
+    folios: 0,
+    folioPages: 0,
     lastSaved: now,
   };
 }
