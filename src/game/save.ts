@@ -1,6 +1,6 @@
 import { desk, furnitureKinds, hatColors, hats, petting, typing } from './config';
 import { furnishOffice } from './logic';
-import { layOutOffice } from './layout';
+import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
@@ -136,6 +136,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       doors: (Array.isArray(s.doors) ? (s.doors as Partial<Door>[]) : [])
         .filter((d) => d && Number.isInteger(d.x) && Number.isInteger(d.y) && ['n', 'e', 's', 'w'].includes(d.side as string))
         .map((d) => ({ x: d.x!, y: d.y!, side: d.side! })),
+      windows: (Array.isArray(s.windows) ? (s.windows as Partial<Door>[]) : [])
+        .filter((d) => d && Number.isInteger(d.x) && Number.isInteger(d.y) && ['n', 'e', 's', 'w'].includes(d.side as string))
+        .map((d) => ({ x: d.x!, y: d.y!, side: d.side! })),
+      fengShuiBook: s.fengShuiBook === true,
       squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),
       furniture: (Array.isArray(s.furniture) ? s.furniture : [])
         .filter((f) => f && (f.kind === desk.id || furnitureKinds.some((k) => k.id === f.kind)) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))
@@ -180,6 +184,9 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     if (state.office.length === 0) furnishOffice(state);
     // Saves from before hallways had each room on its own grid: lay them out and connect them.
     if (!Array.isArray(s.halls)) layOutOffice(state);
+    // Saves from before windows get one in every room; windows that don't face outside go.
+    tidyDoors(state);
+    if (!Array.isArray(s.windows)) for (const r of state.office) addWindow(state, r);
     return state;
   } catch {
     return fresh;

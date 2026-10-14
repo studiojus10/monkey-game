@@ -207,20 +207,38 @@ export interface FurnitureKind {
   rest: number; // in a break room, every monkey's breaks go this much faster (0.15 = 15%)
   happiness: number; // anywhere in the office: points x (1 + happiness), added up; monkeys also tire slower and rest faster
   size?: [number, number]; // squares across and down (1 x 1 when missing); turning a piece swaps them
+  element: Element; // its feng shui element
 }
 
+/** The five feng shui elements. A room with all five is balanced. */
+export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
+export const elements: Element[] = ['wood', 'fire', 'earth', 'metal', 'water'];
+
 /** The desk every monkey gets free, in its department's room. Not sold. */
-export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0 };
+export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal' }; // the typewriter is metal
 
 export const furnitureKinds: FurnitureKind[] = [
-  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01 },
-  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01 },
-  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02 },
-  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1] },
-  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01 },
-  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1] },
-  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03 },
+  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood' },
+  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal' },
+  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood' },
+  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth' },
+  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'water' },
+  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth' },
+  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire' },
 ];
+
+/**
+ * Feng shui: each room has five rules (see logic's roomChi), and its chi is
+ * the share it keeps. The office's chi (the average over rooms you can reach)
+ * adds up to maxHappiness to happiness once you own the feng shui book (in
+ * the Furniture store), which also shows the rules and each room's chi.
+ * Windows count as Fire. Placeholders.
+ */
+export const fengShui = {
+  maxHappiness: 0.1,
+  bookCost: 5_000,
+  windowElement: 'fire' as Element,
+};
 
 /**
  * Monkey energy, from 1 (100%) to 0. Typing drains it in drainSeconds; a tired
@@ -296,6 +314,7 @@ export const achievements: Achievement[] = [
   { id: 'first-department', name: 'Expansion', text: 'Open a second department', stat: 'departments', at: 2 },
   { id: 'first-room', name: 'Room to breathe', text: 'Buy a new room', stat: 'rooms', at: 2 },
   { id: 'first-furniture', name: 'Interior design', text: 'Buy a piece of furniture', stat: 'furniture', at: 1 },
+  { id: 'harmony', name: 'Harmony', text: 'Give a room perfect chi (feng shui)', stat: 'harmony', at: 1 },
   { id: 'first-hat', name: 'Hat trick', text: 'Give a monkey a hat', stat: 'hats', at: 1 },
   { id: 'first-dye', name: 'Dressed to the nines', text: 'Dye a hat', stat: 'dyed', at: 1 },
   { id: 'first-faster', name: 'Practice', text: 'Teach a monkey to type faster', stat: 'skill', at: 1 },

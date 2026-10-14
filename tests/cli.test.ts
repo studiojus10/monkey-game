@@ -23,7 +23,7 @@ import {
   slotHighlight,
   stores,
 } from '../src/cli/screen';
-import { officeMapWidth, renderOffice } from '../src/cli/office';
+import { officeMapWidth, renderOffice, renderFengShuiBook } from '../src/cli/office';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
 import { poke, typeLetter, buyRoom, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
@@ -359,7 +359,7 @@ describe('office space on screen', () => {
     const s = started();
     s.monkeys[0].name = 'Bobo';
     const text = plain(renderOffice(s));
-    expect(text).toContain('=== Office ===\n\n+-1-----+\n|[@]  . |\n|       |\n| .   . |\n+-------+');
+    expect(text).toContain('=== Office ===\n\n+-1-----+\n|[@]  . :\n|       |\n| .   . |\n+-------+');
     expect(text).toContain('   1 Comedies room      4 squares   1 monkey: Bobo');
     expect(text).toContain('[r] buy a room');
   });
@@ -404,19 +404,19 @@ describe('furniture', () => {
     const s = started();
     s.currency = 600;
     const text = plain(renderScreen(s, '', 'furniture'));
-    expect(text).toContain("[1] *Potted plant [P]: a department's monkeys tire 3% slower, +1% points   cost 500 Points");
-    expect(text).toContain('[7]  Television [T]: in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
+    expect(text).toContain("[1] *Potted plant [P] (wood): a department's monkeys tire 3% slower, +1% points   cost 500 Points");
+    expect(text).toContain('[7]  Television [T] (fire): in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
   });
 
   it('draws furniture, the cursor and a piece being moved', () => {
     const s = started();
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
-    expect(plain(renderOffice(s))).toContain('|[@]  P |');
+    expect(plain(renderOffice(s))).toContain('|[@]  P :');
     expect(plain(renderOffice(s))).toContain('P potted plant');
     expect(plain(renderOffice(s, '', { x: 1, y: 0 }))).toContain('Cursor: Comedies room, potted plant.');
     expect(plain(renderOffice(s, '', { x: 0, y: 1 }))).toContain('|>.<  . |');
     const moving = plain(renderOffice(s, '', { x: 1, y: 1 }, 1));
-    expect(moving).toContain('|[@]  . |\n    |       |\n    | .  >P<|');
+    expect(moving).toContain('|[@]  . :\n    |       |\n    | .  >P<|');
     expect(moving).toContain('Moving the potted plant.');
     expect(moving).toContain('[space] put it down   [esc] cancel');
   });
@@ -424,12 +424,12 @@ describe('furniture', () => {
   it('draws bigger pieces joined across their squares, and turned ones down', () => {
     const s = started();
     s.furniture.push({ kind: 'couch', room: 'r1', x: 0, y: 1 });
-    expect(plain(renderOffice(s))).toContain('|[@]  . |\n|       |\n| C===C |');
+    expect(plain(renderOffice(s))).toContain('|[@]  . :\n|       |\n| C===C |');
     s.furniture.shift(); // no desk: room for the couch to stand 1 x 2
     s.furniture[0] = { kind: 'couch', room: 'r1', x: 1, y: 0, turned: true };
-    expect(plain(renderOffice(s))).toContain('| .   C |\n|     | |\n| .   C |');
+    expect(plain(renderOffice(s))).toContain('| .   C :\n|     | |\n| .   C |');
     const moving = plain(renderOffice(s, '', { x: 0, y: 0 }, 0));
-    expect(moving).toContain('|>C<  . |\n    | |     |\n    | C   . |');
+    expect(moving).toContain('|>C<  . :\n    | |     |\n    | C   . |');
     expect(moving).toContain('Moving the couch (1 x 2 squares, from the top left).');
     expect(moving).toContain('[r] turn');
   });
@@ -468,6 +468,31 @@ describe('moving doors on the map', () => {
   });
 });
 
+describe('feng shui on screen', () => {
+  it('draws windows, sells the book, and once read shows each room\'s chi', () => {
+    const s = started();
+    s.windows = [{ x: 0, y: 1, side: 's' }, { x: 1, y: 0, side: 'e' }];
+    const map = plain(renderOffice(s));
+    expect(map).toContain('|[@]  . :'); // in a side wall
+    expect(map).toContain('+===----+'); // in the bottom wall
+    expect(map).toContain('=== : window');
+    expect(map).not.toContain('chi');
+    s.currency = 6000;
+    expect(plain(renderScreen(s, '', 'furniture'))).toContain("[8] *Feng shui book: learn what makes a room's chi flow");
+    s.fengShuiBook = true;
+    expect(plain(renderScreen(s, '', 'furniture'))).toContain('Feng shui book: yours.');
+    const read = plain(renderOffice(s));
+    expect(read).toContain('chi  80%');
+    expect(read).toContain('[b] read the feng shui book');
+    const book = plain(renderFengShuiBook(s));
+    expect(book).toContain('  Light    a window.');
+    expect(book).toContain('  Metal   desk, floor lamp');
+    expect(book).toContain('  Fire    television, windows');
+    expect(book).toMatch(/1 Comedies room +chi  80% +lacks Balance/);
+    expect(book).toContain('Office chi 80%: +8% happiness.');
+  });
+});
+
 describe('hats on screen', () => {
   it('sells hats and dye, and shows each monkey in its hat', () => {
     const s = started();
@@ -480,8 +505,8 @@ describe('hats on screen', () => {
     s.monkeys[0].hats = ['tophat'];
     s.monkeys[0].hat = 'tophat';
     expect(plain(renderScreen(s))).toContain('#@ M-1(0.50/s 100%)'); // a hat changes the icon
-    expect(plain(renderOffice(s))).toContain('|#@]  . |'); // on the map too
-    expect(plain(renderOffice(s, '', { x: 0, y: 0 }))).toContain('|>@<  . |');
+    expect(plain(renderOffice(s))).toContain('|#@]  . :'); // on the map too
+    expect(plain(renderOffice(s, '', { x: 0, y: 0 }))).toContain('|>@<  . :');
     s.monkeys[0].hatColor = 'red';
     expect(renderScreen(s)).toContain('\x1b[31m#\x1b[39m@ M-1'); // a dyed hat shows in its colour
     expect(renderOffice(s)).toContain('|\x1b[31m#\x1b[39m@]');
@@ -549,6 +574,7 @@ describe('plain ASCII', () => {
     const screens = [
       ...stores.map((store) => renderScreen(s, '', store)),
       renderOffice(s, '', { x: 0, y: 0 }, -1, true),
+      renderFengShuiBook(s),
       renderOptions(s),
       renderKeysMenu(s),
       renderStats(s),

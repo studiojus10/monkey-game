@@ -1,4 +1,4 @@
-import { desk, furnitureKinds, monkeyIcon, office as officeRules, theme } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, monkeyIcon, office as officeRules, theme } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
@@ -14,7 +14,8 @@ import {
   restBoost,
   happiness,
 } from '../game/logic';
-import { connectedRooms, doorAt, isHall, officeBounds, roomAt } from '../game/layout';
+import { connectedRooms, doorAt, isHall, officeBounds, roomAt, windowAt } from '../game/layout';
+import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { dyed, genreNames, hatOf, monkeyIconLegend, price } from './screen';
 
@@ -132,7 +133,7 @@ export function renderOffice(
   const labels = new Map<string, string>();
   state.office.forEach((r, i) => {
     const top = [...r.cells].filter(([x, y]) => !r.cells.some(([cx, cy]) => cx === x && cy === y - 1));
-    const [x, y] = top.sort((a, c) => a[1] - c[1] || a[0] - c[0]).find(([tx, ty]) => !doorAt(state, tx, ty, 'n')) ?? top[0];
+    const [x, y] = top.sort((a, c) => a[1] - c[1] || a[0] - c[0]).find(([tx, ty]) => !doorAt(state, tx, ty, 'n') && !windowAt(state, tx, ty, 'n')) ?? top[0];
     labels.set(`${x},${y}`, String(i + 1));
   });
   // A door being moved shows where it would go, on the cursor's square.
@@ -143,11 +144,14 @@ export function renderOffice(
     return (cursor.x === x && cursor.y === y && heldDoor === side) || (cursor.x + dx === x && cursor.y + dy === y && flip[heldDoor] === side);
   };
   const isDoor = (x: number, y: number, side: Side) => !!doorAt(state, x, y, side) || preview(x, y, side);
+  // A window in the wall above square x, y, or left of it (stored from the room's side).
+  const windowAbove = (x: number, y: number) => !!windowAt(state, x, y, 'n') || !!windowAt(state, x, y - 1, 's');
+  const windowLeft = (x: number, y: number) => !!windowAt(state, x, y, 'w') || !!windowAt(state, x - 1, y, 'e');
   const hWall = (x: number, y: number) => {
     if (!wall(x, y - 1, x, y)) return preview(x, y, 'n') ? ' / ' : joined(x, y - 1, x, y) ? ' | ' : '   ';
     if (isDoor(x, y, 'n')) return '-/-';
     const label = labels.get(`${x},${y}`);
-    return label ? `-${label}`.padEnd(3, '-') : '---';
+    return label ? `-${label}`.padEnd(3, '-') : windowAbove(x, y) ? '===' : '---';
   };
   const lines: string[] = [];
   for (let y = minY; y <= maxY + 1; y++) {
@@ -157,7 +161,7 @@ export function renderOffice(
     if (y > maxY) break;
     let row = '';
     for (let x = minX; x <= maxX + 1; x++) {
-      row += wall(x - 1, y, x, y) ? (isDoor(x, y, 'w') ? '/' : '|') : preview(x, y, 'w') ? '/' : joined(x - 1, y, x, y) ? '=' : ' ';
+      row += wall(x - 1, y, x, y) ? (isDoor(x, y, 'w') ? '/' : windowLeft(x, y) ? ':' : '|') : preview(x, y, 'w') ? '/' : joined(x - 1, y, x, y) ? '=' : ' ';
       if (x <= maxX) row += cell(x, y);
     }
     lines.push(row.trimEnd());
@@ -180,7 +184,8 @@ export function renderOffice(
             return `${pieces} piece${pieces === 1 ? '' : 's'} of furniture`;
           })();
     const locked = open.has(r.id) ? '' : '   NO WAY IN: add a door or hallway';
-    return `  ${String(i + 1).padStart(2)} ${roomName(state, r).padEnd(18)} ${size} ${detail}${locked}`;
+    const chi = state.fengShuiBook ? `chi ${pct(roomChi(state, r)).padStart(4)}   ` : '';
+    return `  ${String(i + 1).padStart(2)} ${roomName(state, r).padEnd(18)} ${size} ${chi}${detail}${locked}`;
   });
   const furnished = furnitureKinds.filter((k) => state.furniture.some((f) => f.kind === k.id)).map((k) => `${k.glyph} ${k.name.toLowerCase()}`);
   const underCursor = cursor ? roomAt(state, cursor.x, cursor.y) : undefined;
@@ -197,12 +202,13 @@ export function renderOffice(
     '',
     ...lines,
     '',
-    [...monkeyIconLegend, '[ ] free desk', '/ door', ...furnished].join('   '),
+    [...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished].join('   '),
     '',
     ...summary,
     '',
     "Each monkey gets a desk in its department's room. Every room needs a way in from room 1: doors (/) and hallways.",
-    `Breaks go ${pct(restBoost(state))} faster (comforts in break rooms). Happiness: +${pct(happiness(state))} points (all furniture).`,
+    `Breaks go ${pct(restBoost(state))} faster (comforts in break rooms). Happiness: +${pct(happiness(state))} points (${state.fengShuiBook ? `furniture, and feng shui: chi ${pct(officeChi(state))} gives +${pct(chiHappiness(state))}` : 'all furniture'}).`,
+    ...(state.fengShuiBook ? ['[b] read the feng shui book: what each room needs for good chi.'] : []),
     ...roomlessDepartments(state).map((g) => `The ${genreNames[g]} department needs a room: press [r] to buy one.`),
     `New room: ${price(roomCost(state), state.currency)} ${theme.currency}. One more square for a room: ${price(squareCost(state), state.currency)} ${theme.currency}.`,
     '',
@@ -221,9 +227,49 @@ export function renderOffice(
           ? [`Moving a door: the ${sideName[heldDoor]} wall of this square.`, '[arrows] move   [space] put it in   [r] next wall   [esc] cancel']
           : [
               `${where}   [arrows] move   [tab] next room   [space] pick up furniture or a door   [x] grow this room`.trim(),
-              '[d] door on this square (again: next wall, then none)   [h] hallway here on/off   [r] buy a room   [esc] back',
+              '[d] door on this square (again: next wall, then none)   [w] window (outside walls)   [h] hallway here on/off   [r] buy a room   [esc] back',
             ]),
     '',
     message,
+  ].join('\n');
+}
+
+/** The feng shui book: the five rules, the elements, and what each room keeps and lacks. */
+export function renderFengShuiBook(state: GameState): string {
+  const kinds = [desk, ...furnitureKinds];
+  const byElement = elements.map((e) => {
+    const names = [...kinds.filter((k) => elementOf(k.id) === e).map((k) => k.name.toLowerCase()), ...(e === fengShui.windowElement ? ['windows'] : [])];
+    return `  ${e[0].toUpperCase()}${e.slice(1).padEnd(6)} ${names.join(', ')}`;
+  });
+  const open = connectedRooms(state);
+  const rooms = state.office.map((r, i) => {
+    const kept = roomRules(state, r);
+    const lacks = chiRules.filter((x) => !kept[x.id]).map((x) => x.name);
+    const state_ = open.has(r.id) ? (lacks.length === 0 ? 'perfect' : `lacks ${lacks.join(', ')}`) : 'no way in: it counts for nothing';
+    return `  ${String(i + 1).padStart(2)} ${roomName(state, r).padEnd(18)} chi ${pct(roomChi(state, r)).padStart(4)}   ${state_}`;
+  });
+  return [
+    '=== The Way of the Typewriter: feng shui for monkeys ===',
+    '',
+    '"Chi enters by the door, wanders the room, and leaves the way it came.',
+    ' A monkey who cannot see the door will never truly rest."',
+    '',
+    'A room keeps up to five rules. Its chi is the share it keeps; the office\'s chi',
+    `(the average over its rooms) makes every monkey happier, up to +${pct(fengShui.maxHappiness)}.`,
+    '',
+    ...chiRules.map((x) =>
+      x.department === x.break
+        ? `  ${x.name.padEnd(8)} ${x.department}.`
+        : `  ${x.name.padEnd(8)} ${x.department}; in a break room, ${x.break}.`,
+    ),
+    '',
+    'The elements:',
+    ...byElement,
+    '',
+    ...rooms,
+    '',
+    `Office chi ${pct(officeChi(state))}: +${pct(chiHappiness(state))} happiness.`,
+    '',
+    '[b] or [esc] back to the map',
   ].join('\n');
 }

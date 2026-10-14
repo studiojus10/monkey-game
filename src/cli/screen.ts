@@ -1,4 +1,4 @@
-import { dyeCost, departmentRules, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { dyeCost, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -392,8 +392,15 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       return [
         ...furnitureKinds.map((k) => {
           const cost = furnitureCost(state, k.id);
-          return { id: `furniture:${k.id}`, star: !!furnitureSpot(state, k.id) && state.currency >= cost, text: `${k.name} [${k.glyph}]: ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return { id: `furniture:${k.id}`, star: !!furnitureSpot(state, k.id) && state.currency >= cost, text: `${k.name} [${k.glyph}] (${k.element}): ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
         }),
+        state.fengShuiBook
+          ? { text: 'Feng shui book: yours. Read it on the office map ([o], then [b]).' }
+          : {
+              id: 'fengshui',
+              star: state.currency >= fengShui.bookCost,
+              text: `Feng shui book: learn what makes a room's chi flow; good chi makes monkeys happier   cost ${price(fengShui.bookCost, state.currency)} ${theme.currency}`,
+            },
         {
           text: !spot
             ? 'No free floor left: buy a break room or grow a room on the office map ([o]).'

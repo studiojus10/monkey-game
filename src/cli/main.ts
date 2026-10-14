@@ -10,6 +10,7 @@ import {
   hatCost,
   wearHat,
   buyFurniture,
+  buyFengShuiBook,
   cellAt,
   pieceSize,
   furnitureSpot,
@@ -105,8 +106,8 @@ import {
 } from './screen';
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { sideName, furnitureName, renderOffice, roomName, type Cell } from './office';
-import { cycleDoor, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
+import { sideName, furnitureName, renderFengShuiBook, renderOffice, roomName, type Cell } from './office';
+import { cycleDoor, cycleWindow, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -162,6 +163,7 @@ let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
+let readingBook = false; // the feng shui book, open from the office map
 let pickingHat = ''; // choosing a monkey for this hat
 let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
 let pickingDyeColor = false; // choosing which colour to dye
@@ -259,6 +261,9 @@ function buyItem(id: string): void {
       pickingDyeColor = true;
       message = dyeColorPrompt();
     }
+  } else if (id === 'fengshui') {
+    if (buyFengShuiBook(state)) message = 'You bought the feng shui book. Read it on the office map: [o], then [b].';
+    else message = `Not enough ${theme.currency}.`;
   } else if (id.startsWith('furniture:')) {
     const kind = id.slice('furniture:'.length);
     if (!furnitureSpot(state, kind))
@@ -366,6 +371,8 @@ function draw() {
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
     : showingOptions
     ? renderOptions(state)
+    : showingOffice && readingBook
+    ? renderFengShuiBook(state)
     : showingOffice
     ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null)
     : showingAchievements
@@ -733,6 +740,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingOffice && readingBook) {
+    if (key.name === 'escape' || key.name === 'q' || str === 'b' || str === 'o') readingBook = false;
+    return draw();
+  }
+
   if (showingOffice && officeCursor) {
     message = '';
     const c = officeCursor;
@@ -785,6 +797,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else message = 'Put the cursor in the room you want to grow.';
     } else if (str === 'd' && !holding && !officeGrowing) {
       if (!cycleDoor(state, c.x, c.y)) message = here ? 'Doors go in walls onto a hallway or another room.' : 'Doors go on the edge of a room.';
+    } else if (str === 'w' && !holding && !officeGrowing) {
+      if (!cycleWindow(state, c.x, c.y)) message = here ? 'Windows go in walls that face outside: no hallway or room beyond.' : 'Windows go in the walls of a room.';
+    } else if (str === 'b' && !holding && !officeGrowing) {
+      if (state.fengShuiBook) readingBook = true;
+      else message = 'The feng shui book is in the Furniture store.';
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {

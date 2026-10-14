@@ -30,11 +30,13 @@ import {
   petting,
   achievements,
   folio,
+  fengShui,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
-import { autoConnect, connectedRooms, placeRoom, roomCanUse } from './layout';
+import { addWindow, autoConnect, connectedRooms, placeRoom, roomCanUse, tidyDoors } from './layout';
+import { chiHappiness, roomChi, squareRank } from './fengshui';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
@@ -398,11 +400,16 @@ export function restBoost(state: GameState): number {
   return Math.min(energyRules.maxRestBoost, sum);
 }
 
-/** Office happiness from the furniture in rooms you can reach: points x (1 + happiness), and every monkey tires slower and rests faster. */
-export function happiness(state: GameState): number {
+/** Office happiness from the furniture in rooms you can reach (capped): points x (1 + happiness), and every monkey tires slower and rests faster. */
+export function furnitureHappiness(state: GameState): number {
   const rooms = connectedRooms(state);
   const sum = state.furniture.reduce((n, f) => n + (rooms.has(f.room) ? (kindOf(f.kind)?.happiness ?? 0) : 0), 0);
   return Math.min(energyRules.maxHappiness, sum);
+}
+
+/** Office happiness: the furniture's, plus feng shui's (see fengshui.ts). */
+export function happiness(state: GameState): number {
+  return furnitureHappiness(state) + chiHappiness(state);
 }
 
 /** A monkey's happiness: the office's (furniture) plus its own from petting. Happier monkeys tire slower and rest faster. */
@@ -731,10 +738,23 @@ export function hasDeskSpace(state: GameState, genre: Genre | undefined): boolea
   return !!room && freeSquares(state, room).length > 0;
 }
 
-/** Stands a new desk on the first free square of a department's room. */
+/**
+ * A room's free squares, best first for a new piece: out of the way of doors
+ * (see squareRank), and for desks against a wall too, then in reading order.
+ */
+function bestSquares(state: GameState, room: Room, forDesk = false): [number, number][] {
+  const inRoom = (x: number, y: number) => hasCell(room, x, y);
+  const open = ([x, y]: [number, number]) => (forDesk && inRoom(x, y - 1) && inRoom(x + 1, y) && inRoom(x, y + 1) && inRoom(x - 1, y) ? 1 : 0);
+  return freeSquares(state, room)
+    .map((sq, i) => ({ sq, score: [squareRank(state, room, sq[0], sq[1]), open(sq), i] }))
+    .sort((a, b) => a.score[0] - b.score[0] || a.score[1] - b.score[1] || a.score[2] - b.score[2])
+    .map((x) => x.sq);
+}
+
+/** Stands a new desk on the best free square of a department's room (see bestSquares). */
 function placeDesk(state: GameState, genre: Genre | undefined): void {
   const room = departmentRoom(state, genre);
-  const square = room && freeSquares(state, room)[0];
+  const square = room && bestSquares(state, room, true)[0];
   if (room && square) state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
 }
 
@@ -765,6 +785,8 @@ export function addRoom(state: GameState, kind: Room['kind'], department: string
   const room: Room = { id, kind, department: kind === 'department' ? department : '', cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
   state.office.push(room);
   autoConnect(state);
+  tidyDoors(state); // windows the new hallway now covers
+  for (const r of state.office) addWindow(state, r);
   return room;
 }
 
@@ -810,6 +832,8 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   state.currency -= cost;
   room.cells.push([x, y]);
   state.squaresBought++;
+  tidyDoors(state); // a window in the wall it grew through is gone
+  addWindow(state, room);
   seatWaiting(state);
   return true;
 }
@@ -819,12 +843,20 @@ export function furnitureSpot(state: GameState, kind = 'plant'): Omit<Furniture,
   const rooms = [...state.office.filter((r) => r.kind === 'break'), ...state.office.filter((r) => r.kind !== 'break')];
   const [w, h] = pieceSize(kind);
   for (const room of rooms) {
-    for (const [x, y] of freeSquares(state, room)) {
+    for (const [x, y] of bestSquares(state, room)) {
       if (fitsAt(state, room.id, kind, x, y)) return { room: room.id, x, y };
       if (w !== h && fitsAt(state, room.id, kind, x, y, true)) return { room: room.id, x, y, turned: true };
     }
   }
   return null;
+}
+
+/** Buys the feng shui book: the office map then shows each room's chi and the rules. */
+export function buyFengShuiBook(state: GameState): boolean {
+  if (state.fengShuiBook || state.currency < fengShui.bookCost) return false;
+  state.currency -= fengShui.bookCost;
+  state.fengShuiBook = true;
+  return true;
 }
 
 /** Points for the next piece of a kind of furniture. */
@@ -1573,6 +1605,7 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'departments': return state.departments.length;
     case 'rooms': return state.office.length;
     case 'furniture': return state.furniture.filter((f) => f.kind !== desk.id).length;
+    case 'harmony': return state.office.filter((r) => roomChi(state, r) === 1).length;
     case 'hats': return ms.reduce((n, m) => n + m.hats.length, 0);
     case 'hatKinds': return new Set(ms.flatMap((m) => m.hats)).size;
     case 'dyed': return state.stats.dyes;

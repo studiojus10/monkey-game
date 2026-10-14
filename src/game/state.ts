@@ -104,6 +104,8 @@ export interface GameState {
   office: Room[]; // rooms, in the order bought, on one grid; the first is where you start (the entrance)
   halls: [number, number][]; // hallway squares
   doors: Door[];
+  windows: Door[]; // windows, each in a wall on one side of a room's square that faces outside
+  fengShuiBook: boolean; // bought the feng shui book: the office map shows each room's chi
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
@@ -191,6 +193,8 @@ export function createInitialState(now = Date.now()): GameState {
     office: [starterRoom()],
     halls: [],
     doors: [],
+    windows: [{ x: 1, y: 0, side: 'e' }],
+    fengShuiBook: false,
     squaresBought: 0,
     furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
     departments: [],

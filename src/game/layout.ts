@@ -58,7 +58,7 @@ export function doorSides(state: GameState, x: number, y: number): Side[] {
   });
 }
 
-/** Drops doors that no longer lead anywhere (a hallway or room was moved). */
+/** Drops doors that no longer lead anywhere, and windows that no longer face outside (a hallway or room was moved or grew). */
 export function tidyDoors(state: GameState): void {
   const plan = floorPlan(state);
   state.doors = state.doors.filter((d) => {
@@ -67,6 +67,75 @@ export function tidyDoors(state: GameState): void {
     const there = plan.get(at(bx, by));
     return !!here && !!there && here !== there && here !== 'hall';
   });
+  state.windows = state.windows.filter((w) => windowSides(state, w.x, w.y).includes(w.side));
+}
+
+/** The window in the wall on one side of a room square. */
+export function windowAt(state: GameState, x: number, y: number, side: Side): Door | undefined {
+  return state.windows.find((w) => w.x === x && w.y === y && w.side === side);
+}
+
+/** Sides of a room square that a window could go in: walls with nothing beyond them (no room, no hallway). */
+export function windowSides(state: GameState, x: number, y: number): Side[] {
+  const plan = floorPlan(state);
+  const here = plan.get(at(x, y));
+  if (!here || here === 'hall') return [];
+  return sideOrder.filter((s) => !plan.has(at(x + sides[s][0], y + sides[s][1])));
+}
+
+/**
+ * Turns the window on a room square to its next outside wall (north, east,
+ * south, west), then off. Returns false if no wall of the square faces outside.
+ */
+export function cycleWindow(state: GameState, x: number, y: number): boolean {
+  const options = windowSides(state, x, y);
+  if (options.length === 0) return false;
+  const current = options.findIndex((s) => windowAt(state, x, y, s));
+  state.windows = state.windows.filter((w) => w.x !== x || w.y !== y);
+  const next = options[current + 1];
+  if (next) state.windows.push({ x, y, side: next });
+  return true;
+}
+
+/**
+ * A door's path into a room: the square inside the door, then on in a straight
+ * line to the far wall. `side` is the way the path runs.
+ */
+export type DoorPath = { door: Door; side: Side; squares: Square[] };
+
+/** The straight paths in from each of a room's doors. */
+export function doorPaths(state: GameState, room: Room): DoorPath[] {
+  const inRoom = (x: number, y: number) => room.cells.some(([cx, cy]) => cx === x && cy === y);
+  const out: DoorPath[] = [];
+  for (const d of state.doors) {
+    // A door is stored from either side of its wall.
+    const [bx, by] = beyond(d);
+    const start: Square | null = inRoom(d.x, d.y) ? [d.x, d.y] : inRoom(bx, by) ? [bx, by] : null;
+    if (!start) continue;
+    const side = start[0] === d.x && start[1] === d.y ? opposite[d.side] : d.side;
+    const squares: Square[] = [];
+    for (let [x, y] = start; inRoom(x, y); x += sides[side][0], y += sides[side][1]) squares.push([x, y]);
+    out.push({ door: d, side, squares });
+  }
+  return out;
+}
+
+/**
+ * Gives a room a window if it has none: on the first outside wall (east, west,
+ * south, then north, so the room's number keeps its top wall) that no door
+ * looks straight at.
+ */
+export function addWindow(state: GameState, room: Room): void {
+  if (room.cells.some(([x, y]) => state.windows.some((w) => w.x === x && w.y === y))) return;
+  const paths = doorPaths(state, room);
+  const facing = (x: number, y: number, s: Side) =>
+    paths.some((p) => p.side === s && p.squares.some(([px, py]) => px === x && py === y));
+  const options: [number, number, Side][] = [];
+  for (const s of ['e', 'w', 's', 'n'] as Side[]) {
+    for (const [x, y] of [...room.cells].sort(readingOrder)) if (windowSides(state, x, y).includes(s)) options.push([x, y, s]);
+  }
+  const pick = options.find(([x, y, s]) => !facing(x, y, s)) ?? options[0];
+  if (pick) state.windows.push({ x: pick[0], y: pick[1], side: pick[2] });
 }
 
 let reachMemo: { key: string; reach: Reach } | null = null;
@@ -314,12 +383,9 @@ export function takeDoor(state: GameState, x: number, y: number): Door | undefin
 /** Lays a hallway square on empty floor, or takes one up. Returns false for a room's square. */
 export function toggleHall(state: GameState, x: number, y: number): boolean {
   if (roomAt(state, x, y)) return false;
-  if (isHall(state, x, y)) {
-    state.halls = state.halls.filter(([hx, hy]) => hx !== x || hy !== y);
-    tidyDoors(state);
-  } else {
-    state.halls.push([x, y]);
-  }
+  if (isHall(state, x, y)) state.halls = state.halls.filter(([hx, hy]) => hx !== x || hy !== y);
+  else state.halls.push([x, y]);
+  tidyDoors(state); // doors that led there, or windows that looked out there
   return true;
 }
 
