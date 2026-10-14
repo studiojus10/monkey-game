@@ -363,7 +363,7 @@ describe('office space on screen', () => {
     s.monkeys[0].name = 'Bobo';
     const text = plain(renderOffice(s));
     expect(text).toContain('=== Office ===\n\n+-1-----+\n|[@]  . :\n|       |\n| .   . |\n+-------+');
-    expect(text).toContain('   1 Comedies room      4 squares   1 monkey: Bobo');
+    expect(text).toContain('   1 Comedies room      4 squares   lounge: none; 1 monkey: Bobo');
     expect(text).toContain('[r] buy a room');
   });
 
@@ -380,12 +380,26 @@ describe('office space on screen', () => {
   it('draws hallways and doors between rooms, and warns about a room with no way in', () => {
     const s = started();
     s.currency = 1e12;
-    buyRoom(s, 'break');
+    s.departments = ['comedy', 'tragedy'];
+    buyRoom(s, 'department', 'tragedy');
     const text = plain(renderOffice(s));
     expect(text).toContain('/   /[@]'); // a door, a hallway square, a door into room 1
-    expect(text).toContain('   2 Break room');
+    expect(text).toContain('   2 Tragedies room');
     s.doors = [];
     expect(plain(renderOffice(s))).toContain('NO WAY IN');
+  });
+
+  it("shows each department's lounge, and the departments each break room is the lounge of", () => {
+    const s = started();
+    s.currency = 1e12;
+    s.departments = ['comedy', 'tragedy'];
+    buyRoom(s, 'department', 'tragedy');
+    buyRoom(s, 'break'); // against both, with a door into each
+    s.furniture.push({ kind: 'tv', room: 'r3', x: s.office[2].cells[0][0], y: s.office[2].cells[0][1] });
+    const text = plain(renderOffice(s));
+    expect(text).toContain('Comedies room      4 squares   lounge: Break room; breaks 40% faster, +3% happy; 1 monkey');
+    expect(text).toContain('Tragedies room     9 squares   lounge: Break room; breaks 40% faster, +3% happy; 0 monkeys');
+    expect(text).toContain('Break room         9 squares   1 piece of furniture; lounge of Comedies room, Tragedies room');
   });
 
   it('places rooms to keep the map narrow enough for the terminal', () => {
@@ -408,16 +422,16 @@ describe('furniture', () => {
     s.currency = 600;
     const text = plain(renderScreen(s, '', 'department'));
     expect(text).toMatch(/\[Department rooms\*\] +Break rooms +Hats/);
-    expect(text).toContain("For departments' rooms. Decor here makes the room's monkeys tire slower.");
-    expect(text).toContain('[1] *Potted plant [P] (wood): its monkeys tire 3% slower, +1% points   cost 500 Points');
-    expect(text).toContain('[2] *Scented candle [I] (fire): its monkeys tire 3% slower, +1% points   cost 500 Points'); // same price, same benefit
-    expect(text).toContain("[3] *Wall clock [K] (metal): its monkeys tire 3% slower, +1% points, departments' rooms only   cost 500 Points");
+    expect(text).toContain("For departments' rooms. Furniture here helps only that room's monkeys.");
+    expect(text).toContain('[1] *Potted plant [P] (wood): monkeys tire 3% slower, +1% points   cost 500 Points');
+    expect(text).toContain('[2] *Scented candle [I] (fire): monkeys tire 3% slower, +1% points   cost 500 Points'); // same price, same benefit
+    expect(text).toContain("[3] *Wall clock [K] (metal): monkeys tire 3% slower, +1% points, departments' rooms only   cost 500 Points");
     expect(text).not.toContain('Television'); // break rooms only
     expect(text).toContain('Page 1 of 2: [up] and [down] show more');
-    expect(storeChoices(s, 'department', 1).map((x) => x.id)).toContain('furniture:cooler@department'); // fits either, but helps only in a break room
+    expect(storeChoices(s, 'department', 1).map((x) => x.id)).toContain('furniture:cooler@department'); // fits either room
     const lounge = plain(renderScreen(s, '', 'break'));
-    expect(lounge).toContain("For break rooms. Comforts here make every monkey's breaks faster.");
-    expect(lounge).toContain('[1]  Potted plant [P] (wood): +1% points   cost 500 Points'); // fits, but its decor works only in a department's room
+    expect(lounge).toContain('For break rooms. Furniture here helps each department whose lounge it is: its nearest break room.');
+    expect(lounge).toContain('[1]  Potted plant [P] (wood): monkeys tire 3% slower, +1% points   cost 500 Points'); // fits either room, and helps wherever it is
     expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
     expect(lounge).not.toContain('[1] *'); // nowhere to put it
     const last = plain(renderScreen(s, '', 'break', 0, 2));

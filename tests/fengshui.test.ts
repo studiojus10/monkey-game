@@ -128,7 +128,7 @@ describe('feng shui', () => {
     expect(s.fengShuiBook).toBe(true);
     expect(hidesBook(s, 2)).toBe(false); // read: nothing more to find
     expect(chiHappiness(s)).toBeCloseTo(fengShui.maxHappiness * officeChi(s));
-    expect(happiness(s)).toBeCloseTo(furnitureHappiness(s) + chiHappiness(s));
+    expect(happiness(s, undefined)).toBeCloseTo(furnitureHappiness(s, undefined) + chiHappiness(s));
   });
 
   it('places new pieces out of the way of doors', () => {

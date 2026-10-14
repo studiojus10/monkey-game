@@ -396,8 +396,8 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         {
           text:
             store === 'department'
-              ? "For departments' rooms. Decor here makes the room's monkeys tire slower."
-              : "For break rooms. Comforts here make every monkey's breaks faster.",
+              ? "For departments' rooms. Furniture here helps only that room's monkeys."
+              : 'For break rooms. Furniture here helps each department whose lounge it is: its nearest break room.',
         },
         ...kinds.map((k) => {
           const cost = furnitureCost(state, k.id);
@@ -513,8 +513,8 @@ export function inspectItem(id: string | undefined): string {
 export function furnitureEffect(k: FurnitureKind, room: RoomKind): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return [
-    ...(room === 'department' && k.drain ? [`its monkeys tire ${pct(k.drain)} slower`] : []),
-    ...(room === 'break' && k.rest ? [`breaks go ${pct(k.rest)} faster`] : []),
+    ...(k.drain ? [`monkeys tire ${pct(k.drain)} slower`] : []),
+    ...(k.rest ? [`breaks go ${pct(k.rest)} faster`] : []),
     ...(k.happiness ? [`+${pct(k.happiness)} points`] : []),
     ...(k.rooms.length === 1 ? [`${room === 'break' ? 'break rooms' : "departments' rooms"} only`] : []),
   ].join(', ') + (k.size ? ` (takes ${k.size[0]} x ${k.size[1]} squares)` : '');

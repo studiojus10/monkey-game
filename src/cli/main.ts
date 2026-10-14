@@ -110,7 +110,7 @@ import {
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, roomName, type Cell } from './office';
-import { cycleDoor, cycleWindow, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
+import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -782,7 +782,14 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else if (g ? buyRoom(state, 'department', g) : buyRoom(state, 'break')) {
         const room = state.office[state.office.length - 1];
         Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
-        message = `You have a new room, the ${roomName(state, room)}, with a hallway to the rest of the office.`;
+        const next = touchingRooms(state, room).filter((r) => doorBetween(state, room, r)).map((r) => `the ${roomName(state, r)}`);
+        const served = room.kind === 'break' ? servedBy(state, room).map((r) => `the ${roomName(state, r)}`) : [];
+        const lounge = room.kind === 'department' ? loungeOf(state, room) : undefined;
+        message = [
+          `You have a new room, the ${roomName(state, room)}, ${next.length > 0 ? `with a door straight into ${next.join(' and ')}` : 'with a hallway to the rest of the office'}.`,
+          ...(served.length > 0 ? [`It's the lounge of ${served.join(' and ')}.`] : []),
+          ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
+        ].join(' ');
       }
       return draw();
     }

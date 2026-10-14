@@ -111,7 +111,7 @@ import {
   nextOwnedScene,
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
-import { autoConnect, connectedRooms, cycleDoor, doorSides, isConnected, layOutOffice, placeDoor, takeDoor, toggleHall } from '../src/game/layout';
+import { autoConnect, connectedRooms, cycleDoor, doorBetween, doorSides, isConnected, layOutOffice, loungeOf, placeDoor, servedBy, takeDoor, toggleHall } from '../src/game/layout';
 
 // Most tests check typing exactly, so monkeys don't tire unless a test says so.
 const drainSeconds = energy.drainSeconds;
@@ -1445,22 +1445,55 @@ describe('energy', () => {
 });
 
 describe('furniture effects', () => {
-  it('decor slows tiring in its department room, comforts speed up breaks in break rooms, all of it adds happiness (points and energy)', () => {
+  it('gives a department the furniture in its own room and in its lounge, all of it adding happiness (points and energy)', () => {
     const s = createInitialState(0);
     s.currency = 1e15;
     s.office[0].cells.push([2, 0], [2, 1]);
-    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'couch', room: 'r1', x: 2, y: 0 }); // a couch at work does nothing for breaks
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'armchair', room: 'r1', x: 2, y: 0 });
     expect(drainCut(s, undefined)).toBeCloseTo(0.03);
-    expect(restBoost(s)).toBe(0);
+    expect(restBoost(s, undefined)).toBeCloseTo(0.08);
     expect(buyRoom(s, 'break')).toBe(true);
-    s.furniture.push({ kind: 'tv', room: 'r2', x: 0, y: 0 }, { kind: 'bookshelf', room: 'r2', x: 1, y: 0 }); // decor in a break room only adds happiness
-    expect(restBoost(s)).toBeCloseTo(0.4);
-    expect(drainCut(s, undefined)).toBeCloseTo(0.03);
-    expect(happiness(s)).toBeCloseTo(0.01 + 0.02 + 0.03 + 0.02);
-    expect(pointsMultiplier(s)).toBeCloseTo(1.08);
+    const lounge = s.office[1];
+    expect(loungeOf(s, s.office[0])).toBe(lounge);
+    s.furniture.push(
+      { kind: 'tv', room: lounge.id, x: lounge.cells[0][0], y: lounge.cells[0][1] },
+      { kind: 'fountain', room: lounge.id, x: lounge.cells[1][0], y: lounge.cells[1][1] },
+    );
+    expect(restBoost(s, undefined)).toBeCloseTo(0.48);
+    expect(drainCut(s, undefined)).toBeCloseTo(0.09);
+    expect(happiness(s, undefined)).toBeCloseTo(0.01 + 0.01 + 0.03 + 0.02);
+    expect(pointsMultiplier(s, s.monkeys[0])).toBeCloseTo(1.07);
     const rates = energyRates(s, s.monkeys[0]);
-    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.4 / 1.08); // happiness helps too
-    expect(rates.drainSeconds).toBeCloseTo((energy.drainSeconds * 1.08) / 0.97);
+    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.48 / 1.07); // happiness helps too
+    expect(rates.drainSeconds).toBeCloseTo((energy.drainSeconds * 1.07) / 0.91);
+  });
+
+  it("gives each department only its lounge: the nearest break room, then the biggest, then the most furnished", () => {
+    const s = createInitialState(0); // room 1: 2x2 at 0,0
+    const add = (id: string, x0: number, y0: number) => s.office.push({ id, kind: 'break', department: '', cells: rectangle(2, 2).map(([x, y]) => [x + x0, y + y0]) });
+    add('r2', 2, 0); // against room 1's east wall
+    add('r3', -4, 0); // two hallway squares west
+    s.halls = [[-1, 0], [-2, 0]];
+    s.doors = [{ x: 1, y: 0, side: 'e' }, { x: 0, y: 0, side: 'w' }, { x: -3, y: 0, side: 'e' }];
+    s.furniture.push({ kind: 'tv', room: 'r3', x: -4, y: 0 });
+    expect(loungeOf(s, s.office[0])?.id).toBe('r2'); // a door straight in is nearest
+    expect(restBoost(s, undefined)).toBe(0); // so the TV down the hall does nothing
+    s.doors.shift();
+    expect(loungeOf(s, s.office[0])?.id).toBe('r3');
+    expect(restBoost(s, undefined)).toBeCloseTo(0.4);
+    expect(servedBy(s, s.office[2]).map((r) => r.id)).toEqual(['r1']);
+
+    s.office.pop();
+    s.halls = [];
+    add('r3', 0, 2); // against room 1's south wall
+    s.doors = [{ x: 1, y: 0, side: 'e' }, { x: 0, y: 1, side: 's' }];
+    s.furniture = s.furniture.filter((f) => f.kind === 'desk');
+    expect(loungeOf(s, s.office[0])?.id).toBe('r2'); // as near and as big: the first
+    s.furniture.push({ kind: 'plant', room: 'r3', x: 0, y: 2 });
+    expect(loungeOf(s, s.office[0])?.id).toBe('r3'); // the most furnished
+    s.office[1].cells.push([4, 0]);
+    expect(loungeOf(s, s.office[0])?.id).toBe('r2'); // the biggest
+    expect(drainCut(s, undefined)).toBe(0); // the plant is in the other one
   });
 
   it('caps each effect', () => {
@@ -1468,9 +1501,9 @@ describe('furniture effects', () => {
     s.office[0].cells = rectangle(10, 10);
     const r2 = addRoom(s, 'break', '', 10, 10);
     for (let i = 0; i < 40; i++) s.furniture.push({ kind: 'tv', room: 'r2', x: r2.cells[i][0], y: r2.cells[i][1] }, { kind: 'bookshelf', room: 'r1', x: i % 10, y: 5 + Math.floor(i / 10) });
-    expect(restBoost(s)).toBe(energy.maxRestBoost);
+    expect(restBoost(s, undefined)).toBe(energy.maxRestBoost);
     expect(drainCut(s, undefined)).toBe(energy.maxDrainCut);
-    expect(happiness(s)).toBe(energy.maxHappiness);
+    expect(happiness(s, undefined)).toBe(energy.maxHappiness);
   });
 });
 
@@ -1652,22 +1685,39 @@ describe('bigger furniture', () => {
 });
 
 describe('doors and hallways', () => {
-  it('places each new room apart from the others, with a hallway and doors back to the first room', () => {
+  it('places each new room apart from rooms of its kind, with a hallway or a door straight in back to the first room', () => {
     const s = createInitialState(0);
     s.currency = 1e30;
+    s.departments = ['comedy', 'tragedy', 'history'];
     for (let i = 0; i < 4; i++) expect(buyRoom(s, 'break')).toBe(true);
+    expect(buyRoom(s, 'department', 'tragedy')).toBe(true);
+    expect(buyRoom(s, 'department', 'history')).toBe(true);
     expect(s.halls.length).toBeGreaterThan(0);
     for (const r of s.office) expect(isConnected(s, r)).toBe(true);
-    // No two rooms share a wall: a hallway's width is always between them.
-    const owner = new Map(s.office.flatMap((r) => r.cells.map(([x, y]) => [`${x},${y}`, r.id] as const)));
+    // Rooms of one kind never share a wall; a break room and a department's room that do have a door between them.
+    const owner = new Map(s.office.flatMap((r) => r.cells.map(([x, y]) => [`${x},${y}`, r] as const)));
     for (const r of s.office) {
       for (const [x, y] of r.cells) {
         for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
           const other = owner.get(`${x + dx},${y + dy}`);
-          expect(!other || other === r.id).toBe(true);
+          if (!other || other === r) continue;
+          expect(other.kind).not.toBe(r.kind);
+          expect(doorBetween(s, r, other)).toBe(true);
         }
       }
     }
+    // The first break room went against room 1, and every department has a lounge.
+    expect(doorBetween(s, s.office[0], s.office[1])).toBe(true);
+    for (const r of s.office.filter((r) => r.kind === 'department')) expect(loungeOf(s, r)).toBeDefined();
+  });
+
+  it('puts a door in when a room grows against a room of the other kind', () => {
+    const s = createInitialState(0); // room 1: 2x2 at 0,0
+    s.currency = 1e30;
+    s.office.push({ id: 'r2', kind: 'break', department: '', cells: [[3, 0]] });
+    expect(doorBetween(s, s.office[0], s.office[1])).toBe(false);
+    expect(expandRoom(s, 'r1', [2, 0])).toBe(true);
+    expect(doorBetween(s, s.office[0], s.office[1])).toBe(true);
   });
 
   it("stops a room's monkeys and furniture working when nothing leads to it", () => {
@@ -1676,12 +1726,13 @@ describe('doors and hallways', () => {
     s.letters = ['A'];
     const lounge = addRoom(s, 'break', '', 3, 3);
     s.furniture.push({ kind: 'tv', room: lounge.id, x: lounge.cells[0][0], y: lounge.cells[0][1] });
-    expect(restBoost(s)).toBeGreaterThan(0);
-    for (const [x, y] of [...s.halls]) toggleHall(s, x, y); // tear up the hallway
+    expect(restBoost(s, undefined)).toBeGreaterThan(0);
+    s.doors = s.doors.filter((d) => !lounge.cells.some(([x, y]) => x === d.x && y === d.y)); // take out its door
+    for (const [x, y] of [...s.halls]) toggleHall(s, x, y); // and any hallway
     expect(s.doors).toHaveLength(0); // doors onto nothing go too
     expect(isConnected(s, lounge)).toBe(false);
-    expect(restBoost(s)).toBe(0);
-    expect(happiness(s)).toBe(0);
+    expect(restBoost(s, undefined)).toBe(0);
+    expect(happiness(s, undefined)).toBe(0);
     autoConnect(s);
     expect(isConnected(s, lounge)).toBe(true);
 

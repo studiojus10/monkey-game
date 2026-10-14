@@ -35,7 +35,7 @@ import {
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
-import { addWindow, autoConnect, connectedRooms, placeRoom, roomCanUse, tidyDoors } from './layout';
+import { addWindow, autoConnect, connectedRooms, doorToTouching, loungeOf, placeRoom, roomCanUse, tidyDoors, touchingRooms } from './layout';
 import { chiHappiness, roomChi, squareRank } from './fengshui';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -265,9 +265,9 @@ export function ownedProgress(state: GameState): [number, number] {
   return [written, total];
 }
 
-/** Points earned are multiplied by this; finished scenes raise it. */
-export function pointsMultiplier(state: GameState): number {
-  return (1 + state.pointsBonus) * (1 + happiness(state)) * folioMultiplier(state);
+/** Points a monkey earns are multiplied by this; finished scenes raise it, and so does its department's happiness. */
+export function pointsMultiplier(state: GameState, m?: MonkeyState): number {
+  return (1 + state.pointsBonus) * (1 + happiness(state, m && monkeyGenre(state, m))) * folioMultiplier(state);
 }
 
 /** Points are multiplied by this for good, from the pages of every Folio published. */
@@ -384,37 +384,46 @@ export function currentSpeed(state: GameState, m: MonkeyState): number {
 
 const kindOf = (id: string) => (id === desk.id ? desk : furnitureKinds.find((k) => k.id === id));
 
-/** How much slower a department's monkeys tire, from the decor in its room (0.1 = 10%). */
-export function drainCut(state: GameState, genre: Genre | undefined): number {
+/**
+ * The rooms whose furniture a department enjoys: its own room, and its lounge
+ * (the nearest break room, see loungeOf). None if its room can't be reached.
+ */
+export function enjoyedRooms(state: GameState, genre: Genre | undefined): Room[] {
   const room = departmentRoom(state, genre);
-  if (!room || !connectedRooms(state).has(room.id)) return 0;
-  const sum = state.furniture.reduce((n, f) => n + (f.room === room.id ? (kindOf(f.kind)?.drain ?? 0) : 0), 0);
-  return Math.min(energyRules.maxDrainCut, sum);
+  if (!room || !connectedRooms(state).has(room.id)) return [];
+  const lounge = loungeOf(state, room);
+  return lounge ? [room, lounge] : [room];
 }
 
-/** How much faster breaks go, from the comforts in break rooms you can reach (0.5 = 50%). */
-export function restBoost(state: GameState): number {
-  const open = connectedRooms(state);
-  const breaks = new Set(state.office.filter((r) => r.kind === 'break' && open.has(r.id)).map((r) => r.id));
-  const sum = state.furniture.reduce((n, f) => n + (breaks.has(f.room) ? (kindOf(f.kind)?.rest ?? 0) : 0), 0);
-  return Math.min(energyRules.maxRestBoost, sum);
+/** Adds up one effect of the furniture a department enjoys. */
+function furnitureSum(state: GameState, genre: Genre | undefined, effect: 'drain' | 'rest' | 'happiness'): number {
+  const ids = new Set(enjoyedRooms(state, genre).map((r) => r.id));
+  return state.furniture.reduce((n, f) => n + (ids.has(f.room) ? (kindOf(f.kind)?.[effect] ?? 0) : 0), 0);
 }
 
-/** Office happiness from the furniture in rooms you can reach (capped): points x (1 + happiness), and every monkey tires slower and rests faster. */
-export function furnitureHappiness(state: GameState): number {
-  const rooms = connectedRooms(state);
-  const sum = state.furniture.reduce((n, f) => n + (rooms.has(f.room) ? (kindOf(f.kind)?.happiness ?? 0) : 0), 0);
-  return Math.min(energyRules.maxHappiness, sum);
+/** How much slower a department's monkeys tire, from the decor in its room and its lounge (0.1 = 10%). */
+export function drainCut(state: GameState, genre: Genre | undefined): number {
+  return Math.min(energyRules.maxDrainCut, furnitureSum(state, genre, 'drain'));
 }
 
-/** Office happiness: the furniture's, plus feng shui's (see fengshui.ts). */
-export function happiness(state: GameState): number {
-  return furnitureHappiness(state) + chiHappiness(state);
+/** How much faster a department's breaks go, from the comforts in its room and its lounge (0.5 = 50%). */
+export function restBoost(state: GameState, genre: Genre | undefined): number {
+  return Math.min(energyRules.maxRestBoost, furnitureSum(state, genre, 'rest'));
 }
 
-/** A monkey's happiness: the office's (furniture) plus its own from petting. Happier monkeys tire slower and rest faster. */
+/** A department's happiness from the furniture in its room and its lounge (capped): points x (1 + happiness), and its monkeys tire slower and rest faster. */
+export function furnitureHappiness(state: GameState, genre: Genre | undefined): number {
+  return Math.min(energyRules.maxHappiness, furnitureSum(state, genre, 'happiness'));
+}
+
+/** A department's happiness: its furniture's, plus the whole office's feng shui (see fengshui.ts). */
+export function happiness(state: GameState, genre: Genre | undefined): number {
+  return furnitureHappiness(state, genre) + chiHappiness(state);
+}
+
+/** A monkey's happiness: its department's, plus its own from petting. Happier monkeys tire slower and rest faster. */
 export function monkeyHappiness(state: GameState, m: MonkeyState): number {
-  return happiness(state) + m.petHappiness;
+  return happiness(state, monkeyGenre(state, m)) + m.petHappiness;
 }
 
 /** Seconds of typing that drain a monkey, and of rest that refill it, with the office's furniture and its happiness. */
@@ -422,7 +431,7 @@ export function energyRates(state: GameState, m: MonkeyState): EnergyRates {
   const happy = 1 + monkeyHappiness(state, m);
   return {
     drainSeconds: (energyRules.drainSeconds * happy) / ((1 - drainCut(state, monkeyGenre(state, m))) * (1 - Math.min(0.9, wearing(m, 'drain')))),
-    breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state)) * (1 + wearing(m, 'rest')) * happy),
+    breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state, monkeyGenre(state, m))) * (1 + wearing(m, 'rest')) * happy),
   };
 }
 
@@ -784,12 +793,17 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
   return true;
 }
 
-/** Adds a w x h room where it fits best, with a door and hallway to the rest of the office. Returns it. */
+/**
+ * Adds a w x h room where it fits best, with a door into each room of the
+ * other kind it touches, and a hallway to the rest of the office if it still
+ * needs one. Returns it.
+ */
 export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number): Room {
   const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
-  const [x0, y0] = placeRoom(state, width, height);
+  const [x0, y0] = placeRoom(state, width, height, kind);
   const room: Room = { id, kind, department: kind === 'department' ? department : '', cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
   state.office.push(room);
+  doorToTouching(state, room);
   autoConnect(state);
   tidyDoors(state); // windows the new hallway now covers
   for (const r of state.office) addWindow(state, r);
@@ -803,7 +817,7 @@ export function squareCost(state: GameState): number {
 
 /**
  * Squares a room could grow into, in reading order: next to it, empty (not a
- * hallway) and not touching another room.
+ * hallway) and not touching another room of its kind.
  */
 export function expansionSquares(state: GameState, room: Room): [number, number][] {
   const out: [number, number][] = [];
@@ -836,17 +850,19 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   const [x, y] = target;
   if (!expansionSquares(state, room).some(([ex, ey]) => ex === x && ey === y)) return false;
   state.currency -= cost;
+  const touched = touchingRooms(state, room);
   room.cells.push([x, y]);
   state.squaresBought++;
+  doorToTouching(state, room, touched); // a door into a room it has just grown against
   tidyDoors(state); // a window in the wall it grew through is gone
   addWindow(state, room);
   seatWaiting(state);
   return true;
 }
 
-/** Where a new piece goes: the first spot it fits in a room where it works, else in any room it may stand in (turned if only that fits). */
+/** Where a new piece goes: the first spot it fits in a room of the kind it suits, else in any room it may stand in (turned if only that fits). */
 export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room['kind']): Omit<Furniture, 'kind'> | null {
-  // Only rooms of roomKind when given; else rooms where it works first (decor in departments' rooms, comforts in break rooms).
+  // Only rooms of roomKind when given; else rooms of the kind it suits first (decor in departments' rooms, comforts in break rooms).
   const first: Room['kind'] = roomKind ?? ((kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
   const rooms = [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
   const [w, h] = pieceSize(kind);
@@ -1208,7 +1224,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
   }
   for (const e of events) {
     if (e.kind === 'word') {
-      const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
+      const paid = scoreInChain(state, m, e.text) * pointsMultiplier(state, m) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
       earn(state, paid);
       wordEarnings += paid;
       state.wordsTyped++;
@@ -1314,7 +1330,7 @@ function typedLine(state: GameState, matches: Pin[], m: MonkeyState): void {
   if (fresh) {
     (state.completed[play.id] ??= []).push(fresh.index);
     state.lines += verse ? sonnetRewards.linesPerLine : 1;
-    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
+    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state, m) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
     earn(state, points);
     state.stats.bestLinePoints = Math.max(state.stats.bestLinePoints, points);
   }

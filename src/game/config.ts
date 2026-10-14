@@ -192,10 +192,11 @@ export const office = {
  * Furniture, bought with points in the Decor and Comforts stores. Each piece fills one
  * square, placed in the first free square of a break room (else any room); the
  * office map moves it. Each one of a kind costs costGrowth times the last.
- * Decor (drain) in a department's room slows its monkeys' tiring; comfort
- * (rest) in a break room speeds up everyone's breaks; every piece adds a little
- * happiness to every monkey (see `petting`). Bonuses add up to the caps in `energy`. All
- * numbers are placeholders.
+ * A department gets the furniture in its own room and in its lounge (the
+ * nearest break room, by a door or a hallway; see loungeOf): decor (drain)
+ * slows its monkeys' tiring, comfort (rest) speeds up their breaks, and every
+ * piece adds a little happiness (see `petting`). Bonuses add up, per
+ * department, to the caps in `energy`. All numbers are placeholders.
  */
 export interface FurnitureKind {
   id: string;
@@ -203,9 +204,9 @@ export interface FurnitureKind {
   glyph: string; // one character on the office map
   cost: number;
   costGrowth: number;
-  drain: number; // decor: in a department's room, its monkeys tire this much slower (0.03 = 3%)
-  rest: number; // in a break room, every monkey's breaks go this much faster (0.15 = 15%)
-  happiness: number; // anywhere in the office: points x (1 + happiness), added up; monkeys also tire slower and rest faster
+  drain: number; // decor: a department's monkeys tire this much slower (0.03 = 3%), with it in their room or their lounge
+  rest: number; // comfort: a department's breaks go this much faster (0.15 = 15%), with it in their room or their lounge
+  happiness: number; // a department's points x (1 + happiness), added up, with it in their room or their lounge; its monkeys also tire slower and rest faster
   size?: [number, number]; // squares across and down (1 x 1 when missing); turning a piece swaps them
   element: Element; // its feng shui element
   description?: string; // what inspecting it shows
@@ -224,7 +225,7 @@ export const elements: Element[] = ['wood', 'fire', 'earth', 'metal', 'water'];
 export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal', rooms: ['department'], description: 'A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.' };
 
 export const furnitureKinds: FurnitureKind[] = [
-  // Decor: in a department's room, its monkeys tire slower. Pieces at the same price do as much. `rooms` says where each may stand.
+  // Decor: a department's monkeys tire slower (with it in their room or their lounge). Pieces at the same price do as much. `rooms` says where each may stand.
   { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], description: 'A leafy friend in a clay pot. Wood, they say, feeds the fire of a busy mind.' },
   { id: 'candle', name: 'Scented candle', glyph: 'I', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'fire', rooms: ['department', 'break'], description: 'It smells faintly of bananas. A small flame, but Fire all the same.' },
   { id: 'clock', name: 'Wall clock', glyph: 'K', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department'], description: 'Tick, tock, type. A brass clock keeps the hours, and Metal keeps the mind sharp.' },
@@ -284,7 +285,7 @@ export const energy = {
 };
 
 /**
- * A monkey's happiness (the office's, from furniture, plus its own from
+ * A monkey's happiness (its department's, from furniture and feng shui, plus its own from
  * petting) makes it tire slower and rest faster: drain time x (1 + happiness),
  * break time / (1 + happiness). Petting (enter) makes the least happy typing
  * monkey a little happier; it's mostly for fun (Justin: "petting should have
