@@ -30,6 +30,7 @@ import {
 } from '../src/cli/screen';
 import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
+import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
 import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
@@ -163,7 +164,7 @@ describe('terminal screen', () => {
     const s = started();
     const closed = plain(renderScreen(s));
     expect(closed).not.toContain('Faster typing');
-    expect(closed).toContain('[space] shop   [p] script   [o] office');
+    expect(closed).toContain('[space] shop   [m] monkeys   [p] script   [o] office');
     expect(closed).toContain('[enter] pet the monkey   [n] name');
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
@@ -238,6 +239,23 @@ describe('the Research store', () => {
     expect(buyRoom(s, 'lab')).toBe(true);
     expect(openStores(s)[openStores(s).length - 1]).toBe('research');
     expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Hats\s+Research/);
+  });
+});
+
+describe('the roster', () => {
+  it('lists monkeys by department then hire order, and shows the chosen one in detail', () => {
+    const s = started();
+    s.departments = ['comedy', 'tragedy'];
+    s.monkeys.push({ ...createMonkey(), department: 'tragedy', name: 'Yorick' }, { ...createMonkey(), department: 'comedy', name: 'Puck' });
+    s.monkeys[1].trait = 'loner';
+    expect(rosterOrder(s)).toEqual([0, 2, 1]);
+    const text = plain(renderRoster(s, 2));
+    expect(text).toMatch(/COMEDIES[\s\S]*Puck[\s\S]*TRAGEDIES[\s\S]*Yorick/);
+    expect(text).toContain('Types for Tragedies');
+    expect(text).toContain('unknown');
+    s.managerBook = true;
+    expect(plain(renderRoster(s, 2))).toContain('Loner');
+    expect(plain(renderScreen(s))).toContain('[m] monkeys');
   });
 });
 
@@ -857,6 +875,7 @@ describe('plain ASCII', () => {
       renderOfficeHelp(s),
       renderFengShuiBook(s),
       renderManagerBook(s),
+      renderRoster(s, 0),
       renderOptions(s),
       renderKeysMenu(s),
       renderStats(s),
