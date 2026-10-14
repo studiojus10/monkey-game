@@ -451,7 +451,12 @@ describe('office space on screen', () => {
     expect(text).toContain('\n # ROOM SIZE LOUNGE EFFECTS WHO\n');
     expect(text).toContain('\n 1 Comedies room 4 Break room breaks 40% faster, +3% happy M-1\n');
     expect(text).toContain('\n 2 Tragedies room 9 Break room breaks 40% faster, +3% happy\n');
-    expect(text).toContain('\n 3 Break room 9 - lounge of Comedies room, Tragedies room\n');
+    expect(text).toContain('\n 3 Break room 9 - - lounge of Comedies room, Tragedies room\n');
+    // On a narrow screen who works in each room goes under it.
+    const narrow = plain(renderOffice(s, '', null, -1, false, null, 80));
+    expect(narrow).toContain(' #  ROOM            SIZE  LOUNGE      EFFECTS\n');
+    expect(narrow).toContain('\n 3  Break room         9  -           -\n      lounge of Comedies room, Tragedies room\n');
+    for (const row of narrow.split('\n')) expect(row.length).toBeLessThan(80);
   });
 
   it('places rooms to keep the map narrow enough for the terminal', () => {

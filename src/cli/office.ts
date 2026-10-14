@@ -211,7 +211,7 @@ export function renderOffice(
     '',
     ...lines,
     '',
-    dim(' ' + [...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished].join('   ')),
+    ...wrapItems([...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished], columns).map(dim),
     '',
     ...roomTable(state, columns),
     ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
@@ -239,7 +239,7 @@ function roomTable(state: GameState, columns = 0): string[] {
     const lounge = r.kind === 'department' ? loungeOf(state, r) : undefined;
     const effects =
       r.kind === 'break'
-        ? `lounge of ${servedBy(state, r).map((d) => roomName(state, d)).join(', ') || 'no department'}`
+        ? '-'
         : [
             ...(drainCut(state, g) > 0 ? [`tire ${pct(drainCut(state, g))} slower`] : []),
             ...(restBoost(state, g) > 0 ? [`breaks ${pct(restBoost(state, g))} faster`] : []),
@@ -255,25 +255,43 @@ function roomTable(state: GameState, columns = 0): string[] {
         r.kind === 'break' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
-      who: r.kind === 'department' ? departmentMonkeys(state, g).map((k) => monkeyName(state, k)) : [],
+      // A break room's "who" is the departments it's the lounge of.
+      who:
+        r.kind === 'department'
+          ? departmentMonkeys(state, g).map((k) => monkeyName(state, k))
+          : [`lounge of ${servedBy(state, r).map((d) => roomName(state, d)).join(', ') || 'no department'}`],
     };
   });
   const headings = ['#', 'ROOM', 'SIZE', ...(state.fengShuiBook ? ['CHI'] : []), 'LOUNGE', 'EFFECTS'];
   const right = (c: number) => c === 0 || c === 2 || (state.fengShuiBook && c === 3);
   const widths = headings.map((h, c) => Math.max(h.length, ...rows.map((r) => r.cols[c].length)));
   const line = (cols: string[]) => ' ' + cols.map((t, c) => (right(c) ? t.padStart(widths[c]) : t.padEnd(widths[c]))).join('  ');
+  // Who works in each room goes in a last column, or under each room when the screen leaves too little room for it.
   const start = line(headings).length + 2;
+  const own = columns > 0 && start + 16 >= columns && rows.some((r) => start + r.who.join(', ').length >= columns);
+  const at = own ? 5 + widths[0] : start;
   return [
-    dim(`${line(headings)}  WHO`),
-    ...rows.map(({ locked, cols, who }) => {
+    dim(own ? line(headings).trimEnd() : `${line(headings)}  WHO`),
+    ...rows.flatMap(({ locked, cols, who }) => {
+      // Names that would still run off the screen end with how many more there are.
       let names = who.join(', ');
-      // Names that would run off the screen end with how many more there are.
-      for (let shown = who.length - 1; columns > 0 && shown > 0 && start + names.length >= columns; shown--)
+      for (let shown = who.length - 1; columns > 0 && shown > 0 && at + names.length >= columns; shown--)
         names = `${who.slice(0, shown).join(', ')} +${who.length - shown} more`;
-      const text = `${line(cols)}  ${names}`.trimEnd();
-      return locked ? red(text) : text;
+      const text = own ? [line(cols).trimEnd(), ...(names ? [' '.repeat(at) + names] : [])] : [`${line(cols)}  ${names}`.trimEnd()];
+      return locked ? text.map(red) : text;
     }),
   ];
+}
+
+/** Items three spaces apart, broken between items to fit a screen `columns` wide. */
+function wrapItems(items: string[], columns = 0): string[] {
+  const rows: string[] = [];
+  for (const item of items) {
+    const last = rows.length - 1;
+    if (last >= 0 && (columns <= 0 || rows[last].length + 3 + item.length < columns)) rows[last] += `   ${item}`;
+    else rows.push(` ${item}`);
+  }
+  return rows;
 }
 
 /** How rooms, lounges and feng shui work: the office map's [?] page. */
