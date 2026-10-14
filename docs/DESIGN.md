@@ -182,6 +182,10 @@ Offices are too small for feng shui and don't count toward the office's chi.
 
 Built 2026-10-14 (Justin: R&D "mid game, before another play department", needs a room and desks with monkeys, research takes fixed real-world time, more R&D monkeys = faster). R&D opens when you build its lab on the office map (`r`, possible from 8 monkeys); until then the Research store's tab is hidden, and it's the last tab (Justin, 2026-10-14). It needs researchers: real monkeys (names, hats, traits) hired in the Staff store, up to 10, each with a desk in the lab. They don't type or tire. The Research store lists projects; one runs at a time, costs bananas to start, and takes a fixed number of hours for one researcher (two take half as long; a researcher's speed trait counts). Research runs in real time, including the whole time you're away. Finished projects are permanent boosts (`research` in config.ts, placeholders): tire slower, faster breaks, +10% bananas, faster typing, cheaper room squares, combo cap +1. [tab] on the home screen also shows R&D, with the project's progress. The lab doesn't count for feng shui. Marketing tactics will be added as projects when Marketing is built.
 
+### HR
+
+Built 2026-10-14 (Justin: "lets add the HR department. Maybe this can unlock after you hire your first manager?"). Once you've hired a manager, the office map's `r` offers an HR office (a normal room at the normal room price); LATELY says so. HR monkeys are hired in the Staff store (up to 5, 1M bananas then x3 each), each with a desk in the HR office; they don't type or tire, and show in the roster and the office's room table. Each HR monkey who can reach its desk makes every typing monkey 2% happier (so they earn more, tire slower and rest faster) and new typing monkeys 5% cheaper (`hr` in config.ts, placeholders). The HR office doesn't count for feng shui and has no home screen view.
+
 ### The Sonnets department
 
 A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a late way to earn more **Lines**. Verse lines run to a meter rather than ending at sentence breaks, so sonnets score differently:

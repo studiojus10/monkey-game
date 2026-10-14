@@ -1,4 +1,4 @@
-import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research } from '../game/config';
+import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -58,6 +58,11 @@ import {
   isTypist,
   researchers,
   canBuildLab,
+  canBuildHR,
+  hrBlocker,
+  hrCost,
+  hrRoom,
+  hrStaff,
   labRoom,
   researcherBlocker,
   researcherCost,
@@ -288,6 +293,7 @@ function latelyLines(state: GameState, message: string): string[] {
     ...folioOffer(state),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
+    ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
     ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),
   ];
@@ -572,6 +578,20 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
                 const cost = researcherCost(state);
                 const blocked = researcherBlocker(state);
                 const item: ShopItem = { id: 'researcher', text: 'Hire a researcher', effect: `${researchers(state).length}/${research.maxResearchers} in ${research.name}` };
+                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
+              })(),
+            ]
+          : []),
+        ...(hrRoom(state)
+          ? [
+              ((): ShopItem => {
+                const cost = hrCost(state);
+                const blocked = hrBlocker(state);
+                const item: ShopItem = {
+                  id: 'hr',
+                  text: 'Hire an HR monkey',
+                  effect: `${hrStaff(state).length}/${hr.maxStaff}: each +${Math.round(hr.happierEach * 100)}% happy, monkeys ${Math.round(hr.discountEach * 100)}% cheaper`,
+                };
                 return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
               })(),
             ]

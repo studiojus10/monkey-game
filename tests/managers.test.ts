@@ -240,3 +240,34 @@ describe('R&D', () => {
     expect(L.researchers(back)).toHaveLength(2);
   });
 });
+
+describe('HR', () => {
+  it('opens with an office after the first manager; HR monkeys make typists happier and new monkeys cheaper', async () => {
+    const { hr } = await import('../src/game/config');
+    const L = await import('../src/game/logic');
+    const s = department(managers.minDepartmentMonkeys);
+    expect(L.canBuildHR(s)).toBe(false); // no manager yet
+    expect(buyRoom(s, 'hr')).toBe(false);
+    buyRoom(s, 'office', 'comedy');
+    expect(hireManager(s, 'comedy')).toBe(true);
+    expect(L.hrBlocker(s)).toBe('HR office needed');
+    const happy = L.happiness(s, 'comedy');
+    const price = L.nextMonkeyCost(s, 'comedy');
+    expect(buyRoom(s, 'hr')).toBe(true);
+    expect(buyRoom(s, 'hr')).toBe(false); // one HR office
+    expect(L.hireHR(s)).toBe(true);
+    expect(L.hireHR(s)).toBe(true);
+    const staff = L.hrStaff(s);
+    expect(staff).toHaveLength(2);
+    expect(L.isTypist(s.monkeys[staff[0]])).toBe(false);
+    expect(L.monkeyGenre(s, s.monkeys[staff[0]])).toBeUndefined();
+    expect(s.furniture[deskOf(s, staff[1])!].room).toBe(L.hrRoom(s)!.id);
+    expect(L.happiness(s, 'comedy')).toBeCloseTo(happy + 2 * hr.happierEach);
+    expect(L.nextMonkeyCost(s, 'comedy')).toBe(Math.ceil(price * (1 - 2 * hr.discountEach)));
+    while (L.hrStaff(s).length < hr.maxStaff && L.hireHR(s));
+    expect(L.hrBlocker(s)).toMatch(/HR full|desk needed/);
+    const back = deserialize(serialize(s));
+    expect(L.hrStaff(back)).toHaveLength(L.hrStaff(s).length);
+    expect(L.hrRoom(back)?.kind).toBe('hr');
+  });
+});

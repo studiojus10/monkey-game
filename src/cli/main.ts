@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, research, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, research, hr, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -24,6 +24,10 @@ import {
   startResearch,
   projectOf,
   canBuildLab,
+  canBuildHR,
+  hireHR,
+  hrBlocker,
+  hrCost,
   cellAt,
   pieceSize,
   furnitureSpot,
@@ -272,6 +276,11 @@ function buyItem(id: string): void {
     if (blocked) message = `Can't hire a researcher: ${blocked}.${blocked === 'lab needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
     else if (state.currency < researcherCost(state)) message = `Not enough ${theme.currency}.`;
     else if (hireResearcher(state)) startNaming(state.monkeys.length - 1);
+  } else if (id === 'hr') {
+    const blocked = hrBlocker(state);
+    if (blocked) message = `Can't hire an HR monkey: ${blocked}.${blocked === 'HR office needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
+    else if (state.currency < hrCost(state)) message = `Not enough ${theme.currency}.`;
+    else if (hireHR(state)) startNaming(state.monkeys.length - 1);
   } else if (id.startsWith('research:')) {
     const p = projectOf(id.slice('research:'.length));
     if (!p) return;
@@ -368,6 +377,7 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
     ...roomlessDepartments(state).map((genre) => ({ kind: 'department' as const, genre })),
     ...officelessDepartments(state).map((genre) => ({ kind: 'office' as const, genre })),
     ...(canBuildLab(state) ? [{ kind: 'lab' as const }] : []),
+    ...(canBuildHR(state) ? [{ kind: 'hr' as const }] : []),
   ];
 }
 
@@ -857,6 +867,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
           ...(room.kind === 'office' ? ["It comes with a manager's desk. Hire a manager in the Staff store."] : []),
           ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
+          ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
         ].join(' ');
       }
       return draw();
@@ -910,7 +921,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
       );
       message = `Buy a room (${formatNumber(roomCost(state))} ${theme.currency}): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
