@@ -212,11 +212,12 @@ describe('R&D', () => {
     const { research } = await import('../src/game/config');
     const L = await import('../src/game/logic');
     const s = department(research.opensAt - 1);
-    expect(L.openResearch(s)).toBe(false);
+    expect(L.canBuildLab(s)).toBe(false);
+    expect(buyRoom(s, 'lab')).toBe(false);
     s.monkeys.push({ ...createMonkey(), department: 'comedy' });
-    expect(L.openResearch(s)).toBe(true);
     expect(L.researcherBlocker(s)).toBe('lab needed');
-    expect(buyRoom(s, 'lab')).toBe(true);
+    expect(buyRoom(s, 'lab')).toBe(true); // building the lab opens R&D
+    expect(s.researchOpen).toBe(true);
     expect(buyRoom(s, 'lab')).toBe(false); // one lab
     expect(L.hireResearcher(s)).toBe(true);
     expect(L.hireResearcher(s)).toBe(true);

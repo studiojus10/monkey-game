@@ -939,13 +939,14 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
   if (state.currency < cost) return false;
   if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
   if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
-  if (kind === 'lab' && (!state.researchOpen || labRoom(state))) return false;
+  if (kind === 'lab' && !canBuildLab(state)) return false;
   state.currency -= cost;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height);
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight);
+  if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
   seatWaiting(state);
   return true;
 }
@@ -1914,16 +1915,9 @@ export function researchers(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (isResearcher(m) ? [i] : []));
 }
 
-/** Whether R&D can be opened: it isn't yet, and you have research.opensAt monkeys. */
-export function canOpenResearch(state: GameState): boolean {
-  return !state.researchOpen && state.monkeys.length >= research.opensAt;
-}
-
-/** Opens R&D. It needs a lab (buyRoom 'lab') and researchers next. */
-export function openResearch(state: GameState): boolean {
-  if (!canOpenResearch(state)) return false;
-  state.researchOpen = true;
-  return true;
+/** Whether an R&D lab can be built on the office map: you have research.opensAt monkeys and no lab yet. Building it opens R&D. */
+export function canBuildLab(state: GameState): boolean {
+  return !labRoom(state) && state.monkeys.length >= research.opensAt;
 }
 
 /** Points for the next researcher. */
@@ -1933,7 +1927,6 @@ export function researcherCost(state: GameState): number {
 
 /** Why a researcher can't be hired right now, money aside ('' if one can). */
 export function researcherBlocker(state: GameState): string {
-  if (!state.researchOpen) return 'R&D not open';
   const lab = labRoom(state);
   if (!lab) return 'lab needed';
   if (researchers(state).length >= research.maxResearchers) return 'lab full';
