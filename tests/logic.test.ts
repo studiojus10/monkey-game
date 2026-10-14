@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, accessories, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   chainSentences,
   accessoryCost,
   addRoom,
   rotateFurniture,
+  achievementValue,
+  checkAchievements,
   setLineWidth,
   pieceSize,
   footprint,
@@ -133,7 +135,7 @@ describe('first letter', () => {
   it('the monkey does not type before a letter is picked', () => {
     const s = createInitialState(0);
     tick(s, 10, rng);
-    poke(s, rng);
+    poke(s);
     expect(s.currency).toBe(0);
     expect(s.monkeys[0].line).toEqual([]);
   });
@@ -177,16 +179,16 @@ describe('typing', () => {
   it('keeps statistics on letters, words, chains and pets', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    poke(s, rng);
+    poke(s);
     for (let i = 0; i < 3; i++) typeLetter(s, 0, rng);
     tick(s, 2, rng);
     expect(s.stats.pets).toBe(1);
-    expect(s.stats.letters).toEqual({ I: 5 });
-    expect(s.stats.words).toEqual({ I: 5 });
+    expect(s.stats.letters).toEqual({ I: 4 });
+    expect(s.stats.words).toEqual({ I: 4 });
     expect(s.words).toBe(1); // one Word: I was new only the first time
     expect(s.stats.longestWord).toBe('I');
     expect(s.stats.bestWord).toBe('I');
-    expect(s.stats.longestChain).toBe(5);
+    expect(s.stats.longestChain).toBe(4);
     expect(s.stats.secondsTyping).toBe(2);
   });
 
@@ -202,11 +204,32 @@ describe('typing', () => {
     expect(s.wordsTyped).toBeCloseTo(due, -2);
   });
 
-  it('poking types one extra letter', () => {
+  it('petting types nothing: it makes the least happy typist a little happier, which wears off', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    poke(s, rng);
-    expect(s.currency).toBe(1);
+    s.monkeys.push(createMonkey(), createMonkey());
+    s.monkeys[0].manager = true;
+    expect(poke(s)).toBe(1);
+    expect(poke(s)).toBe(2); // now the least happy
+    expect(poke(s)).toBe(1);
+    expect(s.currency).toBe(0);
+    expect(s.monkeys[0].petHappiness).toBe(0); // managers don't get petted
+    expect(s.monkeys[1].petHappiness).toBeCloseTo(2 * petting.happinessPerPet);
+    for (let i = 0; i < 100; i++) poke(s);
+    expect(s.monkeys[1].petHappiness).toBe(petting.maxHappiness);
+    expect(s.stats.pets).toBe(103);
+    tick(s, 60, rng);
+    expect(s.monkeys[1].petHappiness).toBeCloseTo(petting.maxHappiness - petting.fadePerMinute);
+  });
+
+  it('happier monkeys tire slower and rest faster', () => {
+    const s = createInitialState(0);
+    const m = s.monkeys[0];
+    const calm = energyRates(s, m);
+    m.petHappiness = 0.05;
+    const happy = energyRates(s, m);
+    expect(happy.drainSeconds).toBeCloseTo(calm.drainSeconds * 1.05);
+    expect(happy.breakSeconds).toBeCloseTo(calm.breakSeconds / 1.05);
   });
 
   it('monkeys type over time, carrying over partial letters', () => {
@@ -1408,7 +1431,7 @@ describe('energy', () => {
 });
 
 describe('furniture effects', () => {
-  it('decor slows tiring in its department room, comforts speed up breaks in break rooms, all of it adds happiness', () => {
+  it('decor slows tiring in its department room, comforts speed up breaks in break rooms, all of it adds happiness (points and energy)', () => {
     const s = createInitialState(0);
     s.currency = 1e15;
     s.office[0].cells.push([2, 0], [2, 1]);
@@ -1422,8 +1445,8 @@ describe('furniture effects', () => {
     expect(happiness(s)).toBeCloseTo(0.01 + 0.02 + 0.03 + 0.02);
     expect(pointsMultiplier(s)).toBeCloseTo(1.08);
     const rates = energyRates(s, s.monkeys[0]);
-    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.4);
-    expect(rates.drainSeconds).toBeCloseTo(energy.drainSeconds / 0.97);
+    expect(rates.breakSeconds).toBeCloseTo(energy.breakSeconds / 1.4 / 1.08); // happiness helps too
+    expect(rates.drainSeconds).toBeCloseTo((energy.drainSeconds * 1.08) / 0.97);
   });
 
   it('caps each effect', () => {
@@ -1655,5 +1678,41 @@ describe('doors and hallways', () => {
     const plant = s.furniture[1];
     expect(r2.cells.some(([x, y]) => x === plant.x && y === plant.y)).toBe(true); // furniture moved with its room
     expect(connectedRooms(s).has('r2')).toBe(true);
+  });
+});
+
+describe('achievements', () => {
+  it('unlock firsts as they happen, once each, in order', () => {
+    const s = createInitialState(0);
+    expect(checkAchievements(s)).toEqual([]);
+    chooseFirstLetter(s, 'i');
+    typeLetter(s, 0, rng);
+    poke(s);
+    tick(s, 0.1, rng);
+    expect(s.achievements).toEqual(['first-word', 'first-pet']);
+    expect(checkAchievements(s)).toEqual([]);
+    s.monkeys[0].name = 'Bobo';
+    s.stats.pets = 999;
+    expect(checkAchievements(s)).toEqual(['first-name', 'pets-100']);
+    poke(s);
+    expect(s.achievements).toContain('pets-1000');
+  });
+
+  it('measures each stat, including secret words and worn accessories', () => {
+    const s = createInitialState(0);
+    s.stats.words = { MONKEY: 2, CAT: 1 };
+    s.monkeys[0].accessories = ['crown'];
+    expect(achievementValue(s, 'word:MONKEY')).toBe(2);
+    expect(achievementValue(s, 'dictionary')).toBe(2);
+    expect(achievementValue(s, 'wearing:crown')).toBe(1);
+    expect(achievementValue(s, 'biggestDepartment')).toBe(1);
+    checkAchievements(s);
+    expect(s.achievements).toEqual(expect.arrayContaining(['word-monkey', 'crown', 'first-accessory']));
+  });
+
+  it('every achievement has a known measure and a unique id', () => {
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'accessories', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points']);
+    for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
+    expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
   });
 });

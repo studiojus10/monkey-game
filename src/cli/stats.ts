@@ -1,5 +1,5 @@
-import { theme } from '../game/config';
-import { getPlay } from '../game/logic';
+import { achievements, theme } from '../game/config';
+import { achievementValue, getPlay } from '../game/logic';
 import { lineLocation } from '../game/plays';
 import type { GameState } from '../game/state';
 import { formatNumber } from '../format';
@@ -49,7 +49,7 @@ export function renderStats(state: GameState): string {
     'Most spelled words',
     ...(top.length > 0 ? top.map(([w, c], i) => `  ${String(i + 1).padStart(2)}. ${w.padEnd(16)} x${formatNumber(c)}`) : ['  none yet']),
     '',
-    '[w] dictionary   [esc] back',
+    '[w] dictionary   [a] achievements   [esc] back',
   ].join('\n');
 }
 
@@ -87,5 +87,45 @@ export function renderDictionary(state: GameState, row: number): string {
     ...(page.length > 0 ? page : ['No words yet. Your monkeys will fill this in.']),
     '',
     '[up/down] scroll   [a-z] jump to a letter   [t] statistics   [esc] back',
+  ].join('\n');
+}
+
+/** Rows of the achievements page shown at once. */
+export const achievementPageRows = 24;
+
+/** A whole number: exact with commas up to a million, then short (1.00M). */
+const measure = (n: number) => (n < 1e6 ? Math.floor(n).toLocaleString('en-US') : formatNumber(Math.floor(n)));
+
+/**
+ * The achievements page: every achievement, unlocked ones marked [x], with
+ * progress toward counts; secret ones show as ??? until unlocked. Then the
+ * milestones: scenes, acts and plays finished.
+ */
+export function renderAchievements(state: GameState, row: number): string {
+  const nameWidth = Math.max(...achievements.map((a) => a.name.length)) + 2;
+  const all = achievements.map((a) => {
+    const done = state.achievements.includes(a.id);
+    if (!done && a.secret) return `[ ] ${'???'.padEnd(nameWidth)}A secret`;
+    const progress = !done && a.at > 2 ? `   (${measure(Math.min(a.at, achievementValue(state, a.stat)))} / ${measure(a.at)})` : '';
+    return `[${done ? 'x' : ' '}] ${a.name.padEnd(nameWidth)}${a.text}${progress}`;
+  });
+  const top = Math.max(0, Math.min(row, all.length - achievementPageRows));
+  const plural = (n: number, word: string) => `${formatNumber(n)} ${word}${n === 1 ? '' : 's'}`;
+  const sonnet = (k: string) => getPlay(k.split(':')[0])?.genre === 'sonnet';
+  return [
+    '=== Achievements ===',
+    '',
+    `${state.achievements.length} of ${achievements.length} unlocked`,
+    '',
+    ...all.slice(top, top + achievementPageRows),
+    ...(all.length > achievementPageRows ? [`(${top + 1}-${Math.min(all.length, top + achievementPageRows)} of ${all.length}: [up/down] scroll)`] : []),
+    '',
+    'Milestones',
+    `  Scenes finished: ${formatNumber(state.scenesDone.filter((k) => !sonnet(k)).length)} (points +${Math.round(state.pointsBonus * 1000) / 10}% for good)`,
+    `  Acts finished:   ${formatNumber(state.actsDone.length)} (typing +${Math.round(state.speedBonus * 1000) / 10}% for good)`,
+    `  Plays finished:  ${formatNumber(state.playsDone.length)}`,
+    `  Sonnets:         ${plural(state.scenesDone.filter(sonnet).length, 'sonnet')} finished`,
+    '',
+    '[t] stats   [w] dictionary   [esc] back',
   ].join('\n');
 }

@@ -1,4 +1,4 @@
-import { accessories, desk, furnitureKinds, typing } from './config';
+import { accessories, desk, furnitureKinds, petting, typing } from './config';
 import { furnishOffice } from './logic';
 import { layOutOffice } from './layout';
 import { createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
@@ -60,6 +60,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       energy: Math.min(1, Math.max(0, num(m?.energy, 1))),
       resting: !!m?.resting,
       accessories: strings(m?.accessories).filter((id) => accessories.some((a) => a.id === id)),
+      petHappiness: Math.min(petting.maxHappiness, Math.max(0, num(m?.petHappiness, 0))),
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
@@ -166,6 +167,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       lastWordPoints: num(s.lastWordPoints, 0),
       settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false },
       stats,
+      achievements: strings(s.achievements),
       lastSaved: num(s.lastSaved, now),
     };
     // Saves from before rooms get an office that seats their monkeys.

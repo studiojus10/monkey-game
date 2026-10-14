@@ -154,7 +154,8 @@ function monkeyLabels(state: GameState): { labels: string[][]; nameWidth: number
     const glyphs = accessories.filter((a) => !a.icon && m.accessories.includes(a.id)).map((a) => a.glyph).join('');
     return glyphs ? `[${glyphs}]` : '';
   };
-  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
+  // A monkey petted lately shows a heart, <3, until it wears off.
+  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}${m.petHappiness > 0 ? '<3' : ''}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
   return { labels, nameWidth: Math.max(...labels.map(([n]) => n.length)), comboWidth: Math.max(...labels.map(([, c]) => c.length)) };
 }
 
@@ -242,7 +243,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     ...pinnedText(state),
     '',
     ...(shop ? shopLines(state, shop) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   [s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );

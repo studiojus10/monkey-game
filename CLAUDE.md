@@ -18,12 +18,12 @@ CI (`.github/workflows/ci.yml`) runs typecheck and tests on every PR. Run both b
 src/
   format.ts        number formatting (1.23K, 4.56M, ...), shared by any front end
   game/            pure game logic: no terminal, DOM, file system or timers
-    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture, energy, accessories, milestones, sentenceRules (Sentences from long chains), offline cap, per-second simulation cap)
+    config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture, energy, accessories, petting, achievements, milestones, sentenceRules (Sentences from long chains), offline cap, per-second simulation cap)
     state.ts       GameState, MonkeyState and Stats shapes, createInitialState()
     plays.ts       Play data (data/plays/*.json) indexed by each line's letters, for matching typed lines
     words.ts       Dictionary (prefix tree of spellable words), readLetter() word matcher, wordPoints()
     layout.ts      office floor plan on one grid: hallways, doors, connectedRooms (rooms reachable from room 1), autoConnect, placeRoom, cycleDoor, toggleHall, layOutOffice for old saves
-    logic.ts       setWordList, setPlays, setLineWidth (the front end fits monkey lines to its screen), departments, scene shop (buySection), chooseStarterScene, chooseFirstLetter, buyLetter, office (rooms per department and break rooms, expandRoom one square at a time, desks placed with each monkey, buyFurniture, moveFurniture, bigger pieces (pieceSize, footprint, fitsAt, rotateFurniture), furnishOffice for old saves), buyMonkey, renameMonkey, milestones (scene/act/play), managers (manage, upgradeManager), buyCapRaise, typeLetter (scoring, combos, play lines), poke, buyFasterTyping and buyTypewriter (per-monkey skill and typewriter), accessories (buyAccessory, wearing), energy (spendEnergy: tiring and breaks, exact over any stretch; furniture effects drainCut, restBoost, happiness), tick, offline progress (random source injectable as rng)
+    logic.ts       setWordList, setPlays, setLineWidth (the front end fits monkey lines to its screen), achievements (achievementValue, checkAchievements), departments, scene shop (buySection), chooseStarterScene, chooseFirstLetter, buyLetter, office (rooms per department and break rooms, expandRoom one square at a time, desks placed with each monkey, buyFurniture, moveFurniture, bigger pieces (pieceSize, footprint, fitsAt, rotateFurniture), furnishOffice for old saves), buyMonkey, renameMonkey, milestones (scene/act/play), managers (manage, upgradeManager), buyCapRaise, typeLetter (scoring, combos, play lines), poke (petting: happiness), buyFasterTyping and buyTypewriter (per-monkey skill and typewriter), accessories (buyAccessory, wearing), energy (spendEnergy: tiring and breaks, exact over any stretch; furniture effects drainCut, restBoost, happiness, monkeyHappiness), tick, offline progress (random source injectable as rng)
     dev.ts         development tools (devTools list) shown on the ` menu; add new test tools here
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
@@ -31,7 +31,7 @@ src/
     screen.ts      renderScreen() and renderScript() return screens as text (ANSI bold for the live part of a monkey line); the shop's stores (storeItems, shopLines)
     office.ts      renderOffice(): the office map (rooms of any shape, desks, who sits where, furniture, cursor, grow mode)
     (screen.ts also has renderOptions(): the options menu, state.settings)
-    stats.ts       renderStats() and renderDictionary(): the statistics page and the A-Z dictionary of spelled words
+    stats.ts       renderStats(), renderDictionary() and renderAchievements(): the statistics page, the A-Z dictionary of spelled words, the achievements page
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line
 data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare
