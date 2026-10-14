@@ -220,14 +220,14 @@ export interface FurnitureKind {
 }
 
 /** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
-export type RoomKind = 'department' | 'break' | 'office' | 'lab';
+export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr';
 
 /** The five feng shui elements. A room with all five is balanced. */
 export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
 export const elements: Element[] = ['wood', 'fire', 'earth', 'metal', 'water'];
 
 /** The desk every monkey gets free, in its department's room. Not sold. */
-export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal', rooms: ['department', 'lab'], description: 'A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.' };
+export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal', rooms: ['department', 'lab', 'hr'], description: 'A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.' };
 
 /**
  * The manager's desk: every manager's office comes with one, and a spare is
@@ -385,6 +385,24 @@ export const research = {
   ] as ResearchProject[],
 };
 
+/**
+ * HR (Justin, 2026-10-14): a department that doesn't type, opened by building
+ * its office on the office map once you've hired your first manager. HR
+ * monkeys are hired into it with a desk each, up to maxStaff. Each one at its
+ * desk makes every typing monkey happierEach happier (so they earn more, tire
+ * slower and rest faster) and new typing monkeys discountEach cheaper. They
+ * don't type or tire. Placeholders.
+ */
+export const hr = {
+  id: 'hr', // an HR monkey's department
+  name: 'HR',
+  maxStaff: 5,
+  hireCost: 1_000_000,
+  hireCostGrowth: 3,
+  happierEach: 0.02,
+  discountEach: 0.05,
+};
+
 export const traitRules = {
   dayStart: 6, // 6am
   nightStart: 20, // 8pm
@@ -469,6 +487,7 @@ export const achievements: Achievement[] = [
   { id: 'first-name', name: "What's in a name?", text: 'Name a monkey', stat: 'named', at: 1 },
   { id: 'first-manager', name: 'Middle management', text: 'Hire a manager', stat: 'managers', at: 1 },
   { id: 'first-researcher', name: 'Lab coats', text: 'Hire a researcher', stat: 'researchers', at: 1 },
+  { id: 'first-hr', name: 'Human resources', text: 'Hire an HR monkey', stat: 'hrStaff', at: 1 },
   { id: 'first-research', name: 'Eureka!', text: 'Finish a research project', stat: 'researched', at: 1 },
   { id: 'first-department', name: 'Expansion', text: 'Open a second department', stat: 'departments', at: 2 },
   { id: 'first-room', name: 'Room to breathe', text: 'Buy a new room', stat: 'rooms', at: 2 },

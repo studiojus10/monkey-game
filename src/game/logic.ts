@@ -39,6 +39,7 @@ import {
   type Trait,
   research,
   type ResearchProject,
+  hr,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
@@ -168,23 +169,33 @@ export function isResearcher(m: MonkeyState): boolean {
   return m.department === research.id;
 }
 
-/** Whether a monkey types: not a manager, not a researcher. */
-export function isTypist(m: MonkeyState): boolean {
-  return !m.manager && !isResearcher(m);
+/** Whether a monkey works in HR. */
+export function isHR(m: MonkeyState): boolean {
+  return m.department === hr.id;
 }
 
-/** The genre a monkey works in (none for a researcher). */
+/** Whether a monkey works outside the play departments (R&D or HR). */
+export function isStaff(m: MonkeyState): boolean {
+  return isResearcher(m) || isHR(m);
+}
+
+/** Whether a monkey types: not a manager, not in R&D or HR. */
+export function isTypist(m: MonkeyState): boolean {
+  return !m.manager && !isStaff(m);
+}
+
+/** The genre a monkey works in (none for R&D or HR). */
 export function monkeyGenre(state: GameState, m: MonkeyState): Genre | undefined {
-  if (isResearcher(m)) return undefined;
+  if (isStaff(m)) return undefined;
   const open = departmentGenres(state);
   return open.find((g) => g === m.department) ?? open[0];
 }
 
-/** Moves a monkey to the next open department, round the list. Researchers stay in R&D. */
+/** Moves a monkey to the next open department, round the list. R&D and HR monkeys stay put. */
 export function moveMonkey(state: GameState, index: number): boolean {
   const m = state.monkeys[index];
   const open = departmentGenres(state);
-  if (!m || open.length < 2 || isResearcher(m)) return false;
+  if (!m || open.length < 2 || isStaff(m)) return false;
   // The next department round the list that has room.
   const at = open.indexOf(monkeyGenre(state, m)!);
   const from = monkeyGenre(state, m);
@@ -358,6 +369,7 @@ export function giveTraits(state: GameState, rng: Rng): void {
 /** The room a monkey works in: a manager's office, else its department's room. */
 export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
   if (isResearcher(m)) return labRoom(state);
+  if (isHR(m)) return hrRoom(state);
   const genre = monkeyGenre(state, m);
   return (m.manager ? officeOf(state, genre) : undefined) ?? departmentRoom(state, genre);
 }
@@ -369,7 +381,7 @@ export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
 export function traitMood(state: GameState, m: MonkeyState): number {
   const room = workRoom(state, m);
   const inRoom = (kinds: string[]) => !!room && state.furniture.some((f) => f.room === room.id && kinds.includes(f.kind));
-  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : 1;
+  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : room?.kind === 'hr' ? hrStaff(state).length : 1;
   switch (m.trait) {
     case 'claustrophobic': {
       const index = state.monkeys.indexOf(m);
@@ -515,9 +527,9 @@ export function furnitureHappiness(state: GameState, genre: Genre | undefined): 
   return Math.min(energyRules.maxHappiness, furnitureSum(state, genre, 'happiness'));
 }
 
-/** A department's happiness: its furniture's, plus the whole office's feng shui (see fengshui.ts). */
+/** A department's happiness: its furniture's, plus the whole office's feng shui (see fengshui.ts) and HR's. */
 export function happiness(state: GameState, genre: Genre | undefined): number {
-  return furnitureHappiness(state, genre) + chiHappiness(state);
+  return furnitureHappiness(state, genre) + chiHappiness(state) + hrHappiness(state);
 }
 
 /** A monkey's happiness: its department's, plus its own from petting. Happier monkeys tire slower and rest faster. */
@@ -779,7 +791,7 @@ export function monkeyCost(bought: number, department = 0): number {
 export function nextMonkeyCost(state: GameState, genre?: Genre): number {
   const open = departmentGenres(state);
   const dept = genre ?? departmentsWithRoom(state)[0] ?? open[0] ?? '';
-  return monkeyCost(state.monkeysBought[dept] ?? 0, Math.max(0, open.indexOf(dept as Genre)));
+  return Math.ceil(monkeyCost(state.monkeysBought[dept] ?? 0, Math.max(0, open.indexOf(dept as Genre))) * (1 - hrDiscount(state)));
 }
 
 /** The department a room belongs to: undefined for a break room. */
@@ -880,6 +892,10 @@ export function deskOf(state: GameState, index: number): number | undefined {
     const lab = labRoom(state);
     return lab ? roomDesks(state, lab)[researchers(state).indexOf(index)] : undefined;
   }
+  if (isHR(m)) {
+    const room = hrRoom(state);
+    return room ? roomDesks(state, room)[hrStaff(state).indexOf(index)] : undefined;
+  }
   const genre = monkeyGenre(state, m);
   const office = officeOf(state, genre);
   if (m.manager && office) {
@@ -940,6 +956,7 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
   if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
   if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
   if (kind === 'lab' && !canBuildLab(state)) return false;
+  if (kind === 'hr' && !canBuildHR(state)) return false;
   state.currency -= cost;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height);
@@ -1842,6 +1859,7 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'managers': return ms.filter((m) => m.manager).length;
     case 'researchers': return ms.filter(isResearcher).length;
     case 'researched': return state.researched.length;
+    case 'hrStaff': return ms.filter(isHR).length;
     case 'departments': return state.departments.length;
     case 'rooms': return state.office.length;
     case 'furniture': return state.furniture.filter((f) => f.kind !== desk.id).length;
@@ -2006,3 +2024,60 @@ export function researchBonus(state: GameState, effect: 'points' | 'speed' | 'dr
   for (const id of state.researched) n += projectOf(id)?.[effect] ?? 0;
   return n;
 }
+
+/** HR's office, if built. */
+export function hrRoom(state: GameState): Room | undefined {
+  return state.office.find((r) => r.kind === 'hr');
+}
+
+/** HR monkeys, by index. */
+export function hrStaff(state: GameState): number[] {
+  return state.monkeys.flatMap((m, i) => (isHR(m) ? [i] : []));
+}
+
+/** Whether HR's office can be built on the office map: a manager has been hired and there's no HR office yet. */
+export function canBuildHR(state: GameState): boolean {
+  return !hrRoom(state) && state.monkeys.some((m) => m.manager);
+}
+
+/** Points for the next HR monkey. */
+export function hrCost(state: GameState): number {
+  return Math.ceil(hr.hireCost * Math.pow(hr.hireCostGrowth, state.monkeysBought[hr.id] ?? 0));
+}
+
+/** Why an HR monkey can't be hired right now, money aside ('' if one can). */
+export function hrBlocker(state: GameState): string {
+  const room = hrRoom(state);
+  if (!room) return 'HR office needed';
+  if (hrStaff(state).length >= hr.maxStaff) return 'HR full';
+  return freeSquares(state, room).length > 0 ? '' : 'desk needed';
+}
+
+/** Hires an HR monkey into HR's office, with a desk. */
+export function hireHR(state: GameState): boolean {
+  const cost = hrCost(state);
+  if (hrBlocker(state) || state.currency < cost) return false;
+  state.currency -= cost;
+  state.monkeysBought[hr.id] = (state.monkeysBought[hr.id] ?? 0) + 1;
+  state.monkeys.push({ ...createMonkey(), department: hr.id });
+  const room = hrRoom(state)!;
+  const square = bestSquares(state, room, true)[0];
+  state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+  return true;
+}
+
+/** HR monkeys at work: those who can reach their desks. */
+export function hrWorking(state: GameState): number {
+  return hrStaff(state).filter((i) => canReachDesk(state, state.monkeys[i]) && deskOf(state, i) !== undefined).length;
+}
+
+/** Happiness HR adds to every typing monkey. */
+export function hrHappiness(state: GameState): number {
+  return hrWorking(state) * hr.happierEach;
+}
+
+/** How much cheaper HR makes new typing monkeys (0.1 = 10%). */
+export function hrDiscount(state: GameState): number {
+  return Math.min(0.9, hrWorking(state) * hr.discountEach);
+}
+

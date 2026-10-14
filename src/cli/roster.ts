@@ -1,9 +1,10 @@
-import { hatColors, hats, research } from '../game/config';
+import { hatColors, hats, research, hr } from '../game/config';
 import {
   comboMultiplier,
   currentSpeed,
   deskOf,
   isResearcher,
+  isHR,
   isTypist,
   monkeyGenre,
   monkeyHappiness,
@@ -24,7 +25,7 @@ export const rosterPageRows = 12;
 export function rosterOrder(state: GameState): number[] {
   const viewOf = (i: number) => {
     const m = state.monkeys[i];
-    return isResearcher(m) ? research.id : (monkeyGenre(state, m) ?? '');
+    return isResearcher(m) ? research.id : isHR(m) ? hr.id : (monkeyGenre(state, m) ?? '');
   };
   const views = homeViews(state);
   const rank = (i: number) => {
@@ -38,6 +39,7 @@ export function rosterOrder(state: GameState): number[] {
 function departmentName(state: GameState, i: number): string {
   const m = state.monkeys[i];
   if (isResearcher(m)) return research.name;
+  if (isHR(m)) return hr.name;
   const g = monkeyGenre(state, m);
   return g ? genreNames[g] : 'No department yet';
 }
@@ -60,7 +62,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     }
     if (k < top || k >= top + rosterPageRows) return;
     const m = state.monkeys[i];
-    const role = m.manager ? 'manager' : isResearcher(m) ? 'researcher' : '';
+    const role = m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : '';
     // The cursor's row is inverse; the others show the hat in its dye.
     const row = `${iconOf(m)} ${monkeyName(state, i)}${role ? `  (${role})` : ''}`;
     list.push(k === at ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
@@ -78,7 +80,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     ? []
     : [
         ` ${bold(`${iconOf(m)} ${monkeyName(state, i)}`)}${dim(`   hired #${i + 1}`)}`,
-        `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : `Types for ${departmentName(state, i)}`}`,
+        `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : isHR(m) ? `Works in ${hr.name}: keeps the monkeys happy` : `Types for ${departmentName(state, i)}`}`,
         ...(isTypist(m)
           ? [
               `${label('Typing')} skill ${m.skill}/${skillCap(m)} on a ${typewriterName(m.typewriter)}, ${speedText(currentSpeed(state, m))} now`,

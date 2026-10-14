@@ -823,9 +823,9 @@ describe('achievements on screen', () => {
     s.achievements = ['first-pet'];
     const text = plain(renderAchievements(s, 0));
     expect(text).toContain(`1 of ${achievements.length} unlocked`);
-    expect(text).toMatch(/\[x\] Good monkey +Pet a monkey/);
+    expect(plain(renderAchievements(s, 1))).toMatch(/\[x\] Good monkey +Pet a monkey/);
     expect(plain(renderAchievements(s, 5))).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   37 \/ 100/);
-    expect(renderAchievements(s, 0)).toContain('\x1b[32m[x]\x1b[39m'); // unlocked: a green mark
+    expect(renderAchievements(s, 1)).toContain('\x1b[32m[x]\x1b[39m'); // unlocked: a green mark
     const last = plain(renderAchievements(s, 999));
     expect(last).toMatch(/\[ \] \?\?\? +A secret/);
     expect(last.split('\n').slice(1).join('\n')).not.toContain('MONKEY'); // past the title bar
