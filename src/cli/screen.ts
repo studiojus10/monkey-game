@@ -805,7 +805,7 @@ export function renderSlotsMenu(
       ? keyRow([['a-z', 'type the word'], ['enter', 'set it'], ['esc', 'cancel']], columns)
       : keyRow(
           [
-            ['1-9', 'select'],
+            ['up/down', 'select'],
             ['w', 'set word'],
             ['o', 'on/off'],
             ['left/right', 'move position'],

@@ -478,14 +478,17 @@ export const lineWidth = 60;
  * Word slots, a late upgrade bought with Lines once you own unlockLetters
  * letters. Each slot locks one position in a chain (1st word, 2nd word, ...)
  * to a word you choose; it can be switched off to type fully at random.
- * Each department has its own slots, up to maxSlots; a department's n-th slot
- * costs baseCost x costGrowth^(n-1) Lines.
+ * Each department has its own slots, up to maxSlots (the longest play line
+ * has 14 words, so every line can be slotted); a department's n-th slot
+ * costs baseCost x costGrowth^(n-1) Lines, rounded up. Prices stay below the
+ * Lines that the lines a department can slot pay (2026-10-14 balance pass):
+ * doubling prices left the slot ladder waiting on lines too long to write.
  */
 export const wordSlots = {
   unlockLetters: 13,
-  baseCost: 3,
-  costGrowth: 2,
-  maxSlots: 9,
+  baseCost: 1,
+  costGrowth: 1.5, // 1, 2, 3, 4, 6, 8, 12, 18, 26, 39, 58, 87, 130, 195
+  maxSlots: 14,
 };
 
 /** How many play lines can be pinned to the home screen. */

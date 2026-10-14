@@ -351,7 +351,7 @@ describe('word slots on screen', () => {
     const text = plain(renderSlotsMenu(s, 'comedy', 0, null));
     expect(text).toContain('> [1] 3rd  word  FRIEND           ON');
     expect(renderSlotsMenu(s, 'comedy', 0, null)).toContain('\x1b[7m> [1] 3rd'); // the selected slot is inverse
-    expect(text).toContain(' [b] buy a slot   6 Lines');
+    expect(text).toContain(' [b] buy a slot   * 2 Lines');
     expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word  FRI_');
     expect(ordinal(1) + ordinal(2) + ordinal(11) + ordinal(22)).toBe('1st2nd11th22nd');
   });

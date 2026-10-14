@@ -750,6 +750,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str && /^[1-9]$/.test(str)) {
       const i = departmentSlots(state, departmentGenres(state)[slotDept])[Number(str) - 1];
       if (i !== undefined) selectedSlot = i;
+    } else if (key.name === 'up' || key.name === 'down') {
+      const mine = departmentSlots(state, departmentGenres(state)[slotDept]);
+      const at = mine.indexOf(selectedSlot) + (key.name === 'up' ? -1 : 1);
+      if (mine.length > 0) selectedSlot = mine[Math.max(0, Math.min(mine.length - 1, at))];
     } else if (
       state.slots[selectedSlot] &&
       slotGenre(state, state.slots[selectedSlot]) === departmentGenres(state)[slotDept]
