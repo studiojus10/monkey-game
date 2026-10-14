@@ -11,7 +11,7 @@ export interface DevTool {
 /** Development tools, in menu order ([1], [2], ...). Add new ones here. */
 export const devTools: DevTool[] = [
   {
-    label: 'Add 1 billion points',
+    label: 'Add 1 billion bananas',
     apply(state) {
       state.currency += 1e9;
       state.totalEarned += 1e9;

@@ -32,6 +32,7 @@ import {
   availablePlays,
   currentWork,
   nextOwnedScene,
+  nextPin,
   buySection,
   getPlay,
   sceneOf,
@@ -87,6 +88,7 @@ import {
   managerUpgradePrompt,
   renderKeysMenu,
   renderScreen,
+  renderHomeKeys,
   folioPrompt,
   lineRoom,
   renderScript,
@@ -107,9 +109,10 @@ import {
   hatPickPrompt,
   inspectItem,
 } from './screen';
+import { forLightBackground } from './style';
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, roomName, type Cell } from './office';
+import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
 
 const FRAME_MS = 250;
@@ -144,6 +147,7 @@ let contentsCursor = 0;
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
+let showingHelp = false; // the [?] page: every key on the home screen
 let showingDev = false;
 let showingStats = false;
 let showingAchievements = false;
@@ -167,6 +171,7 @@ let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
 let readingBook = false; // the feng shui book, open from the office map
+let officeHelp = false; // the office map's [?] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding the feng shui book, just inspected: [y] reads it
 let inspecting = false; // choosing a store item to inspect
 let storePage = 0; // the open store's page, for stores with more than 9 items
@@ -372,29 +377,33 @@ function draw() {
   }
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
-    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
+    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message, columns)
     : showingOptions
-    ? renderOptions(state)
+    ? renderOptions(state, columns)
     : showingOffice && readingBook
     ? renderFengShuiBook(state)
+    : showingOffice && officeHelp
+    ? renderOfficeHelp(state, columns)
     : showingOffice
-    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null)
+    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
-    ? renderAchievements(state, achievementRow)
+    ? renderAchievements(state, achievementRow, columns)
     : showingStats
-    ? renderStats(state)
+    ? renderStats(state, columns)
     : showingDictionary
-      ? renderDictionary(state, dictionaryRow)
+      ? renderDictionary(state, dictionaryRow, columns)
       : showingScript
-    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message)
+    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message, columns)
     : showingDev
-      ? renderDevMenu(message)
+      ? renderDevMenu(state, message, columns)
       : showingKeys
-      ? renderKeysMenu(state, message)
+      ? renderKeysMenu(state, message, columns)
       : showingSlots
-        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message, shop, columns, storePage);
-  process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
+        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message, columns)
+        : showingHelp
+          ? renderHomeKeys(state)
+          : renderScreen(state, message, shop, columns, storePage);
+  process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
 }
 
 function quit() {
@@ -433,7 +442,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const gained = next.folioPages - state.folioPages;
       state = next;
       save(state, storage);
-      message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Points x${folioMultiplier(state).toFixed(2)} for good. The monkeys start again.`;
+      message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Bananas x${folioMultiplier(state).toFixed(2)} for good. The monkeys start again.`;
     } else message = 'Not published. The monkeys keep typing.';
     return draw();
   }
@@ -679,6 +688,14 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         scriptCursor = to.index;
         findIndex = -1;
       }
+    } else if (play && str && '[]'.includes(str)) {
+      const to = nextPin(state, play.id, scriptCursor, str === '[' ? -1 : 1);
+      if (!to) message = 'You have no pinned lines. [enter] pins the line you are on.';
+      else {
+        scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === to.play));
+        scriptCursor = to.index;
+        findIndex = -1;
+      }
     } else if (key.name === 'tab') {
       contents = 'plays';
       contentsCursor = scriptPlay;
@@ -748,11 +765,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (showingOptions) {
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
+    else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
     return draw();
   }
 
   if (showingOffice && readingBook) {
     if (key.name === 'escape' || key.name === 'q' || str === 'b' || str === 'o') readingBook = false;
+    return draw();
+  }
+
+  if (showingOffice && officeHelp) {
+    if (key.name === 'escape' || key.name === 'q' || str === '?' || str === 'o') officeHelp = false;
     return draw();
   }
 
@@ -833,6 +856,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'b' && !holding && !officeGrowing) {
       if (state.fengShuiBook) readingBook = true;
       else message = 'You have no feng shui book. Perhaps one is hidden somewhere: inspect things with [i].';
+    } else if (str === '?' && !holding && !officeGrowing) {
+      officeHelp = true;
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
@@ -866,7 +891,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           // A bigger piece is held by its top left square.
           Object.assign(c, { x: state.furniture[spot].x, y: state.furniture[spot].y });
         } else if (door) heldDoor = { from: door, side: door.side };
-        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Decor and Comforts stores; [d] adds a door.';
+        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Office and Breakroom stores; [d] adds a door.';
       }
     }
     return draw();
@@ -913,6 +938,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingHelp) {
+    if (key.name === 'escape' || key.name === 'q' || str === '?') showingHelp = false;
+    return draw();
+  }
+
   if (showingKeys) {
     message = '';
     if (key.name === 'escape' || key.name === 'q') {
@@ -942,10 +972,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (key.name === 'return' || key.name === 'enter') {
     const i = poke(state);
     if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;
-  } else if (key.name === 'space') {
+  } else if (key.name === 'space' || (shop && key.name === 'escape')) {
     shop = shop ? null : lastStore;
     storePage = 0;
-  } else if (shop && (key.name === 'tab' || key.name === 'right' || key.name === 'left')) {
+  } else if (shop && (key.name === 'right' || key.name === 'left')) {
     const step = key.name === 'left' ? stores.length - 1 : 1;
     shop = lastStore = stores[(stores.indexOf(shop) + step) % stores.length];
     storePage = 0;
@@ -981,6 +1011,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     openOffice();
   } else if (str === 'c') {
     showingOptions = true;
+  } else if (str === '?') {
+    showingHelp = true;
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'a') {

@@ -53,6 +53,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       chainRecent: strings(m?.chainRecent),
       chainLength: Math.max(0, Math.floor(num(m?.chainLength, 0))),
       chainCounted: Math.max(0, Math.floor(num(m?.chainCounted, 0))),
+      chainAll: strings(m?.chainAll).filter((w) => /^[A-Z]+$/.test(w)),
       // Saves from before per-monkey skill had one shared "Faster typing" level: every monkey keeps it,
       // with the typewriter it needs.
       skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
@@ -117,6 +118,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       bestLinePoints: Math.max(0, num(st.bestLinePoints, 0)),
       pets: Math.max(0, Math.floor(num(st.pets, 0))),
       chainSentences: Math.max(0, Math.floor(num(st.chainSentences, 0))),
+      sentencesWritten: Math.max(0, Math.floor(num(st.sentencesWritten, 0))),
+      longestSentence: strings(st.longestSentence).filter((w) => /^[A-Z]+$/.test(w)),
       secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
       dyes: Math.max(0, Math.floor(num(st.dyes, 0))),
     };
@@ -173,7 +176,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastWordPoints: num(s.lastWordPoints, 0),
-      settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false },
+      settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false, lightBackground: s.settings?.lightBackground === true },
       stats,
       achievements: strings(s.achievements),
       folios: Math.max(0, Math.floor(num(s.folios, 0))),

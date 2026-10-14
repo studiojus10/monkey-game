@@ -109,6 +109,7 @@ import {
   openDepartment,
   currentWork,
   nextOwnedScene,
+  nextPin,
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
 import { autoConnect, connectedRooms, cycleDoor, doorBetween, doorSides, isConnected, layOutOffice, loungeOf, placeDoor, servedBy, takeDoor, toggleHall } from '../src/game/layout';
@@ -1215,6 +1216,23 @@ describe('finding your place in the script', () => {
       setPlays([]);
     }
   });
+
+  it('skips to the next or previous pinned line, across plays and wrapping around', () => {
+    try {
+      const s = setup();
+      expect(nextPin(s, 'a', 0, 1)).toBeNull();
+      togglePin(s, 'b', 0);
+      togglePin(s, 'a', 3);
+      togglePin(s, 'a', 0);
+      expect(nextPin(s, 'a', 1, 1)).toEqual({ play: 'a', index: 3 });
+      expect(nextPin(s, 'a', 3, 1)).toEqual({ play: 'b', index: 0 });
+      expect(nextPin(s, 'b', 0, 1)).toEqual({ play: 'a', index: 0 }); // wraps around
+      expect(nextPin(s, 'a', 3, -1)).toEqual({ play: 'a', index: 0 });
+      expect(nextPin(s, 'a', 0, -1)).toEqual({ play: 'b', index: 0 });
+    } finally {
+      setPlays([]);
+    }
+  });
 });
 
 describe('manager line choice', () => {
@@ -1614,6 +1632,13 @@ describe('sentences from long chains', () => {
       expect(s.sentences).toBe(chainSentences(4));
       expect(s.stats.chainSentences).toBe(chainSentences(4));
       expect(s.monkeys[0].chainCounted).toBe(0);
+      // The words of the longest sentence so far are kept, and each one written is counted.
+      expect(s.stats.sentencesWritten).toBe(1);
+      expect(s.stats.longestSentence).toEqual(['CATS', 'AT', 'DOGS', 'BIRD', 'CATS']);
+      expect(s.monkeys[0].chainAll).toEqual([]);
+      typeAll(s, 'DOGSBIRDCATSX'); // a shorter one doesn't replace it
+      expect(s.stats.sentencesWritten).toBe(2);
+      expect(s.stats.longestSentence).toHaveLength(5);
     } finally {
       setWordList([]);
     }

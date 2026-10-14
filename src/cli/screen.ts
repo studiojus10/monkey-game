@@ -1,4 +1,4 @@
-import { dyeCost, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, type RoomKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -30,8 +30,6 @@ import {
   canAffordLetter,
   monkeySpeed,
   currentSpeed,
-  breakLeft,
-  energyRates,
   nextMonkeyCost,
   departmentTypists,
   departmentsWithRoom,
@@ -56,6 +54,7 @@ import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
+import { blue, bold, dim, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -82,8 +81,6 @@ export function renderLine(m: MonkeyState, room = Infinity): string {
   return settled + (live ? bold(live) : '') + '_';
 }
 
-const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
-const green = (s: string) => `\x1b[32m${s}\x1b[39m`;
 
 /** A price in bold: green when you can afford it, the terminal's normal text color when you can't. */
 export function price(cost: number, have: number): string {
@@ -117,14 +114,25 @@ export const genreNames: Record<Genre, string> = {
   sonnet: 'Sonnets',
 };
 
-function genreMenu(state: GameState): string[] {
-  return departmentChoices(state).map(
-    (g, i) =>
-      `  [${i + 1}] ${genreNames[g]}: ${availablePlays()
-        .filter((p) => p.genre === g)
-        .map((p) => p.title)
-        .join(', ')}`,
-  );
+/**
+ * One of the opening screens (genre, free scene, first letter): the title,
+ * a line of story, a dim explanation, the choices with dim details lined up
+ * after them, and the keys.
+ */
+function openingScreen(intro: string, explain: string[], choices: [string, string, string][], keys: [string, string][], message: string, columns: number): string {
+  const width = Math.max(...choices.map(([, name]) => name.length));
+  return [
+    bold(inverse(` ${theme.title.toUpperCase()} `)),
+    '',
+    ...(intro ? [` ${intro}`] : []),
+    ...explain.map((r) => dim(` ${r}`)),
+    '',
+    ...choices.map(([key, name, details]) => `   ${bold(`[${key}]`)} ${details ? `${name.padEnd(width)}   ${dim(details)}` : name}`),
+    ...(message ? ['', ` ${bold(message)}`] : []),
+    '',
+    rule(columns),
+    keyRow(keys, columns),
+  ].join('\n');
 }
 
 /** The prompt for unlocking another genre. */
@@ -135,117 +143,181 @@ export function departmentPrompt(state: GameState): string {
 /** A bonus as a percentage, e.g. 0.215 -> "21.5%". */
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
-/**
- * Each shown monkey's label (icon, name, speed and energy) and
- * multiplier, padded so every monkey's text starts in the same column.
- */
-function monkeyLabels(state: GameState): { labels: string[][]; nameWidth: number; comboWidth: number } {
-  const shown = state.monkeys.slice(0, maxMonkeyLines);
-  // Pad names and multipliers so every monkey's text starts in the same column.
-  // With more than one department, each monkey's line starts with its department's initial.
-  const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
-  // A typist shows its speed now and its energy; on a break, how long is left.
-  const status = (m: MonkeyState) =>
-    m.manager
-      ? `${monkeySpeed(state, m).toFixed(2)}/s`
-      : m.resting
-        ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
-        : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
-  // Each monkey has an icon: its hat, if it wears one, on the left of its face.
-  // A monkey petted lately shows a heart, <3, until it wears off.
-  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${m.petHappiness > 0 ? '<3' : ''}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
-  return { labels, nameWidth: Math.max(...labels.map(([n]) => n.length)), comboWidth: Math.max(...labels.map(([, c]) => c.length)) };
+/** Column widths of the monkey table, fixed so nothing shifts as numbers change. */
+const col = { name: maxMonkeyNameLength, speed: 8, energy: 7, combo: 5 };
+
+/** Whether the monkey table has a department column (once there's more than one department). */
+const hasDeptColumn = (state: GameState) => departmentGenres(state).length > 1;
+
+/** Width of a monkey row before its line: icon, department, name and heart, speed, energy and combo. */
+function monkeyPrefixWidth(state: GameState): number {
+  return 1 + 3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2 + 2 + col.speed + 2 + col.energy + 2 + col.combo + 2;
 }
 
-/** Letters a monkey's line has room for on a screen this many columns wide (after its label, keeping the last column and the cursor free). */
+/** A speed for the SPEED column: 0.50/s, 33.3/s, 1.23K/s. */
+function speedText(n: number): string {
+  return `${n >= 1000 ? formatNumber(n) : n.toFixed(n < 10 ? 2 : 1)}/s`;
+}
+
+/** A typist's energy as a percent, green when fresh, yellow when tiring, red when nearly spent; Resting in blue on a break. */
+function energyText(m: MonkeyState): string {
+  if (m.manager) return dim('-'.padStart(col.energy));
+  if (m.resting) return blue('Resting'.padStart(col.energy));
+  const p = Math.round(m.energy * 100);
+  const text = `${p}%`.padStart(col.energy);
+  return p > energyColors.green ? green(text) : p > energyColors.yellow ? yellow(text) : red(text);
+}
+
+/** The monkey table's column headings. */
+function monkeyHeadings(state: GameState): string {
+  return dim(
+    ' ' + 'MONKEY'.padEnd(3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2) + '  ' + 'SPEED'.padStart(col.speed) + '  ' +
+      'ENERGY'.padStart(col.energy) + '  ' + 'COMBO'.padStart(col.combo) + '  ' + (state.monkeys.some((m) => m.manager) ? 'TYPING (or managing)' : 'TYPING'),
+  );
+}
+
+/** One monkey's row: its icon (hat dyed), department initial, name (a heart if petted lately), speed, energy, combo and line. */
+function monkeyRow(state: GameState, i: number, room: number): string {
+  const m = state.monkeys[i];
+  const dept = hasDeptColumn(state) ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '';
+  const name = `${monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
+  const speed = m.manager ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
+  const combo = m.manager ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m)}`.padStart(col.combo);
+  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : renderLine(m, room)}`;
+}
+
+/** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
 export function lineRoom(state: GameState, columns: number): number {
-  const { nameWidth, comboWidth } = monkeyLabels(state);
-  return columns - (nameWidth + 1 + comboWidth + 2) - 2;
+  return columns - monkeyPrefixWidth(state) - 2;
+}
+
+/** The alphabet in order: letters you own in their places, the rest as blank slots. */
+function letterRow(state: GameState): string {
+  const alphabet = Object.keys(letterValues).sort();
+  return alphabet.map((l) => (state.letters.includes(l) ? bold(l) : dim('_'))).join(' ') + dim(`   (${state.letters.length} of ${alphabet.length})`);
+}
+
+/** What happened lately: the last word, line and milestone (dim), anything waiting for you, then the newest message in bold. */
+function latelyLines(state: GameState, message: string): string[] {
+  const rows = [
+    ...(state.lastWord ? [dim(`Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}`)] : []),
+    ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
+    ...folioOffer(state),
+    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
+    ...(message ? [bold(message)] : []),
+  ];
+  return rows.length === 0 ? [] : ['', dim(' LATELY'), ...rows.map((r) => `   ${r}`)];
+}
+
+/** The keys shown under the home screen: where to go, then what to do. Every key is on the [?] page. */
+function homeKeys(state: GameState, columns: number): string[] {
+  return [
+    keyRow([['space', 'shop'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
+    keyRow([
+      ['enter', theme.pokeAction],
+      ['n', 'name'],
+      ['d', 'move'],
+      ['m', 'promote a monkey'],
+      ['c', 'options'],
+      ...(canPublishFolio(state) ? [['f', 'publish a Folio'] as [string, string]] : []),
+      ['?', 'all keys'],
+      ['q', 'quit'],
+    ], columns),
+  ];
+}
+
+/** Every key on the home screen, for the [?] page. */
+export function renderHomeKeys(state: GameState): string {
+  const group = (title: string, keys: [string, string][]) => [dim(` ${title}`), ...keys.map(([k, what]) => `   ${bold(`[${k}]`.padEnd(9))} ${what}`), ''];
+  return [
+    titleBar(state, 'Keys'),
+    '',
+    ...group('GO TO', [
+      ['space', 'the shop (then [left/right] another store, [1-9] buy, [i] inspect, [up/down] more items)'],
+      ['p', 'the script: plays, pins and scenes to buy'],
+      ['o', 'the office map'],
+      ['t', 'statistics'],
+      ['a', 'achievements'],
+      ['w', 'the dictionary of words your monkeys have spelled'],
+      ['c', 'options'],
+    ]),
+    ...group('MONKEYS', [
+      ['enter', theme.pokeAction],
+      ['n', 'name a monkey'],
+      ['d', 'move a monkey to another department'],
+      ['m', 'promote a monkey to manager (or back)'],
+    ]),
+    ...group('GAME', [
+      ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
+      ['s', 'save now (the game also saves on its own)'],
+      ['r', 'reset: start a new game'],
+      ['`', 'dev tools'],
+      ['q', 'quit'],
+    ]),
+    rule(),
+    keyRow([['esc', 'back']]),
+  ].join('\n');
 }
 
 /** Renders the whole game screen as plain text. */
 export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, page = 0): string {
-  const lines = [`=== ${theme.title} ===`, ''];
-
   if (state.owned.length === 0 && state.departments.length === 0) {
-    lines.push(
+    const genres = departmentChoices(state);
+    return openingScreen(
       'Somewhere, infinite monkeys are trying to write Shakespeare.',
-      'Choose their first department. Each department works on one genre;',
-      'the others open as you gather more monkeys.',
-      '',
-      ...genreMenu(state),
-      '',
-      '[q] quit',
-      '',
+      ['Choose their first department. Each works on one genre; the others', 'open as you gather more monkeys.'],
+      genres.map((g, i) => [String(i + 1), genreNames[g], availablePlays().filter((p) => p.genre === g).map((p) => p.title).join(', ')]),
+      [[genres.length === 1 ? '1' : `1-${genres.length}`, 'choose'], ['q', 'quit']],
       message,
+      columns,
     );
-    return lines.join('\n');
   }
 
   if (state.owned.length === 0) {
-    lines.push(
-      'Choose a free first scene for your monkeys to work toward:',
-      '',
-      ...starterScenes(state).map(
-        ({ play, scene }, i) =>
-          `  [${i + 1}] ${play.title}, ${sceneName(scene.act, scene.scene)} (${count(scene.lines.length)} lines)`,
-      ),
-      '',
-      'Later you can buy more scenes, acts and whole plays in the script.',
-      '',
-      '[q] quit',
-      '',
+    const scenes = starterScenes(state);
+    return openingScreen(
+      'Choose a free first scene for your monkeys to work toward.',
+      ['Later you can buy more scenes, acts and whole plays in the script.'],
+      scenes.map(({ play, scene }, i) => [String(i + 1), `${play.title}, ${sceneName(scene.act, scene.scene)}`, `${count(scene.lines.length)} line${scene.lines.length === 1 ? '' : 's'}`]),
+      [[scenes.length === 1 ? '1' : `1-${scenes.length}`, 'choose'], ['q', 'quit']],
       message,
+      columns,
     );
-    return lines.join('\n');
   }
 
   if (state.letters.length === 0) {
-    lines.push(
+    return openingScreen(
       'Your monkey sits at a typewriter with no keys.',
-      'Pick its first letter. It has to be a word on its own:',
-      '',
-      '  ' + startingLetters.map((l) => `[${l.toLowerCase()}] ${l}`).join('    '),
-      '',
-      '[q] quit',
-      '',
+      ['Pick its first letter. It has to be a word on its own.'],
+      startingLetters.map((l) => [l.toLowerCase(), l, ''] as [string, string, string]),
+      [[startingLetters.map((l) => l.toLowerCase()).join('/'), 'choose'], ['q', 'quit']],
       message,
+      columns,
     );
-    return lines.join('\n');
   }
+
+  if (shop) return renderShop(state, shop, page, message, columns);
 
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
-  const shown = state.monkeys.slice(0, maxMonkeyLines);
-  const { labels, nameWidth, comboWidth } = monkeyLabels(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
-  lines.push(
-    ...shown.map((m, i) => `${dyed(m, labels[i][0].padEnd(nameWidth))} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m, room)}`),
-    ...(state.monkeys.length > maxMonkeyLines
-      ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
-      : []),
+  const label = (s: string) => dim(` ${s.padEnd(8)}`);
+  const lines = [
+    titleBar(state),
     '',
-    [`${formatNumber(state.currency)} ${theme.currency}`, `${formatNumber(state.words)} Words`, `${formatNumber(state.sentences)} Sentences`, `${formatNumber(state.lines)} Lines`]
-      .map(bold)
-      .join('   '),
-    `Letters: ${state.letters.join(' ')}`,
-    `Script: ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned, ` +
-      `${count(written)} / ${count(ownedLines)} lines written`,
-    ...milestoneSummary(state),
+    monkeyHeadings(state),
+    ...state.monkeys.slice(0, maxMonkeyLines).map((_, i) => monkeyRow(state, i, room)),
+    ...(state.monkeys.length > maxMonkeyLines ? [dim(` ...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`)] : []),
     '',
-    `Words typed: ${formatNumber(state.wordsTyped)}` +
-      (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
-    ...lastLineText(state),
-    ...lastMilestoneText(state),
-    ...folioOffer(state),
-    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
+    `${label('Letters')} ${letterRow(state)}`,
+    `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,
+    ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
+    ...latelyLines(state, message),
     ...pinnedText(state),
     '',
-    ...(shop ? shopLines(state, shop, page) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)   [i] inspect' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   ${canPublishFolio(state) ? '[f] publish a Folio   ' : ''}[s] save   [r] reset   [\`] dev tools   [q] quit`,
-    '',
-    message,
-  );
+    rule(columns),
+    ...homeKeys(state, columns),
+  ];
   return lines.join('\n');
 }
 
@@ -272,24 +344,33 @@ function typingItems(state: GameState): { skill: ShopItem; typewriter: ShopItem 
           ? {
               id: 'train',
               star: can(cost),
-              text:
-                `Faster typing for ${name} (skill ${m.skill}/${skillCap(m)}): ` +
-                `${monkeySpeed(state, m).toFixed(2)} -> ${monkeySpeed(state, m, m.skill + 1).toFixed(2)} letters/sec   cost ${price(cost, state.currency)} ${theme.currency}`,
+              text: 'Faster typing',
+              effect: `${name}: ${monkeySpeed(state, m).toFixed(2)} -> ${monkeySpeed(state, m, m.skill + 1).toFixed(2)}/s, skill ${m.skill}/${skillCap(m)}`,
+              cost: [[cost, 'currency']],
             }
-          : { id: 'train', text: `${name}'s ${typewriterName(m.typewriter)} can't keep up: skill ${m.skill}/${skillCap(m)}. Buy a better typewriter in Typewriters` },
+          : { id: 'train', text: 'Faster typing', effect: `${name}: skill ${m.skill}/${skillCap(m)}, needs a better typewriter` },
       typewriter: {
         id: 'typewriter',
         star: can(writer),
-        text: `${typewriterName(m.typewriter + 1)} for ${name} (skill cap ${skillCap(m)} -> ${skillCap(m) + typing.levelsPerTypewriter})   cost ${price(writer, state.currency)} ${theme.currency}`,
+        text: typewriterName(m.typewriter + 1),
+        effect: `${name}: skill cap ${skillCap(m)} -> ${skillCap(m) + typing.levelsPerTypewriter}`,
+        cost: [[writer, 'currency']],
       },
     };
   }
   return {
     skill:
       trainable.length > 0
-        ? { id: 'train', star: can(cheapestSkill), text: `Faster typing for a monkey   from ${price(cheapestSkill, state.currency)} ${theme.currency}` }
-        : { id: 'train', text: "Faster typing: every monkey's typewriter is maxed out. Buy better ones in Typewriters" },
-    typewriter: { id: 'typewriter', star: can(cheapestWriter), text: `Better typewriter for a monkey   from ${price(cheapestWriter, state.currency)} ${theme.currency}` },
+        ? { id: 'train', star: can(cheapestSkill), text: 'Faster typing', effect: '+1 skill for a monkey', cost: [[cheapestSkill, 'currency']], costFrom: true }
+        : { id: 'train', text: 'Faster typing', effect: 'every typewriter is maxed out' },
+    typewriter: {
+      id: 'typewriter',
+      star: can(cheapestWriter),
+      text: 'Better typewriter',
+      effect: `skill cap +${typing.levelsPerTypewriter} for a monkey`,
+      cost: [[cheapestWriter, 'currency']],
+      costFrom: true,
+    },
   };
 }
 
@@ -306,24 +387,40 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
   return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}   (any other key: done)`;
 }
 
-/** The shop's stores, shown as tabs; tab or left/right switches between them. */
+/** The shop's stores, shown as tabs; left and right switch between them. */
 export const stores = ['typewriters', 'staff', 'script', 'department', 'break', 'hats'] as const;
 export type Store = (typeof stores)[number];
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
   staff: 'Staff',
   script: 'Script',
-  department: 'Department rooms',
-  break: 'Break rooms',
+  department: 'Office',
+  break: 'Breakroom',
   hats: 'Hats',
 };
 
-/** Something for sale in a store. Items without an id are information only and get no number. */
+/** A currency, by its GameState field. */
+type Currency = 'currency' | 'words' | 'sentences' | 'lines';
+
+/**
+ * Something for sale in a store, in columns: its name, look, feng shui
+ * element, what it does and its price. Items without an id are notes and get
+ * no number.
+ */
 export interface ShopItem {
   id?: string;
   star?: boolean;
+  /** The item's name, or a note's words. */
   text: string;
+  glyph?: string;
+  element?: string;
+  effect?: string;
+  cost?: [number, Currency][];
+  /** The price is the cheapest of several ("from"). */
+  costFrom?: boolean;
 }
+
+const currencyNames: Record<Currency, string> = { currency: theme.currency, words: 'Words', sentences: 'Sentences', lines: 'Lines' };
 
 /** What a store sells. Numbered items (those with an id) are bought with 1-9 in this order. */
 export function storeItems(state: GameState, store: Store): ShopItem[] {
@@ -335,15 +432,15 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       // With several departments each has its own price, so each gets its own line.
       const hire = (genre?: Genre): ShopItem => {
         const cost = nextMonkeyCost(state, genre);
-        const where = genre ? ` for ${genreNames[genre]} (${departmentTypists(state, genre)}/${departmentRules.maxTypists})` : ` (you have ${state.monkeys.length})`;
-        return { id: genre ? `hire:${genre}` : 'hire', star: state.currency >= cost, text: `Hire a monkey${where}   cost ${price(cost, state.currency)} ${theme.currency}` };
+        const where = genre ? `for ${genreNames[genre]} (${departmentTypists(state, genre)}/${departmentRules.maxTypists})` : `you have ${state.monkeys.length}`;
+        return { id: genre ? `hire:${genre}` : 'hire', star: state.currency >= cost, text: 'Hire a monkey', effect: where, cost: [[cost, 'currency']] };
       };
       const rooms = departmentsWithRoom(state);
       return [
         ...(departmentPicks(state) > 0
           ? [{ id: 'department', star: true, text: 'Open a new department!' }]
           : nextDepartmentAt(state) > 0
-            ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys` }]
+            ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }]
             : []),
         typingShop.skill,
         ...(!canSeatMonkey(state)
@@ -354,13 +451,22 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         ...(state.unassignedMonkeys > 0
           ? [
               canSeatMonkey(state)
-                ? { id: 'assign', text: `Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'} to a department` }
+                ? { id: 'assign', text: `Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'}`, effect: 'to a department' }
                 : { text: `${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? ' is' : 's are'} waiting for a free square for a desk.` },
             ]
           : []),
-        { id: 'combo', star: state.sentences >= nextCap, text: `Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   cost ${price(nextCap, state.sentences)} Sentences` },
+        { id: 'combo', star: state.sentences >= nextCap, text: 'Raise combo cap', effect: `x${comboCap(state)} -> x${comboCap(state) + 1}`, cost: [[nextCap, 'sentences']] },
         ...(managerChoices(state).length > 0
-          ? [{ id: 'manager', text: `Upgrade a manager: +${managers.bonusPerLevel}x points for its whole department (costs Lines)` }]
+          ? [
+              {
+                id: 'manager',
+                text: 'Upgrade a manager',
+                effect: `+${managers.bonusPerLevel}x bananas for its department`,
+                cost: [[Math.min(...managerChoices(state).map((i) => managerUpgradeCost(state, state.monkeys[i]))), 'lines']] as [number, Currency][],
+                costFrom: managerChoices(state).length > 1,
+                star: managerChoices(state).some((i) => state.lines >= managerUpgradeCost(state, state.monkeys[i])),
+              },
+            ]
           : []),
       ];
     }
@@ -373,19 +479,19 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
               {
                 id: 'letter',
                 star: canAffordLetter(state),
-                text:
-                  `Buy a letter key   cost ${price(nextLetter, state.currency)} ${theme.currency}` +
-                  (nextLetterWords > 0 ? ` + ${price(nextLetterWords, state.words)} Words` : ''),
+                text: 'Buy a letter key',
+                effect: `you choose it (${unownedLetters(state).length} left)`,
+                cost: [[nextLetter, 'currency'], ...(nextLetterWords > 0 ? [[nextLetterWords, 'words'] as [number, Currency]] : [])] as [number, Currency][],
               },
             ]
           : []),
         typingShop.typewriter,
         keysUnlocked(state)
-          ? { id: 'keys', text: 'Typewriter keys...' }
-          : { text: `Typewriter keys: unlock when you own ${typewriterKeys.unlockLetters} letters` },
+          ? { id: 'keys', text: 'Typewriter keys...', effect: 'letter combos and whole words' }
+          : { text: `Typewriter keys unlock when you own ${typewriterKeys.unlockLetters} letters.` },
         slotsUnlocked(state)
-          ? { id: 'slots', text: `Word slots... (${state.slots.filter((x) => x.on && x.word).length} active)` }
-          : { text: `Word slots: unlock when you own ${wordSlots.unlockLetters} letters` },
+          ? { id: 'slots', text: 'Word slots...', effect: `${state.slots.filter((x) => x.on && x.word).length} active` }
+          : { text: `Word slots unlock when you own ${wordSlots.unlockLetters} letters.` },
       ];
     }
     case 'department':
@@ -396,15 +502,20 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         {
           text:
             store === 'department'
-              ? "For departments' rooms. Furniture here helps only that room's monkeys."
-              : 'For break rooms. Furniture here helps each department whose lounge it is: its nearest break room.',
+              ? "Furniture for a department's own room: it helps the monkeys who work there."
+              : 'Furniture for break rooms: it helps each department whose nearest one it is.',
         },
-        ...kinds.map((k) => {
+        ...kinds.map((k): ShopItem => {
           const cost = furnitureCost(state, k.id);
           return {
             id: `furniture:${k.id}@${store}`,
             star: !!furnitureSpot(state, k.id, store) && state.currency >= cost,
-            text: `${k.name} [${k.glyph}] (${k.element}): ${furnitureEffect(k, store)}   cost ${price(cost, state.currency)} ${theme.currency}`,
+            text: k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name,
+            glyph: k.glyph,
+            // Elements mean nothing until the feng shui book explains them.
+            ...(state.fengShuiBook ? { element: k.element } : {}),
+            effect: furnitureEffect(k),
+            cost: [[cost, 'currency']],
           };
         }),
         {
@@ -417,21 +528,23 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       ];
     }
     case 'script':
-      return [{ id: 'script', text: `Browse and buy scenes, acts and plays (${departmentGenres(state).map((g) => genreNames[g]).join(', ')})` }];
+      return [{ id: 'script', text: 'Scenes, acts and plays...', effect: `for ${departmentGenres(state).map((g) => genreNames[g]).join(', ')}` }];
     case 'hats': {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
-        ...hats.map((h) => {
+        ...hats.map((h): ShopItem => {
           const cost = hatCost(state, h.id);
           const someone = team.some((i) => !state.monkeys[i].hats.includes(h.id));
-          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name} [${h.icon}${monkeyIcon}]: ${hatEffect(h)}   cost ${price(cost, state.sentences)} Sentences` };
+          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: h.name, glyph: `${h.icon}${monkeyIcon}`, effect: hatEffect(h), cost: [[cost, 'sentences']] };
         }),
         {
           id: 'dye',
           star: state.monkeys.some((m) => m.hat) && state.sentences >= dyeCost,
-          text: `Dye a hat... (${hatColors.map((c) => paint(c.id, c.name)).join(', ')})   cost ${price(dyeCost, state.sentences)} Sentences each`,
+          text: 'Dye a hat...',
+          effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
+          cost: [[dyeCost, 'sentences']],
         },
-        { text: 'Each monkey keeps every hat it is given and wears one: putting on a hat it has is free, and choosing its own hat again takes it off.' },
+        { text: 'Monkeys keep every hat they get: wearing one again is free.' },
       ];
     }
   }
@@ -465,11 +578,11 @@ export function dyed(m: MonkeyState, text: string): string {
 export function hatEffect(h: Hat): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return [
-    ...(h.points ? [`its words pay ${pct(h.points)} more`] : []),
-    ...(h.speed ? [`it types ${pct(h.speed)} faster`] : []),
-    ...(h.drain ? [`it tires ${pct(h.drain)} slower`] : []),
-    ...(h.rest ? [`its breaks go ${pct(h.rest)} faster`] : []),
-    ...(h.combo ? [`its combo cap +${h.combo}`] : []),
+    ...(h.points ? [`+${pct(h.points)} pay`] : []),
+    ...(h.speed ? [`+${pct(h.speed)} speed`] : []),
+    ...(h.drain ? [`tires ${pct(h.drain)} slower`] : []),
+    ...(h.rest ? [`breaks ${pct(h.rest)} faster`] : []),
+    ...(h.combo ? [`combo cap +${h.combo}`] : []),
   ].join(', ');
 }
 
@@ -510,14 +623,13 @@ export function inspectItem(id: string | undefined): string {
 }
 
 /** What a kind of furniture does, in a few words. */
-export function furnitureEffect(k: FurnitureKind, room: RoomKind): string {
+export function furnitureEffect(k: FurnitureKind): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return [
-    ...(k.drain ? [`monkeys tire ${pct(k.drain)} slower`] : []),
-    ...(k.rest ? [`breaks go ${pct(k.rest)} faster`] : []),
-    ...(k.happiness ? [`+${pct(k.happiness)} points`] : []),
-    ...(k.rooms.length === 1 ? [`${room === 'break' ? 'break rooms' : "departments' rooms"} only`] : []),
-  ].join(', ') + (k.size ? ` (takes ${k.size[0]} x ${k.size[1]} squares)` : '');
+    ...(k.drain ? [`tire ${pct(k.drain)} slower`] : []),
+    ...(k.rest ? [`breaks ${pct(k.rest)} faster`] : []),
+    ...(k.happiness ? [`+${pct(k.happiness)} pay`] : []),
+  ].join(', ');
 }
 
 /** The numbered (buyable) items of a store, in key order 1-9. */
@@ -535,54 +647,113 @@ export function storePages(state: GameState, store: Store): number {
   return Math.max(1, Math.ceil(storeItems(state, store).filter((x) => x.id).length / storePageSize));
 }
 
-/** The open store: a tab row, then its items (the numbered ones on this page). */
-function shopLines(state: GameState, store: Store, page = 0): string[] {
-  let k = 0; // numbered items so far, across pages
+/** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; numbers in bold when `boldNumbers`. */
+function costText(item: ShopItem, boldNumbers = false): string {
+  const parts = (item.cost ?? []).map(([n, c]) => `${boldNumbers ? bold(formatNumber(n)) : formatNumber(n)} ${currencyNames[c]}`);
+  return parts.length === 0 ? '' : `${item.costFrom ? 'from ' : ''}${parts.join(' + ')}`;
+}
+
+/**
+ * The shop, on its own screen: the stores as tabs (the open one inverse, a *
+ * on any with something you can afford), then the open store's items in
+ * columns with prices on the right. What you can afford has a green price and
+ * a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
+ * only once the feng shui book is read.
+ */
+export function renderShop(state: GameState, store: Store, page = 0, message = '', columns = 0): string {
+  const items = storeItems(state, store);
+  const numbered = items.filter((x) => x.id);
   const pages = storePages(state, store);
+  const tabs = stores.map((x) => {
+    const star = storeItems(state, x).some((i) => i.star) ? '*' : ' ';
+    return x === store ? bold(inverse(` ${storeNames[x]}${star}`)) : dim(` ${storeNames[x]}`) + green(star);
+  });
+
+  // Column widths come from every numbered item in the store, so they stay put between pages.
+  const width = (f: (x: ShopItem) => string | undefined) => Math.max(0, ...numbered.map((x) => plainText(f(x) ?? '').length));
+  const nameWidth = width((x) => x.text);
+  const glyphWidth = width((x) => x.glyph);
+  const elementWidth = numbered.some((x) => x.element) ? Math.max('ELEMENT'.length, width((x) => x.element)) : 0;
+  const effectWidth = width((x) => x.effect);
+  const costWidth = Math.max('PRICE'.length, width((x) => (x.cost ? `* ${costText(x)}` : '')));
+  // Columns are two spaces apart, or one when that's what fits the screen.
+  const widths = [5 + nameWidth, glyphWidth, elementWidth, effectWidth, costWidth].filter((w) => w > 0);
+  const gap = columns > 0 && widths.reduce((a, b) => a + b, 0) + 2 * (widths.length - 1) >= columns ? ' ' : '  ';
+  const row = (num: string, name: string, glyph: string, element: string, effect: string, cost: string) =>
+    [
+      ` ${num.padEnd(4)}${padVisible(name, nameWidth)}`,
+      ...(glyphWidth > 0 ? [padVisible(glyph, glyphWidth)] : []),
+      ...(elementWidth > 0 ? [padVisible(element, elementWidth)] : []),
+      padVisible(effect, effectWidth),
+      padVisible(cost, costWidth, 'right'),
+    ].join(gap);
+
+  const firstItem = items.findIndex((x) => x.id);
+  const intro = items.slice(0, Math.max(0, firstItem));
+  let k = 0; // numbered items so far, across pages
+  const list = items.slice(Math.max(0, firstItem)).flatMap((x) => {
+    if (!x.id) return [`     ${dim(x.text)}`];
+    const n = k++ - page * storePageSize;
+    if (n < 0 || n >= storePageSize) return [];
+    const cost = !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
+    const text = row(`[${n + 1}]`, x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
+    return [x.cost && !x.star ? dim(plainText(text)) : text];
+  });
+
   return [
-    // A * on a tab means that store has something you can afford.
-    'Shop   ' +
-      stores
-        .map((x) => {
-          const name = `${storeNames[x]}${storeItems(state, x).some((i) => i.star) ? '*' : ''}`;
-          return x === store ? bold(`[${name}]`) : ` ${name} `;
-        })
-        .join(' ')
-        .trimEnd(),
-    ...storeItems(state, store).flatMap((x) => {
-      if (!x.id) return [`       ${x.text}`];
-      const n = k++ - page * storePageSize;
-      return n >= 0 && n < storePageSize ? [`  [${n + 1}] ${x.star ? '*' : ' '}${x.text}`] : [];
-    }),
-    ...(pages > 1 ? [`       Page ${page + 1} of ${pages}: [up] and [down] show more`] : []),
+    titleBar(state, 'Shop', columns),
     '',
-  ];
+    tabs.join(' '),
+    '',
+    ...intro.map((x) => ` ${dim(x.text)}`),
+    ...(intro.length > 0 ? [''] : []),
+    dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd()),
+    ...list,
+    ...(message ? ['', ` ${bold(message)}`] : []),
+    '',
+    rule(columns),
+    keyRow(
+      [
+        ['1-9', 'buy'],
+        ['i', 'inspect'],
+        ['left/right', 'store'],
+        ...(pages > 1 ? [['up/down', `page ${page + 1} of ${pages}`] as [string, string]] : []),
+        ['esc', 'back'],
+      ],
+      columns,
+    ),
+  ].join('\n');
 }
 
 /** The options menu. */
-export function renderOptions(state: GameState): string {
-  const onOff = (on: boolean) => (on ? bold('ON') : 'off');
+export function renderOptions(state: GameState, columns = 0): string {
+  const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
+  const option = (key: string, label: string, on: boolean, notes: string[]) => [` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`, ...notes.map((n) => dim(`     ${n}`)), ''];
   return [
-    '=== Options ===',
+    titleBar(state, 'Options', columns),
     '',
-    `  [1] Furniture places itself: ${onOff(state.settings.autoPlaceFurniture)}`,
-    '      On: new furniture goes in the first free square (a break room first).',
-    '      Off: buying furniture opens the office map so you can place it.',
-    '',
-    '[1] switch   [esc] back',
+    ...option('1', 'Furniture places itself', state.settings.autoPlaceFurniture, [
+      'On: new furniture goes in the first free square (a break room first).',
+      'Off: buying furniture opens the office map so you can place it.',
+    ]),
+    ...option('2', 'Light background', state.settings.lightBackground, ["On: darker colours that are easy to read when your terminal's theme is light."]),
+    rule(columns),
+    keyRow([['1-2', 'switch'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
 /** The development tools menu, for testing features. */
-export function renderDevMenu(message = ''): string {
+export function renderDevMenu(state: GameState, message = '', columns = 0): string {
   return [
-    '=== Development tools ===   (for testing; these change your save)',
+    titleBar(state, 'Dev tools', columns),
     '',
-    ...devTools.map((t, i) => `  [${i + 1}] ${t.label}`),
+    dim(' For testing: these change your save.'),
     '',
-    `[1-${devTools.length}] use a tool   [esc] back`,
+    ...devTools.map((t, i) => ` ${bold(`[${i + 1}]`)} ${t.label}`),
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    message,
+    rule(columns),
+    keyRow([[`1-${devTools.length}`, 'use a tool'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
@@ -602,33 +773,47 @@ export function renderSlotsMenu(
   selected: number,
   typing: string | null,
   message = '',
+  columns = 0,
 ): string {
   const mine = departmentSlots(state, genre);
   const next = slotCost(mine.length);
   const canBuy = mine.length < wordSlots.maxSlots;
   const rows = mine.map((i, k) => {
     const x = state.slots[i];
-    const word = i === selected && typing !== null ? `${typing}_` : x.word || '(no word)';
-    return `${i === selected ? '>' : ' '} [${k + 1}] ${ordinal(x.position).padEnd(4)} word: ${word.padEnd(16)} ${x.on ? 'ON' : 'off'}`;
+    const word = i === selected && typing !== null ? `${typing}_` : x.word || dim('(no word)');
+    const row = `${i === selected ? '>' : ' '} [${k + 1}] ${ordinal(x.position).padEnd(4)} word  ${padVisible(word, 16)} ${x.on ? green('ON') : dim('off')}`;
+    return i === selected ? inverse(plainText(row) + ' ') : row;
   });
   const managed = !!managerOf(state, genre);
   const many = departmentGenres(state).length > 1;
   return [
-    `=== Word slots${genre ? `: ${genreNames[genre]} department` : ''} ===`,
+    titleBar(state, 'Word slots', columns),
     '',
-    `${formatNumber(state.lines)} Lines`,
-    'Each slot makes the word at its position in a chain always the word you choose,',
-    'e.g. 3rd word: FRIEND. Switch slots off for fully random typing.',
+    ...(genre ? [` ${bold(`${genreNames[genre]} department`)}`, ''] : []),
+    dim(' Each slot makes the word at its position in a chain always the word you'),
+    dim(' choose, e.g. 3rd word: FRIEND. Switch slots off for fully random typing.'),
     '',
-    ...(managed ? ["This department's manager sets these slots for you."] : []),
-    ...(rows.length > 0 ? rows : ['  No slots yet.']),
+    ...(managed ? [" This department's manager sets these slots for you.", ''] : []),
+    ...(rows.length > 0 ? rows : [dim('   No slots yet.')]),
+    ...(canBuy
+      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? green(`* ${bold(formatNumber(next))} Lines`) : `${formatNumber(next)} Lines`}`]
+      : []),
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    ...(canBuy ? [`[b] ${state.lines >= next ? '*' : ' '}buy a slot   cost ${price(next, state.lines)} Lines`] : []),
+    rule(columns),
     typing !== null
-      ? 'Type the word, [enter] to set it, [esc] to cancel'
-      : `[1-9] select   [w] set word   [o] on/off   [left/right] move position${many ? '   [tab] next department' : ''}   [esc] back`,
-    '',
-    message,
+      ? keyRow([['a-z', 'type the word'], ['enter', 'set it'], ['esc', 'cancel']], columns)
+      : keyRow(
+          [
+            ['1-9', 'select'],
+            ['w', 'set word'],
+            ['o', 'on/off'],
+            ['left/right', 'move position'],
+            ...(many ? [['tab', 'next department'] as [string, string]] : []),
+            ['esc', 'back'],
+          ],
+          columns,
+        ),
   ].join('\n');
 }
 
@@ -648,29 +833,31 @@ function nextWordKeys(state: GameState): string[] {
 }
 
 /** The typewriter keys menu: combination keys and the word keys your monkeys have unlocked. */
-export function renderKeysMenu(state: GameState, message = ''): string {
-  const mark = (price: number) => (state.currency >= price ? '*' : ' ');
-  const owned = state.keys.length > 0 ? state.keys.join(' ') : 'none yet';
+export function renderKeysMenu(state: GameState, message = '', columns = 0): string {
+  const owned = state.keys.length > 0 ? state.keys.join(' ') : dim('none yet');
+  const choices = keyChoices(state).map((k) => ({ k, kind: typewriterKeys.combinations.includes(k) ? 'combination' : 'word', cost: keyCost(state, k) }));
+  const keyWidth = Math.max(3, ...choices.map((c) => c.k.length));
   return [
-    '=== Typewriter keys ===',
+    titleBar(state, 'Typewriter keys', columns),
     '',
-    bold(`${formatNumber(state.currency)} ${theme.currency}`),
+    dim(` Each key types its whole text in one keystroke. Words of ${typewriterKeys.wordMinLength}+ letters become`),
+    dim(
+      ` keys after ${wordKeySpellsNeeded(state)} spellings` +
+        ` (${Math.round((typewriterKeys.wordSpellsGrowth - 1) * 100)}% more for each word key you own).`,
+    ),
+    ...nextWordKeys(state).map((r) => ` ${dim('Closest')} ${r.replace(/^ *Closest: /, '')}`),
     '',
-    'Each key types its whole text in one keystroke.',
-    `A word of ${typewriterKeys.wordMinLength}+ letters becomes a key once your monkeys have spelled it ${wordKeySpellsNeeded(state)} times` +
-      ` (+${Math.round((typewriterKeys.wordSpellsGrowth - 1) * 100)}% for each word key you own).`,
-    ...nextWordKeys(state),
-    '',
-    ...keyChoices(state).map((k, i) => {
-      const kind = typewriterKeys.combinations.includes(k) ? 'combination' : 'word';
-      return `  [${i + 1}] ${mark(keyCost(state, k))}${k} (${kind})   cost ${price(keyCost(state, k), state.currency)} ${theme.currency}`;
+    ...choices.map(({ k, kind, cost }, i) => {
+      const row = ` [${i + 1}] ${k.padEnd(keyWidth)}  ${kind.padEnd(11)}  `;
+      return state.currency >= cost ? `${row}${green(`* ${bold(formatNumber(cost))} ${theme.currency}`)}` : dim(`${row}  ${formatNumber(cost)} ${theme.currency}`);
     }),
-    ...(keyChoices(state).length === 0 ? ['  None available yet.'] : []),
-    `  Owned: ${owned}`,
+    ...(choices.length === 0 ? [dim('   None available yet.')] : []),
     '',
-    '[esc] back   (* = affordable)',
+    ` ${dim('Owned')}  ${owned}`,
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    message,
+    rule(columns),
+    keyRow([...(choices.length > 0 ? [[`1-${choices.length}`, 'buy'] as [string, string]] : []), ['esc', 'back']], columns),
   ].join('\n');
 }
 
@@ -716,18 +903,18 @@ function milestoneSummary(state: GameState): string[] {
   const scenesDone = state.scenesDone.filter((k) => getPlay(k.split(':')[0])?.genre !== 'sonnet').length;
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const parts = [
-    ...(scenesDone > 0 ? [`points +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`] : []),
+    ...(scenesDone > 0 ? [`bananas +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`] : []),
     ...(state.actsDone.length > 0 ? [`typing +${pct(state.speedBonus)} (${plural(state.actsDone.length, 'act')} finished)`] : []),
-    ...(state.folios > 0 ? [`Folio points +${pct(folioMultiplier(state) - 1)} (${plural(state.folios, 'Folio')} published)`] : []),
+    ...(state.folios > 0 ? [`Folio bananas +${pct(folioMultiplier(state) - 1)} (${plural(state.folios, 'Folio')} published)`] : []),
   ];
-  return parts.length > 0 ? [`Bonuses: ${parts.join('   ')}`] : [];
+  return parts.length > 0 ? [parts.join('   ')] : [];
 }
 
 /** The offer to publish a Folio, once a play is finished. */
 export function folioOffer(state: GameState): string[] {
   if (!canPublishFolio(state)) return [];
   const pages = folioPagesNow(state);
-  return [`* You can publish a Folio: [f] start over with ${count(pages)} more pages, points +${pct(pages * folio.bonusPerPage)} for good.`];
+  return [`* You can publish a Folio: [f] start over with ${count(pages)} more pages, bananas +${pct(pages * folio.bonusPerPage)} for good.`];
 }
 
 /** The question before publishing a Folio. */
@@ -737,7 +924,7 @@ export function folioPrompt(state: GameState): string {
   return (
     `Publish a Folio? Everything starts over: monkeys, letters, office, script and currencies. ` +
     `You keep achievements and statistics, and the Folio gains ${count(pages)} pages (one per line written, finished plays twice): ` +
-    `points x${after.toFixed(2)} for good. Press y to publish, any other key to keep playing.`
+    `bananas x${after.toFixed(2)} for good. Press y to publish, any other key to keep playing.`
   );
 }
 
@@ -747,7 +934,7 @@ function lastMilestoneText(state: GameState): string[] {
   if (!ms || !play) return [];
   if (ms.kind === 'scene') {
     return [
-      `* ${sceneName(ms.act, ms.scene, play.genre)} of ${play.title} finished! Points +${pct(ms.bonus)} for good, ` +
+      `* ${sceneName(ms.act, ms.scene, play.genre)} of ${play.title} finished! Bananas +${pct(ms.bonus)} for good, ` +
         `+${count(ms.sentences)} Sentences`,
     ];
   }
@@ -786,59 +973,133 @@ function lineStatus(state: GameState, play: Play, index: number): string {
   return missing.length > 0 ? `needs ${missing.join(' ')}` : 'within reach';
 }
 
+/** What a line still needs, for the NEEDS column: the letters you don't own yet, "in reach", or nothing. */
+function lineNeeds(state: GameState, play: Play, index: number): string {
+  if (state.completed[play.id]?.includes(index) || !ownsLine(state, play, index)) return '';
+  const missing = missingLetters(state, play.lines[index].letters);
+  return missing.length > 0 ? missing.join('') : green('in reach');
+}
+
+/** Items (which may hold ANSI codes) three spaces apart after `lead`, broken between items to fit a screen `columns` wide. */
+function wrapVisible(items: string[], columns: number, lead: string): string[] {
+  const rows = [lead];
+  for (const item of items) {
+    const row = rows[rows.length - 1];
+    const fresh = row === lead || plainText(row).trim() === '';
+    if (!fresh && columns > 0 && plainText(row).length + 3 + plainText(item).length >= columns) rows.push(' '.repeat(plainText(lead).length) + item);
+    else rows[rows.length - 1] += (fresh ? '' : '   ') + item;
+  }
+  return rows;
+}
+
+/** Words of `text` in rows at most `width` long (a word longer than that gets a row of its own). */
+function wrapWords(text: string, width: number): string[] {
+  const rows: string[] = [];
+  for (const word of text.split(' ')) {
+    const last = rows.length - 1;
+    if (last >= 0 && rows[last].length + 1 + word.length <= width) rows[last] += ` ${word}`;
+    else rows.push(word);
+  }
+  return rows;
+}
+
 /**
- * The script browser: a page of one play around the cursor, with scene
- * headings (progress, or price if not owned), marks for written (+) and
- * pinned (@) lines, what each needs, and prices to buy the scene, act or
- * play under the cursor.
+ * The script browser: a page of one play around the cursor. Each scene has a
+ * dim heading with its progress; written lines are green with a +, pinned
+ * ones have an @, the cursor's line is inverse, and a NEEDS column lists the
+ * letters each line still needs. Lines too long for the screen wrap. Under
+ * them, prices to buy the scene, act or play under the cursor.
  */
-export function renderScript(state: GameState, playId: string, cursor: number, message = ''): string {
+export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0): string {
   const play = getPlay(playId);
   if (!play) return 'No plays loaded.';
   const done = state.completed[play.id] ?? [];
   const at = Math.max(0, Math.min(cursor, play.lines.length - 1));
   const first = Math.max(0, Math.min(at - Math.floor(scriptPageSize / 2), play.lines.length - scriptPageSize));
+  const shown = Array.from({ length: Math.min(scriptPageSize, play.lines.length - first) }, (_, k) => first + k);
   const pinned = (i: number) => state.pinned.some((p) => p.play === play.id && p.index === i);
+  const speakerWidth = 13;
+  const needsWidth = Math.max('NEEDS'.length, ...shown.map((i) => plainText(lineNeeds(state, play, i)).length));
+  const longest = Math.max(...shown.map((i) => play.lines[i].text.length));
+  // Text gets what the screen leaves after the marks, speaker and NEEDS column.
+  const textWidth = columns > 0 ? Math.max(20, Math.min(longest, columns - 1 - 3 - speakerWidth - 1 - 2 - needsWidth)) : longest;
+  const rowWidth = 3 + speakerWidth + 1 + textWidth + 2 + needsWidth;
+
   const rows: string[] = [];
-  for (let i = first; i < Math.min(first + scriptPageSize, play.lines.length); i++) {
+  for (const i of shown) {
     const line = play.lines[i];
     const prev = play.lines[i - 1];
+    const sc = sceneOf(play, i)!;
     if (i === first || prev.act !== line.act || prev.scene !== line.scene) {
-      const sc = sceneOf(play, i)!;
       const [w, total] = sceneProgress(state, play, sc);
       const status = ownsScene(state, play.id, sc)
-        ? `${count(w)}/${count(total)} written${w === total ? ', finished' : ''}`
-        : `${count(total)} lines, not owned`;
-      rows.push(`  -- ${sceneName(sc.act, sc.scene, play.genre)} (${status}) --`);
+        ? `${count(w)} / ${count(total)} written${w === total ? ` ${green('finished')}` : ''}`
+        : dim(`${count(total)} line${total === 1 ? '' : 's'}, not owned`);
+      const heading = ` ${dim(sceneName(sc.act, sc.scene, play.genre).toUpperCase())}   ${status}`;
+      rows.push(...(rows.length > 0 ? [''] : []), padVisible(heading, Math.max(rowWidth - needsWidth, plainText(heading).length + 2)) + dim('NEEDS'));
     }
-    const marks = (i === at ? '>' : ' ') + (done.includes(i) ? '+' : ' ') + (pinned(i) ? '@' : ' ');
-    const status = done.includes(i) ? '' : `   (${lineStatus(state, play, i)})`;
-    rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${slotHighlight(state, line.text, play.genre)}${status}`);
+    const written = done.includes(i);
+    const owned = ownsScene(state, play.id, sc);
+    const mark = (i === at ? '>' : ' ') + (written ? '+' : pinned(i) ? '@' : ' ');
+    const texts = wrapWords(line.text, textWidth);
+    const lines = texts.map((t, k) => {
+      const text = owned && !written ? slotHighlight(state, t, play.genre) : t;
+      const lead = k === 0 ? `${mark} ${(line.speaker || '').padEnd(speakerWidth).slice(0, speakerWidth)}` : ' '.repeat(3 + speakerWidth);
+      const needs = k === 0 ? lineNeeds(state, play, i) : '';
+      const row = `${lead} ${padVisible(text, textWidth)}  ${needs}`;
+      return k === 0 && !written && owned ? row.replace(line.speaker || '\u0000', dim(line.speaker)) : row;
+    });
+    rows.push(
+      ...lines.map((r) => {
+        if (i === at) return inverse(padVisible(plainText(r), rowWidth));
+        if (written) return green(plainText(r).trimEnd());
+        return owned ? r.trimEnd() : dim(plainText(r).trimEnd());
+      }),
+    );
   }
+
   const sc = sceneOf(play, at)!;
-  const section = (label: string, n: number) =>
-    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${price(n, state.currency)} ${theme.currency}`;
+  const section = (key: string, label: string, n: number) =>
+    `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : state.currency >= n ? green(`* ${bold(formatNumber(n))} ${theme.currency}`) : `${formatNumber(n)} ${theme.currency}`}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
-    `=== ${play.title} (${genreNames[play.genre]}${locked ? ', locked' : ''}) ===   ` +
-      `${count(done.length)} of ${count(play.lines.length)} lines written   ` +
-      `line ${count(at + 1)}`,
+    titleBar(state, 'Script', columns),
+    '',
+    ` ${bold(play.title)}   ${dim(`${genreNames[play.genre]}${locked ? ', locked' : ''}`)}   ${count(done.length)} / ${count(play.lines.length)} lines written`,
     '',
     ...rows,
     '',
-    `+ written   @ pinned (${state.pinned.length}/${maxPinnedLines})`,
-    locked
-      ? `Open a ${genreNames[play.genre]} department to buy these.`
-      : play.genre === 'sonnet'
-        ? `Buy  [b] ${section('this sonnet', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[w] ${section('all the sonnets', sectionPrice(state, play))}   (* = affordable)`
-        : `Buy  [b] ${section('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[a] ${section(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
-          `[w] ${section('whole play', sectionPrice(state, play))}   (* = affordable)`,
-    '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] contents   [enter] pin/unpin',
-    '[,/.] previous/next scene you own   [f] next shortest line within reach   [esc] back to the typewriters',
+    dim(` + written   @ pinned (${state.pinned.length}/${maxPinnedLines})   NEEDS: letters you don't own yet`),
+    ...(locked
+      ? [` Open a ${genreNames[play.genre]} department to buy these.`]
+      : wrapVisible(
+          play.genre === 'sonnet'
+            ? [section('b', 'this sonnet', sectionPrice(state, play, sc.act, sc.key)), section('w', 'all the sonnets', sectionPrice(state, play))]
+            : [
+                section('b', 'scene', sectionPrice(state, play, sc.act, sc.key)),
+                section('a', `Act ${sc.act}`, sectionPrice(state, play, sc.act)),
+                section('w', 'whole play', sectionPrice(state, play)),
+              ],
+          columns,
+          ` ${dim('Buy')}  `,
+        )),
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    message,
+    rule(columns),
+    keyRow(
+      [
+        ['up/down', 'line'],
+        ['left/right', 'scene'],
+        ['pgup/pgdn', 'page'],
+        ['enter', 'pin'],
+        ['tab', 'contents'],
+        ['[/]', 'pinned lines'],
+        [',/.', 'scenes you own'],
+        ['f', 'shortest line in reach'],
+        ['esc', 'back'],
+      ],
+      columns,
+    ),
   ].join('\n');
 }
 
@@ -848,45 +1109,58 @@ export const contentsPageSize = 20;
 /**
  * The script's table of contents: every play (when playId is null), or one
  * play's acts and scenes. `cursor` indexes availablePlays() or play.scenes.
+ * The cursor's row is inverse; locked plays and scenes you don't own are dim.
  */
-export function renderContents(state: GameState, playId: string | null, cursor: number, message = ''): string {
+export function renderContents(state: GameState, playId: string | null, cursor: number, message = '', columns = 0): string {
   const play = playId ? getPlay(playId) : undefined;
   const open = departmentGenres(state);
-  const items: { text: string; header?: string }[] = play
+  type Row = { cols: string[]; faded?: boolean; finished?: boolean; header?: string };
+  const items: Row[] = play
     ? play.scenes.map((sc, i) => {
         const [w, total] = sceneProgress(state, play, sc);
-        const status = ownsScene(state, play.id, sc)
-          ? `${count(w)}/${count(total)} written${w === total ? ', finished' : ''}`
-          : `${count(total)} lines, not owned`;
+        const owned = ownsScene(state, play.id, sc);
         const prev = play.scenes[i - 1];
-        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `Act ${sc.act}` : undefined;
-        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `  Scene ${sc.scene}`;
-        return { text: `${name.padEnd(12)} ${status}`, header };
+        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `ACT ${sc.act}` : undefined;
+        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `Scene ${sc.scene}`;
+        return {
+          cols: [name, owned ? `${count(w)} / ${count(total)}` : 'not owned', owned ? '' : `${count(total)} line${total === 1 ? '' : 's'}`],
+          faded: !owned,
+          finished: owned && w === total,
+          header,
+        };
       })
     : availablePlays().map((p) => {
         const owned = p.scenes.filter((sc) => ownsScene(state, p.id, sc)).length;
         const done = (state.completed[p.id] ?? []).length;
-        const status = !open.includes(p.genre)
-          ? 'locked'
-          : `${count(done)}/${count(p.lines.length)} lines written, ${count(owned)} of ${count(p.scenes.length)} ${p.genre === 'sonnet' ? 'sonnets' : 'scenes'} owned`;
-        return { text: `${p.title.padEnd(28)} ${genreNames[p.genre].padEnd(10)} ${status}` };
+        return open.includes(p.genre)
+          ? { cols: [p.title, genreNames[p.genre], `${count(done)} / ${count(p.lines.length)}`, `${count(owned)} / ${count(p.scenes.length)}`] }
+          : { cols: [p.title, genreNames[p.genre], 'locked', ''], faded: true };
       });
+  const headings = play ? [play.genre === 'sonnet' ? 'SONNET' : 'SCENE', 'WRITTEN', ''] : ['PLAY', 'GENRE', 'WRITTEN', 'SCENES OWNED'];
+  const widths = headings.map((h, c) => Math.max(h.length, ...items.map((x) => x.cols[c].length)));
+  const right = (c: number) => (play ? c === 1 : c >= 2);
+  const line = (mark: string, cols: string[]) => ` ${mark} ` + cols.map((t, c) => (right(c) ? t.padStart(widths[c]) : t.padEnd(widths[c]))).join('   ');
   const at = Math.max(0, Math.min(cursor, items.length - 1));
   const first = Math.max(0, Math.min(at - Math.floor(contentsPageSize / 2), items.length - contentsPageSize));
-  const rows = items.slice(first, first + contentsPageSize).flatMap((item, k) => [
-    ...(item.header ? [`  ${item.header}`] : []),
-    `${first + k === at ? '>' : ' '}   ${item.text}`,
-  ]);
+  const rows = items.slice(first, first + contentsPageSize).flatMap((item, k) => {
+    const text = line(first + k === at ? '>' : ' ', item.cols) + (item.finished ? '   finished' : '');
+    return [
+      ...(item.header ? [dim(` ${item.header}`)] : []),
+      first + k === at ? inverse(text + ' ') : item.faded ? dim(text.trimEnd()) : item.finished ? text.replace(/finished$/, green('finished')) : text.trimEnd(),
+    ];
+  });
   return [
-    play ? `=== Contents: ${play.title} ===` : '=== Contents: all plays ===',
+    titleBar(state, 'Contents', columns),
     '',
+    ...(play ? [` ${bold(play.title)}`, ''] : []),
+    dim(line(' ', headings).trimEnd()),
     ...rows,
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
+    rule(columns),
     play
-      ? '[up/down] choose   [enter] go to this scene   [esc] back to all plays   [tab] close'
-      : '[up/down] choose   [enter] open this play\'s contents   [esc/tab] close',
-    '',
-    message,
+      ? keyRow([['up/down', 'choose'], ['enter', 'go to this scene'], ['esc', 'all plays'], ['tab', 'close']], columns)
+      : keyRow([['up/down', 'choose'], ['enter', "this play's acts and scenes"], ['esc', 'back']], columns),
   ].join('\n');
 }
 
@@ -913,7 +1187,7 @@ function pinnedText(state: GameState): string[] {
     const play = getPlay(p.play);
     const line = play?.lines[p.index];
     if (!play || !line) return [];
-    return [`  @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})`];
+    return [`   @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})`];
   });
-  return rows.length === 0 ? [] : ['', 'Pinned lines', ...rows];
+  return rows.length === 0 ? [] : ['', dim(' PINNED LINES'), ...rows];
 }

@@ -101,7 +101,7 @@ Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is 
 
 ## Currencies
 
-- **Points** come from every word. They buy letters, typing speed and typewriter keys.
+- **Points** (shown as **Bananas** since 2026-10-14) come from every word. They buy letters, typing speed and typewriter keys.
 - **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy hats for your monkeys and repeatable upgrades such as raising the combo cap.
 - **Sentences also come from long chains (balance pass, 2026-10-13)**, so they are a slow but renewable currency: when a chain breaks, it pays 1 Sentence if it held 3+ words of 4+ letters, plus 1 for every 3 more (`sentenceRules` in config.ts). Measured with `scripts/simulate.ts`: about 40 in the first hour, about 100 an hour by hour 5. Looser rules gave far too many (any 3 words: 3K in the first hour); stricter ones (4 long words) almost none.
 - **Words** (2026-10-13) come from each **different** word your monkeys spell: one per new entry in the dictionary, so the supply is limited by the word list and your letters. An early-game limited currency. Words are spent on **letters** **(decided)**: each new letter costs points plus floor(¼ × letters owned²) Words (0, 1, 2, 4, 6, 9, ... 156 for the 26th; placeholder). The early steps stay small so a poor early letter like Q or J, which adds few new words, can't lock you out.
@@ -175,18 +175,59 @@ A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a la
 
 ## Screen layout (terminal)
 
+Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to parse"; "lets go through each section one at a time starting with home screen"). Mockups and the reasoning: the "Infinite Monkeys Screen Cleanup" artifact. Each kind of styling has one job on every screen (`src/cli/style.ts`): inverse is where you are (the title bar), bold is new or live (and keys), dim is what you can skip (headings, explanations, what you don't own yet); green, yellow, red and blue mean good, getting low, needs you and resting; each currency has its own colour (Bananas yellow, Words cyan, Sentences magenta, Lines blue). The currency is called **Bananas** for now (Justin, 2026-10-14: "to stay on the monkey theme"); code still calls it points.
+
 ```
-=== Infinite Monkeys ===
+ INFINITE MONKEYS     345.44K Bananas   1.11K Words   179 Sentences   3 Lines
 
-M-1(0.50/s)         x1  ITIEANTISSSOI_
-Bartholomew(0.50/s) x3  INTEEETSITAONAIEIN_
-Jo(0.50/s)          x1  INAENEATSTTNIET_
+ MONKEY                SPEED   ENERGY  COMBO  TYPING
+ A@ M-1               0.00/s  Resting     x1  ELHAORNEIESDIU_
+ #@ Bartholomew      421.4/s      98%     x3  EAHHSESDNRELUSENUDRUAAERSAARUTEART_
 
-1.2K Points   4 Sentences   12 Lines
-...
+ Letters  A _ _ D E _ _ H I _ _ L _ N O _ _ R S T U _ _ _ _ _   (12 of 26)
+ Script   3 / 2,160 lines written   9 scenes owned
+
+ LATELY
+   Last word: LOOED +30
+   A monkey wrote a line! "And I." (3.1)  already written
+   Bought a potted plant.
+ -----------------------------------------------------------------------------
+ [space] shop   [p] script   [o] office   [t] stats   [a] achievements   [w] dictionary
+ [enter] pet the monkey   [n] name   [d] move   [m] promote a monkey   [c] options   [?] all keys   [q] quit
 ```
 
-Monkey lines sit right under the title. Each starts with the monkey's name (M-1, M-2, ... until the player names it, up to 12 characters), its speed and its combo multiplier, padded so every monkey's text starts in the same column and the lines read as one block. Letters are always capitals; the live run of words is bold. `p` opens the script browser.
+- **Monkey table:** columns never change width (Justin: "I want to make sure the columns like monkey speed etc dont change width"): the name column fits the 12-character name limit, and with more than one department a department initial comes before the name. Energy is a percent (Justin preferred it to a bar, which took too much room): green above 80%, yellow above 20%, red at 20% and below, and a blue **Resting** on a break (`energyColors` in config.ts). Managers show `-` for speed, energy and combo, and what they're aiming at.
+- **Letters:** the whole alphabet in order, each letter you own in its place and a dim `_` for the rest (Justin's idea).
+- **LATELY:** one feed for news: the last word, the last line written and the last milestone (dim), anything waiting for you (a Folio, a new department), and the newest message in bold.
+- **Keys:** two short rows, places to go and things to do, broken between keys to fit the screen. `?` lists every key, including save, reset and dev tools.
+
+**Shop** (Justin, 2026-10-14: rename the furniture stores "Office" and "Breakroom", "use left and right arrow keys to move back and forth between shops", "make sure the element column doesnt show until the fengshui book is read"):
+
+```
+ INFINITE MONKEYS > SHOP     345.44K Bananas   1.11K Words   179 Sentences   3 Lines
+
+ Typewriters   Staff   Script   Office*  Breakroom   Hats*
+
+ Furniture for a department's own room: it helps the monkeys who work there.
+
+     ITEM                EFFECT                                PRICE
+ [1] Potted plant     P  tire 3% slower, +1% pay        * 500 Bananas
+ [8] Armchair         A  breaks 8% faster, +1% pay   * 10.00K Bananas
+     New furniture places itself in a department's room ([c] options).
+ ------------------------------------------------------------------------------
+ [1-9] buy   [i] inspect   [left/right] store   [up/down] page 1 of 2   [esc] back
+```
+
+- Its own screen; the open store's tab is inverse, the others dim. Items in columns (item, look, element, effect, price on the right); columns keep their width across a store's pages, and close up to one space apart when that's what fits an 80-column screen. Affordable: a green price with `*`. Not yet: the whole row dim. Notes are dim. Descriptions stay behind `i`.
+- The ELEMENT column appears only once the feng shui book is read. A piece bigger than one square says so after its name, e.g. Couch (2x1).
+
+**Office map** (Justin, 2026-10-14: "office map room looks good for now"): the title bar, the map, a dim legend, then a table of rooms (number, name, size, chi once the book is read, lounge, effects, who works there, cut to "+N more" at the screen's edge). A room with no way in, and a department with no room, show in red. Prices for a new room and one more square sit under the table. How rooms and lounges work moved to a `?` page.
+
+**Script** (Justin, 2026-10-14, on the mockup: "can you add a button to skip back and forth between pinned lines?"): the title bar, the play and its progress, a dim heading per scene, written lines green with `+`, pinned lines `@`, the cursor's line inverse, and a NEEDS column of the letters each line still needs (`in reach` in green when none); lines too long for the screen wrap under themselves.
+
+**Light mode** (Justin, 2026-10-14: "is there a setting to swap the entire game to light mode?"): the game never paints a background, so it follows the terminal's theme. Options (`c`) has a **Light background** switch that turns yellow, cyan and green into darker 256-colour shades that read well on white (`forLightBackground` in style.ts, applied to the finished screen in main.ts). `[` and `]` jump to the previous or next pinned line, across plays. The contents page is a table (play, genre, written, scenes owned; or one play's scenes by act), locked plays and unowned scenes dim, the cursor's row inverse.
+
+**Statistics and menus** (Justin, 2026-10-14: "make "folios published" its own section, and make it only appear after the first folio is published. also include stat for longest sentence... for letters typed, can we display all the letters in order of most typed?"): every page and menu has the title bar, dim headings and notes, a dim rule and a key row. Statistics are in sections: TYPING (now with Sentences written and the longest sentence, its words wrapped under the values), PLAYS (lines, plus the scene, act, play and sonnet milestones that used to sit under achievements), MONKEYS, FOLIOS (only once one is published), LETTERS TYPED (every letter, most typed first) and MOST SPELLED (two columns). The game counts sentences and keeps only the longest one's words (up to 500); storing every sentence would grow the save without limit and slow every autosave, so it doesn't. Achievements mark unlocked ones with a green `[x]` and dim the rest; the dictionary dims its counts. Options, typewriter keys, word slots and dev tools share one look: `[n]` keys in bold, ON in green and off dim, affordable prices green with `*`. The opening screens (genre, free scene, first letter) list their choices with dim details lined up.
 
 ## Saves and offline progress
 
@@ -217,7 +258,7 @@ Each step is a small pull request that you can play with `npm start` before the 
     6. **Hidden mechanics and lore.** Layout bonuses discovered through flavour text (e.g. a feng shui book).
     6a. **Feng shui and windows** (Justin, 2026-10-14: "lets work on fengshui and furniture... we can also add windows to the game because those can be important for fengshui"; on the proposal: "lets start here. for now, the simpler the better"). Research and the fuller proposal: the project file `infinite-monkeys/feng-shui-research.md`. Built, the simplest version:
         - **Windows** sit in a room's outside walls (no room or hallway beyond), drawn `===` in top and bottom walls and `:` in side walls. `w` on the office map cycles a window through the square's outside walls, free like doors. Room 1 starts with one, every new room gets one where no door looks straight at it, a room that grows through its window gets another, and a hallway laid outside a window removes it.
-        - **Elements:** every piece has one, shown in the store. Furniture doubled and more (Justin, 2026-10-14: "double it, and have some at the same price tier as others, and having similar levels of benefit"; "perhaps fire should be the most rare"; "3 fire, 4 water, 5 wood, 5 earth, 6 metal"): 23 pieces, each at the price and benefit of an existing one. Fire (rarest): scented candle, fireplace, TV. Water: fish tank, indoor fountain, water cooler, hot tub. Wood: plant, bonsai, bookshelf, armchair, hammock. Earth: sand garden, landscape painting, bench, beanbag, couch. Metal: wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine (and every desk). Windows are light only, not Fire, so Fire stays rare. Pieces fit only certain kinds of room (Justin, 2026-10-14: "make certain furniture only available in certain rooms, then make the store have different sections based on the rooms in the office... televisions should not be able to be placed in the office, only in the lounge"): the wall clock, bookshelf and gong fit only departments' rooms; the bench, beanbag, espresso and vending machines, couch, fireplace, hammock, TV and hot tub only break rooms; everything else either. The store has a section (tab) per kind of room, Department rooms and Break rooms, each listing what fits there by price and buying into that kind of room; stores with more than 9 items have pages (`up`/`down`). Seats (bench, armchair, beanbag, couch, hammock) want a wall behind them in a break room.
+        - **Elements:** every piece has one, shown in the store once the feng shui book is read. Furniture doubled and more (Justin, 2026-10-14: "double it, and have some at the same price tier as others, and having similar levels of benefit"; "perhaps fire should be the most rare"; "3 fire, 4 water, 5 wood, 5 earth, 6 metal"): 23 pieces, each at the price and benefit of an existing one. Fire (rarest): scented candle, fireplace, TV. Water: fish tank, indoor fountain, water cooler, hot tub. Wood: plant, bonsai, bookshelf, armchair, hammock. Earth: sand garden, landscape painting, bench, beanbag, couch. Metal: wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine (and every desk). Windows are light only, not Fire, so Fire stays rare. Pieces fit only certain kinds of room (Justin, 2026-10-14: "make certain furniture only available in certain rooms, then make the store have different sections based on the rooms in the office... televisions should not be able to be placed in the office, only in the lounge"): the wall clock, bookshelf and gong fit only departments' rooms; the bench, beanbag, espresso and vending machines, couch, fireplace, hammock, TV and hot tub only break rooms; everything else either. The store has a section (tab) per kind of room, Office and Breakroom (renamed from Department rooms and Break rooms, 2026-10-14), each listing what fits there by price and buying into that kind of room; stores with more than 9 items have pages (`up`/`down`). Seats (bench, armchair, beanbag, couch, hammock) want a wall behind them in a break room.
         - **Lounges** (Justin, 2026-10-14: "furniture in the office should only apply benefits to that office room, furniture in lounges should apply benefits to any office that connects directly to that lounge. that way a lounge can connect to multiple offices and apply benefits to all at once"; "option a but also with hallways. furniture benefits within one lounge should stack, but offices should only receive benefits from the closest>largest lounge either sharing a door or a hallway"; "if there are multiple the same size then the one with the most furniture"). Break rooms and departments' rooms may now share a wall, with a door straight between them; rooms of one kind still keep a hallway's width apart. A new break room goes against as many departments' rooms as it can (a new department's room is happy against a break room too), with a door into each, and a room that grows against one gets a door. Each department has one **lounge**: the nearest break room, through a door between them (nearest) or along hallways (fewest hallway squares); if several are as near, the biggest, then the one with the most furniture, then the first built. A department gets every effect (tiring, breaks, happiness) of the furniture in its own room and its lounge, added up and capped per department; other break rooms do nothing for it. Feng shui chi stays office-wide. The office map shows each department's lounge and effects, and which departments each break room is the lounge of.
         - **Five rules per room** (fengshui.ts): Light (a window); Command (every desk against a wall and out of the straight path in from a door; in a break room, at least one seat, each with its back (a long side, for a bigger seat) against a wall); Flow (no door's straight path runs to a window or door in the far wall with nothing standing in it); Welcome (the square just inside each door is empty); Balance (all five elements). A room's chi is the share it keeps.
         - **Effect:** the office's chi (the average over rooms you can reach) adds up to +10% happiness, which raises points and helps energy like furniture happiness. Only once you've read the **feng shui book**: then each room's chi shows on the map and `b` rereads it (general guidelines for placing furniture: the rules, the elements and what each room lacks). This replaced the proposal's "bonus applies unseen without the book", so nobody gets a bonus for free.
@@ -226,7 +267,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 
 ## Achievements
 
-Built 2026-10-14 (Justin: "achievements for every first is good. maybe some fun ones too like 1000 pets and other benign stuff like that"). The `a` page lists every achievement, like the statistics and dictionary pages: every first (word, letter bought, combo, Sentence, line, scene, act, play, hire, name, manager, department, room, furniture, hat, faster typing, typewriter, key, slot, pet), fun ones (100, 1,000 and 10,000 pets; a monkey at its happiest; 10-word chain; 8- and 12-letter words; 100, 1,000 and 10,000 different words; a million letters; all 26 letters; a full department; 24 hours typing; a crown; a billion Points) and secret words shown as ??? until spelled (MONKEY, BANANA, HAMLET, BARD, TYPEWRITER, INFINITE). Achievements give no rewards. Unlocking one shows a message; old saves unlock what they've already done. Below the list, the milestones: scenes, acts, plays and sonnets finished with their bonuses. The list is data (`achievements` in config.ts), each measured by a stat in `achievementValue`.
+Built 2026-10-14 (Justin: "achievements for every first is good. maybe some fun ones too like 1000 pets and other benign stuff like that"). The `a` page lists every achievement, like the statistics and dictionary pages: every first (word, letter bought, combo, Sentence, line, scene, act, play, hire, name, manager, department, room, furniture, hat, faster typing, typewriter, key, slot, pet), fun ones (100, 1,000 and 10,000 pets; a monkey at its happiest; 10-word chain; 8- and 12-letter words; 100, 1,000 and 10,000 different words; a million letters; all 26 letters; a full department; 24 hours typing; a crown; a billion Points) and secret words shown as ??? until spelled (MONKEY, BANANA, HAMLET, BARD, TYPEWRITER, INFINITE). Achievements give no rewards. Unlocking one shows a message; old saves unlock what they've already done. The milestones (scenes, acts, plays and sonnets finished, with their bonuses) moved to the statistics page. The list is data (`achievements` in config.ts), each measured by a stat in `achievementValue`.
 
 ## Publishing a Folio (prestige)
 

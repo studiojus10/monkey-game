@@ -25,8 +25,10 @@ import {
   stores,
   storeChoices,
   storePages,
+  renderHomeKeys,
 } from '../src/cli/screen';
-import { inspectSquare, officeMapWidth, renderOffice, renderFengShuiBook } from '../src/cli/office';
+import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
+import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook } from '../src/cli/office';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
 import { poke, typeLetter, buyRoom, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
@@ -58,6 +60,8 @@ const testPlay = {
 
 /** Drops ANSI styling (bold prices and counters) so layout can be checked as plain text. */
 const plain = (text: string) => text.replace(/\x1b\[\d+m/g, '');
+/** Plain text with each run of spaces as one, for checking shop rows whatever their column widths. */
+const squash = (text: string) => plain(text).replace(/ +/g, ' ');
 
 /** A state past the opening choices: the test play and the letter I. */
 function started() {
@@ -73,58 +77,108 @@ describe('terminal screen', () => {
   it('asks for a genre first, then a free scene, then the first letter', () => {
     setPlays([testPlay]);
     const s = createInitialState(0);
-    expect(renderScreen(s)).toContain('[1] Comedies: Test Play');
+    const genres = plain(renderScreen(s, '', null, 80));
+    expect(genres.split('\n')[0]).toBe(' INFINITE MONKEYS ');
+    expect(genres).toContain('   [1] Comedies   Test Play');
+    expect(genres).toContain(' [1] choose   [q] quit');
     openDepartment(s, 'comedy');
-    expect(renderScreen(s)).toContain('[1] Test Play, Act 1, scene 1 (1 lines)');
+    expect(plain(renderScreen(s))).toContain('   [1] Test Play, Act 1, scene 1   1 line');
     chooseStarterScene(s, 'test', '1.1');
-    const text = renderScreen(s);
-    expect(text).toContain('[a] A    [i] I');
-    expect(text).not.toContain('Points');
+    const text = plain(renderScreen(s));
+    expect(text).toContain('   [a] A\n   [i] I\n');
+    expect(text).toContain(' [a/i] choose   [q] quit');
+    expect(text).not.toContain('Bananas');
   });
 
-  it('shows points, letters, the monkey line and controls', () => {
+  it('shows the currencies, letters, the monkey table and controls', () => {
     const s = started();
     s.currency = 1234;
     s.wordsTyped = 3;
     s.lastWord = 'I';
     s.lastWordPoints = 1;
     s.monkeys[0].line = [{ text: 'I', scored: true }];
-    const text = renderScreen(s, 'hello', 'staff');
-    const tools = plain(renderScreen(s, '', 'typewriters'));
-    expect(text).toContain('\x1b[1m1.23K Points\x1b[22m   \x1b[1m0 Words\x1b[22m   \x1b[1m0 Sentences\x1b[22m   \x1b[1m0 Lines\x1b[22m'); // every total in bold, in this order
-    expect(text).toContain('Letters: I');
-    expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
-    expect(text.split('\n')[2]).toBe(' @ M-1(0.50/s 100%) x1  \x1b[1mI\x1b[22m_');
-    expect(text).toContain('Last word: I +1');
-    expect(plain(text)).toMatch(/^Shop +Typewriters\* +\[Staff\*\] +Script +Department rooms\* +Break rooms +Hats$/m); // letters come first
-    expect(plain(text)).toContain('[1] *Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
-    expect(tools).toContain('[2] *Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
-    expect(tools).toContain('[1] *Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
+    const text = renderScreen(s, 'hello');
+    const shop = squash(renderScreen(s, 'hello', 'staff'));
+    const tools = squash(renderScreen(s, '', 'typewriters'));
+    // A title bar, then every total in bold in its own colour, in this order.
+    expect(text.split('\n')[0]).toBe(
+      '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1.23K Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
+        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m',
+    );
+    expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
+    expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
+    const rows = plain(text).split('\n');
+    expect(rows[2]).toBe(' MONKEY                SPEED   ENERGY  COMBO  TYPING');
+    expect(rows[3]).toBe('  @ M-1               0.50/s     100%     x1  I_');
+    expect(plain(text)).toContain('Last word: I +1');
+    expect(text).toContain(bold('hello')); // the newest message, under LATELY
+    expect(plain(text)).toContain('[q] quit');
+    // The shop is its own screen, its items in columns with prices on the right.
+    expect(shop).toContain(' INFINITE MONKEYS > SHOP ');
+    expect(shop).toContain(' hello'); // messages still show
+    expect(shop).toContain('[1] Faster typing M-1: 0.50 -> 0.63/s, skill 0/10 * 10 Bananas\n');
+    expect(tools).toContain('[2] Portable typewriter M-1: skill cap 10 -> 20 * 1.00K Bananas\n');
+    expect(tools).toContain('[1] Buy a letter key you choose it (25 left) * 25 Bananas\n'); // the 2nd letter costs no Words
     s.letters.push('A');
-    expect(plain(renderScreen(s, '', 'typewriters'))).toContain('[1]  Buy a letter key   cost 75 Points + 1 Words');
-    expect(plain(text)).toContain('[2]  Hire a monkey (you have 1)   cost 300.00K Points');
-    expect(plain(text)).toContain('[3]  Raise combo cap (x3 -> x4)   cost 1 Sentences');
-    expect(text).toContain('[q] quit');
-    expect(text).toContain('hello');
+    expect(squash(renderScreen(s, '', 'typewriters'))).toContain('[1] Buy a letter key you choose it (24 left) 75 Bananas + 1 Words\n');
+    expect(shop).toContain('[2] Hire a monkey you have 1 300.00K Bananas\n');
+    expect(shop).toContain('[3] Raise combo cap x3 -> x4 1 Sentences\n');
+  });
+
+  it('colours each typist energy: green when fresh, yellow when tiring, red when nearly spent, blue Resting on a break', () => {
+    const s = started();
+    const energy = () => renderScreen(s).split('\n')[3];
+    for (const [e, code] of [[1, 32], [0.81, 32], [0.8, 33], [0.21, 33], [0.2, 31], [0, 31]] as const) {
+      s.monkeys[0].energy = e;
+      expect(energy()).toContain(`\x1b[${code}m${`${Math.round(e * 100)}%`.padStart(7)}\x1b[39m`);
+    }
+    s.monkeys[0].resting = true;
+    expect(energy()).toContain('\x1b[34mResting\x1b[39m');
+  });
+
+  it('keeps every column the same width whatever the numbers', () => {
+    const s = started();
+    s.monkeys.push(createMonkey(), createMonkey());
+    s.monkeys[1].energy = 0.05;
+    s.monkeys[2].resting = true;
+    s.monkeys[2].skill = 200;
+    s.monkeys[0].chainWords = ['ZZZZ', 'YYYY', 'XXXX', 'WWWW', 'VVVV', 'UUUU', 'TTTT', 'SSSS', 'RRRR', 'QQQQ']; // x13
+    const rows = plain(renderScreen(s)).split('\n').slice(2, 6);
+    for (const heading of ['SPEED', 'ENERGY', 'COMBO']) {
+      const end = rows[0].indexOf(heading) + heading.length;
+      for (const r of rows.slice(1)) expect(r[end - 1], `${heading}: ${r}`).not.toBe(' '); // right-aligned under the heading
+      for (const r of rows.slice(1)) expect(r[end], `${heading}: ${r}`).toBe(' ');
+    }
+  });
+
+  it('lists every key on the [?] page', () => {
+    const s = started();
+    const keys = plain(renderHomeKeys(s));
+    for (const k of ['[space]', '[p]', '[o]', '[t]', '[a]', '[w]', '[c]', '[enter]', '[n]', '[d]', '[m]', '[s]', '[r]', '[`]', '[q]']) expect(keys).toContain(k);
+    expect(plain(renderScreen(s))).not.toContain('[`]'); // the home screen keeps to the everyday keys
   });
 
   it('keeps the shop closed until space opens it', () => {
     const s = started();
     const closed = plain(renderScreen(s));
     expect(closed).not.toContain('Faster typing');
-    expect(closed).toContain('[enter] pet the monkey   [space] open the shop');
+    expect(closed).toContain('[space] shop   [p] script   [o] office');
+    expect(closed).toContain('[enter] pet the monkey   [n] name');
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
-    expect(open).toContain('[space] close the shop   [tab] next store   [1-9] buy');
-    expect(open).toMatch(/^Shop +Typewriters +\[Staff\] +Script +Department rooms +Break rooms +Hats$/m);
+    expect(open).toContain('[1-9] buy   [i] inspect   [left/right] store   [esc] back');
+    expect(open).not.toContain('[tab]');
+    expect(open).not.toContain('SPEED'); // the shop takes the whole screen
+    expect(open).toContain('\n Typewriters   Staff   Script   Office   Breakroom   Hats \n');
+    expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Typewriters\* +Staff\* +\[Script\] +Department rooms +Break rooms +Hats$/m);
+    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Office   Breakroom   Hats \n');
   });
 
   it('celebrates the last line a monkey wrote', () => {
     const s = started();
     s.lastLine = { play: 'test', index: 1, firstTime: true, points: 396, sentence: true };
-    expect(renderScreen(s)).toContain('A monkey wrote a line! "Ay, my lord." (1.2)  +396 Points, +1 Line, +1 Sentence');
+    expect(renderScreen(s)).toContain('A monkey wrote a line! "Ay, my lord." (1.2)  +396 Bananas, +1 Line, +1 Sentence');
   });
 
   it('shows every letter in capitals, with pending letters before the cursor', () => {
@@ -144,9 +198,9 @@ describe('terminal screen', () => {
     s.monkeys.push(createMonkey(), createMonkey());
     renameMonkey(s, 1, 'Bartholomew');
     s.monkeys[2].chainWords = ['ZZZZ', 'YYYY']; // pretend x3 vs x1
-    const rows = renderScreen(s).split('\n').filter((r) => r.endsWith('_'));
+    const rows = plain(renderScreen(s)).split('\n').filter((r) => r.endsWith('_') && r.includes('@'));
     expect(rows).toHaveLength(3);
-    expect(rows[1].startsWith(' @ Bartholomew(')).toBe(true);
+    expect(rows[1].startsWith('  @ Bartholomew ')).toBe(true);
     expect(new Set(rows.map((r) => r.indexOf('_'))).size).toBe(1);
   });
 
@@ -154,7 +208,7 @@ describe('terminal screen', () => {
     const s = started();
     s.monkeys[0].line = [{ text: 'X'.repeat(200), scored: false }];
     for (const columns of [60, 100, 160]) {
-      const row = plain(renderScreen(s, '', null, columns)).split('\n').find((r) => r.endsWith('_'))!;
+      const row = plain(renderScreen(s, '', null, columns)).split('\n').find((r) => r.endsWith('X_'))!;
       expect(row.length).toBe(columns - 1); // the last column stays free
       expect(lineRoom(s, columns)).toBe(row.length - row.indexOf('X') - 1);
     }
@@ -190,8 +244,8 @@ describe('many monkeys', () => {
     const s = started();
     s.monkeys = Array.from({ length: maxMonkeyLines + 5 }, createMonkey);
     const text = renderScreen(s);
-    expect(text).toContain(`M-${maxMonkeyLines}(`);
-    expect(text).not.toContain(`M-${maxMonkeyLines + 1}(`);
+    expect(text).toContain(`M-${maxMonkeyLines} `);
+    expect(text).not.toContain(`M-${maxMonkeyLines + 1} `);
     expect(text).toContain('...and 5 more monkeys typing');
   });
 });
@@ -200,18 +254,21 @@ describe('script browser and pins', () => {
   it('shows a page of the play with scenes, the cursor and what each line needs', () => {
     const s = started();
     let text = renderScript(s, 'test', 1);
-    expect(text).toContain('=== Test Play (Comedies) ===   0 of 2 lines written   line 2');
-    expect(text).toContain('[b] this scene: owned');
-    expect(text).toContain('-- Act 1, scene 1 (0/1 written) --');
-    expect(text).toContain('-- Act 1, scene 2 (0/1 written) --');
-    expect(text).toContain('    HAMLET         I.   (within reach)');
-    expect(text).toContain('>   POLONIUS       Ay, my lord.   (needs A D L M O R Y)');
+    expect(text).toContain(' INFINITE MONKEYS > SCRIPT ');
+    expect(squash(text)).toContain('\n Test Play Comedies 0 / 2 lines written\n');
+    expect(squash(text)).toContain('[b] scene owned');
+    expect(squash(text)).toContain('\n ACT 1, SCENE 1 0 / 1 written NEEDS\n');
+    expect(squash(text)).toContain('\n ACT 1, SCENE 2 0 / 1 written NEEDS\n');
+    expect(squash(text)).toContain('\n HAMLET I. in reach\n');
+    expect(squash(text)).toContain('\n> POLONIUS Ay, my lord. ADLMORY \n'); // the letters it needs
+    expect(text.split('\n').some((r) => r.startsWith('\x1b[7m>  POLONIUS '))).toBe(true); // the cursor's line is inverse
     s.completed.test = [0];
     togglePin(s, 'test', 1);
     text = renderScript(s, 'test', 0);
-    expect(text).toContain('>+  HAMLET         I.');
-    expect(text).toContain('  @ POLONIUS       Ay, my lord.');
+    expect(squash(text)).toContain('\n>+ HAMLET I. \n');
+    expect(squash(text)).toContain('\n @ POLONIUS Ay, my lord. ADLMORY\n');
     expect(text).toContain('@ pinned (1/5)');
+    expect(renderScript(s, 'test', 1)).toContain('\x1b[32m + HAMLET'); // written lines are green
   });
 
   it('shows pinned lines on the home screen', () => {
@@ -226,11 +283,13 @@ describe('buying scenes in the script browser', () => {
   it('shows unowned scenes with prices, and locked genres', () => {
     const s = started();
     s.owned = ['test:1.1'];
-    const text = plain(renderScript(s, 'test', 1));
-    expect(text).toContain('-- Act 1, scene 2 (1 lines, not owned) --');
-    expect(text).toContain('Ay, my lord.   (not owned)');
-    expect(text).toContain('[b] this scene 80 Points'); // AYMYLORD is 8 letters
-    expect(text).toContain('[a] Act 1 64 Points'); // only the unowned scene, less 20%
+    const text = squash(renderScript(s, 'test', 1));
+    expect(text).toContain('\n ACT 1, SCENE 2 1 line, not owned NEEDS\n');
+    expect(text).toContain('\n> POLONIUS Ay, my lord. \n'); // nothing needed until you own it
+    expect(text).toContain('[b] scene 80 Bananas'); // AYMYLORD is 8 letters
+    expect(text).toContain('[a] Act 1 64 Bananas'); // only the unowned scene, less 20%
+    s.currency = 100;
+    expect(renderScript(s, 'test', 1)).toContain(green(`* ${bold('80')} Bananas`)); // affordable
     s.departments = [];
     s.owned = [];
     expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
@@ -238,23 +297,20 @@ describe('buying scenes in the script browser', () => {
 });
 
 describe('bold prices', () => {
-  it('bolds every price in the shop', () => {
-    const text = renderScreen(started(), '', 'staff');
-    expect(text).toContain('cost \x1b[1m10\x1b[22m Points'); // faster typing
-    expect(text).toContain('cost \x1b[1m300.00K\x1b[22m Points'); // a monkey
-  });
-
-  it('shows affordable prices in green and the rest in the normal color', () => {
+  it('shows what you can afford in green with a *, and dims the rest', () => {
     const s = started();
     s.currency = 20;
-    expect(renderScreen(s, '', 'staff')).toContain('cost \x1b[32m\x1b[1m10\x1b[22m\x1b[39m Points'); // faster typing: affordable
-    expect(renderScreen(s, '', 'typewriters')).toContain('cost \x1b[1m25\x1b[22m Points'); // a letter: not yet
+    const staff = renderScreen(s, '', 'staff');
+    expect(staff).toContain('\x1b[32m* \x1b[1m10\x1b[22m Bananas\x1b[39m'); // faster typing: affordable, its number bold
+    const hire = staff.split('\n').find((r) => r.includes('Hire a monkey'))!;
+    expect(hire.startsWith('\x1b[2m') && plain(hire) === hire.slice(4, -5)).toBe(true); // a monkey: not yet, so the whole row is dim
+    expect(plain(renderScreen(s, '', 'typewriters'))).not.toContain('* 25 Bananas'); // a letter: not yet
   });
 });
 
 describe('typewriter keys menu', () => {
   it('is locked in the shop until you own enough letters', () => {
-    expect(plain(renderScreen(started(), '', 'typewriters'))).toContain('       Typewriter keys: unlock when you own 13 letters');
+    expect(plain(renderScreen(started(), '', 'typewriters'))).toContain('     Typewriter keys unlock when you own 13 letters.');
   });
 
   it('lists the keys you can buy and the words closest to unlocking', () => {
@@ -262,14 +318,17 @@ describe('typewriter keys menu', () => {
     s.letters = 'ABDEGHILNORST'.split('');
     s.keys.push('TH');
     s.stats.words = { THE: 100, LORD: 40, NOR: 12 };
-    expect(plain(renderScreen(s, '', 'typewriters'))).toContain('[3]  Typewriter keys...');
+    expect(squash(renderScreen(s, '', 'typewriters'))).toContain('[3] Typewriter keys... letter combos and whole words');
     const text = plain(renderKeysMenu(s));
-    expect(text).toContain('Closest: LORD 40/100   NOR 12/100');
-    expect(text).toContain('Owned: TH');
+    expect(text).toContain(' Closest LORD 40/100   NOR 12/100');
+    expect(text).toContain(' Owned  TH');
     expect(keyChoices(s)).not.toContain('TH');
     expect(keyChoices(s)).toContain('HE');
-    expect(text).toMatch(/\[1\]  HE \(combination\)   cost [\d.]+[KMBT]? Points/);
-    expect(text).toMatch(/\[2\]  THE \(word\)/);
+    expect(text).toMatch(/ \[1\] HE   combination    [\d.]+[KMBT]? Bananas/);
+    expect(text).toMatch(/ \[2\] THE  word /);
+    s.currency = 1e9;
+    expect(renderKeysMenu(s)).toContain('\x1b[32m* \x1b[1m4.00M\x1b[22m Bananas\x1b[39m'); // affordable: green with a *
+    expect(plain(renderKeysMenu(s, '', 80)).split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 });
 
@@ -290,9 +349,10 @@ describe('word slots on screen', () => {
     s.lines = 2;
     s.slots = [{ department: '', position: 3, word: 'FRIEND', on: true }];
     const text = plain(renderSlotsMenu(s, 'comedy', 0, null));
-    expect(text).toContain('> [1] 3rd  word: FRIEND           ON');
-    expect(text).toContain('[b]  buy a slot   cost 6 Lines');
-    expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word: FRI_');
+    expect(text).toContain('> [1] 3rd  word  FRIEND           ON');
+    expect(renderSlotsMenu(s, 'comedy', 0, null)).toContain('\x1b[7m> [1] 3rd'); // the selected slot is inverse
+    expect(text).toContain(' [b] buy a slot   6 Lines');
+    expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word  FRI_');
     expect(ordinal(1) + ordinal(2) + ordinal(11) + ordinal(22)).toBe('1st2nd11th22nd');
   });
 });
@@ -301,23 +361,52 @@ describe('statistics and dictionary', () => {
   it('shows totals, records, letter counts and the most spelled words', () => {
     const s = started();
     for (let i = 0; i < 3; i++) typeLetter(s, 0, () => 0);
-    const text = renderStats(s);
-    expect(text).toContain('Letters typed:      3');
-    expect(text).toContain('Words spelled:      3 (1 different)');
-    expect(text).toContain('Longest word:       I (1 letters)');
-    expect(text).toContain('Longest line:       "I." (Test Play 1.1, 1 letters)');
-    expect(text).toContain('  I 3');
-    expect(text).toContain('   1. I                x3');
+    const text = plain(renderStats(s));
+    expect(text).toContain(' INFINITE MONKEYS > STATS ');
+    expect(text).toContain('   Letters typed      3\n');
+    expect(text).toContain('   Words spelled      3   1 different');
+    expect(text).toContain('   Longest word       I   1 letter\n');
+    expect(text).toContain('   Longest line       "I."   Test Play 1.1, 1 letter\n');
+    expect(text).toContain('   Scenes finished    1');
+    expect(text).toContain('\n LETTERS TYPED\n   I 3\n');
+    expect(text).toContain('    1. I           3');
+    expect(renderStats(s)).toContain('\x1b[2m TYPING\x1b[22m'); // headings are dim
+  });
+
+  it('shows Folios only once one is published', () => {
+    const s = started();
+    expect(plain(renderStats(s))).not.toContain('FOLIOS');
+    s.folios = 1;
+    s.folioPages = 12;
+    expect(plain(renderStats(s))).toContain(' FOLIOS\n   Published          1\n   Pages              12');
+  });
+
+  it('lists letters by how often they were typed, most first', () => {
+    const s = started();
+    s.stats.letters = { A: 5, E: 90, I: 12, T: 12 };
+    expect(plain(renderStats(s))).toContain('   E 90        I 12        T 12        A 5');
+  });
+
+  it('counts sentences and shows the longest one, wrapped under the values', () => {
+    const s = started();
+    expect(plain(renderStats(s))).toContain('   Longest sentence   -');
+    s.stats.sentencesWritten = 4;
+    s.stats.chainSentences = 1;
+    s.stats.longestSentence = Array.from({ length: 30 }, () => 'MONKEY');
+    const text = plain(renderStats(s, 80));
+    expect(text).toContain('   Sentences written  4   1 Sentence earned');
+    expect(text).toContain('   Longest sentence   30 words\n                      MONKEY MONKEY');
+    expect(text.split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 
   it('lists every word spelled from A to Z with its count, and jumps to a letter', () => {
     const s = started();
     expect(renderDictionary(s, 0)).toContain('No words yet');
     s.stats.words = { ZAP: 1, CAT: 4, ALE: 2, MOO: 1, BEE: 3 };
-    const text = renderDictionary(s, 0);
+    const text = plain(renderDictionary(s, 0));
     expect(text).toContain('5 words spelled');
-    expect(text.split('\n')[2].split(/\s{2,}/)).toEqual(['ALE x2', 'BEE x3', 'CAT x4', 'MOO x1']);
-    expect(text.split('\n')[3]).toBe('ZAP x1');
+    expect(text.split('\n')[4].trim().split(/\s{2,}/)).toEqual(['ALE 2', 'BEE 3', 'CAT 4', 'MOO 1']);
+    expect(text.split('\n')[5]).toBe(' ZAP 1');
     expect(dictionaryRowFor(s, 'z')).toBe(1);
     expect(dictionaryRowFor(s, 'b')).toBe(0);
   });
@@ -328,13 +417,11 @@ describe('script contents', () => {
     const s = started();
     s.owned = ['test:1.1'];
     s.completed.test = [0];
-    const plays = renderContents(s, null, 0);
-    expect(plays).toContain('=== Contents: all plays ===');
-    expect(plays).toMatch(/^> {3}Test Play +Comedies +1\/2 lines written, 1 of 2 scenes owned$/m);
-    const scenes = renderContents(s, 'test', 1).split('\n');
-    expect(scenes).toContain('  Act 1');
-    expect(scenes.find((r) => r.includes('Scene 1'))).toMatch(/^ {6}Scene 1 +1\/1 written, finished$/);
-    expect(scenes.find((r) => r.includes('Scene 2'))).toMatch(/^> {5}Scene 2 +1 lines, not owned$/);
+    const plays = squash(renderContents(s, null, 0));
+    expect(plays).toContain(' INFINITE MONKEYS > CONTENTS ');
+    expect(plays).toContain('\n PLAY GENRE WRITTEN SCENES OWNED\n > Test Play Comedies 1 / 2 1 / 2 \n');
+    const scenes = squash(renderContents(s, 'test', 1));
+    expect(scenes).toContain('\n ACT 1\n Scene 1 1 / 1 finished\n > Scene 2 not owned 1 line \n');
   });
 });
 
@@ -345,7 +432,7 @@ describe('office space on screen', () => {
     s.furniture.push({ kind: 'desk', room: 'r1', x: 1, y: 0 }, { kind: 'desk', room: 'r1', x: 0, y: 1 }, { kind: 'desk', room: 'r1', x: 1, y: 1 });
     const staff = plain(renderScreen(s, '', 'staff'));
     expect(staff).toContain("Hire a monkey: no free square for its desk. Grow its department's room on the office map ([o]).");
-    expect(staff).not.toContain('Hire a monkey (');
+    expect(staff).not.toContain('[3] Hire a monkey');
   });
 
   it('lists a hire line for each department, each with its own price', () => {
@@ -353,18 +440,21 @@ describe('office space on screen', () => {
     s.currency = 1e30;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
-    const staff = plain(renderScreen(s, '', 'staff'));
-    expect(staff).toContain('Hire a monkey for Comedies (1/10)   cost 300.00K Points');
-    expect(staff).toContain('Hire a monkey for Tragedies (0/10)   cost 30.00M Points');
+    const staff = squash(renderScreen(s, '', 'staff'));
+    expect(staff).toContain('Hire a monkey for Comedies (1/10) * 300.00K Bananas');
+    expect(staff).toContain('Hire a monkey for Tragedies (0/10) * 30.00M Bananas');
   });
 
   it('draws the office on one grid: rooms, their desks and who sits at them', () => {
     const s = started();
     s.monkeys[0].name = 'Bobo';
     const text = plain(renderOffice(s));
-    expect(text).toContain('=== Office ===\n\n+-1-----+\n|[@]  . :\n|       |\n| .   . |\n+-------+');
-    expect(text).toContain('   1 Comedies room      4 squares   lounge: none; 1 monkey: Bobo');
+    expect(text).toContain(' INFINITE MONKEYS > OFFICE ');
+    expect(text).toContain('\n\n+-1-----+\n|[@]  . :\n|       |\n| .   . |\n+-------+');
+    expect(squash(text)).toContain('\n 1 Comedies room 4 none - Bobo\n');
     expect(text).toContain('[r] buy a room');
+    expect(text).not.toContain('Each monkey gets a desk'); // how rooms work is on the [?] page
+    expect(plain(renderOfficeHelp(s))).toContain("Each monkey gets a desk in its department's room.");
   });
 
   it('draws rooms of any shape, and the squares a room can grow into', () => {
@@ -384,9 +474,10 @@ describe('office space on screen', () => {
     buyRoom(s, 'department', 'tragedy');
     const text = plain(renderOffice(s));
     expect(text).toContain('/   /[@]'); // a door, a hallway square, a door into room 1
-    expect(text).toContain('   2 Tragedies room');
+    expect(text).toContain(' 2  Tragedies room');
     s.doors = [];
-    expect(plain(renderOffice(s))).toContain('NO WAY IN');
+    const locked = renderOffice(s).split('\n').find((r) => r.includes('NO WAY IN'))!;
+    expect(locked.startsWith('\x1b[31m')).toBe(true); // in red
   });
 
   it("shows each department's lounge, and the departments each break room is the lounge of", () => {
@@ -396,10 +487,16 @@ describe('office space on screen', () => {
     buyRoom(s, 'department', 'tragedy');
     buyRoom(s, 'break'); // against both, with a door into each
     s.furniture.push({ kind: 'tv', room: 'r3', x: s.office[2].cells[0][0], y: s.office[2].cells[0][1] });
-    const text = plain(renderOffice(s));
-    expect(text).toContain('Comedies room      4 squares   lounge: Break room; breaks 40% faster, +3% happy; 1 monkey');
-    expect(text).toContain('Tragedies room     9 squares   lounge: Break room; breaks 40% faster, +3% happy; 0 monkeys');
-    expect(text).toContain('Break room         9 squares   1 piece of furniture; lounge of Comedies room, Tragedies room');
+    const text = squash(renderOffice(s));
+    expect(text).toContain('\n # ROOM SIZE LOUNGE EFFECTS WHO\n');
+    expect(text).toContain('\n 1 Comedies room 4 Break room breaks 40% faster, +3% happy M-1\n');
+    expect(text).toContain('\n 2 Tragedies room 9 Break room breaks 40% faster, +3% happy\n');
+    expect(text).toContain('\n 3 Break room 9 - - lounge of Comedies room, Tragedies room\n');
+    // On a narrow screen who works in each room goes under it.
+    const narrow = plain(renderOffice(s, '', null, -1, false, null, 80));
+    expect(narrow).toContain(' #  ROOM            SIZE  LOUNGE      EFFECTS\n');
+    expect(narrow).toContain('\n 3  Break room         9  -           -\n      lounge of Comedies room, Tragedies room\n');
+    for (const row of narrow.split('\n')) expect(row.length).toBeLessThan(80);
   });
 
   it('places rooms to keep the map narrow enough for the terminal', () => {
@@ -420,26 +517,42 @@ describe('furniture', () => {
   it('sells furniture by the kind of room it goes in', () => {
     const s = started();
     s.currency = 600;
-    const text = plain(renderScreen(s, '', 'department'));
-    expect(text).toMatch(/\[Department rooms\*\] +Break rooms +Hats/);
-    expect(text).toContain("For departments' rooms. Furniture here helps only that room's monkeys.");
-    expect(text).toContain('[1] *Potted plant [P] (wood): monkeys tire 3% slower, +1% points   cost 500 Points');
-    expect(text).toContain('[2] *Scented candle [I] (fire): monkeys tire 3% slower, +1% points   cost 500 Points'); // same price, same benefit
-    expect(text).toContain("[3] *Wall clock [K] (metal): monkeys tire 3% slower, +1% points, departments' rooms only   cost 500 Points");
+    const text = squash(renderScreen(s, '', 'department'));
+    expect(text).toContain(' Office* Breakroom Hats');
+    expect(text).toContain("Furniture for a department's own room: it helps the monkeys who work there.");
+    expect(text).toContain(' ITEM EFFECT PRICE\n'); // no elements before the feng shui book
+    expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 500 Bananas\n');
+    expect(text).toContain('[2] Scented candle I tire 3% slower, +1% pay * 500 Bananas\n'); // same price, same benefit
+    expect(text).toContain('[3] Wall clock K tire 3% slower, +1% pay * 500 Bananas\n');
     expect(text).not.toContain('Television'); // break rooms only
-    expect(text).toContain('Page 1 of 2: [up] and [down] show more');
+    expect(text).toContain('[up/down] page 1 of 2');
+    s.fengShuiBook = true;
+    const read = squash(renderScreen(s, '', 'department'));
+    expect(read).toContain(' ITEM ELEMENT EFFECT PRICE\n');
+    expect(read).toContain('[1] Potted plant P wood tire 3% slower, +1% pay * 500 Bananas\n');
+    s.fengShuiBook = false;
     expect(storeChoices(s, 'department', 1).map((x) => x.id)).toContain('furniture:cooler@department'); // fits either room
-    const lounge = plain(renderScreen(s, '', 'break'));
-    expect(lounge).toContain('For break rooms. Furniture here helps each department whose lounge it is: its nearest break room.');
-    expect(lounge).toContain('[1]  Potted plant [P] (wood): monkeys tire 3% slower, +1% points   cost 500 Points'); // fits either room, and helps wherever it is
+    const lounge = squash(renderScreen(s, '', 'break'));
+    expect(lounge).toContain('Furniture for break rooms: it helps each department whose nearest one it is.');
+    expect(lounge).toContain('[1] Potted plant P tire 3% slower, +1% pay 500 Bananas\n'); // fits either room; no * as there's nowhere to put it
     expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
-    expect(lounge).not.toContain('[1] *'); // nowhere to put it
-    const last = plain(renderScreen(s, '', 'break', 0, 2));
-    expect(last).toContain('[1]  Television [T] (fire): breaks go 40% faster, +3% points, break rooms only   cost 1.00M Points');
-    expect(last).toContain('[2]  Hot tub [U] (water): breaks go 40% faster, +3% points, break rooms only (takes 2 x 1 squares)   cost 1.00M Points');
-    expect(last).toContain('Page 3 of 3');
+    expect(lounge).not.toMatch(/\* [0-9.]+K? Bananas/); // nowhere to put any of it
+    const last = squash(renderScreen(s, '', 'break', 0, 2));
+    expect(last).toContain('[1] Television T breaks 40% faster, +3% pay 1.00M Bananas\n');
+    expect(last).toContain('[2] Hot tub (2x1) U breaks 40% faster, +3% pay 1.00M Bananas\n');
+    expect(last).toContain('[up/down] page 3 of 3');
     expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
+  });
+
+  it('fits every store on an 80-column screen, elements and all', () => {
+    const s = started();
+    s.fengShuiBook = true;
+    s.currency = 1e12;
+    s.sentences = 1e12;
+    for (const store of stores)
+      for (let page = 0; page < storePages(s, store); page++)
+        for (const row of plain(renderScreen(s, '', store, 80, page)).split('\n')) expect(row).toHaveLength(Math.min(row.length, 79));
   });
 
   it('draws furniture, the cursor and a piece being moved', () => {
@@ -470,22 +583,27 @@ describe('furniture', () => {
 
   it('has an option to place furniture yourself', () => {
     const s = started();
-    expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: ON');
+    expect(squash(renderOptions(s))).toContain('[1] Furniture places itself ON');
     s.settings.autoPlaceFurniture = false;
-    expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: off');
+    expect(squash(renderOptions(s))).toContain('[1] Furniture places itself off');
+    expect(squash(renderOptions(s))).toContain('[2] Light background off');
+    // On a light background the pale colours turn darker; the rest stay.
+    expect(forLightBackground(`${yellow('Bananas')} ${cyan('Words')} ${green('*')} ${red('NO WAY IN')}`)).toBe(
+      '\x1b[38;5;130mBananas\x1b[39m \x1b[38;5;30mWords\x1b[39m \x1b[38;5;28m*\x1b[39m \x1b[31mNO WAY IN\x1b[39m',
+    );
     expect(plain(renderScreen(s, '', 'department'))).toContain('New furniture opens the office map so you can place it.');
   });
 
 });
 
 describe('energy on screen', () => {
-  it('shows each typist speed and energy, and the time left on a break', () => {
+  it('shows each typist speed and energy, and Resting on a break', () => {
     const s = started();
     s.monkeys[0].energy = 0.5;
-    expect(plain(renderScreen(s))).toContain('M-1(0.44/s 50%) x1');
+    expect(plain(renderScreen(s))).toMatch(/M-1 +0\.44\/s +50% +x1/);
     s.monkeys[0].energy = 0.25;
     s.monkeys[0].resting = true;
-    expect(plain(renderScreen(s))).toContain('M-1(break 45s) x1');
+    expect(plain(renderScreen(s))).toMatch(/M-1 +0\.00\/s +Resting +x1/);
   });
 });
 
@@ -536,8 +654,8 @@ describe('feng shui on screen', () => {
     s.furniture.pop();
     s.fengShuiBook = true;
     const read = plain(renderOffice(s));
-    expect(read).toContain('chi  80%');
-    expect(read).toContain('[b] read the feng shui book');
+    expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n 1 Comedies room 4 80% ');
+    expect(read).toContain('[b] book');
     const book = plain(renderFengShuiBook(s));
     expect(book).toContain('  Light    a window.');
     expect(book).toContain('  Metal   desk, wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine');
@@ -552,13 +670,13 @@ describe('hats on screen', () => {
     const s = started();
     s.sentences = 60;
     const store = plain(renderScreen(s, '', 'hats'));
-    expect(store).toContain('[1] *Baseball cap [d@]: it tires 10% slower   cost 25 Sentences');
-    expect(store).toContain('Crown [W@]');
+    expect(squash(store)).toContain('[1] Baseball cap d@ tires 10% slower * 25 Sentences\n');
+    expect(store).toContain('Crown         W@');
     expect(store).toContain('Dye');
-    expect(plain(renderScreen(s))).toContain(' @ M-1(0.50/s 100%)');
+    expect(plain(renderScreen(s))).toContain('  @ M-1 ');
     s.monkeys[0].hats = ['tophat'];
     s.monkeys[0].hat = 'tophat';
-    expect(plain(renderScreen(s))).toContain('#@ M-1(0.50/s 100%)'); // a hat changes the icon
+    expect(plain(renderScreen(s))).toContain(' #@ M-1 '); // a hat changes the icon
     expect(plain(renderOffice(s))).toContain('|#@]  . :'); // on the map too
     expect(plain(renderOffice(s, '', { x: 0, y: 0 }))).toContain('|>@<  . :');
     s.monkeys[0].hatColor = 'red';
@@ -584,20 +702,20 @@ describe('achievements on screen', () => {
     const text = plain(renderAchievements(s, 0));
     expect(text).toContain(`1 of ${achievements.length} unlocked`);
     expect(text).toMatch(/\[x\] Good monkey +Pet a monkey/);
-    expect(text).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   \(37 \/ 100\)/);
+    expect(text).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   37 \/ 100/);
+    expect(renderAchievements(s, 0)).toContain('\x1b[32m[x]\x1b[39m'); // unlocked: a green mark
     const last = plain(renderAchievements(s, 999));
     expect(last).toMatch(/\[ \] \?\?\? +A secret/);
-    expect(last).not.toContain('MONKEY');
+    expect(last.split('\n').slice(1).join('\n')).not.toContain('MONKEY'); // past the title bar
     s.achievements.push('word-monkey');
     expect(plain(renderAchievements(s, 999))).toContain('Self-aware');
-    expect(text).toContain('Milestones');
   });
 
   it('shows a heart by a monkey petted lately', () => {
     const s = started();
     expect(plain(renderScreen(s))).not.toContain('<3');
     poke(s);
-    expect(plain(renderScreen(s))).toContain('M-1<3(');
+    expect(plain(renderScreen(s))).toContain('M-1         <3');
   });
 });
 
@@ -608,12 +726,12 @@ describe('publishing a Folio on screen', () => {
     s.completed = { test: [0, 1] };
     s.playsDone = ['test'];
     const text = plain(renderScreen(s));
-    expect(text).toContain('* You can publish a Folio: [f] start over with 4 more pages, points +0.4% for good.');
+    expect(text).toContain('* You can publish a Folio: [f] start over with 4 more pages, bananas +0.4% for good.');
     expect(text).toContain('[f] publish a Folio');
-    expect(folioPrompt(s)).toContain('points x1.00 for good. Press y to publish');
+    expect(folioPrompt(s)).toContain('bananas x1.00 for good. Press y to publish');
     s.folios = 1;
     s.folioPages = 500;
-    expect(plain(renderScreen(s))).toContain('Folio points +50% (1 Folio published)');
+    expect(plain(renderScreen(s))).toContain('Folio bananas +50% (1 Folio published)');
   });
 });
 
@@ -628,6 +746,7 @@ describe('plain ASCII', () => {
     const screens = [
       ...stores.map((store) => renderScreen(s, '', store)),
       renderOffice(s, '', { x: 0, y: 0 }, -1, true),
+      renderOfficeHelp(s),
       renderFengShuiBook(s),
       renderOptions(s),
       renderKeysMenu(s),

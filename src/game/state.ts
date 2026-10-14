@@ -20,6 +20,7 @@ export interface MonkeyState {
   chainRecent: string[]; // the chain's latest words, enough to hold the longest play line
   chainLength: number; // words in the current chain, for word slots
   chainCounted: number; // words in the current chain long enough to count towards a Sentence
+  chainAll: string[]; // every word of the chain so far, for the longest-sentence record (up to sentenceRules.maxRecordWords)
   skill: number; // typing skill level: "Faster typing" bought for this monkey
   typewriter: number; // typewriter tier, 0 = the first; caps skill at (tier + 1) x levelsPerTypewriter
   energy: number; // 1 = rested, 0 = worn out; a tired monkey types slower
@@ -140,10 +141,11 @@ export interface GameState {
 /** Player options, from the options menu. */
 export interface Settings {
   autoPlaceFurniture: boolean; // new furniture places itself; off opens the office map to place it
+  lightBackground: boolean; // colours for a terminal with a light background (darker yellow, cyan and green)
 }
 
 export function createSettings(): Settings {
-  return { autoPlaceFurniture: true };
+  return { autoPlaceFurniture: true, lightBackground: false };
 }
 
 /** Lifetime statistics, for the statistics page. They never affect play. */
@@ -159,16 +161,18 @@ export interface Stats {
   bestLinePoints: number; // the biggest first-time line payout
   pets: number; // times the player petted a monkey
   chainSentences: number; // Sentences paid by long chains
+  sentencesWritten: number; // chains long enough to pay a Sentence
+  longestSentence: string[]; // the words of the longest chain that paid a Sentence
   secondsTyping: number; // time the monkeys have been at work, offline included
   dyes: number; // hats dyed
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, secondsTyping: 0, dyes: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0 };
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0 };
 }
 
 /** A rectangle of squares from (0, 0). */

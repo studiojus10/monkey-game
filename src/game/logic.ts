@@ -526,6 +526,17 @@ export function nextOwnedScene(state: GameState, playId: string, index: number, 
   return { play: pick.play, index: pick.index };
 }
 
+/** The next (or previous) pinned line after a line, in play order then line order, wrapping around; null with no pins. */
+export function nextPin(state: GameState, playId: string, index: number, dir: 1 | -1): Pin | null {
+  const all = [...plays.values()];
+  const order = (id: string) => all.findIndex((p) => p.id === id);
+  const pins = [...state.pinned].sort((a, b) => order(a.play) - order(b.play) || a.index - b.index);
+  if (pins.length === 0) return null;
+  const cmp = (x: Pin) => order(x.play) - order(playId) || x.index - index;
+  const pick = dir > 0 ? pins.find((x) => cmp(x) > 0) ?? pins[0] : [...pins].reverse().find((x) => cmp(x) < 0) ?? pins[pins.length - 1];
+  return { play: pick.play, index: pick.index };
+}
+
 export function togglePin(state: GameState, playId: string, index: number): boolean {
   const play = plays.get(playId);
   if (!play || !ownsLine(state, play, index)) return false;
@@ -1239,6 +1250,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
       m.chainRecent = [];
       m.chainLength = 0;
       m.chainCounted = 0;
+      m.chainAll = [];
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
@@ -1254,6 +1266,9 @@ function endChain(state: GameState, m: MonkeyState): void {
   const n = chainSentences(m.chainCounted);
   state.sentences += n;
   state.stats.chainSentences += n;
+  if (n === 0) return;
+  state.stats.sentencesWritten++;
+  if (m.chainAll.length > state.stats.longestSentence.length) state.stats.longestSentence = [...m.chainAll];
 }
 
 /** Records a scored word in the statistics. Slot words count their letters as typed here. */
@@ -1287,6 +1302,7 @@ function scoreInChain(state: GameState, m: MonkeyState, word: string): number {
   m.chainPoints += wordPoints(word);
   m.chainLength++;
   m.chainRecent.push(word);
+  if (m.chainAll.length < sentenceRules.maxRecordWords) m.chainAll.push(word);
   let kept = m.chainRecent.reduce((n, w) => n + w.length, 0);
   while (m.chainRecent.length > 1 && kept - m.chainRecent[0].length >= longestLine) {
     kept -= m.chainRecent.shift()!.length;
