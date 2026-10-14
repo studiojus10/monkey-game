@@ -1972,5 +1972,10 @@ describe('coin flip', () => {
     expect(s.currency).toBe(0);
     expect(s.stats).toMatchObject({ flipsWon: 1, flipsLost: 1 });
     expect(s.achievements).toEqual(expect.arrayContaining(['flip-won', 'flip-lost']));
+    const { flipChance } = await import('../src/game/logic');
+    s.scenesDone = ['a', 'b'];
+    expect(flipChance(s)).toBeCloseTo(0.01 + 0.001 * (s.achievements.length + 2 + 1)); // + the flip won
+    s.achievements = Array(9999).fill('x');
+    expect(flipChance(s)).toBe(0.5);
   });
 });

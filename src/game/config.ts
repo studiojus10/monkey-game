@@ -438,8 +438,13 @@ export const monkeyStats = {
   ],
 };
 
-/** The coin flip (Justin, 2026-10-14: "have it start out as 1% win 99% lose"): the chance heads comes up. */
-export const coinFlip = { winChance: 0.01 };
+/**
+ * The coin flip (Justin, 2026-10-14: "have it start out as 1% win 99% lose";
+ * "every achievement, scene, act, play completed can add .1%. every
+ * successful flip can also add .1%"): heads' chance starts at winChance and
+ * grows by perThing for each, up to maxChance.
+ */
+export const coinFlip = { winChance: 0.01, perThing: 0.001, maxChance: 0.5 };
 
 export const traitRules = {
   dayStart: 6, // 6am

@@ -184,7 +184,7 @@ Built 2026-10-14 (Justin: R&D "mid game, before another play department", needs 
 
 ### Coin flip
 
-Just for fun (Justin, 2026-10-14: "a for-fun gambling mechanic where the player can flip a coin and bet to double all of their points or lose all of their points"): `$` on the home screen asks to bet every banana you have; `y` flips. Heads doubles them, tails loses them all. Heads starts at a 1% chance (Justin: "have it start out as 1% win 99% lose"; `coinFlip` in config.ts). Winnings don't count toward bananas earned, so they unlock no earning achievements. Statistics count flips won and lost; two achievements: win a flip, lose a flip.
+Just for fun (Justin, 2026-10-14: "a for-fun gambling mechanic where the player can flip a coin and bet to double all of their points or lose all of their points"): `$` on the home screen asks to bet every banana you have; `y` flips. Heads doubles them, tails loses them all. Heads starts at a 1% chance (Justin: "have it start out as 1% win 99% lose") and gains 0.1% for every achievement, scene, act and play finished and every flip won (Justin: "every achievement, scene, act, play completed can add .1%. every successful flip can also add .1%"), up to 50% (`coinFlip` in config.ts, `flipChance`). The prompt shows the chance. Winnings don't count toward bananas earned, so they unlock no earning achievements. Statistics count flips won and lost; two achievements: win a flip, lose a flip.
 
 ### HR
 

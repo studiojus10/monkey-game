@@ -2136,13 +2136,13 @@ export function hrDiscount(state: GameState): number {
 /**
  * The coin flip, just for fun (Justin, 2026-10-14: "flip a coin and bet to
  * double all of their points or lose all of their points"): heads (a
- * coinFlip.winChance chance) doubles every banana you have, tails loses them
+ * flipChance chance) doubles every banana you have, tails loses them
  * all. Needs some bananas. Returns whether it won, or null if there was
  * nothing to bet.
  */
 export function flipCoin(state: GameState, rng: Rng): boolean | null {
   if (state.currency <= 0) return null;
-  const won = rng() < coinFlip.winChance;
+  const won = rng() < flipChance(state);
   if (won) {
     state.currency *= 2; // winnings don't count as earned, so they unlock no earning achievements
     state.stats.flipsWon++;
@@ -2154,3 +2154,8 @@ export function flipCoin(state: GameState, rng: Rng): boolean | null {
   return won;
 }
 
+/** Heads' chance on the coin flip: coinFlip.winChance, plus perThing for every achievement, scene, act and play finished and flip won. */
+export function flipChance(state: GameState): number {
+  const things = state.achievements.length + state.scenesDone.length + state.actsDone.length + state.playsDone.length + state.stats.flipsWon;
+  return Math.min(coinFlip.maxChance, coinFlip.winChance + coinFlip.perThing * things);
+}
