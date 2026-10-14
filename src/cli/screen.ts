@@ -72,7 +72,7 @@ import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
 import { formatDuration, formatNumber } from '../format';
-import { blue, bold, dim, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
+import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -100,10 +100,16 @@ export function renderLine(m: MonkeyState, room = Infinity): string {
 }
 
 
-/** A price in bold: green when you can afford it, the terminal's normal text color when you can't. */
-export function price(cost: number, have: number): string {
+/** A price in bold: in its currency's colour when you can afford it, the terminal's normal text color when you can't. */
+export function price(cost: number, have: number, currency: Currency = 'currency'): string {
   const text = bold(formatNumber(cost));
-  return have >= cost ? green(text) : text;
+  return have >= cost ? currencyColors[currency](text) : text;
+}
+
+/** A price with its currency's name, e.g. "500 Bananas": all in the currency's colour when you can afford it. */
+export function priceNamed(cost: number, have: number, currency: Currency = 'currency'): string {
+  const text = `${bold(formatNumber(cost))} ${currencyNames[currency]}`;
+  return have >= cost ? currencyColors[currency](text) : text;
 }
 
 /** Monkey lines shown on screen; the rest are summarized in one line. */
@@ -473,7 +479,8 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
       const m = state.monkeys[i];
       const cost = what === 'skill' ? typingUpgradeCost(m.skill) : typewriterCost(m);
       const capped = what === 'skill' && m.skill >= skillCap(m);
-      return `[${i + 1}] ${monkeyName(state, i)} ${m.skill}/${skillCap(m)}${capped ? ' (needs a typewriter)' : ` ${price(cost, state.currency)}`}`;
+      const name = !capped && state.currency >= cost ? green(monkeyName(state, i)) : monkeyName(state, i);
+      return `[${i + 1}] ${name} ${m.skill}/${skillCap(m)}${capped ? ' (needs a typewriter)' : ` ${price(cost, state.currency)}`}`;
     });
   return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}   (any other key: done)`;
 }
@@ -639,7 +646,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
             id: `furniture:${k.id}@${where}`,
             star: !!furnitureSpot(state, k.id, where) && state.currency >= cost,
             text: k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name,
-            glyph: k.glyph,
+            glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
             effect: furnitureEffect(k),
@@ -746,7 +753,7 @@ export function hatPickPrompt(state: GameState, id: string): string {
   const rows = monkeyChoices(state, (m) =>
     m.hat === id ? ' (wearing it: takes it off)' : m.hats.includes(id) ? ' (has one: free)' : hatOf(m) ? ` (swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()})` : '',
   );
-  return `${h.name} (${price(hatCost(state, id), state.sentences)} Sentences) for which monkey? ${rows}   (any other key: done)`;
+  return `${h.name} (${priceNamed(hatCost(state, id), state.sentences, 'sentences')}) for which monkey? ${rows}   (any other key: done)`;
 }
 
 /** The prompt for choosing a dye. */
@@ -758,7 +765,7 @@ export function dyeColorPrompt(): string {
 export function dyePickPrompt(state: GameState, color: string): string {
   const name = hatColors.find((c) => c.id === color)?.name ?? 'Undyed';
   const rows = monkeyChoices(state, (m) => (!m.hat ? ' (no hat)' : m.hatColor === color ? ' (already)' : ''));
-  return `${paint(color, name)} (${color ? `${price(dyeCost, state.sentences)} Sentences` : 'free'}) for which monkey's hat? ${rows}   (any other key: done)`;
+  return `${paint(color, name)} (${color ? priceNamed(dyeCost, state.sentences, 'sentences') : 'free'}) for which monkey's hat? ${rows}   (any other key: done)`;
 }
 
 /** What inspecting a store item shows: its description, or nothing of interest. */
@@ -793,9 +800,11 @@ export function storePages(state: GameState, store: Store): number {
   return Math.max(1, Math.ceil(storeItems(state, store).filter((x) => x.id).length / storePageSize));
 }
 
-/** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; numbers in bold when `boldNumbers`. */
-function costText(item: ShopItem, boldNumbers = false): string {
-  const parts = (item.cost ?? []).map(([n, c]) => `${boldNumbers ? bold(formatNumber(n)) : formatNumber(n)} ${currencyNames[c]}`);
+/** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; when `affordable`, numbers bold and each part in its currency's colour. */
+function costText(item: ShopItem, affordable = false): string {
+  const parts = (item.cost ?? []).map(([n, c]) =>
+    affordable ? currencyColors[c](`${bold(formatNumber(n))} ${currencyNames[c]}`) : `${formatNumber(n)} ${currencyNames[c]}`,
+  );
   return parts.length === 0 ? '' : `${item.costFrom ? 'from ' : ''}${parts.join(' + ')}`;
 }
 
@@ -842,8 +851,8 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
     if (!x.id) return [`     ${dim(x.text)}`];
     const n = k++ - page * storePageSize;
     if (n < 0 || n >= storePageSize) return [];
-    const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
-    const text = row(`[${n + 1}]`, x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
+    const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `${green('*')} ${costText(x, true)}` : costText(x);
+    const text = row(`[${n + 1}]`, x.star ? green(x.text) : x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
     return [x.cost && !x.star ? dim(plainText(text)) : text];
   });
 
@@ -942,7 +951,7 @@ export function renderSlotsMenu(
     ...(managed ? [" This department's manager sets these slots for you.", ''] : []),
     ...(rows.length > 0 ? rows : [dim('   No slots yet.')]),
     ...(canBuy
-      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? green(`* ${bold(formatNumber(next))} Lines`) : `${formatNumber(next)} Lines`}`]
+      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? `${green('*')} ${currencyColors.lines(`${bold(formatNumber(next))} Lines`)}` : `${formatNumber(next)} Lines`}`]
       : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
@@ -994,8 +1003,10 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0): str
     ...nextWordKeys(state).map((r) => ` ${dim('Closest')} ${r.replace(/^ *Closest: /, '')}`),
     '',
     ...choices.map(({ k, kind, cost }, i) => {
-      const row = ` [${i + 1}] ${k.padEnd(keyWidth)}  ${kind.padEnd(11)}  `;
-      return state.currency >= cost ? `${row}${green(`* ${bold(formatNumber(cost))} ${theme.currency}`)}` : dim(`${row}  ${formatNumber(cost)} ${theme.currency}`);
+      const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
+      return state.currency >= cost
+        ? `${row(green(k.padEnd(keyWidth)))}${green('*')} ${currencyColors.currency(`${bold(formatNumber(cost))} ${theme.currency}`)}`
+        : dim(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
     }),
     ...(choices.length === 0 ? [dim('   None available yet.')] : []),
     '',
@@ -1028,7 +1039,7 @@ export function managerUpgradePrompt(state: GameState): string {
     const m = state.monkeys[i];
     const now = 1 + managers.bonusPerLevel * m.managerLevel;
     return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} ` +
-      `${price(managerUpgradeCost(state, m), state.lines)} Lines`;
+      priceNamed(managerUpgradeCost(state, m), state.lines, 'lines');
   });
   return `Upgrade which manager? ${choices.join('   ')}   (any other key: done)`;
 }
@@ -1206,7 +1217,9 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
 
   const sc = sceneOf(play, at)!;
   const section = (key: string, label: string, n: number) =>
-    `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : state.currency >= n ? green(`* ${bold(formatNumber(n))} ${theme.currency}`) : `${formatNumber(n)} ${theme.currency}`}`;
+    state.currency >= n && n > 0
+      ? `${bold(`[${key}]`)} ${green(label)} ${green('*')} ${currencyColors.currency(`${bold(formatNumber(n))} ${theme.currency}`)}`
+      : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatNumber(n)} ${theme.currency}`}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
     titleBar(state, 'Script', columns),
