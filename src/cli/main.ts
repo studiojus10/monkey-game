@@ -535,7 +535,7 @@ function deptPrompt(question: string): string {
 }
 
 function namePrompt(): string {
-  return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for M-${namingMonkey + 1})`;
+  return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for M-${state.monkeys[namingMonkey]?.number || namingMonkey + 1})`;
 }
 
 function startNaming(index: number) {

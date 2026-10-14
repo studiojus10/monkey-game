@@ -1229,7 +1229,7 @@ export function buyMonkey(state: GameState, genre?: Genre, from?: number): boole
   if (state.letters.length === 0 || state.currency < cost) return false;
   state.currency -= cost;
   state.monkeysBought[dept] = (state.monkeysBought[dept] ?? 0) + 1;
-  state.monkeys.push({ ...createMonkey(), ...takeCandidate(state, from), department: dept });
+  addMonkey(state, { ...takeCandidate(state, from), department: dept });
   placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;
 }
@@ -1239,14 +1239,23 @@ export function assignMonkey(state: GameState, genre?: Genre): boolean {
   const dept = placeFor(state, genre);
   if (state.unassignedMonkeys === 0 || dept === null) return false;
   state.unassignedMonkeys--;
-  state.monkeys.push({ ...createMonkey(), department: dept });
+  addMonkey(state, { department: dept });
   placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;
 }
 
 /** Display name of a monkey: its given name, or M-<number>. */
 export function monkeyName(state: GameState, index: number): string {
-  return state.monkeys[index]?.name || `M-${index + 1}`;
+  const m = state.monkeys[index];
+  return m?.name || `M-${m?.number || index + 1}`;
+}
+
+/** Adds a new monkey with the next M-number (one past the highest, so nobody else's changes when a monkey leaves). */
+export function addMonkey(state: GameState, fields: Partial<MonkeyState>): MonkeyState {
+  const number = Math.max(0, ...state.monkeys.map((m, i) => m.number || i + 1)) + 1;
+  const m = { ...createMonkey(), ...fields, number };
+  state.monkeys.push(m);
+  return m;
 }
 
 /**
@@ -1703,7 +1712,7 @@ export function hireManager(state: GameState, genre: Genre | undefined, from?: n
   const cost = hirePrice(state, managerCost(state, genre), 'managing', from);
   if (state.currency < cost || state.letters.length === 0) return false;
   state.currency -= cost;
-  state.monkeys.push({ ...createMonkey(), ...takeCandidate(state, from), department: genre, manager: true });
+  addMonkey(state, { ...takeCandidate(state, from), department: genre, manager: true });
   manage(state);
   return true;
 }
@@ -2013,7 +2022,7 @@ export function hireResearcher(state: GameState, from?: number): boolean {
   if (researcherBlocker(state) || state.currency < cost) return false;
   state.currency -= cost;
   state.researchersHired++;
-  state.monkeys.push({ ...createMonkey(), ...takeCandidate(state, from), department: research.id });
+  addMonkey(state, { ...takeCandidate(state, from), department: research.id });
   const lab = labRoom(state)!;
   const square = bestSquares(state, lab, true)[0];
   state.furniture.push({ kind: desk.id, room: lab.id, x: square[0], y: square[1] });
@@ -2115,7 +2124,7 @@ export function hireHR(state: GameState, from?: number): boolean {
   if (hrBlocker(state) || state.currency < cost) return false;
   state.currency -= cost;
   state.monkeysBought[hr.id] = (state.monkeysBought[hr.id] ?? 0) + 1;
-  state.monkeys.push({ ...createMonkey(), ...takeCandidate(state, from), department: hr.id });
+  addMonkey(state, { ...takeCandidate(state, from), department: hr.id });
   const room = hrRoom(state)!;
   const square = bestSquares(state, room, true)[0];
   state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });

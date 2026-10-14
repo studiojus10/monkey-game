@@ -79,6 +79,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       // Stats outside their range (or missing, in old saves) are picked again.
       speedStat: num(m?.speedStat, 0) >= monkeyStats.min && num(m?.speedStat, 0) <= monkeyStats.max ? num(m?.speedStat, 0) : 0,
       stamina: num(m?.stamina, 0) >= monkeyStats.min && num(m?.stamina, 0) <= monkeyStats.max ? num(m?.stamina, 0) : 0,
+      number: Math.max(0, Math.floor(num(m?.number, 0))),
       jobs:
         m?.jobs && typeof m.jobs === 'object' && monkeyStats.jobs.every((j) => monkeyStats.feelings.some((f) => f.id === (m.jobs as Record<string, unknown>)[j.id]))
           ? Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, String((m.jobs as Record<string, unknown>)[j.id])]))
@@ -100,7 +101,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       l && typeof l.play === 'string' && Number.isInteger(l.index)
         ? { play: l.play, index: l.index, firstTime: !!l.firstTime, points: num(l.points, 0), sentence: !!l.sentence }
         : null;
-    const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey) : [];
+    // Monkeys from before M-numbers were kept get the one their place gave them.
+    const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey).map((m, i) => ({ ...m, number: m.number || i + 1 })) : [];
     const ms = s.lastMilestone;
     const lastMilestone =
       ms && ['scene', 'act', 'play', 'sonnet'].includes(ms.kind) && typeof ms.play === 'string'
@@ -203,7 +205,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       letters: Array.isArray(s.letters)
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
         : [],
-      monkeys: monkeys.length > 0 ? monkeys : [createMonkey()],
+      monkeys: monkeys.length > 0 ? monkeys : [{ ...createMonkey(), number: 1 }],
       monkeysBought: Object.fromEntries(
         Object.entries(s.monkeysBought && typeof s.monkeysBought === 'object' ? (s.monkeysBought as Record<string, unknown>) : {}).map(([k, v]) => [k, Math.max(0, Math.floor(num(v, 0)))]),
       ),

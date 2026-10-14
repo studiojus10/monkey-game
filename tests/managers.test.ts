@@ -407,3 +407,17 @@ describe('storing, selling and firing', () => {
     expect(s.stored.hats).toEqual({});
   });
 });
+
+describe('M-numbers', () => {
+  it('stay with a monkey for good, even when others leave', async () => {
+    const L = await import('../src/game/logic');
+    const s = department(3);
+    s.monkeys.forEach((m, i) => (m.number = i + 1));
+    L.fireMonkey(s, 1);
+    expect([0, 1].map((i) => L.monkeyName(s, i))).toEqual(['M-1', 'M-3']);
+    L.addMonkey(s, { department: 'comedy' });
+    expect(L.monkeyName(s, 2)).toBe('M-4');
+    const back = deserialize(serialize(s));
+    expect(back.monkeys.map((m) => m.number)).toEqual([1, 3, 4]);
+  });
+});
