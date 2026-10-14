@@ -53,6 +53,7 @@ import {
   managerCost,
   officeOf,
   traitOf,
+  roomMates,
   traitBonus,
   isResearcher,
   isTypist,
@@ -184,13 +185,21 @@ export function traitNow(state: GameState, m: MonkeyState): string {
     const b = traitBonus(state, m, e);
     return b === 0 ? [] : [`${b > 0 ? '+' : ''}${Math.round(b * 100)}% ${e === 'rest' ? 'faster breaks' : e}`];
   });
+  const room = traitOf(m)?.room;
+  const mates = room ? roomMates(state, m).length : 0;
+  if (room && mates > 0) parts.push(`${roomSign(room) >= 0 ? 'helps' : 'drags down'} ${mates} room-mate${mates === 1 ? '' : 's'}`);
   return parts.length > 0 ? parts.join(', ') : 'no effect right now';
 }
+
+/** Whether a trait's effect on its room-mates helps (+) or hurts (-) them. */
+const roomSign = (room: { happiness?: number; speed?: number }) => (room.happiness ?? 0) + (room.speed ?? 0);
 
 /** A monkey's trait for the TRAIT column: green while it helps, red while it hurts, dim when it does nothing. */
 function traitText(state: GameState, m: MonkeyState): string {
   const text = (traitOf(m)?.name ?? '?').padEnd(col.trait);
-  const net = traitBonus(state, m, 'speed') + traitBonus(state, m, 'pay') + traitBonus(state, m, 'rest');
+  const room = traitOf(m)?.room;
+  const net =
+    traitBonus(state, m, 'speed') + traitBonus(state, m, 'pay') + traitBonus(state, m, 'rest') + (room && roomMates(state, m).length > 0 ? roomSign(room) : 0);
   return net > 0 ? green(text) : net < 0 ? red(text) : dim(text);
 }
 

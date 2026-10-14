@@ -1966,11 +1966,16 @@ describe('coin flip', () => {
     const s = createInitialState(0);
     expect(flipCoin(s, () => 0)).toBeNull(); // nothing to bet
     s.currency = 300;
-    expect(flipCoin(s, () => 0.2)).toBe(true);
+    expect(flipCoin(s, () => 0.005)).toBe(true);
     expect(s.currency).toBe(600);
-    expect(flipCoin(s, () => 0.7)).toBe(false);
+    expect(flipCoin(s, () => 0.02)).toBe(false);
     expect(s.currency).toBe(0);
     expect(s.stats).toMatchObject({ flipsWon: 1, flipsLost: 1 });
     expect(s.achievements).toEqual(expect.arrayContaining(['flip-won', 'flip-lost']));
+    const { flipChance } = await import('../src/game/logic');
+    s.scenesDone = ['a', 'b'];
+    expect(flipChance(s)).toBeCloseTo(0.01 + 0.001 * (s.achievements.length + 2 + 1)); // + the flip won
+    s.achievements = Array(9999).fill('x');
+    expect(flipChance(s)).toBe(0.5);
   });
 });

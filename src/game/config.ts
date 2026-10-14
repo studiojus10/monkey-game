@@ -328,6 +328,8 @@ export interface Trait {
   speed?: [number, number];
   pay?: [number, number];
   rest?: [number, number];
+  /** What it does to every other monkey in its room, all the time (0.05 = +5%): their happiness and their typing speed. */
+  room?: { happiness?: number; speed?: number };
 }
 
 export const traits: Trait[] = [
@@ -340,6 +342,11 @@ export const traits: Trait[] = [
   { id: 'bookworm', name: 'Bookworm', pay: [0.1, 0], text: 'Its words pay 10% more with a bookshelf in its room.' },
   { id: 'couchpotato', name: 'Couch potato', rest: [0.3, 0], text: 'Breaks 30% faster with a couch in its lounge.' },
   { id: 'perfectionist', name: 'Perfectionist', speed: [-0.1, 0], pay: [0.2, 0], text: '10% slower, but its words pay 20% more.' },
+  // Traits that rub off on the rest of its room (Justin, 2026-10-14: "traits that make other monkeys happier or work harder or slower").
+  { id: 'cheerleader', name: 'Cheerleader', room: { happiness: 0.05 }, text: 'Every other monkey in its room is 5% happier.' },
+  { id: 'grump', name: 'Grump', room: { happiness: -0.05 }, text: 'Every other monkey in its room is 5% less happy.' },
+  { id: 'motivator', name: 'Motivator', room: { speed: 0.05 }, text: 'Every other monkey in its room types 5% faster.' },
+  { id: 'slacker', name: 'Slacker', speed: [0.1, 0], room: { speed: -0.05 }, text: 'Types 10% faster itself, but every other monkey in its room types 5% slower.' },
 ];
 
 /**
@@ -431,10 +438,19 @@ export const monkeyStats = {
   ],
 };
 
+/**
+ * The coin flip (Justin, 2026-10-14: "have it start out as 1% win 99% lose";
+ * "every achievement, scene, act, play completed can add .1%. every
+ * successful flip can also add .1%"): heads' chance starts at winChance and
+ * grows by perThing for each, up to maxChance.
+ */
+export const coinFlip = { winChance: 0.01, perThing: 0.001, maxChance: 0.5 };
+
 export const traitRules = {
   dayStart: 6, // 6am
   nightStart: 20, // 8pm
   socialPerMonkey: 0.03, // up to the trait's speed bonus
+  maxRoomEffect: 0.5, // what room-mates' traits add up to, at most (either way)
   lonerFew: 3, // monkeys in its room, itself included
   lonerCrowd: 8,
   claustrophobicReach: 2, // squares to the nearest door or window

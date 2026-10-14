@@ -308,3 +308,24 @@ describe('hidden stats and job feelings', () => {
     expect(L.statsShown(s)).toBe(true);
   });
 });
+
+describe('traits that rub off on a room', () => {
+  it("change every other monkey's happiness or speed in the same room, capped", async () => {
+    const L = await import('../src/game/logic');
+    const { traitRules } = await import('../src/game/config');
+    const s = department(3);
+    for (const m of s.monkeys) Object.assign(m, { trait: 'none', speedStat: 1, stamina: 1, jobs: {} });
+    const happy = L.monkeyHappiness(s, s.monkeys[1]);
+    const speed = monkeySpeed(s, s.monkeys[1]);
+    s.monkeys[0].trait = 'cheerleader';
+    expect(L.monkeyHappiness(s, s.monkeys[1])).toBeCloseTo(happy + 0.05);
+    expect(L.monkeyHappiness(s, s.monkeys[0])).toBeCloseTo(happy); // not itself
+    s.monkeys[0].trait = 'slacker';
+    expect(monkeySpeed(s, s.monkeys[1])).toBeCloseTo(speed * 0.95);
+    expect(monkeySpeed(s, s.monkeys[0])).toBeCloseTo(speed * 1.1);
+    s.monkeys[2].trait = 'motivator';
+    expect(monkeySpeed(s, s.monkeys[1])).toBeCloseTo(speed); // -5% and +5%
+    for (let k = 0; k < 15; k++) s.monkeys.push({ ...createMonkey(), department: 'comedy', trait: 'grump' });
+    expect(L.roomEffect(s, s.monkeys[1], 'happiness')).toBe(-traitRules.maxRoomEffect);
+  });
+});

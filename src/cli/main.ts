@@ -86,6 +86,7 @@ import {
   publishFolio,
   canPublishFolio,
   flipCoin,
+  flipChance,
   folioMultiplier,
   tick,
   togglePin,
@@ -1112,7 +1113,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (state.currency <= 0) message = `You have no ${theme.currency} to bet.`;
     else {
       confirmingFlip = true;
-      message = `Flip a coin for all ${formatNumber(state.currency)} ${theme.currency}? Heads doubles them, tails loses them all. [y] flip   (any other key: no)`;
+      message = `Flip a coin for all ${formatNumber(state.currency)} ${theme.currency}? Heads (a ${(flipChance(state) * 100).toFixed(1)}% chance) doubles them; tails loses them all. [y] flip   (any other key: no)`;
     }
   } else if (str === 'f' && canPublishFolio(state)) {
     confirmingFolio = true;
