@@ -13,6 +13,8 @@ import {
   drainCut,
   restBoost,
   happiness,
+  cellAt,
+  hidesBook,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, officeBounds, roomAt, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
@@ -208,7 +210,7 @@ export function renderOffice(
     '',
     "Each monkey gets a desk in its department's room. Every room needs a way in from room 1: doors (/) and hallways.",
     `Breaks go ${pct(restBoost(state))} faster (comforts in break rooms). Happiness: +${pct(happiness(state))} points (${state.fengShuiBook ? `furniture, and feng shui: chi ${pct(officeChi(state))} gives +${pct(chiHappiness(state))}` : 'all furniture'}).`,
-    ...(state.fengShuiBook ? ['[b] read the feng shui book: what each room needs for good chi.'] : []),
+    ...(state.fengShuiBook ? ['[b] read the feng shui book again: what each room needs for good chi.'] : []),
     ...roomlessDepartments(state).map((g) => `The ${genreNames[g]} department needs a room: press [r] to buy one.`),
     `New room: ${price(roomCost(state), state.currency)} ${theme.currency}. One more square for a room: ${price(squareCost(state), state.currency)} ${theme.currency}.`,
     '',
@@ -220,18 +222,41 @@ export function renderOffice(
             const big = w * h > 1;
             return [
               `Moving the ${furnitureName(state, held)}${big ? ` (${w} x ${h} squares, from the top left)` : ''}.`,
-              `[arrows] move   [tab] next room   [space] put it down   ${big ? '[r] turn   ' : ''}[esc] cancel`,
+              `[arrows] move   [tab] next room   [space] put it down   ${big ? '[r] turn   ' : ''}[i] inspect   [esc] cancel`,
             ];
           })()
         : heldDoor
           ? [`Moving a door: the ${sideName[heldDoor]} wall of this square.`, '[arrows] move   [space] put it in   [r] next wall   [esc] cancel']
           : [
-              `${where}   [arrows] move   [tab] next room   [space] pick up furniture or a door   [x] grow this room`.trim(),
+              `${where}   [arrows] move   [tab] next room   [space] pick up furniture or a door   [i] inspect   [x] grow this room`.trim(),
               '[d] door on this square (again: next wall, then none)   [w] window (outside walls)   [h] hallway here on/off   [r] buy a room   [esc] back',
             ]),
     '',
     message,
   ].join('\n');
+}
+
+/**
+ * What inspecting a square of the office map shows: the piece being held, or
+ * the one there (a desk says who sits at it), else a window in its walls, else
+ * nothing of interest. `book` is the piece hiding the feng shui book, or -1.
+ */
+export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number } {
+  const room = roomAt(state, x, y);
+  const spot = held >= 0 ? held : room ? cellAt(state, room.id, x, y) : 'floor';
+  if (typeof spot === 'number') {
+    const f = state.furniture[spot];
+    if (f.kind === desk.id) {
+      const own = state.office.find((r) => r.id === f.room);
+      const who = own ? departmentMonkeys(state, roomGenre(state, own))[roomDesks(state, own).indexOf(spot)] : undefined;
+      return { text: `${who === undefined ? 'An empty desk.' : `${monkeyName(state, who)}'s desk.`} ${desk.description}`, book: -1 };
+    }
+    const k = furnitureKinds.find((x) => x.id === f.kind);
+    const book = hidesBook(state, spot);
+    return { text: [k?.description ?? fengShui.nothing, ...(book ? [fengShui.found, '[y] read it'] : [])].join('  '), book: book ? spot : -1 };
+  }
+  if (room && (['n', 'e', 's', 'w'] as Side[]).some((s) => windowAt(state, x, y, s))) return { text: fengShui.window, book: -1 };
+  return { text: fengShui.nothing, book: -1 };
 }
 
 /** The feng shui book: the five rules, the elements, and what each room keeps and lacks. */
@@ -254,8 +279,8 @@ export function renderFengShuiBook(state: GameState): string {
     '"Chi enters by the door, wanders the room, and leaves the way it came.',
     ' A monkey who cannot see the door will never truly rest."',
     '',
-    'A room keeps up to five rules. Its chi is the share it keeps; the office\'s chi',
-    `(the average over its rooms) makes every monkey happier, up to +${pct(fengShui.maxHappiness)}.`,
+    'General guidelines for placing furniture. The more of the five a room follows, the better',
+    `its chi; good chi across the office makes every monkey happier, up to +${pct(fengShui.maxHappiness)}.`,
     '',
     ...chiRules.map((x) =>
       x.department === x.break

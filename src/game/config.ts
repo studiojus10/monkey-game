@@ -208,6 +208,7 @@ export interface FurnitureKind {
   happiness: number; // anywhere in the office: points x (1 + happiness), added up; monkeys also tire slower and rest faster
   size?: [number, number]; // squares across and down (1 x 1 when missing); turning a piece swaps them
   element: Element; // its feng shui element
+  description?: string; // what inspecting it shows
 }
 
 /** The five feng shui elements. A room with all five is balanced. */
@@ -215,29 +216,32 @@ export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
 export const elements: Element[] = ['wood', 'fire', 'earth', 'metal', 'water'];
 
 /** The desk every monkey gets free, in its department's room. Not sold. */
-export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal' }; // the typewriter is metal
+export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal', description: 'A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.' };
 
 export const furnitureKinds: FurnitureKind[] = [
-  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood' },
-  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal' },
-  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood' },
-  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth' },
-  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'water' },
-  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth' },
-  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire' },
+  { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood', description: 'A leafy friend in a clay pot. Wood, they say, feeds the fire of a busy mind.' },
+  { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal', description: 'A brass floor lamp: cold Metal, warm light.' },
+  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood', description: 'Rows of dusty old books. One of them sticks out a little further than the rest.' },
+  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth', description: 'A sturdy bench, solid as the Earth. It likes a wall at its back.' },
+  { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'water', description: "Glug. The office's only source of Water, and of gossip." },
+  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth', description: 'Deep, soft and low to the Earth. Monkeys nap best with a wall behind it.' },
+  { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
 ];
 
 /**
  * Feng shui: each room has five rules (see logic's roomChi), and its chi is
  * the share it keeps. The office's chi (the average over rooms you can reach)
- * adds up to maxHappiness to happiness once you own the feng shui book (in
- * the Furniture store), which also shows the rules and each room's chi.
- * Windows count as Fire. Placeholders.
+ * adds up to maxHappiness to happiness once you find the feng shui book,
+ * hidden in a bookshelf (inspect one on the office map), which also shows the
+ * rules and each room's chi. Windows count as Fire. Placeholders.
  */
 export const fengShui = {
   maxHappiness: 0.1,
-  bookCost: 5_000,
+  hiddenIn: 'bookshelf', // the furniture kind the book is found in
+  found: 'Tucked behind the other books is a slim volume: "The Way of the Typewriter: feng shui for monkeys".',
   windowElement: 'fire' as Element,
+  window: 'A window. Sunlight is Fire, and every room wants some.',
+  nothing: 'Nothing of interest here.',
 };
 
 /**
@@ -364,6 +368,7 @@ export const achievements: Achievement[] = [
  * (#@ for a top hat). Numbers are placeholders.
  */
 export interface Hat {
+  description?: string; // what inspecting it shows
   id: string;
   name: string;
   icon: string; // one ASCII character, worn left of the monkey's face
@@ -380,14 +385,14 @@ export interface Hat {
 export const monkeyIcon = '@';
 
 export const hats: Hat[] = [
-  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 25, costGrowth: 1.5, drain: 0.1 },
-  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 25, costGrowth: 1.5, rest: 0.2 },
-  { id: 'party', name: 'Party hat', icon: 'A', cost: 25, costGrowth: 1.5, speed: 0.05 },
-  { id: 'tophat', name: 'Top hat', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15 },
-  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 500, costGrowth: 1.5, drain: 0.25 },
-  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 5_000, costGrowth: 2, combo: 1 },
-  { id: 'crown', name: 'Crown', icon: 'W', cost: 1_000_000, costGrowth: 3, points: 0.25, speed: 0.25 },
-  { id: 'halo', name: 'Halo', icon: 'o', cost: 1_000_000_000, costGrowth: 10, points: 0.5, speed: 0.5, drain: 0.5 },
+  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 25, costGrowth: 1.5, drain: 0.1, description: 'Worn backwards, naturally.' },
+  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 25, costGrowth: 1.5, rest: 0.2, description: 'Warm ears, calm mind.' },
+  { id: 'party', name: 'Party hat', icon: 'A', cost: 25, costGrowth: 1.5, speed: 0.05, description: "It is always someone's birthday somewhere." },
+  { id: 'tophat', name: 'Top hat', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15, description: 'Very distinguished. Possibly borrowed from a magician.' },
+  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 500, costGrowth: 1.5, drain: 0.25, description: 'Yeehaw, but quietly: this is an office.' },
+  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 5_000, costGrowth: 2, combo: 1, description: 'It whirs faintly while its wearer thinks.' },
+  { id: 'crown', name: 'Crown', icon: 'W', cost: 1_000_000, costGrowth: 3, points: 0.25, speed: 0.25, description: 'Heavy is the head that wears it. Heavier is the price.' },
+  { id: 'halo', name: 'Halo', icon: 'o', cost: 1_000_000_000, costGrowth: 10, points: 0.5, speed: 0.5, drain: 0.5, description: 'Nobody knows where it came from. It hums.' },
 ];
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fengShui } from '../src/game/config';
 import { chiHappiness, officeChi, roomChi, roomRules, squareRank } from '../src/game/fengshui';
 import { addWindow, cycleWindow, doorPaths, toggleHall, windowSides } from '../src/game/layout';
-import { buyFengShuiBook, buyRoom, checkAchievements, expandRoom, furnitureHappiness, furnitureSpot, happiness } from '../src/game/logic';
+import { buyRoom, hidesBook, readFengShuiBook, checkAchievements, expandRoom, furnitureHappiness, furnitureSpot, happiness } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState, rectangle } from '../src/game/state';
 
@@ -98,17 +98,19 @@ describe('feng shui', () => {
     expect(roomChi(s, s.office[0])).toBeCloseTo(0.8); // no light
   });
 
-  it('makes monkeys happier only once you own the book', () => {
+  it('hides the book in a bookshelf, and makes monkeys happier only once it is read', () => {
     const s = createInitialState(0);
     expect(officeChi(s)).toBeCloseTo(0.8);
     expect(chiHappiness(s)).toBe(0);
-    expect(buyFengShuiBook(s)).toBe(false);
-    s.currency = fengShui.bookCost;
-    expect(buyFengShuiBook(s)).toBe(true);
-    expect(s.currency).toBe(0);
-    expect(buyFengShuiBook(s)).toBe(false); // one is enough
-    expect(chiHappiness(s)).toBeCloseTo(fengShui.maxHappiness * 0.8);
-    expect(happiness(s)).toBeCloseTo(furnitureHappiness(s) + fengShui.maxHappiness * 0.8);
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 1 }, { kind: 'bookshelf', room: 'r1', x: 0, y: 1 });
+    expect(hidesBook(s, 1)).toBe(false);
+    expect(readFengShuiBook(s, 1)).toBe(false); // plants hide no books
+    expect(hidesBook(s, 2)).toBe(true);
+    expect(readFengShuiBook(s, 2)).toBe(true);
+    expect(s.fengShuiBook).toBe(true);
+    expect(hidesBook(s, 2)).toBe(false); // read: nothing more to find
+    expect(chiHappiness(s)).toBeCloseTo(fengShui.maxHappiness * officeChi(s));
+    expect(happiness(s)).toBeCloseTo(furnitureHappiness(s) + chiHappiness(s));
   });
 
   it('places new pieces out of the way of doors', () => {

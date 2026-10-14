@@ -105,7 +105,7 @@ export interface GameState {
   halls: [number, number][]; // hallway squares
   doors: Door[];
   windows: Door[]; // windows, each in a wall on one side of a room's square that faces outside
-  fengShuiBook: boolean; // bought the feng shui book: the office map shows each room's chi
+  fengShuiBook: boolean; // read the feng shui book (found in a bookshelf): chi counts, and the office map shows it
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow

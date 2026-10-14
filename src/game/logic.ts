@@ -851,10 +851,14 @@ export function furnitureSpot(state: GameState, kind = 'plant'): Omit<Furniture,
   return null;
 }
 
-/** Buys the feng shui book: the office map then shows each room's chi and the rules. */
-export function buyFengShuiBook(state: GameState): boolean {
-  if (state.fengShuiBook || state.currency < fengShui.bookCost) return false;
-  state.currency -= fengShui.bookCost;
+/** Whether a piece of furniture hides the feng shui book, not yet read (it's in every bookshelf until then). */
+export function hidesBook(state: GameState, index: number): boolean {
+  return !state.fengShuiBook && state.furniture[index]?.kind === fengShui.hiddenIn;
+}
+
+/** Reads the feng shui book found in a piece: from then on chi counts, and the map shows it. */
+export function readFengShuiBook(state: GameState, index: number): boolean {
+  if (!hidesBook(state, index)) return false;
   state.fengShuiBook = true;
   return true;
 }

@@ -18,12 +18,13 @@ import {
   renderSlotsMenu,
   renderOptions,
   hatPickPrompt,
+  inspectItem,
   dyeColorPrompt,
   dyePickPrompt,
   slotHighlight,
   stores,
 } from '../src/cli/screen';
-import { officeMapWidth, renderOffice, renderFengShuiBook } from '../src/cli/office';
+import { inspectSquare, officeMapWidth, renderOffice, renderFengShuiBook } from '../src/cli/office';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
 import { poke, typeLetter, buyRoom, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
@@ -418,7 +419,7 @@ describe('furniture', () => {
     const moving = plain(renderOffice(s, '', { x: 1, y: 1 }, 1));
     expect(moving).toContain('|[@]  . :\n    |       |\n    | .  >P<|');
     expect(moving).toContain('Moving the potted plant.');
-    expect(moving).toContain('[space] put it down   [esc] cancel');
+    expect(moving).toContain('[space] put it down   [i] inspect   [esc] cancel');
   });
 
   it('draws bigger pieces joined across their squares, and turned ones down', () => {
@@ -468,8 +469,18 @@ describe('moving doors on the map', () => {
   });
 });
 
+describe('inspecting', () => {
+  it('describes store items, or finds nothing of interest', () => {
+    expect(inspectItem('furniture:tv')).toBe('It only shows nature documentaries about monkeys. Electronics burn with Fire.');
+    expect(inspectItem('hat:cowboy')).toBe('Yeehaw, but quietly: this is an office.');
+    expect(inspectItem('combo')).toBe('Nothing of interest here.');
+    expect(inspectItem(undefined)).toBe('Nothing of interest here.');
+    expect(plain(renderScreen(started(), '', 'furniture'))).toContain('[i] inspect');
+  });
+});
+
 describe('feng shui on screen', () => {
-  it('draws windows, sells the book, and once read shows each room\'s chi', () => {
+  it('draws windows, hides the book in a bookshelf, and once read shows each room\'s chi', () => {
     const s = started();
     s.windows = [{ x: 0, y: 1, side: 's' }, { x: 1, y: 0, side: 'e' }];
     const map = plain(renderOffice(s));
@@ -477,10 +488,20 @@ describe('feng shui on screen', () => {
     expect(map).toContain('+===----+'); // in the bottom wall
     expect(map).toContain('=== : window');
     expect(map).not.toContain('chi');
-    s.currency = 6000;
-    expect(plain(renderScreen(s, '', 'furniture'))).toContain("[8] *Feng shui book: learn what makes a room's chi flow");
+    expect(plain(renderScreen(s, '', 'furniture'))).not.toContain('Feng shui book'); // not for sale: it hides in a bookshelf
+    s.furniture.push({ kind: 'bookshelf', room: 'r1', x: 1, y: 1 });
+    const shelf = inspectSquare(s, 1, 1);
+    expect(shelf.text).toContain('Rows of dusty old books.');
+    expect(shelf.text).toContain('Tucked behind the other books is a slim volume');
+    expect(shelf.text).toContain('[y] read it');
+    expect(shelf.book).toBe(1);
+    expect(inspectSquare(s, 1, 0, 1).book).toBe(1); // held, it can be inspected too
+    expect(inspectSquare(s, 0, 0).text).toBe("M-1's desk. A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.");
+    expect(inspectSquare(s, 1, 0).text).toBe('A window. Sunlight is Fire, and every room wants some.');
+    expect(inspectSquare(s, 0, 2)).toEqual({ text: 'Nothing of interest here.', book: -1 });
+    expect(inspectSquare(s, 9, 9).text).toBe('Nothing of interest here.');
+    s.furniture.pop();
     s.fengShuiBook = true;
-    expect(plain(renderScreen(s, '', 'furniture'))).toContain('Feng shui book: yours.');
     const read = plain(renderOffice(s));
     expect(read).toContain('chi  80%');
     expect(read).toContain('[b] read the feng shui book');

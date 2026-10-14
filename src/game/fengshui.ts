@@ -1,7 +1,8 @@
 /**
  * Feng shui: how well each room is arranged. A room keeps five simple rules,
- * and its chi is the share it keeps; the office's chi (over the rooms you can
- * reach) adds a little happiness. Optional depth: auto-placed offices do fine,
+ * and its chi is the share it keeps. Once you've read the feng shui book (found
+ * in a bookshelf), the office's chi (over the rooms you can reach) adds a
+ * little happiness. Optional depth: auto-placed offices do fine,
  * and arranging them well earns a small extra. Pure: no prices, no I/O.
  */
 import { desk, elements, fengShui, furnitureKinds, type Element } from './config';
@@ -108,7 +109,7 @@ export function officeChi(state: GameState): number {
   return chi;
 }
 
-/** Happiness from feng shui, once you own the book: up to fengShui.maxHappiness, by the office's chi. */
+/** Happiness from feng shui, once you've read the book: up to fengShui.maxHappiness, by the office's chi. */
 export function chiHappiness(state: GameState): number {
   return state.fengShuiBook ? fengShui.maxHappiness * officeChi(state) : 0;
 }

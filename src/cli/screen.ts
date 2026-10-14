@@ -242,7 +242,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     ...pinnedText(state),
     '',
     ...(shop ? shopLines(state, shop) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   ${canPublishFolio(state) ? '[f] publish a Folio   ' : ''}[s] save   [r] reset   [\`] dev tools   [q] quit`,
+    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)   [i] inspect' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   ${canPublishFolio(state) ? '[f] publish a Folio   ' : ''}[s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
   );
@@ -394,13 +394,6 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           const cost = furnitureCost(state, k.id);
           return { id: `furniture:${k.id}`, star: !!furnitureSpot(state, k.id) && state.currency >= cost, text: `${k.name} [${k.glyph}] (${k.element}): ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
         }),
-        state.fengShuiBook
-          ? { text: 'Feng shui book: yours. Read it on the office map ([o], then [b]).' }
-          : {
-              id: 'fengshui',
-              star: state.currency >= fengShui.bookCost,
-              text: `Feng shui book: learn what makes a room's chi flow; good chi makes monkeys happier   cost ${price(fengShui.bookCost, state.currency)} ${theme.currency}`,
-            },
         {
           text: !spot
             ? 'No free floor left: buy a break room or grow a room on the office map ([o]).'
@@ -495,6 +488,13 @@ export function dyePickPrompt(state: GameState, color: string): string {
   const name = hatColors.find((c) => c.id === color)?.name ?? 'Undyed';
   const rows = monkeyChoices(state, (m) => (!m.hat ? ' (no hat)' : m.hatColor === color ? ' (already)' : ''));
   return `${paint(color, name)} (${color ? `${price(dyeCost, state.sentences)} Sentences` : 'free'}) for which monkey's hat? ${rows}   (any other key: done)`;
+}
+
+/** What inspecting a store item shows: its description, or nothing of interest. */
+export function inspectItem(id: string | undefined): string {
+  const [what, which] = (id ?? '').split(':');
+  const d = what === 'furniture' ? furnitureKinds.find((k) => k.id === which)?.description : what === 'hat' ? hats.find((h) => h.id === which)?.description : undefined;
+  return d ?? fengShui.nothing;
 }
 
 /** What a kind of furniture does, in a few words. */

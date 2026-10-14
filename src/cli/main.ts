@@ -10,7 +10,7 @@ import {
   hatCost,
   wearHat,
   buyFurniture,
-  buyFengShuiBook,
+  readFengShuiBook,
   cellAt,
   pieceSize,
   furnitureSpot,
@@ -103,10 +103,11 @@ import {
   dyeColorPrompt,
   dyePickPrompt,
   hatPickPrompt,
+  inspectItem,
 } from './screen';
 import { devTools } from '../game/dev';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { sideName, furnitureName, renderFengShuiBook, renderOffice, roomName, type Cell } from './office';
+import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderOffice, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
 
 const FRAME_MS = 250;
@@ -164,6 +165,8 @@ let slotWordDraft: string | null = null;
 let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
 let readingBook = false; // the feng shui book, open from the office map
+let offeredBook = -1; // the piece hiding the feng shui book, just inspected: [y] reads it
+let inspecting = false; // choosing a store item to inspect
 let pickingHat = ''; // choosing a monkey for this hat
 let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
 let pickingDyeColor = false; // choosing which colour to dye
@@ -261,9 +264,6 @@ function buyItem(id: string): void {
       pickingDyeColor = true;
       message = dyeColorPrompt();
     }
-  } else if (id === 'fengshui') {
-    if (buyFengShuiBook(state)) message = 'You bought the feng shui book. Read it on the office map: [o], then [b].';
-    else message = `Not enough ${theme.currency}.`;
   } else if (id.startsWith('furniture:')) {
     const kind = id.slice('furniture:'.length);
     if (!furnitureSpot(state, kind))
@@ -521,6 +521,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (inspecting) {
+    inspecting = false;
+    const item = shop && str && /^[1-9]$/.test(str) ? storeChoices(state, shop)[Number(str) - 1] : undefined;
+    message = item ? inspectItem(item.id) : 'Nothing inspected.';
+    return draw();
+  }
+
   if (pickingDyeColor) {
     pickingDyeColor = false;
     const c = Number(str);
@@ -749,6 +756,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     message = '';
     const c = officeCursor;
     const here = roomAt(state, c.x, c.y);
+    if (offeredBook >= 0) {
+      const piece = offeredBook;
+      offeredBook = -1;
+      if (str === 'y' && readFengShuiBook(state, piece)) readingBook = true;
+      else message = 'You leave the book where it was, for now.';
+      return draw();
+    }
+    if (str === 'i' && !officeGrowing) {
+      const seen = inspectSquare(state, c.x, c.y, heldFurniture);
+      message = seen.text;
+      offeredBook = seen.book;
+      return draw();
+    }
     if (buyingRoom) {
       buyingRoom = false;
       const roomless = roomlessDepartments(state);
@@ -914,6 +934,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (shop && (key.name === 'tab' || key.name === 'right' || key.name === 'left')) {
     const step = key.name === 'left' ? stores.length - 1 : 1;
     shop = lastStore = stores[(stores.indexOf(shop) + step) % stores.length];
+  } else if (shop && str === 'i') {
+    inspecting = true;
+    message = 'Inspect which item? Press 1-9.';
   } else if (shop && str && /^[1-9]$/.test(str)) {
     const item = storeChoices(state, shop)[Number(str) - 1];
     if (item?.id) buyItem(item.id);
