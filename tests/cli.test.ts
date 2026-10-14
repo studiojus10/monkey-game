@@ -23,6 +23,7 @@ import {
   dyePickPrompt,
   slotHighlight,
   stores,
+  openStores,
   storeChoices,
   storePages,
   renderHomeKeys,
@@ -169,10 +170,10 @@ describe('terminal screen', () => {
     expect(open).toContain('[1-9] buy   [i] inspect   [left/right] store   [esc] back');
     expect(open).not.toContain('[tab]');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
-    expect(open).toContain('\n Typewriters   Staff   Script   Research   Office   Breakroom   Hats \n');
+    expect(open).toContain('\n Typewriters   Staff   Script   Office   Breakroom   Hats \n');
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Research   Office   Breakroom   Hats \n');
+    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Office   Breakroom   Hats \n');
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -225,6 +226,18 @@ describe('terminal screen', () => {
     expect(line([seg('CAT'), seg('X', false)])).toBe('CAT\x1b[1mX\x1b[22m_');
     expect(line([seg('CAT'), seg('X', false)], 'Z')).toBe('CATX\x1b[1mZ\x1b[22m_');
     expect(line([])).toBe('_');
+  });
+});
+
+describe('the Research store', () => {
+  it('appears as the last tab once the R&D lab is built', () => {
+    const s = started();
+    expect(openStores(s)).not.toContain('research');
+    s.monkeys.push(...Array.from({ length: 7 }, createMonkey));
+    s.currency = 1e12;
+    expect(buyRoom(s, 'lab')).toBe(true);
+    expect(openStores(s)[openStores(s).length - 1]).toBe('research');
+    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Hats\s+Research/);
   });
 });
 

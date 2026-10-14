@@ -18,13 +18,12 @@ import {
   managerCost,
   officelessDepartments,
   setHour,
-  openResearch,
   hireResearcher,
   researcherBlocker,
   researcherCost,
   startResearch,
   projectOf,
-  labRoom,
+  canBuildLab,
   cellAt,
   pieceSize,
   furnitureSpot,
@@ -107,7 +106,7 @@ import {
   lineRoom,
   renderScript,
   renderContents,
-  stores,
+  openStores,
   storeChoices,
   storePages,
   type Store,
@@ -265,8 +264,6 @@ function buyItem(id: string): void {
     if (blocked) message = `${genreNames[g]} can't hire a manager yet: ${blocked}.${blocked.includes('office') || blocked.includes('door') || blocked.includes('desk') ? ' See the office map ([o]).' : ''}`;
     else if (state.currency < managerCost(state, g)) message = `Not enough ${theme.currency}.`;
     else if (hireManager(state, g)) startNaming(state.monkeys.length - 1);
-  } else if (id === 'research-open') {
-    if (openResearch(state)) message = `${research.name} is open! Buy it a lab on the office map ([o], then [r]), then hire researchers here.`;
   } else if (id === 'researcher') {
     const blocked = researcherBlocker(state);
     if (blocked) message = `Can't hire a researcher: ${blocked}.${blocked === 'lab needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
@@ -367,7 +364,7 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
   return [
     ...roomlessDepartments(state).map((genre) => ({ kind: 'department' as const, genre })),
     ...officelessDepartments(state).map((genre) => ({ kind: 'office' as const, genre })),
-    ...(state.researchOpen && !labRoom(state) ? [{ kind: 'lab' as const }] : []),
+    ...(canBuildLab(state) ? [{ kind: 'lab' as const }] : []),
   ];
 }
 
@@ -1026,8 +1023,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     shop = shop ? null : lastStore;
     storePage = 0;
   } else if (shop && (key.name === 'right' || key.name === 'left')) {
-    const step = key.name === 'left' ? stores.length - 1 : 1;
-    shop = lastStore = stores[(stores.indexOf(shop) + step) % stores.length];
+    const open = openStores(state);
+    const step = key.name === 'left' ? open.length - 1 : 1;
+    shop = lastStore = open[(open.indexOf(shop) + step) % open.length];
     storePage = 0;
   } else if (shop && (key.name === 'up' || key.name === 'down')) {
     const pages = storePages(state, shop);

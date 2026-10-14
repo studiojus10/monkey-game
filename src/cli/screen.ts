@@ -57,7 +57,8 @@ import {
   isResearcher,
   isTypist,
   researchers,
-  canOpenResearch,
+  canBuildLab,
+  labRoom,
   researcherBlocker,
   researcherCost,
   projectOf,
@@ -280,7 +281,7 @@ function latelyLines(state: GameState, message: string): string[] {
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
     ...folioOffer(state),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
-    ...(canOpenResearch(state) ? ['* You can open R&D in the Staff store.'] : []),
+    ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
     ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),
   ];
@@ -477,8 +478,13 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
 }
 
 /** The shop's stores, shown as tabs; left and right switch between them. */
-export const stores = ['typewriters', 'staff', 'script', 'research', 'department', 'break', 'hats'] as const;
+export const stores = ['typewriters', 'staff', 'script', 'department', 'break', 'hats', 'research'] as const;
 export type Store = (typeof stores)[number];
+
+/** The stores you can open now: Research only once the R&D lab is built. */
+export function openStores(state: GameState): Store[] {
+  return stores.filter((x) => x !== 'research' || !!labRoom(state));
+}
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
   staff: 'Staff',
@@ -552,7 +558,6 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           : hiring.length > 0 || open.length === 0
             ? [hire()]
             : [{ text: 'Hire a monkey: the department is full. Open another to hire more.' }]),
-        ...(canOpenResearch(state) ? [{ id: 'research-open', star: true, text: `Open ${research.name}!`, effect: 'research that runs in real time' }] : []),
         ...(state.researchOpen
           ? [
               ((): ShopItem => {
@@ -650,7 +655,6 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       ];
     }
     case 'research': {
-      if (!state.researchOpen) return [{ text: `${research.name} opens at ${research.opensAt} monkeys, in the Staff store.` }];
       const busy = !!state.researching;
       const rate = researchRate(state);
       const done = research.projects.filter((p) => state.researched.includes(p.id)).map((p) => p.name);
@@ -806,7 +810,7 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
   const items = storeItems(state, store);
   const numbered = items.filter((x) => x.id);
   const pages = storePages(state, store);
-  const tabs = stores.map((x) => {
+  const tabs = openStores(state).map((x) => {
     const star = storeItems(state, x).some((i) => i.star) ? '*' : ' ';
     return x === store ? bold(inverse(` ${storeNames[x]}${star}`)) : dim(` ${storeNames[x]}`) + green(star);
   });
