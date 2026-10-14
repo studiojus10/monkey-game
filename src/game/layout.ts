@@ -399,13 +399,14 @@ function before(a: number[], b: number[]): boolean {
 }
 
 /**
- * Where a new w x h room goes: free squares that keep a hallway's width from
+ * Where a new w x h room goes: touching `beside` if given (a manager's office
+ * goes beside its department's room), free squares that keep a hallway's width from
  * rooms of its own kind, needing the shortest new hallway (none against a
  * room of the other kind, through a door between them), then for a break
  * room touching the most departments' rooms, then keeping the office compact
  * and within the map's width.
  */
-export function placeRoom(state: GameState, width: number, height: number, kind: Room['kind'] = 'department'): Square {
+export function placeRoom(state: GameState, width: number, height: number, kind: Room['kind'] = 'department', beside?: Room): Square {
   if (state.office.length === 0 && state.halls.length === 0) return [0, 0];
   const plan = floorPlan(state);
   const b = officeBounds(state);
@@ -438,6 +439,7 @@ export function placeRoom(state: GameState, width: number, height: number, kind:
       // The cheapest way in: a hallway beside it (0), or the squares a new hallway needs.
       let hall = Infinity;
       const touching = new Set<string>();
+      let besides = false;
       for (let dy = -1; dy <= height; dy++) {
         for (let dx = -1; dx <= width; dx++) {
           const edge = dy === -1 || dy === height || dx === -1 || dx === width;
@@ -445,6 +447,7 @@ export function placeRoom(state: GameState, width: number, height: number, kind:
           if (!edge || corner) continue;
           const k = at(x + dx, y + dy);
           const there = plan.get(k);
+          if (beside && there === beside.id) besides = true;
           if (there === 'hall' && linkedHalls.has(k)) hall = 0;
           else if (there && there !== 'hall' && connected.has(there)) {
             hall = 0; // a door straight in
@@ -455,7 +458,7 @@ export function placeRoom(state: GameState, width: number, height: number, kind:
       if (hall === Infinity) continue;
       const w = Math.max(b.maxX, x + width - 1) - Math.min(b.minX, x) + 1;
       const h = Math.max(b.maxY, y + height - 1) - Math.min(b.minY, y) + 1;
-      const score = [w > officeRules.mapWidth ? 1 : 0, hall, kind === 'break' ? -touching.size : 0, w * h, Math.max(w, h * 2), y, x];
+      const score = [beside && !besides ? 1 : 0, w > officeRules.mapWidth ? 1 : 0, hall, kind === 'break' ? -touching.size : 0, w * h, Math.max(w, h * 2), y, x];
       if (!best || before(score, best.score)) best = { score, at: [x, y] };
     }
   }

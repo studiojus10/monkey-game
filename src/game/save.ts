@@ -1,4 +1,4 @@
-import { desk, furnitureKinds, hatColors, hats, petting, typing } from './config';
+import { desk, furnitureKinds, hatColors, hats, petting, traits, typing } from './config';
 import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
@@ -65,10 +65,11 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       hat: [str(m?.hat), ...strings((m as { accessories?: unknown })?.accessories)].find((id) => hats.some((h) => h.id === id)) ?? '',
       hatColor: hatColors.some((c) => c.id === m?.hatColor) ? str(m?.hatColor) : '',
       petHappiness: Math.min(petting.maxHappiness, Math.max(0, num(m?.petHappiness, 0))),
+      trait: traits.some((t) => t.id === m?.trait) ? str(m?.trait) : '',
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
-      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break') && Array.isArray(r.cells))
+      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office') && Array.isArray(r.cells))
       .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]) }))
       .filter((r) => r.cells.length > 0);
     const completed: Record<string, number[]> = {};
@@ -143,6 +144,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         .filter((d) => d && Number.isInteger(d.x) && Number.isInteger(d.y) && ['n', 'e', 's', 'w'].includes(d.side as string))
         .map((d) => ({ x: d.x!, y: d.y!, side: d.side! })),
       fengShuiBook: s.fengShuiBook === true,
+      managerBook: s.managerBook === true,
       squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),
       furniture: (Array.isArray(s.furniture) ? s.furniture : [])
         .filter((f) => f && (f.kind === desk.id || furnitureKinds.some((k) => k.id === f.kind)) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))

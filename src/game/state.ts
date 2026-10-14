@@ -29,6 +29,7 @@ export interface MonkeyState {
   hat: string; // the hat it wears, '' for none
   hatColor: string; // its hat's dye (a hatColors id), '' for undyed
   petHappiness: number; // happiness from petting (0.01 = 1%), wearing off
+  trait: string; // a traits id, picked when it joins ('' until then); hidden until the manager's book is read
 }
 
 /**
@@ -67,7 +68,7 @@ export interface Milestone {
  */
 export interface Room {
   id: string;
-  kind: 'department' | 'break';
+  kind: 'department' | 'break' | 'office'; // an office is a department's manager's office
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
 }
@@ -107,6 +108,7 @@ export interface GameState {
   doors: Door[];
   windows: Door[]; // windows, each in a wall on one side of a room's square that faces outside
   fengShuiBook: boolean; // read the feng shui book (found in a bookshelf): chi counts, and the office map shows it
+  managerBook: boolean; // read the book in a manager's desk: monkeys' traits show
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
@@ -173,7 +175,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '' };
 }
 
 /** A rectangle of squares from (0, 0). */
@@ -200,6 +202,7 @@ export function createInitialState(now = Date.now()): GameState {
     doors: [],
     windows: [{ x: 1, y: 0, side: 'e' }],
     fengShuiBook: false,
+    managerBook: false,
     squaresBought: 0,
     furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
     departments: [],

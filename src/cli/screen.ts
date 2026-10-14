@@ -1,4 +1,4 @@
-import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -49,6 +49,11 @@ import {
   skillCap,
   typewriterCost,
   typewriterName,
+  managerBlocker,
+  managerCost,
+  officeOf,
+  traitOf,
+  traitBonus,
 } from '../game/logic';
 import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
@@ -145,14 +150,33 @@ export function departmentPrompt(state: GameState): string {
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
 /** Column widths of the monkey table, fixed so nothing shifts as numbers change. */
-const col = { name: maxMonkeyNameLength, speed: 8, energy: 7, combo: 5 };
+const col = { name: maxMonkeyNameLength, speed: 8, energy: 7, combo: 5, trait: Math.max(...traits.map((t) => t.name.length)) };
+
+/** Whether the monkey table shows traits: once the manager's book is read. */
+const hasTraitColumn = (state: GameState) => state.managerBook;
+
+/** What a monkey's trait is doing for it right now, e.g. "+15% speed" or "-5% speed, +20% pay"; "no effect right now" when nothing. */
+export function traitNow(state: GameState, m: MonkeyState): string {
+  const parts = (['speed', 'pay', 'rest'] as const).flatMap((e) => {
+    const b = traitBonus(state, m, e);
+    return b === 0 ? [] : [`${b > 0 ? '+' : ''}${Math.round(b * 100)}% ${e === 'rest' ? 'faster breaks' : e}`];
+  });
+  return parts.length > 0 ? parts.join(', ') : 'no effect right now';
+}
+
+/** A monkey's trait for the TRAIT column: green while it helps, red while it hurts, dim when it does nothing. */
+function traitText(state: GameState, m: MonkeyState): string {
+  const text = (traitOf(m)?.name ?? '?').padEnd(col.trait);
+  const net = traitBonus(state, m, 'speed') + traitBonus(state, m, 'pay') + traitBonus(state, m, 'rest');
+  return net > 0 ? green(text) : net < 0 ? red(text) : dim(text);
+}
 
 /** Whether the monkey table has a department column (once there's more than one department). */
 const hasDeptColumn = (state: GameState) => departmentGenres(state).length > 1;
 
 /** Width of a monkey row before its line: icon, department, name and heart, speed, energy and combo. */
 function monkeyPrefixWidth(state: GameState): number {
-  return 1 + 3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2 + 2 + col.speed + 2 + col.energy + 2 + col.combo + 2;
+  return 1 + 3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2 + 2 + (hasTraitColumn(state) ? col.trait + 2 : 0) + col.speed + 2 + col.energy + 2 + col.combo + 2;
 }
 
 /** A speed for the SPEED column: 0.50/s, 33.3/s, 1.23K/s. */
@@ -184,7 +208,7 @@ function homeMonkeys(state: GameState): number[] {
 /** The monkey table's column headings. */
 function monkeyHeadings(state: GameState): string {
   return dim(
-    ' ' + 'MONKEY'.padEnd(3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2) + '  ' + 'SPEED'.padStart(col.speed) + '  ' +
+    ' ' + 'MONKEY'.padEnd(3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2) + '  ' + (hasTraitColumn(state) ? 'TRAIT'.padEnd(col.trait) + '  ' : '') + 'SPEED'.padStart(col.speed) + '  ' +
       'ENERGY'.padStart(col.energy) + '  ' + 'COMBO'.padStart(col.combo) + '  ' + (state.monkeys.some((m) => m.manager) ? 'TYPING (or managing)' : 'TYPING'),
   );
 }
@@ -196,7 +220,8 @@ function monkeyRow(state: GameState, i: number, room: number): string {
   const name = `${monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
   const speed = m.manager ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
   const combo = m.manager ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m)}`.padStart(col.combo);
-  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : renderLine(m, room)}`;
+  const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
+  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : renderLine(m, room)}`;
 }
 
 /** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
@@ -231,7 +256,6 @@ function homeKeys(state: GameState, columns: number): string[] {
       ['enter', theme.pokeAction],
       ['n', 'name'],
       ['d', 'move'],
-      ['m', 'promote a monkey'],
       ['c', 'options'],
       ...(canPublishFolio(state) ? [['f', 'publish a Folio'] as [string, string]] : []),
       ['?', 'all keys'],
@@ -260,7 +284,6 @@ export function renderHomeKeys(state: GameState): string {
       ['enter', theme.pokeAction],
       ['n', 'name a monkey'],
       ['d', 'move a monkey to another department'],
-      ['m', 'promote a monkey to manager (or back)'],
     ]),
     ...group('GAME', [
       ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
@@ -462,6 +485,14 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           : { ...item, blocked: departmentRoom(state, genre ?? open[0]) ? 'desk needed' : 'room needed' };
       };
       const hiring = open.filter((g) => departmentTypists(state, g) < departmentRules.maxTypists);
+      // A department can hire a manager once it has the monkeys or an office for one; until then a note says what it takes.
+      const managing = open.filter((g) => !managerOf(state, g) && (officeOf(state, g) || departmentTypists(state, g) >= managers.minDepartmentMonkeys));
+      const hireManager = (g: Genre): ShopItem => {
+        const cost = managerCost(state, g);
+        const blocked = managerBlocker(state, g);
+        const item: ShopItem = { id: `boss:${g}`, text: 'Hire a manager', effect: open.length > 1 ? `for ${genreNames[g]}` : 'picks lines, fills slots' };
+        return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
+      };
       return [
         ...(departmentPicks(state) > 0
           ? [{ id: 'department', star: true, text: 'Open a new department!' }]
@@ -474,6 +505,11 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           : hiring.length > 0 || open.length === 0
             ? [hire()]
             : [{ text: 'Hire a monkey: the department is full. Open another to hire more.' }]),
+        ...(managing.length > 0
+          ? managing.map(hireManager)
+          : open.some((g) => !managerOf(state, g))
+            ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }]
+            : []),
         ...(state.unassignedMonkeys > 0
           ? [
               canSeatMonkey(state)
@@ -523,7 +559,8 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
     case 'department':
     case 'break': {
       const have = state.office.some((r) => r.kind === store);
-      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store)).sort((a, b) => a.cost - b.cost);
+      // The Office store also sells manager's desks, for managers' offices.
+      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store) || (store === 'department' && k.id === managerDesk.id)).sort((a, b) => a.cost - b.cost);
       return [
         {
           text:
@@ -533,9 +570,10 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         },
         ...kinds.map((k): ShopItem => {
           const cost = furnitureCost(state, k.id);
+          const where = k.rooms.includes(store) ? store : k.rooms[0];
           return {
-            id: `furniture:${k.id}@${store}`,
-            star: !!furnitureSpot(state, k.id, store) && state.currency >= cost,
+            id: `furniture:${k.id}@${where}`,
+            star: !!furnitureSpot(state, k.id, where) && state.currency >= cost,
             text: k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name,
             glyph: k.glyph,
             // Elements mean nothing until the feng shui book explains them.

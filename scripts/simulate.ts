@@ -14,7 +14,7 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as config from '../src/game/config';
-import { hats, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typewriterKeys } from '../src/game/config';
+import { hats, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typewriterKeys, managers } from '../src/game/config';
 import {
   availableKeys,
   availablePlays,
@@ -28,7 +28,8 @@ import {
   buySection,
   buySlot,
   buyTypewriter,
-  canPromote,
+  managerBlocker,
+  hireManager,
   canSeatMonkey,
   capRaiseCost,
   chooseFirstLetter,
@@ -62,7 +63,6 @@ import {
   squareCost,
   starterScenes,
   tick,
-  toggleManager,
   upgradeManager,
   managerUpgradeCost,
   folioPagesNow,
@@ -172,10 +172,10 @@ function shop(): void {
       .flatMap((p) => p.scenes.filter((sc) => !ownsScene(s, p.id, sc)).map((sc) => ({ p, sc, price: scenePrice(sc) })))
       .sort((a, b) => a.price - b.price);
     if (scenes[0] && s.currency >= scenes[0].price * 4 && buySection(s, scenes[0].p.id, scenes[0].sc.act, scenes[0].sc.key)) bought = true;
-    // A manager for each department of 6+.
+    // A manager for each department big enough, in an office next door.
     for (const g of departmentGenres(s)) {
-      const i = departmentMonkeys(s, g).find((k) => canPromote(s, k));
-      if (i !== undefined && toggleManager(s, i)) bought = true;
+      if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;
+      if (!managerBlocker(s, g) && hireManager(s, g)) bought = true;
     }
     // Manager upgrades with spare Lines, once the department's word slots are bought.
     for (const i of s.monkeys.flatMap((m, k) => (m.manager ? [k] : []))) {

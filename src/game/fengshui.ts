@@ -103,7 +103,7 @@ export function officeChi(state: GameState): number {
   ].join('|');
   if (chiMemo?.key === key) return chiMemo.chi;
   const open = connectedRooms(state);
-  const rooms = state.office.filter((r) => open.has(r.id));
+  const rooms = state.office.filter((r) => open.has(r.id) && r.kind !== 'office'); // offices are too small to count
   const chi = rooms.length === 0 ? 0 : rooms.reduce((n, r) => n + roomChi(state, r), 0) / rooms.length;
   chiMemo = { key, chi };
   return chi;

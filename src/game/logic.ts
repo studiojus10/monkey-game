@@ -31,11 +31,17 @@ import {
   achievements,
   folio,
   fengShui,
+  managerDesk,
+  managerOffice,
+  managerBook,
+  traits,
+  traitRules,
+  type Trait,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
-import { addWindow, autoConnect, connectedRooms, doorToTouching, loungeOf, placeRoom, roomCanUse, tidyDoors, touchingRooms } from './layout';
+import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, placeRoom, roomCanUse, tidyDoors, touchingRooms } from './layout';
 import { chiHappiness, roomChi, squareRank } from './fengshui';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -173,8 +179,8 @@ export function moveMonkey(state: GameState, index: number): boolean {
     (g) => departmentTypists(state, g) < departmentRules.maxTypists && hasDeskSpace(state, g),
   );
   if (!next) return false;
-  // Its desk moves with it.
-  const oldRoom = departmentRoom(state, from);
+  // Its desk moves with it (a manager's desk stays in its office).
+  const oldRoom = m.manager && officeOf(state, from) ? undefined : departmentRoom(state, from);
   const oldDesk = oldRoom ? roomDesks(state, oldRoom).pop() : undefined;
   if (oldDesk !== undefined) state.furniture.splice(oldDesk, 1);
   placeDesk(state, next);
@@ -267,7 +273,7 @@ export function ownedProgress(state: GameState): [number, number] {
 
 /** Points a monkey earns are multiplied by this; finished scenes raise it, and so does its department's happiness. */
 export function pointsMultiplier(state: GameState, m?: MonkeyState): number {
-  return (1 + state.pointsBonus) * (1 + happiness(state, m && monkeyGenre(state, m))) * folioMultiplier(state);
+  return (1 + state.pointsBonus) * (1 + happiness(state, m && monkeyGenre(state, m))) * folioMultiplier(state) * (m ? 1 + traitBonus(state, m, 'pay') : 1);
 }
 
 /** Points are multiplied by this for good, from the pages of every Folio published. */
@@ -311,7 +317,86 @@ export function speedMultiplier(state: GameState): number {
 
 /** Letters per second for a monkey, from its typing skill and act bonuses. */
 export function monkeySpeed(state: GameState, m: MonkeyState, skill = m.skill): number {
-  return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed'));
+  return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed')) * (1 + traitBonus(state, m, 'speed'));
+}
+
+let hour = 12;
+
+/** Sets the hour of the day (0-23) for traits that care whether it's day or night; the front end keeps it on the player's clock. */
+export function setHour(h: number): void {
+  hour = ((Math.floor(h) % 24) + 24) % 24;
+}
+
+/** Whether it's day by the clock setHour keeps (see traitRules). */
+export function isDay(): boolean {
+  return hour >= traitRules.dayStart && hour < traitRules.nightStart;
+}
+
+/** A monkey's trait, if it has been given one. */
+export function traitOf(m: MonkeyState): Trait | undefined {
+  return traits.find((t) => t.id === m.trait);
+}
+
+/** Gives every monkey without a trait a random one. Traits work from then on, seen or not. */
+export function giveTraits(state: GameState, rng: Rng): void {
+  for (const m of state.monkeys) if (!m.trait) m.trait = traits[Math.min(traits.length - 1, Math.floor(rng() * traits.length))].id;
+}
+
+/** The room a monkey works in: a manager's office, else its department's room. */
+export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
+  const genre = monkeyGenre(state, m);
+  return (m.manager ? officeOf(state, genre) : undefined) ?? departmentRoom(state, genre);
+}
+
+/**
+ * How a monkey's trait is going, from 1 (its condition is good: full bonus) to
+ * -1 (bad: its penalty); 0 is neither. Social goes up by the monkey in its room.
+ */
+export function traitMood(state: GameState, m: MonkeyState): number {
+  const room = workRoom(state, m);
+  const inRoom = (kinds: string[]) => !!room && state.furniture.some((f) => f.room === room.id && kinds.includes(f.kind));
+  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : 1;
+  switch (m.trait) {
+    case 'claustrophobic': {
+      const index = state.monkeys.indexOf(m);
+      const seat = index >= 0 ? deskOf(state, index) : undefined;
+      if (seat === undefined) return 0;
+      const { x, y } = state.furniture[seat];
+      const within = (n: number) => (d: { x: number; y: number }) => Math.abs(d.x - x) + Math.abs(d.y - y) <= n;
+      if (state.windows.some(within(1))) return 1;
+      return state.doors.some(within(traitRules.claustrophobicReach)) || state.windows.some(within(traitRules.claustrophobicReach)) ? 0 : -1;
+    }
+    case 'nightowl':
+      return isDay() ? -1 : 1;
+    case 'earlybird':
+      return isDay() ? 1 : -1;
+    case 'social': {
+      const most = traitOf(m)?.speed?.[0] ?? 0;
+      return most > 0 ? Math.min(1, (traitRules.socialPerMonkey * Math.max(0, typists - 1)) / most) : 0;
+    }
+    case 'loner':
+      return typists <= traitRules.lonerFew ? 1 : typists >= traitRules.lonerCrowd ? -1 : 0;
+    case 'greenthumb':
+      return inRoom(traitRules.greenthumbPlants) ? 1 : 0;
+    case 'bookworm':
+      return inRoom(traitRules.bookwormBooks) ? 1 : 0;
+    case 'couchpotato': {
+      const lounge = loungeOf(state, departmentRoom(state, monkeyGenre(state, m)));
+      return !!lounge && state.furniture.some((f) => f.room === lounge.id && traitRules.couchpotatoSeats.includes(f.kind)) ? 1 : 0;
+    }
+    case 'perfectionist':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+/** What a monkey's trait does to one thing right now (0.1 = +10%): see traits in config.ts. */
+export function traitBonus(state: GameState, m: MonkeyState, effect: 'speed' | 'pay' | 'rest'): number {
+  const [good, bad] = traitOf(m)?.[effect] ?? [0, 0];
+  if (good === 0 && bad === 0) return 0;
+  const mood = traitMood(state, m);
+  return mood >= 0 ? good * mood : bad * -mood;
 }
 
 /** What a monkey's hat gives it for one effect. */
@@ -431,7 +516,7 @@ export function energyRates(state: GameState, m: MonkeyState): EnergyRates {
   const happy = 1 + monkeyHappiness(state, m);
   return {
     drainSeconds: (energyRules.drainSeconds * happy) / ((1 - drainCut(state, monkeyGenre(state, m))) * (1 - Math.min(0.9, wearing(m, 'drain')))),
-    breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state, monkeyGenre(state, m))) * (1 + wearing(m, 'rest')) * happy),
+    breakSeconds: energyRules.breakSeconds / ((1 + restBoost(state, monkeyGenre(state, m))) * (1 + wearing(m, 'rest')) * (1 + traitBonus(state, m, 'rest')) * happy),
   };
 }
 
@@ -695,6 +780,16 @@ export function departmentRoom(state: GameState, genre: Genre | undefined): Room
   return state.office.find((r) => r.kind === 'department' && (roomGenre(state, r) === genre || (!genre && r.department === '')));
 }
 
+/** A department's manager's office, if it has one. */
+export function officeOf(state: GameState, genre: Genre | undefined): Room | undefined {
+  return genre ? state.office.find((r) => r.kind === 'office' && r.department === genre) : undefined;
+}
+
+/** Open departments that have a room but no manager's office yet. */
+export function officelessDepartments(state: GameState): Genre[] {
+  return departmentGenres(state).filter((g) => departmentRoom(state, g) && !officeOf(state, g));
+}
+
 /** Open departments that don't have a room yet. */
 export function roomlessDepartments(state: GameState): Genre[] {
   return departmentGenres(state).filter((g) => !departmentRoom(state, g));
@@ -758,6 +853,28 @@ export function roomDesks(state: GameState, room: Room): number[] {
   return state.furniture.flatMap((f, i) => (f.kind === desk.id && f.room === room.id ? [i] : []));
 }
 
+/**
+ * The desk a monkey sits at, as an index into state.furniture: a manager at
+ * the manager's desk in its office; everyone else at a desk in its
+ * department's room, in the order they joined (a manager with no office after
+ * the typists). Undefined if there's none for it.
+ */
+export function deskOf(state: GameState, index: number): number | undefined {
+  const m = state.monkeys[index];
+  if (!m) return undefined;
+  const genre = monkeyGenre(state, m);
+  const office = officeOf(state, genre);
+  if (m.manager && office) {
+    const f = state.furniture.findIndex((p) => p.room === office.id && p.kind === managerDesk.id);
+    return f >= 0 ? f : undefined;
+  }
+  const room = departmentRoom(state, genre);
+  if (!room) return undefined;
+  const team = departmentMonkeys(state, genre).filter((i) => !(state.monkeys[i].manager && office));
+  const order = [...team.filter((i) => !state.monkeys[i].manager), ...team.filter((i) => state.monkeys[i].manager)];
+  return roomDesks(state, room)[order.indexOf(index)];
+}
+
 /** Whether a department's room has a free square for another monkey's desk. */
 export function hasDeskSpace(state: GameState, genre: Genre | undefined): boolean {
   const room = departmentRoom(state, genre);
@@ -794,12 +911,22 @@ export function roomCost(state: GameState): number {
   return Math.ceil(officeRules.roomBaseCost * Math.pow(officeRules.roomCostGrowth, Math.max(0, state.office.length - 1)));
 }
 
-/** Buys a room: for a department that has none, or a break room. */
+/**
+ * Buys a room: for a department that has none, a break room, or a manager's
+ * office for a department that has a room and no office (it comes with a
+ * manager's desk, beside the department's room with a door between).
+ */
 export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): boolean {
   const cost = roomCost(state);
-  if (state.currency < cost || (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre)))) return false;
+  if (state.currency < cost) return false;
+  if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
+  if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
   state.currency -= cost;
-  addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight);
+  if (kind === 'office') {
+    const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height);
+    const square = bestSquares(state, room, true)[0];
+    if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
+  } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight);
   seatWaiting(state);
   return true;
 }
@@ -811,8 +938,9 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
  */
 export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number): Room {
   const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
-  const [x0, y0] = placeRoom(state, width, height, kind);
-  const room: Room = { id, kind, department: kind === 'department' ? department : '', cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
+  const beside = kind === 'office' ? departmentRoom(state, department as Genre) : undefined;
+  const [x0, y0] = placeRoom(state, width, height, kind, beside);
+  const room: Room = { id, kind, department: kind === 'break' ? '' : department, cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
   state.office.push(room);
   doorToTouching(state, room);
   autoConnect(state);
@@ -874,7 +1002,7 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
 /** Where a new piece goes: the first spot it fits in a room of the kind it suits, else in any room it may stand in (turned if only that fits). */
 export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room['kind']): Omit<Furniture, 'kind'> | null {
   // Only rooms of roomKind when given; else rooms of the kind it suits first (decor in departments' rooms, comforts in break rooms).
-  const first: Room['kind'] = roomKind ?? ((kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
+  const first: Room['kind'] = roomKind ?? kindOf(kind)?.rooms.find((r) => r === 'office') ?? ((kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
   const rooms = [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
   const [w, h] = pieceSize(kind);
   for (const room of rooms) {
@@ -895,6 +1023,18 @@ export function hidesBook(state: GameState, index: number): boolean {
 export function readFengShuiBook(state: GameState, index: number): boolean {
   if (!hidesBook(state, index)) return false;
   state.fengShuiBook = true;
+  return true;
+}
+
+/** Whether a piece of furniture hides the manager's book, not yet read (it's in every manager's desk until then). */
+export function hidesManagerBook(state: GameState, index: number): boolean {
+  return !state.managerBook && state.furniture[index]?.kind === managerBook.hiddenIn;
+}
+
+/** Reads the manager's book found in a piece: from then on every monkey's trait shows. */
+export function readManagerBook(state: GameState, index: number): boolean {
+  if (!hidesManagerBook(state, index)) return false;
+  state.managerBook = true;
   return true;
 }
 
@@ -1446,6 +1586,38 @@ export function managerOf(state: GameState, genre: Genre | undefined): MonkeySta
     .find((m) => m.manager);
 }
 
+/**
+ * Why a department can't hire a manager right now, money aside ('' if it
+ * can): it has one, it needs a manager's office with a door into its room
+ * and a manager's desk, and minDepartmentMonkeys typing monkeys to manage.
+ */
+export function managerBlocker(state: GameState, genre: Genre | undefined): string {
+  if (managerOf(state, genre)) return 'has a manager';
+  const office = officeOf(state, genre);
+  const room = departmentRoom(state, genre);
+  if (!office || !room) return 'office needed';
+  if (!doorBetween(state, office, room)) return 'door needed';
+  if (!state.furniture.some((f) => f.room === office.id && f.kind === managerDesk.id)) return "manager's desk needed";
+  const short = managers.minDepartmentMonkeys - departmentTypists(state, genre);
+  return short > 0 ? `${short} more monkey${short === 1 ? '' : 's'} needed` : '';
+}
+
+/** Points for a department's manager: the price of its next monkey. */
+export function managerCost(state: GameState, genre: Genre): number {
+  return nextMonkeyCost(state, genre);
+}
+
+/** Hires a manager for a department, into the manager's desk in its office (see managerBlocker). */
+export function hireManager(state: GameState, genre: Genre | undefined): boolean {
+  if (!genre || managerBlocker(state, genre)) return false;
+  const cost = managerCost(state, genre);
+  if (state.currency < cost || state.letters.length === 0) return false;
+  state.currency -= cost;
+  state.monkeys.push({ ...createMonkey(), department: genre, manager: true });
+  manage(state);
+  return true;
+}
+
 /** Points multiplier from a monkey's department manager: x1 plus bonusPerLevel per upgrade. */
 export function managerMultiplier(state: GameState, m: MonkeyState): number {
   const boss = managerOf(state, monkeyGenre(state, m));
@@ -1601,6 +1773,7 @@ export function buyTypewriter(state: GameState, index = 0): boolean {
 export function tick(state: GameState, seconds: number, rng: Rng = Math.random, lettersPerSecondCap = maxSimulatedLettersPerSecond): void {
   if (seconds <= 0 || state.letters.length === 0) return;
   state.stats.secondsTyping += seconds;
+  giveTraits(state, rng);
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state);
   const due = state.monkeys.map((m) => {

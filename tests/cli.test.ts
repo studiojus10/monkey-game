@@ -28,10 +28,10 @@ import {
   renderHomeKeys,
 } from '../src/cli/screen';
 import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
-import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook } from '../src/cli/office';
+import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
-import { poke, typeLetter, buyRoom, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
+import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
 import { load, save } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -154,7 +154,7 @@ describe('terminal screen', () => {
   it('lists every key on the [?] page', () => {
     const s = started();
     const keys = plain(renderHomeKeys(s));
-    for (const k of ['[space]', '[p]', '[o]', '[t]', '[a]', '[w]', '[c]', '[enter]', '[n]', '[d]', '[m]', '[s]', '[r]', '[`]', '[q]']) expect(keys).toContain(k);
+    for (const k of ['[space]', '[p]', '[o]', '[t]', '[a]', '[w]', '[c]', '[enter]', '[n]', '[d]', '[s]', '[r]', '[`]', '[q]']) expect(keys).toContain(k);
     expect(plain(renderScreen(s))).not.toContain('[`]'); // the home screen keeps to the everyday keys
   });
 
@@ -687,6 +687,61 @@ describe('feng shui on screen', () => {
   });
 });
 
+describe('managers and traits on screen', () => {
+  /** A department of five typists with an office next door, before any manager. */
+  const staffed = () => {
+    const s = started();
+    s.currency = 1e15;
+    s.office[0].cells.push([0, 2], [1, 2], [0, 3], [1, 3]);
+    for (let k = 1; k < 5; k++) {
+      s.monkeys.push({ ...createMonkey(), department: 'comedy' });
+      s.furniture.push({ kind: 'desk', room: 'r1', x: k % 2, y: 1 + Math.floor((k - 1) / 2) });
+    }
+    s.monkeys.forEach((m, i) => (m.trait = i === 0 ? 'perfectionist' : 'greenthumb'));
+    return s;
+  };
+
+  it("sells a manager once there's an office, says what's missing until then, and puts the manager at the manager's desk", () => {
+    const s = staffed();
+    expect(squash(renderScreen(s, '', 'staff'))).toContain('Hire a manager picks lines, fills slots office needed');
+    expect(buyRoom(s, 'office', 'comedy')).toBe(true);
+    expect(squash(renderScreen(s, '', 'staff'))).toMatch(/\[\d\] Hire a manager picks lines, fills slots \* [\d.]+\w? Bananas/);
+    const map = plain(renderOffice(s));
+    expect(map).toContain(' D ');
+    expect(squash(map)).toContain('2 Comedies office 4 - - no manager yet');
+    expect(hireManager(s, 'comedy')).toBe(true);
+    const hired = squash(plain(renderOffice(s)));
+    expect(hired).toContain('2 Comedies office 4 - - M-6 (manager)');
+    expect(hired).not.toMatch(/Comedies room[^\n]*M-6/);
+    const office = Array.from({ length: storePages(s, 'department') }, (_, page) => plain(renderScreen(s, '', 'department', 0, page))).join('\n');
+    expect(office).toContain("Manager's desk"); // a spare, in case one's needed
+  });
+
+  it("hides the manager's book in the manager's desk; once read, traits show on the home screen, on desks and in the book", () => {
+    const s = staffed();
+    buyRoom(s, 'office', 'comedy');
+    const i = s.furniture.findIndex((f) => f.kind === 'managerdesk');
+    const { x, y } = s.furniture[i];
+    const desk = inspectSquare(s, x, y);
+    expect(desk.text).toContain('Understanding Your Employees');
+    expect(desk.text).toContain('[y] read it');
+    expect(desk.book).toBe(i);
+    expect(plain(renderScreen(s))).not.toContain('TRAIT');
+    expect(inspectSquare(s, 0, 0).text).not.toContain('perfectionist');
+    s.managerBook = true;
+    const home = plain(renderScreen(s, '', null, 100));
+    expect(home).toContain('TRAIT');
+    expect(home).toContain('Perfectionist');
+    expect(inspectSquare(s, 0, 0).text).toContain('M-1 is a perfectionist (-10% speed, +20% pay).');
+    expect(inspectSquare(s, x, y).text).not.toContain('[y] read it');
+    expect(plain(renderOffice(s))).toContain('[e] employees');
+    const book = plain(renderManagerBook(s));
+    expect(book).toContain('Night owl');
+    expect(book).toMatch(/M-2 +Green thumb +no effect right now/);
+    for (const row of plain(renderScreen(s, '', null, 80)).split('\n')) expect(row.length).toBeLessThan(80);
+  });
+});
+
 describe('hats on screen', () => {
   it('sells hats and dye, and shows each monkey in its hat', () => {
     const s = started();
@@ -775,6 +830,7 @@ describe('plain ASCII', () => {
       renderOffice(s, '', { x: 0, y: 0 }, -1, true),
       renderOfficeHelp(s),
       renderFengShuiBook(s),
+      renderManagerBook(s),
       renderOptions(s),
       renderKeysMenu(s),
       renderStats(s),

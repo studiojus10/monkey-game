@@ -215,8 +215,8 @@ export interface FurnitureKind {
   rooms: RoomKind[]; // the kinds of room it can stand in
 }
 
-/** The kinds of room: a department's room (its monkeys' desks) or a break room. */
-export type RoomKind = 'department' | 'break';
+/** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
+export type RoomKind = 'department' | 'break' | 'office';
 
 /** The five feng shui elements. A room with all five is balanced. */
 export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
@@ -224,6 +224,24 @@ export const elements: Element[] = ['wood', 'fire', 'earth', 'metal', 'water'];
 
 /** The desk every monkey gets free, in its department's room. Not sold. */
 export const desk: FurnitureKind = { id: 'desk', name: 'Desk', glyph: '@', cost: 0, costGrowth: 1, drain: 0, rest: 0, happiness: 0, element: 'metal', rooms: ['department'], description: 'A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.' };
+
+/**
+ * The manager's desk: every manager's office comes with one, and a spare is
+ * sold in the Office store. The first one inspected hides a book (see managerBook).
+ */
+export const managerDesk: FurnitureKind = {
+  id: 'managerdesk',
+  name: "Manager's desk",
+  glyph: 'D',
+  cost: 100_000,
+  costGrowth: 2,
+  drain: 0,
+  rest: 0,
+  happiness: 0,
+  element: 'wood',
+  rooms: ['office'],
+  description: 'A big oak desk with a nameplate, a stamp and three pens. The bottom drawer is stuck shut, or nearly.',
+};
 
 export const furnitureKinds: FurnitureKind[] = [
   // Decor: a department's monkeys tire slower (with it in their room or their lounge). Pieces at the same price do as much. `rooms` says where each may stand.
@@ -251,6 +269,7 @@ export const furnitureKinds: FurnitureKind[] = [
   { id: 'hammock', name: 'Hammock', glyph: 'J', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'wood', rooms: ['break'], seat: true, description: 'Strung between two wooden posts. Swaying Wood, and the best naps.' },
   { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', rooms: ['break'], description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
   { id: 'hottub', name: 'Hot tub', glyph: 'U', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, size: [2, 1], element: 'water', rooms: ['break'], description: 'Nobody remembers approving this. Nobody is complaining.' },
+  managerDesk,
 ];
 
 /**
@@ -267,6 +286,67 @@ export const fengShui = {
   found: 'Tucked behind the other books is a slim volume: "The Way of the Typewriter: feng shui for monkeys".',
   window: 'A window. Every room wants light, though sunlight is no substitute for a real flame.',
   nothing: 'Nothing of interest here.',
+};
+
+/**
+ * Manager's offices: a small room for one department's manager, sharing a
+ * wall and a door with the department's room, with a manager's desk in it.
+ * Bought on the office map like other rooms, at the price of a room.
+ */
+export const managerOffice = {
+  width: 2,
+  height: 2,
+};
+
+/**
+ * The book hidden in a manager's desk (Justin, 2026-10-14). Reading it shows
+ * every monkey's trait, which works from the day the monkey is hired, seen or not.
+ */
+export const managerBook = {
+  hiddenIn: 'managerdesk',
+  title: 'Understanding Your Employees: a field guide for managers of monkeys',
+  found: 'In the stuck bottom drawer is a dog-eared paperback: "Understanding Your Employees: a field guide for managers of monkeys".',
+};
+
+/**
+ * Traits: every monkey has one, picked at random when it joins (Justin,
+ * 2026-10-14: "giving individual monkeys random traits"). They work all along
+ * but stay hidden until the manager's book is read. `speed`, `pay` (points)
+ * and `rest` (break speed) are [bonus when its condition is good, change when
+ * it's bad] (0.1 = +10%); when each holds is in traitMood in logic.ts. Day is
+ * dayStart to nightStart, by the player's clock. Placeholders.
+ */
+export interface Trait {
+  id: string;
+  name: string;
+  text: string; // what the book says about it
+  speed?: [number, number];
+  pay?: [number, number];
+  rest?: [number, number];
+}
+
+export const traits: Trait[] = [
+  { id: 'claustrophobic', name: 'Claustrophobic', speed: [0.1, -0.1], text: '10% faster with a window by its desk; 10% slower with no door or window within 2 squares of it.' },
+  { id: 'nightowl', name: 'Night owl', speed: [0.15, -0.05], text: '15% faster at night (8pm to 6am), 5% slower by day.' },
+  { id: 'earlybird', name: 'Early bird', speed: [0.1, -0.05], text: '10% faster by day (6am to 8pm), 5% slower at night.' },
+  { id: 'social', name: 'Social', speed: [0.15, 0], text: '3% faster for every other monkey in its room, up to 15%.' },
+  { id: 'loner', name: 'Loner', speed: [0.15, -0.05], text: '15% faster with 3 or fewer monkeys in its room, 5% slower with 8 or more.' },
+  { id: 'greenthumb', name: 'Green thumb', speed: [0.1, 0], text: '10% faster with a potted plant or a bonsai tree in its room.' },
+  { id: 'bookworm', name: 'Bookworm', pay: [0.1, 0], text: 'Its words pay 10% more with a bookshelf in its room.' },
+  { id: 'couchpotato', name: 'Couch potato', rest: [0.3, 0], text: 'Breaks 30% faster with a couch in its lounge.' },
+  { id: 'perfectionist', name: 'Perfectionist', speed: [-0.1, 0], pay: [0.2, 0], text: '10% slower, but its words pay 20% more.' },
+];
+
+export const traitRules = {
+  dayStart: 6, // 6am
+  nightStart: 20, // 8pm
+  socialPerMonkey: 0.03, // up to the trait's speed bonus
+  lonerFew: 3, // monkeys in its room, itself included
+  lonerCrowd: 8,
+  claustrophobicReach: 2, // squares to the nearest door or window
+  greenthumbPlants: ['plant', 'bonsai'],
+  bookwormBooks: ['bookshelf'],
+  couchpotatoSeats: ['couch'],
 };
 
 /**

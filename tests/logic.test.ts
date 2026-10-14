@@ -203,7 +203,7 @@ describe('typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
-    for (const m of s.monkeys) m.skill = 60; // far more letters a second than the budget
+    for (const m of s.monkeys) Object.assign(m, { skill: 60, trait: 'none' }); // far more letters a second than the budget; no trait
     const due = Math.floor(monkeySpeed(s, s.monkeys[0])) * 2;
     tick(s, 1, rng);
     expect(s.stats.letters.I).toBeLessThanOrEqual(maxSimulatedLettersPerSecond + 1);
@@ -273,6 +273,7 @@ describe('typing', () => {
   it('offline typing is credited and capped', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
+    s.monkeys[0].trait = 'none';
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
     expect(earned).toBe(maxOfflineSeconds * typing.baseLettersPerSecond);
   });
@@ -421,7 +422,7 @@ describe('monkeys', () => {
   it('long absences with many monkeys are estimated past the simulation limit', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.monkeys = Array.from({ length: 100 }, createMonkey);
+    s.monkeys = Array.from({ length: 100 }, () => ({ ...createMonkey(), trait: 'none' }));
     const letters = 100 * maxOfflineSeconds * typing.baseLettersPerSecond;
     expect(letters).toBeGreaterThan(maxOfflineLetters);
     const earned = applyOfflineProgress(s, maxOfflineSeconds * 1000, rng);

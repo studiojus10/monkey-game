@@ -156,12 +156,23 @@ Each genre has a **department** **(decided)**. You open the first at the start, 
 
 ### Manager monkeys (automation)
 
-For players who don't want to micromanage **(decided)**. A department with more than 5 monkeys can promote one to **manager** (`m`, one per department; `m` again sends it back to typing). A manager stops typing and instead:
+For players who don't want to micromanage **(decided)**. A department with 5 typing monkeys can **hire** a manager (Justin, 2026-10-14: "the player can hire a manager monkey which requires an office that shares a door into the department"), one per department, in the Staff store at the price of the department's next monkey. It needs a **manager's office**: a 2 x 2 room bought on the office map (`r`), placed beside its department's room with a door between, that comes with a **manager's desk** (`D`; spares are sold in the Office store). The store says what's missing (office, door, desk, monkeys). The manager sits at the manager's desk and doesn't take a typist's place. (Before this, `m` promoted a typist; that key is gone.) A manager doesn't type; instead it:
 - picks an unwritten line of its department's owned scenes and pins it, by priority **(decided)**: within reach (your letters can spell it), then the fewest words, then the earliest in play order. With nothing in reach it pins the shortest out-of-reach line, and switches as soon as a line comes within reach;
 - fills your word slots with that line's words by position (slots past the line's length switch off; slot words that need letters you don't own aren't typed; with every owned line written all slots switch off, so typing is random again);
 - moves on to the next line as soon as one is written.
 
 A manager sets its own department's slots. Managers can be **upgraded** (`u`): each upgrade adds +0.1× to the points of every monkey in that department. Because one upgrade improves a whole department, they're very expensive: Lines, 50 per monkey in the department, doubling each level (starting guess).
+
+### Monkey traits
+
+Every monkey has a **trait** (Justin, 2026-10-14: "giving individual monkeys random traits"), picked at random when it joins. Traits work from the start but are **hidden** until you find the book in a manager's desk (Justin: "if the player inspects the managers desk there will be a hidden book about understanding your employee's needs. reading this book will unlock and display the monkeys traits which are active but hidden until this point"): inspect the desk (`i` on the map), `y` reads "Understanding Your Employees". Then the home screen has a TRAIT column (green while it helps, red while it hurts, dim when it does nothing), inspecting a desk says its monkey's trait, and `e` on the map reopens the book: every trait and what each monkey's is doing now. Traits (placeholders, `traits` in config.ts):
+- Claustrophobic: +10% speed with a window by its desk, -10% with no door or window within 2 squares.
+- Night owl: +15% speed at night (8pm to 6am on the player's clock), -5% by day. Early bird: +10% by day, -5% at night.
+- Social: +3% speed per other monkey in its room, up to 15%. Loner: +15% with 3 or fewer in its room, -5% with 8 or more.
+- Green thumb: +10% speed with a potted plant or bonsai in its room. Bookworm: +10% pay with a bookshelf in its room. Couch potato: breaks 30% faster with a couch in its lounge.
+- Perfectionist: -10% speed, +20% pay.
+
+Offices are too small for feng shui and don't count toward the office's chi.
 
 ### The Sonnets department
 
@@ -193,7 +204,7 @@ Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to pars
    Bought a potted plant.
  -----------------------------------------------------------------------------
  [space] shop   [p] script   [o] office   [t] stats   [a] achievements   [w] dictionary
- [enter] pet the monkey   [n] name   [d] move   [m] promote a monkey   [c] options   [?] all keys   [q] quit
+ [enter] pet the monkey   [n] name   [d] move   [c] options   [?] all keys   [q] quit
 ```
 
 - **Monkey table:** columns never change width (Justin: "I want to make sure the columns like monkey speed etc dont change width"): the name column fits the 12-character name limit, and with more than one department a department initial comes before the name. Energy is a percent (Justin preferred it to a bar, which took too much room): green above 80%, yellow above 20%, red at 20% and below, and a blue **Resting** on a break (`energyColors` in config.ts). Managers show `-` for speed, energy and combo, and what they're aiming at.
