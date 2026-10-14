@@ -23,6 +23,8 @@ import {
   dyePickPrompt,
   slotHighlight,
   stores,
+  storeChoices,
+  storePages,
 } from '../src/cli/screen';
 import { inspectSquare, officeMapWidth, renderOffice, renderFengShuiBook } from '../src/cli/office';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
@@ -94,7 +96,7 @@ describe('terminal screen', () => {
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
     expect(text.split('\n')[2]).toBe(' @ M-1(0.50/s 100%) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
-    expect(plain(text)).toMatch(/^Shop +Typewriters\* +\[Staff\*\] +Script +Furniture\* +Hats$/m); // letters come first
+    expect(plain(text)).toMatch(/^Shop +Typewriters\* +\[Staff\*\] +Script +Decor\* +Comforts +Hats$/m); // letters come first
     expect(plain(text)).toContain('[1] *Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
     expect(tools).toContain('[2] *Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
     expect(tools).toContain('[1] *Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
@@ -114,9 +116,9 @@ describe('terminal screen', () => {
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[space] close the shop   [tab] next store   [1-9] buy');
-    expect(open).toMatch(/^Shop +Typewriters +\[Staff\] +Script +Furniture +Hats$/m);
+    expect(open).toMatch(/^Shop +Typewriters +\[Staff\] +Script +Decor +Comforts +Hats$/m);
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Typewriters\* +Staff\* +\[Script\] +Furniture +Hats$/m);
+    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Typewriters\* +Staff\* +\[Script\] +Decor +Comforts +Hats$/m);
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -401,12 +403,24 @@ describe('office space on screen', () => {
 });
 
 describe('furniture', () => {
-  it('sells furniture in the Furniture store', () => {
+  it('sells furniture in the Decor and Comforts stores', () => {
     const s = started();
     s.currency = 600;
-    const text = plain(renderScreen(s, '', 'furniture'));
+    const text = plain(renderScreen(s, '', 'decor'));
+    expect(text).toContain("Decor: in a department's room, its monkeys tire slower.");
     expect(text).toContain("[1] *Potted plant [P] (wood): a department's monkeys tire 3% slower, +1% points   cost 500 Points");
-    expect(text).toContain('[7]  Television [T] (fire): in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
+    expect(text).toContain("[2] *Scented candle [I] (fire): a department's monkeys tire 3% slower, +1% points   cost 500 Points"); // same price, same benefit
+    expect(text).not.toContain('Television');
+    expect(text).toContain('Page 1 of 2: [up] and [down] show more');
+    const comforts = plain(renderScreen(s, '', 'comforts'));
+    expect(comforts).toContain('[9]  Hammock [J] (wood): in a break room, breaks go 25% faster, +2% points (takes 2 x 1 squares)   cost 200.00K Points');
+    expect(comforts).not.toContain('Television'); // on the next page
+    const more = plain(renderScreen(s, '', 'comforts', 0, 1));
+    expect(more).toContain('[1]  Television [T] (fire): in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
+    expect(more).toContain('[2]  Hot tub [U] (water): in a break room, breaks go 40% faster, +3% points (takes 2 x 1 squares)   cost 1.00M Points');
+    expect(more).toContain('Page 2 of 2');
+    expect(storeChoices(s, 'comforts', 1).map((x) => x.id)).toEqual(['furniture:tv', 'furniture:hottub']);
+    expect(storePages(s, 'hats')).toBe(1);
   });
 
   it('draws furniture, the cursor and a piece being moved', () => {
@@ -440,7 +454,7 @@ describe('furniture', () => {
     expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: ON');
     s.settings.autoPlaceFurniture = false;
     expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: off');
-    expect(plain(renderScreen(s, '', 'furniture'))).toContain('New furniture opens the office map so you can place it.');
+    expect(plain(renderScreen(s, '', 'decor'))).toContain('New furniture opens the office map so you can place it.');
   });
 
 });
@@ -475,7 +489,7 @@ describe('inspecting', () => {
     expect(inspectItem('hat:cowboy')).toBe('Yeehaw, but quietly: this is an office.');
     expect(inspectItem('combo')).toBe('Nothing of interest here.');
     expect(inspectItem(undefined)).toBe('Nothing of interest here.');
-    expect(plain(renderScreen(started(), '', 'furniture'))).toContain('[i] inspect');
+    expect(plain(renderScreen(started(), '', 'decor'))).toContain('[i] inspect');
   });
 });
 
@@ -488,7 +502,7 @@ describe('feng shui on screen', () => {
     expect(map).toContain('+===----+'); // in the bottom wall
     expect(map).toContain('=== : window');
     expect(map).not.toContain('chi');
-    expect(plain(renderScreen(s, '', 'furniture'))).not.toContain('Feng shui book'); // not for sale: it hides in a bookshelf
+    expect(plain(renderScreen(s, '', 'decor'))).not.toContain('Feng shui book'); // not for sale: it hides in a bookshelf
     s.furniture.push({ kind: 'bookshelf', room: 'r1', x: 1, y: 1 });
     const shelf = inspectSquare(s, 1, 1);
     expect(shelf.text).toContain('Rows of dusty old books.');
@@ -497,7 +511,7 @@ describe('feng shui on screen', () => {
     expect(shelf.book).toBe(1);
     expect(inspectSquare(s, 1, 0, 1).book).toBe(1); // held, it can be inspected too
     expect(inspectSquare(s, 0, 0).text).toBe("M-1's desk. A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.");
-    expect(inspectSquare(s, 1, 0).text).toBe('A window. Sunlight is Fire, and every room wants some.');
+    expect(inspectSquare(s, 1, 0).text).toBe('A window. Every room wants light, though sunlight is no substitute for a real flame.');
     expect(inspectSquare(s, 0, 2)).toEqual({ text: 'Nothing of interest here.', book: -1 });
     expect(inspectSquare(s, 9, 9).text).toBe('Nothing of interest here.');
     s.furniture.pop();
@@ -507,8 +521,8 @@ describe('feng shui on screen', () => {
     expect(read).toContain('[b] read the feng shui book');
     const book = plain(renderFengShuiBook(s));
     expect(book).toContain('  Light    a window.');
-    expect(book).toContain('  Metal   desk, floor lamp');
-    expect(book).toContain('  Fire    television, windows');
+    expect(book).toContain('  Metal   desk, wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine');
+    expect(book).toContain('  Fire    scented candle, fireplace, television');
     expect(book).toMatch(/1 Comedies room +chi  80% +lacks Balance/);
     expect(book).toContain('Office chi 80%: +8% happiness.');
   });

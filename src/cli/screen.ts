@@ -164,7 +164,7 @@ export function lineRoom(state: GameState, columns: number): number {
 }
 
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, page = 0): string {
   const lines = [`=== ${theme.title} ===`, ''];
 
   if (state.owned.length === 0 && state.departments.length === 0) {
@@ -241,7 +241,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...pinnedText(state),
     '',
-    ...(shop ? shopLines(state, shop) : []),
+    ...(shop ? shopLines(state, shop, page) : []),
     `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)   [i] inspect' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   ${canPublishFolio(state) ? '[f] publish a Folio   ' : ''}[s] save   [r] reset   [\`] dev tools   [q] quit`,
     '',
     message,
@@ -307,13 +307,14 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
 }
 
 /** The shop's stores, shown as tabs; tab or left/right switches between them. */
-export const stores = ['typewriters', 'staff', 'script', 'furniture', 'hats'] as const;
+export const stores = ['typewriters', 'staff', 'script', 'decor', 'comforts', 'hats'] as const;
 export type Store = (typeof stores)[number];
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
   staff: 'Staff',
   script: 'Script',
-  furniture: 'Furniture',
+  decor: 'Decor',
+  comforts: 'Comforts',
   hats: 'Hats',
 };
 
@@ -387,10 +388,17 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           : { text: `Word slots: unlock when you own ${wordSlots.unlockLetters} letters` },
       ];
     }
-    case 'furniture': {
+    case 'decor':
+    case 'comforts': {
       const spot = !!furnitureSpot(state);
       return [
-        ...furnitureKinds.map((k) => {
+        {
+          text:
+            store === 'decor'
+              ? "Decor: in a department's room, its monkeys tire slower."
+              : 'Comforts: in a break room, every monkey takes faster breaks.',
+        },
+        ...furnitureKinds.filter((k) => (store === 'decor' ? k.drain > 0 : k.drain === 0)).map((k) => {
           const cost = furnitureCost(state, k.id);
           return { id: `furniture:${k.id}`, star: !!furnitureSpot(state, k.id) && state.currency >= cost, text: `${k.name} [${k.glyph}] (${k.element}): ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
         }),
@@ -508,13 +516,24 @@ export function furnitureEffect(k: FurnitureKind): string {
 }
 
 /** The numbered (buyable) items of a store, in key order 1-9. */
-export function storeChoices(state: GameState, store: Store): ShopItem[] {
-  return storeItems(state, store).filter((x) => x.id);
+export function storeChoices(state: GameState, store: Store, page = 0): ShopItem[] {
+  return storeItems(state, store)
+    .filter((x) => x.id)
+    .slice(page * storePageSize, (page + 1) * storePageSize);
 }
 
-/** The open store: a tab row, then its items. */
-function shopLines(state: GameState, store: Store): string[] {
-  let n = 0;
+/** Numbered items a store shows at once (keys 1-9); a bigger store has pages. */
+export const storePageSize = 9;
+
+/** How many pages a store's numbered items fill. */
+export function storePages(state: GameState, store: Store): number {
+  return Math.max(1, Math.ceil(storeItems(state, store).filter((x) => x.id).length / storePageSize));
+}
+
+/** The open store: a tab row, then its items (the numbered ones on this page). */
+function shopLines(state: GameState, store: Store, page = 0): string[] {
+  let k = 0; // numbered items so far, across pages
+  const pages = storePages(state, store);
   return [
     // A * on a tab means that store has something you can afford.
     'Shop   ' +
@@ -525,7 +544,12 @@ function shopLines(state: GameState, store: Store): string[] {
         })
         .join(' ')
         .trimEnd(),
-    ...storeItems(state, store).map((x) => (x.id ? `  [${++n}] ${x.star ? '*' : ' '}${x.text}` : `       ${x.text}`)),
+    ...storeItems(state, store).flatMap((x) => {
+      if (!x.id) return [`       ${x.text}`];
+      const n = k++ - page * storePageSize;
+      return n >= 0 && n < storePageSize ? [`  [${n + 1}] ${x.star ? '*' : ' '}${x.text}`] : [];
+    }),
+    ...(pages > 1 ? [`       Page ${page + 1} of ${pages}: [up] and [down] show more`] : []),
     '',
   ];
 }

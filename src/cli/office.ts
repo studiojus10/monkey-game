@@ -263,7 +263,7 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
 export function renderFengShuiBook(state: GameState): string {
   const kinds = [desk, ...furnitureKinds];
   const byElement = elements.map((e) => {
-    const names = [...kinds.filter((k) => elementOf(k.id) === e).map((k) => k.name.toLowerCase()), ...(e === fengShui.windowElement ? ['windows'] : [])];
+    const names = kinds.filter((k) => elementOf(k.id) === e).map((k) => k.name.toLowerCase());
     return `  ${e[0].toUpperCase()}${e.slice(1).padEnd(6)} ${names.join(', ')}`;
   });
   const open = connectedRooms(state);

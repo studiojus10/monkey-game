@@ -92,6 +92,7 @@ import {
   renderContents,
   stores,
   storeChoices,
+  storePages,
   type Store,
   typists,
   typingPickPrompt,
@@ -167,6 +168,7 @@ let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1
 let readingBook = false; // the feng shui book, open from the office map
 let offeredBook = -1; // the piece hiding the feng shui book, just inspected: [y] reads it
 let inspecting = false; // choosing a store item to inspect
+let storePage = 0; // the open store's page, for stores with more than 9 items
 let pickingHat = ''; // choosing a monkey for this hat
 let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
 let pickingDyeColor = false; // choosing which colour to dye
@@ -389,7 +391,7 @@ function draw() {
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message, shop, columns);
+        : renderScreen(state, message, shop, columns, storePage);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -523,7 +525,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (inspecting) {
     inspecting = false;
-    const item = shop && str && /^[1-9]$/.test(str) ? storeChoices(state, shop)[Number(str) - 1] : undefined;
+    const item = shop && str && /^[1-9]$/.test(str) ? storeChoices(state, shop, storePage)[Number(str) - 1] : undefined;
     message = item ? inspectItem(item.id) : 'Nothing inspected.';
     return draw();
   }
@@ -821,7 +823,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (!cycleWindow(state, c.x, c.y)) message = here ? 'Windows go in walls that face outside: no hallway or room beyond.' : 'Windows go in the walls of a room.';
     } else if (str === 'b' && !holding && !officeGrowing) {
       if (state.fengShuiBook) readingBook = true;
-      else message = 'The feng shui book is in the Furniture store.';
+      else message = 'You have no feng shui book. Perhaps one is hidden somewhere: inspect things with [i].';
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
@@ -853,7 +855,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           // A bigger piece is held by its top left square.
           Object.assign(c, { x: state.furniture[spot].x, y: state.furniture[spot].y });
         } else if (door) heldDoor = { from: door, side: door.side };
-        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Furniture store; [d] adds a door.';
+        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Decor and Comforts stores; [d] adds a door.';
       }
     }
     return draw();
@@ -931,14 +933,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;
   } else if (key.name === 'space') {
     shop = shop ? null : lastStore;
+    storePage = 0;
   } else if (shop && (key.name === 'tab' || key.name === 'right' || key.name === 'left')) {
     const step = key.name === 'left' ? stores.length - 1 : 1;
     shop = lastStore = stores[(stores.indexOf(shop) + step) % stores.length];
+    storePage = 0;
+  } else if (shop && (key.name === 'up' || key.name === 'down')) {
+    const pages = storePages(state, shop);
+    storePage = (storePage + (key.name === 'up' ? pages - 1 : 1)) % pages;
   } else if (shop && str === 'i') {
     inspecting = true;
     message = 'Inspect which item? Press 1-9.';
   } else if (shop && str && /^[1-9]$/.test(str)) {
-    const item = storeChoices(state, shop)[Number(str) - 1];
+    const item = storeChoices(state, shop, storePage)[Number(str) - 1];
     if (item?.id) buyItem(item.id);
   } else if (str === 'm') {
     pickingManager = true;

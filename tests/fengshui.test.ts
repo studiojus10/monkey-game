@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fengShui } from '../src/game/config';
+import { fengShui, furnitureKinds } from '../src/game/config';
 import { chiHappiness, officeChi, roomChi, roomRules, squareRank } from '../src/game/fengshui';
 import { addWindow, cycleWindow, doorPaths, toggleHall, windowSides } from '../src/game/layout';
 import { buyRoom, hidesBook, readFengShuiBook, checkAchievements, expandRoom, furnitureHappiness, furnitureSpot, happiness } from '../src/game/logic';
@@ -66,7 +66,7 @@ describe('feng shui', () => {
     expect(roomRules(s, room).light).toBe(false);
   });
 
-  it('wants desks against a wall, and couches and benches backed by one', () => {
+  it('wants desks against a wall, and every seat backed by one', () => {
     const s = createInitialState(0);
     s.office[0].cells = rectangle(3, 3);
     s.furniture = [{ kind: 'desk', room: 'r1', x: 1, y: 1 }]; // the middle: no wall
@@ -80,9 +80,15 @@ describe('feng shui', () => {
     expect(roomRules(s, lounge).command).toBe(true); // its back to the west wall
     s.furniture[1] = { kind: 'bench', room: 'r2', x: 5, y: 2 };
     expect(roomRules(s, lounge).command).toBe(true); // its back to the south wall
+    s.furniture[1] = { kind: 'armchair', room: 'r2', x: 6, y: 1 };
+    expect(roomRules(s, lounge).command).toBe(false); // an armchair in the middle of the room
+    s.furniture[1] = { kind: 'armchair', room: 'r2', x: 6, y: 0 };
+    expect(roomRules(s, lounge).command).toBe(true);
+    s.furniture.push({ kind: 'cooler', room: 'r2', x: 6, y: 1 }); // not a seat: no wall needed
+    expect(roomRules(s, lounge).command).toBe(true);
   });
 
-  it('balances a room with all five elements, a window counting as fire', () => {
+  it('balances a room with all five elements; a window is light, not fire', () => {
     const s = createInitialState(0);
     s.office[0].cells = rectangle(3, 3);
     s.furniture.push(
@@ -90,12 +96,24 @@ describe('feng shui', () => {
       { kind: 'cooler', room: 'r1', x: 2, y: 2 },
       { kind: 'bench', room: 'r1', x: 0, y: 2 },
     );
+    expect(roomRules(s, s.office[0]).balance).toBe(false); // no fire: the desk is metal, the window only light
+    s.furniture.push({ kind: 'candle', room: 'r1', x: 1, y: 0 });
     expect(roomRules(s, s.office[0]).balance).toBe(true);
     s.windows = [];
-    expect(roomRules(s, s.office[0]).balance).toBe(false);
-    s.furniture.push({ kind: 'tv', room: 'r1', x: 1, y: 0 });
     expect(roomRules(s, s.office[0]).balance).toBe(true);
     expect(roomChi(s, s.office[0])).toBeCloseTo(0.8); // no light
+  });
+
+  it('makes fire the rarest element, and every store has all five', () => {
+    const count = (e: string) => furnitureKinds.filter((k) => k.element === e).length;
+    const fire = count('fire');
+    for (const e of ['wood', 'earth', 'metal', 'water']) expect(count(e)).toBeGreaterThan(fire);
+    for (const decor of [true, false]) {
+      const store = furnitureKinds.filter((k) => (k.drain > 0) === decor);
+      expect(new Set(store.map((k) => k.element)).size).toBe(5);
+    }
+    expect(Object.fromEntries(['fire', 'water', 'wood', 'earth', 'metal'].map((e) => [e, count(e)]))).toEqual({ fire: 3, water: 4, wood: 5, earth: 5, metal: 6 });
+    expect(new Set(furnitureKinds.map((k) => k.glyph)).size).toBe(furnitureKinds.length); // each looks different on the map
   });
 
   it('hides the book in a bookshelf, and makes monkeys happier only once it is read', () => {
@@ -127,7 +145,12 @@ describe('feng shui', () => {
     const s = createInitialState(0);
     expect(checkAchievements(s)).not.toContain('harmony');
     s.office[0].cells = rectangle(3, 3);
-    s.furniture.push({ kind: 'plant', room: 'r1', x: 2, y: 0 }, { kind: 'cooler', room: 'r1', x: 2, y: 2 }, { kind: 'bench', room: 'r1', x: 0, y: 2 });
+    s.furniture.push(
+      { kind: 'plant', room: 'r1', x: 2, y: 0 },
+      { kind: 'cooler', room: 'r1', x: 2, y: 2 },
+      { kind: 'bench', room: 'r1', x: 0, y: 2 },
+      { kind: 'candle', room: 'r1', x: 1, y: 0 },
+    );
     expect(checkAchievements(s)).toContain('harmony');
   });
 

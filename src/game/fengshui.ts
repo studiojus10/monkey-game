@@ -14,7 +14,7 @@ export type ChiRule = 'light' | 'command' | 'flow' | 'entrance' | 'balance';
 /** The rules, in the order they're shown, with what each asks of a room (department rooms and break rooms differ on command). */
 export const chiRules: { id: ChiRule; name: string; department: string; break: string }[] = [
   { id: 'light', name: 'Light', department: 'a window', break: 'a window' },
-  { id: 'command', name: 'Command', department: 'every desk against a wall and out of the path of a door', break: 'a couch or bench backed by a wall' },
+  { id: 'command', name: 'Command', department: 'every desk against a wall and out of the path of a door', break: 'every seat (bench, armchair or couch) backed by a wall' },
   { id: 'flow', name: 'Flow', department: 'no door looks straight at a window or another door across the room, unless something stands in between', break: 'no door looks straight at a window or another door across the room, unless something stands in between' },
   { id: 'entrance', name: 'Welcome', department: 'nothing on the square just inside a door', break: 'nothing on the square just inside a door' },
   { id: 'balance', name: 'Balance', department: 'all five elements: wood, fire, earth, metal and water', break: 'all five elements: wood, fire, earth, metal and water' },
@@ -55,12 +55,13 @@ export function roomRules(state: GameState, room: Room): Record<ChiRule, boolean
         (f) => !onPath.has(`${f.x},${f.y}`) && [[0, -1], [1, 0], [0, 1], [-1, 0]].some(([dx, dy]) => wallOn(f.x, f.y, dx, dy)),
       );
   } else {
-    const seats = pieces.filter((f) => (kindOf(f.kind)?.size ?? [1, 1]).join() !== '1,1');
-    // A seat's back is one of its long sides: north or south across, east or west when turned.
+    const seats = pieces.filter((f) => kindOf(f.kind)?.seat);
+    // A seat's back is one of its long sides: north or south across, east or west when turned; any side for a one-square seat.
     command =
       seats.length > 0 &&
       seats.every((f) => {
-        const backs = f.turned ? [[1, 0], [-1, 0]] : [[0, -1], [0, 1]];
+        const [w, h] = (kindOf(f.kind)?.size ?? [1, 1]) as [number, number];
+        const backs = w === h ? [[0, -1], [1, 0], [0, 1], [-1, 0]] : f.turned ? [[1, 0], [-1, 0]] : [[0, -1], [0, 1]];
         return backs.some(([dx, dy]) => squaresOf(f).every(([x, y]) => wallOn(x, y, dx, dy)));
       });
   }
@@ -75,7 +76,6 @@ export function roomRules(state: GameState, room: Room): Record<ChiRule, boolean
   const entrance = paths.every((p) => !taken.has(`${p.squares[0][0]},${p.squares[0][1]}`));
 
   const have = new Set<Element>(pieces.map((f) => elementOf(f.kind)).filter((e): e is Element => !!e));
-  if (light) have.add(fengShui.windowElement);
   const balance = elements.every((e) => have.has(e));
 
   return { light, command, flow, entrance, balance };
