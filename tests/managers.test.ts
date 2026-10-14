@@ -360,3 +360,50 @@ describe('hiring through HR', () => {
     expect(s.candidates).toHaveLength(hr.candidatesBase);
   });
 });
+
+describe('storing, selling and firing', () => {
+  it('puts furniture away for free reuse, sells it for half, and keeps desks', async () => {
+    const L = await import('../src/game/logic');
+    const { furnitureKinds, sellBack } = await import('../src/game/config');
+    const s = department(1);
+    const plant = furnitureKinds.find((k) => k.id === 'plant')!;
+    expect(buyFurniture(s, 'plant')).toBe(true);
+    const at = s.furniture.length - 1;
+    expect(L.canRemoveFurniture(s, 0)).toBe(false); // a desk
+    expect(L.storeFurniture(s, 0)).toBe(false);
+    const price = L.furnitureCost(s, 'plant');
+    expect(L.storeFurniture(s, at)).toBe(true);
+    expect(s.stored.furniture).toEqual({ plant: 1 });
+    expect(L.furnitureCost(s, 'plant')).toBe(price); // storing doesn't make the next one cheaper
+    const money = s.currency;
+    expect(buyFurniture(s, 'plant')).toBe(true); // out of storage, free
+    expect(s.currency).toBe(money);
+    expect(s.stored.furniture).toEqual({});
+    expect(L.sellFurniture(s, s.furniture.length - 1)).toBe(true);
+    expect(s.currency).toBe(money + Math.floor(plant.cost * sellBack));
+    expect(deserialize(serialize({ ...s, stored: { furniture: { plant: 2, nonsense: 1 }, hats: { crown: 1 } } })).stored).toEqual({ furniture: { plant: 2 }, hats: { crown: 1 } });
+  });
+
+  it("sells a monkey's hat, and fires monkeys (never the last typist), keeping their hats in storage", async () => {
+    const L = await import('../src/game/logic');
+    const { hats, sellBack } = await import('../src/game/config');
+    const s = department(2);
+    s.sentences = 1e9;
+    const cap = hats[0];
+    expect(L.wearHat(s, 1, cap.id)).toBe(true);
+    const sentences = s.sentences;
+    expect(L.sellHat(s, 1)).toBe(true);
+    expect(s.monkeys[1]).toMatchObject({ hat: '', hats: [] });
+    expect(s.sentences).toBe(sentences + Math.floor(cap.cost * sellBack));
+    L.wearHat(s, 1, cap.id);
+    expect(L.fireMonkey(s, 1)).toBe(true);
+    expect(s.monkeys).toHaveLength(1);
+    expect(s.stored.hats).toEqual({ [cap.id]: 1 });
+    expect(L.fireBlocker(s, 0)).toBe('your last typing monkey');
+    expect(L.fireMonkey(s, 0)).toBe(false);
+    const before = s.sentences;
+    expect(L.wearHat(s, 0, cap.id)).toBe(true); // out of storage, free
+    expect(s.sentences).toBe(before);
+    expect(s.stored.hats).toEqual({});
+  });
+});

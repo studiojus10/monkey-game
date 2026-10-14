@@ -42,6 +42,7 @@ import {
   hr,
   monkeyStats,
   coinFlip,
+  sellBack,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
@@ -482,7 +483,7 @@ export function wearing(m: MonkeyState, effect: 'points' | 'speed' | 'drain' | '
 export function hatCost(state: GameState, id: string): number {
   const h = hats.find((x) => x.id === id);
   if (!h) return Infinity;
-  const owned = state.monkeys.filter((m) => m.hats.includes(id)).length;
+  const owned = state.monkeys.filter((m) => m.hats.includes(id)).length + (state.stored.hats[id] ?? 0);
   return Math.ceil(h.cost * Math.pow(h.costGrowth, owned));
 }
 
@@ -498,9 +499,11 @@ export function wearHat(state: GameState, index: number, id: string): boolean {
     return true;
   }
   if (!m.hats.includes(id)) {
-    const cost = hatCost(state, id);
+    // One in storage comes out for free.
+    const cost = state.stored.hats[id] ? 0 : hatCost(state, id);
     if (state.sentences < cost) return false;
     state.sentences -= cost;
+    if (state.stored.hats[id]) unstore(state.stored.hats, id);
     m.hats.push(id);
   }
   m.hat = id;
@@ -1127,16 +1130,18 @@ export function readManagerBook(state: GameState, index: number): boolean {
 export function furnitureCost(state: GameState, kind: string): number {
   const k = furnitureKinds.find((f) => f.id === kind);
   if (!k) return Infinity;
-  const owned = state.furniture.filter((f) => f.kind === kind).length;
+  const owned = state.furniture.filter((f) => f.kind === kind).length + (state.stored.furniture[kind] ?? 0);
   return Math.ceil(k.cost * Math.pow(k.costGrowth, owned));
 }
 
 /** Buys a piece of furniture and stands it where it fits (see furnitureSpot), in a room of roomKind if given. */
 export function buyFurniture(state: GameState, kind: string, roomKind?: Room['kind']): boolean {
-  const cost = furnitureCost(state, kind);
+  const stored = state.stored.furniture[kind] ?? 0;
+  const cost = stored > 0 ? 0 : furnitureCost(state, kind); // one in storage comes out for free
   const spot = furnitureSpot(state, kind, roomKind);
   if (!spot || state.currency < cost) return false;
   state.currency -= cost;
+  if (stored > 0) unstore(state.stored.furniture, kind);
   state.furniture.push({ kind, ...spot });
   return true;
 }
@@ -2197,5 +2202,69 @@ export function hirePrice(state: GameState, base: number, job: string, from?: nu
 function takeCandidate(state: GameState, from?: number): Partial<Candidate> {
   if (from === undefined || !state.candidates[from]) return {};
   return state.candidates.splice(from, 1)[0];
+}
+
+/** Takes one thing out of a storage count. */
+function unstore(counts: Record<string, number>, id: string): void {
+  if ((counts[id] = (counts[id] ?? 0) - 1) <= 0) delete counts[id];
+}
+
+/** What a piece of furniture or a hat sells for: sellBack of its base price. */
+export function sellValue(cost: number): number {
+  return Math.floor(cost * sellBack);
+}
+
+/** Whether a piece can be put away or sold: anything but a desk or a manager's desk (monkeys sit at those). */
+export function canRemoveFurniture(state: GameState, index: number): boolean {
+  const f = state.furniture[index];
+  return !!f && f.kind !== desk.id && f.kind !== managerDesk.id;
+}
+
+/** Puts a piece of furniture away in storage; buying one of its kind later takes it out for free. */
+export function storeFurniture(state: GameState, index: number): boolean {
+  if (!canRemoveFurniture(state, index)) return false;
+  const [f] = state.furniture.splice(index, 1);
+  state.stored.furniture[f.kind] = (state.stored.furniture[f.kind] ?? 0) + 1;
+  return true;
+}
+
+/** Sells a piece of furniture for sellBack of its base price (in bananas). */
+export function sellFurniture(state: GameState, index: number): boolean {
+  if (!canRemoveFurniture(state, index)) return false;
+  const [f] = state.furniture.splice(index, 1);
+  state.currency += sellValue(furnitureKinds.find((k) => k.id === f.kind)?.cost ?? 0);
+  return true;
+}
+
+/** Sells the hat a monkey wears, out of its wardrobe, for sellBack of its base price (in Sentences). */
+export function sellHat(state: GameState, index: number): boolean {
+  const m = state.monkeys[index];
+  const h = hats.find((x) => x.id === m?.hat);
+  if (!m || !h) return false;
+  m.hats = m.hats.filter((id) => id !== h.id);
+  m.hat = '';
+  m.hatColor = '';
+  state.sentences += sellValue(h.cost);
+  return true;
+}
+
+/** Why a monkey can't be fired ('' if it can): the office needs at least one typing monkey. */
+export function fireBlocker(state: GameState, index: number): string {
+  const m = state.monkeys[index];
+  if (!m) return 'no such monkey';
+  return isTypist(m) && state.monkeys.filter(isTypist).length <= 1 ? 'your last typing monkey' : '';
+}
+
+/**
+ * Fires a monkey: it leaves (its desk stays, free), and its hats go into
+ * storage for other monkeys to wear for free. Nothing is paid back, and the
+ * price of the next hire doesn't drop.
+ */
+export function fireMonkey(state: GameState, index: number): boolean {
+  if (fireBlocker(state, index)) return false;
+  const [m] = state.monkeys.splice(index, 1);
+  for (const id of m.hats) state.stored.hats[id] = (state.stored.hats[id] ?? 0) + 1;
+  if (m.manager) manage(state);
+  return true;
 }
 

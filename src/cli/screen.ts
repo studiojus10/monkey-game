@@ -670,7 +670,8 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
               : 'Furniture for break rooms: it helps each department whose nearest one it is.',
         },
         ...kinds.map((k): ShopItem => {
-          const cost = furnitureCost(state, k.id);
+          const stored = state.stored.furniture[k.id] ?? 0;
+          const cost = stored > 0 ? 0 : furnitureCost(state, k.id);
           const where = k.rooms.includes(store) ? store : k.rooms[0];
           return {
             id: `furniture:${k.id}@${where}`,
@@ -679,7 +680,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
-            effect: furnitureEffect(k),
+            effect: stored > 0 ? `${furnitureEffect(k)}; ${stored} stored` : furnitureEffect(k),
             cost: [[cost, 'currency']],
           };
         }),
@@ -716,9 +717,11 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
         ...hats.map((h): ShopItem => {
-          const cost = hatCost(state, h.id);
+          const stored = state.stored.hats[h.id] ?? 0;
+          const cost = stored > 0 ? 0 : hatCost(state, h.id);
           const someone = team.some((i) => !state.monkeys[i].hats.includes(h.id));
-          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: h.name, glyph: `${h.icon}${monkeyIcon}`, effect: hatEffect(h), cost: [[cost, 'sentences']] };
+          const effect = stored > 0 ? `${hatEffect(h)}; ${stored} stored` : hatEffect(h);
+          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: h.name, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
         }),
         {
           id: 'dye',

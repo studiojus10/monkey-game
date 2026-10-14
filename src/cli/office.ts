@@ -216,7 +216,7 @@ export function renderOffice(
       : heldDoor
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
-            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['i', 'inspect'], ['x', 'grow']],
+            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['s', 'store'], ['$', 'sell'], ['i', 'inspect'], ['x', 'grow']],
             [['r', 'buy a room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
           ];
   const doing = grow

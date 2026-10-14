@@ -19,6 +19,16 @@ export function serialize(state: GameState): string {
 }
 
 /** Parses a save, falling back to defaults for missing or corrupt fields. */
+/** Counts of stored things by id, keeping only known ids and whole counts above 0. */
+function storedCounts(v: unknown, known: (id: string) => boolean): Record<string, number> {
+  if (!v || typeof v !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(v as Record<string, unknown>)
+      .filter(([id, n]) => known(id) && typeof n === 'number' && Number.isFinite(n) && n >= 1)
+      .map(([id, n]) => [id, Math.floor(n as number)]),
+  );
+}
+
 export function deserialize(raw: string | null, now = Date.now()): GameState {
   const fresh = createInitialState(now);
   if (!raw) return fresh;
@@ -162,6 +172,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
         .map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs })),
       candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
+      stored: {
+        furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),
+        hats: storedCounts((s.stored as { hats?: unknown } | undefined)?.hats, (id) => hats.some((h) => h.id === id)),
+      },
       researched: strings(s.researched).filter((id) => research.projects.some((p) => p.id === id)),
       researchersHired: Math.max(0, Math.floor(num(s.researchersHired, 0))),
       squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),

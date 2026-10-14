@@ -118,6 +118,7 @@ export interface GameState {
   researched: string[]; // finished projects
   researchersHired: number; // researchers hired, for their price
   candidates: Candidate[]; // monkeys HR could hire now (see hr in config.ts)
+  stored: { furniture: Record<string, number>; hats: Record<string, number> }; // put away: furniture off the map, hats of fired monkeys; used again for free
   candidatesIn: number; // seconds until HR draws a new list of candidates (0: at the next tick)
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
@@ -229,6 +230,7 @@ export function createInitialState(now = Date.now()): GameState {
     researched: [],
     researchersHired: 0,
     candidates: [],
+    stored: { furniture: {}, hats: {} },
     candidatesIn: 0,
     squaresBought: 0,
     furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],

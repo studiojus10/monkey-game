@@ -445,6 +445,9 @@ export const monkeyStats = {
   ],
 };
 
+/** Selling (Justin, 2026-10-14): furniture and hats sell back for this share of their base price. */
+export const sellBack = 0.5;
+
 /**
  * The coin flip (Justin, 2026-10-14: "have it start out as 1% win 99% lose";
  * "every achievement, scene, act, play completed can add .1%. every

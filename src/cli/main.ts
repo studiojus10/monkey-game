@@ -25,6 +25,13 @@ import {
   projectOf,
   canBuildLab,
   canBuildHR,
+  canRemoveFurniture,
+  storeFurniture,
+  sellFurniture,
+  sellValue,
+  sellHat,
+  fireBlocker,
+  fireMonkey,
   hrRoom,
   hireHR,
   hrBlocker,
@@ -175,6 +182,7 @@ let showingHelp = false; // the [?] page: every key on the home screen
 let showingDev = false;
 let showingStats = false;
 let showingRoster = false; // the roster of monkeys ([m])
+let confirmingFire = false; // [f] in the roster asks first
 let rosterCursor = 0; // the chosen monkey's place in rosterOrder
 let showingAchievements = false;
 let achievementRow = 0;
@@ -367,7 +375,7 @@ function buyItem(id: string): void {
     if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
     else if (!furnitureSpot(state, kind, where))
       message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
-    else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
+    else if (!state.stored.furniture[kind] && state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
     else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in. Move it on the office map with [o].`;
@@ -993,6 +1001,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       readingManagerBook = true;
     } else if (str === '?' && !holding && !officeGrowing) {
       officeHelp = true;
+    } else if ((str === 's' || str === '$') && !holding && !officeGrowing) {
+      const here = roomAt(state, c.x, c.y);
+      const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
+      if (typeof spot !== 'number') message = 'No furniture there.';
+      else if (!canRemoveFurniture(state, spot)) message = 'Desks stay: monkeys work at them.';
+      else {
+        const name = furnitureName(state, spot);
+        const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
+        if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in storage. Buying another from the store takes it out for free.`;
+        else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} ${theme.currency}.`;
+      }
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
@@ -1036,8 +1055,35 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingRoster) {
     const order = rosterOrder(state);
+    const i = order[rosterCursor];
+    const firing = confirmingFire;
+    confirmingFire = false;
     message = '';
-    if (key.name === 'escape' || key.name === 'q' || str === 'm') showingRoster = false;
+    if (firing) {
+      if (key.name === 'y' && i !== undefined) {
+        const name = monkeyName(state, i);
+        if (fireMonkey(state, i)) {
+          message = `${name} has left the office.`;
+          rosterCursor = Math.max(0, Math.min(rosterCursor, rosterOrder(state).length - 1));
+        }
+      } else message = 'Nobody was fired.';
+    } else if (key.name === 'escape' || key.name === 'q' || str === 'm') showingRoster = false;
+    else if (str === 'f' && i !== undefined) {
+      const blocked = fireBlocker(state, i);
+      if (blocked) message = `You can't fire ${monkeyName(state, i)}: ${blocked}.`;
+      else {
+        confirmingFire = true;
+        message = `Fire ${monkeyName(state, i)}? It leaves for good; its hats go into storage. [y] fire   (any other key: no)`;
+      }
+    } else if (str === 'h' && i !== undefined) {
+      const hat = hats.find((h) => h.id === state.monkeys[i].hat);
+      if (!hat) message = `${monkeyName(state, i)} wears no hat.`;
+      else if (wearHat(state, i, hat.id)) message = `${monkeyName(state, i)} took off the ${hat.name.toLowerCase()}; it stays in its wardrobe.`;
+    } else if (str === '$' && i !== undefined) {
+      const hat = hats.find((h) => h.id === state.monkeys[i].hat);
+      if (!hat) message = `${monkeyName(state, i)} wears no hat to sell.`;
+      else if (sellHat(state, i)) message = `Sold the ${hat.name.toLowerCase()} for ${formatNumber(sellValue(hat.cost))} Sentences.`;
+    }
     else if (key.name === 'up') rosterCursor = Math.max(0, rosterCursor - 1);
     else if (key.name === 'down') rosterCursor = Math.min(order.length - 1, rosterCursor + 1);
     else if (str === 'n' && order[rosterCursor] !== undefined) startNaming(order[rosterCursor]);
