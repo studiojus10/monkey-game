@@ -32,6 +32,7 @@ import {
   availablePlays,
   currentWork,
   nextOwnedScene,
+  nextPin,
   buySection,
   getPlay,
   sceneOf,
@@ -375,7 +376,7 @@ function draw() {
   }
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
-    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
+    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message, columns)
     : showingOptions
     ? renderOptions(state)
     : showingOffice && readingBook
@@ -391,7 +392,7 @@ function draw() {
     : showingDictionary
       ? renderDictionary(state, dictionaryRow)
       : showingScript
-    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message)
+    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message, columns)
     : showingDev
       ? renderDevMenu(message)
       : showingKeys
@@ -681,6 +682,14 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (play && str && ',.<>'.includes(str)) {
       const to = nextOwnedScene(state, play.id, scriptCursor, ',<'.includes(str) ? -1 : 1);
       if (!to) message = 'You don\'t own any scenes yet.';
+      else {
+        scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === to.play));
+        scriptCursor = to.index;
+        findIndex = -1;
+      }
+    } else if (play && str && '[]'.includes(str)) {
+      const to = nextPin(state, play.id, scriptCursor, str === '[' ? -1 : 1);
+      if (!to) message = 'You have no pinned lines. [enter] pins the line you are on.';
       else {
         scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === to.play));
         scriptCursor = to.index;

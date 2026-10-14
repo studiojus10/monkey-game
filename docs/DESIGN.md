@@ -200,7 +200,7 @@ Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to pars
 - **Letters:** the whole alphabet in order, each letter you own in its place and a dim `_` for the rest (Justin's idea).
 - **LATELY:** one feed for news: the last word, the last line written and the last milestone (dim), anything waiting for you (a Folio, a new department), and the newest message in bold.
 - **Keys:** two short rows, places to go and things to do, broken between keys to fit the screen. `?` lists every key, including save, reset and dev tools.
-- Still to rework, one at a time: the script, statistics and the menus.
+- Still to rework, one at a time: statistics and the menus.
 
 **Shop** (Justin, 2026-10-14: rename the furniture stores "Office" and "Breakroom", "use left and right arrow keys to move back and forth between shops", "make sure the element column doesnt show until the fengshui book is read"):
 
@@ -223,6 +223,8 @@ Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to pars
 - The ELEMENT column appears only once the feng shui book is read. A piece bigger than one square says so after its name, e.g. Couch (2x1).
 
 **Office map** (Justin, 2026-10-14: "office map room looks good for now"): the title bar, the map, a dim legend, then a table of rooms (number, name, size, chi once the book is read, lounge, effects, who works there, cut to "+N more" at the screen's edge). A room with no way in, and a department with no room, show in red. Prices for a new room and one more square sit under the table. How rooms and lounges work moved to a `?` page.
+
+**Script** (Justin, 2026-10-14: "looks good", plus "can you add a button to skip back and forth between pinned lines?"): the title bar, the play and its progress, a dim heading per scene, written lines green with `+`, pinned lines `@`, the cursor's line inverse, and a NEEDS column of the letters each line still needs (`in reach` in green when none); lines too long for the screen wrap under themselves. `[` and `]` jump to the previous or next pinned line, across plays. The contents page is a table (play, genre, written, scenes owned; or one play's scenes by act), locked plays and unowned scenes dim, the cursor's row inverse.
 
 ## Saves and offline progress
 

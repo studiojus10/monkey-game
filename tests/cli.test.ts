@@ -27,7 +27,7 @@ import {
   storePages,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, inverse } from '../src/cli/style';
+import { bold, green, inverse } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook } from '../src/cli/office';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements } from '../src/game/config';
@@ -250,18 +250,21 @@ describe('script browser and pins', () => {
   it('shows a page of the play with scenes, the cursor and what each line needs', () => {
     const s = started();
     let text = renderScript(s, 'test', 1);
-    expect(text).toContain('=== Test Play (Comedies) ===   0 of 2 lines written   line 2');
-    expect(text).toContain('[b] this scene: owned');
-    expect(text).toContain('-- Act 1, scene 1 (0/1 written) --');
-    expect(text).toContain('-- Act 1, scene 2 (0/1 written) --');
-    expect(text).toContain('    HAMLET         I.   (within reach)');
-    expect(text).toContain('>   POLONIUS       Ay, my lord.   (needs A D L M O R Y)');
+    expect(text).toContain(' INFINITE MONKEYS > SCRIPT ');
+    expect(squash(text)).toContain('\n Test Play Comedies 0 / 2 lines written\n');
+    expect(squash(text)).toContain('[b] scene owned');
+    expect(squash(text)).toContain('\n ACT 1, SCENE 1 0 / 1 written NEEDS\n');
+    expect(squash(text)).toContain('\n ACT 1, SCENE 2 0 / 1 written NEEDS\n');
+    expect(squash(text)).toContain('\n HAMLET I. in reach\n');
+    expect(squash(text)).toContain('\n> POLONIUS Ay, my lord. ADLMORY \n'); // the letters it needs
+    expect(text.split('\n').some((r) => r.startsWith('\x1b[7m>  POLONIUS '))).toBe(true); // the cursor's line is inverse
     s.completed.test = [0];
     togglePin(s, 'test', 1);
     text = renderScript(s, 'test', 0);
-    expect(text).toContain('>+  HAMLET         I.');
-    expect(text).toContain('  @ POLONIUS       Ay, my lord.');
+    expect(squash(text)).toContain('\n>+ HAMLET I. \n');
+    expect(squash(text)).toContain('\n @ POLONIUS Ay, my lord. ADLMORY\n');
     expect(text).toContain('@ pinned (1/5)');
+    expect(renderScript(s, 'test', 1)).toContain('\x1b[32m + HAMLET'); // written lines are green
   });
 
   it('shows pinned lines on the home screen', () => {
@@ -276,11 +279,13 @@ describe('buying scenes in the script browser', () => {
   it('shows unowned scenes with prices, and locked genres', () => {
     const s = started();
     s.owned = ['test:1.1'];
-    const text = plain(renderScript(s, 'test', 1));
-    expect(text).toContain('-- Act 1, scene 2 (1 lines, not owned) --');
-    expect(text).toContain('Ay, my lord.   (not owned)');
-    expect(text).toContain('[b] this scene 80 Bananas'); // AYMYLORD is 8 letters
+    const text = squash(renderScript(s, 'test', 1));
+    expect(text).toContain('\n ACT 1, SCENE 2 1 line, not owned NEEDS\n');
+    expect(text).toContain('\n> POLONIUS Ay, my lord. \n'); // nothing needed until you own it
+    expect(text).toContain('[b] scene 80 Bananas'); // AYMYLORD is 8 letters
     expect(text).toContain('[a] Act 1 64 Bananas'); // only the unowned scene, less 20%
+    s.currency = 100;
+    expect(renderScript(s, 'test', 1)).toContain(green(`* ${bold('80')} Bananas`)); // affordable
     s.departments = [];
     s.owned = [];
     expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
@@ -375,13 +380,11 @@ describe('script contents', () => {
     const s = started();
     s.owned = ['test:1.1'];
     s.completed.test = [0];
-    const plays = renderContents(s, null, 0);
-    expect(plays).toContain('=== Contents: all plays ===');
-    expect(plays).toMatch(/^> {3}Test Play +Comedies +1\/2 lines written, 1 of 2 scenes owned$/m);
-    const scenes = renderContents(s, 'test', 1).split('\n');
-    expect(scenes).toContain('  Act 1');
-    expect(scenes.find((r) => r.includes('Scene 1'))).toMatch(/^ {6}Scene 1 +1\/1 written, finished$/);
-    expect(scenes.find((r) => r.includes('Scene 2'))).toMatch(/^> {5}Scene 2 +1 lines, not owned$/);
+    const plays = squash(renderContents(s, null, 0));
+    expect(plays).toContain(' INFINITE MONKEYS > CONTENTS ');
+    expect(plays).toContain('\n PLAY GENRE WRITTEN SCENES OWNED\n > Test Play Comedies 1 / 2 1 / 2 \n');
+    const scenes = squash(renderContents(s, 'test', 1));
+    expect(scenes).toContain('\n ACT 1\n Scene 1 1 / 1 finished\n > Scene 2 not owned 1 line \n');
   });
 });
 

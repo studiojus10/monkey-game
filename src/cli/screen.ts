@@ -956,59 +956,133 @@ function lineStatus(state: GameState, play: Play, index: number): string {
   return missing.length > 0 ? `needs ${missing.join(' ')}` : 'within reach';
 }
 
+/** What a line still needs, for the NEEDS column: the letters you don't own yet, "in reach", or nothing. */
+function lineNeeds(state: GameState, play: Play, index: number): string {
+  if (state.completed[play.id]?.includes(index) || !ownsLine(state, play, index)) return '';
+  const missing = missingLetters(state, play.lines[index].letters);
+  return missing.length > 0 ? missing.join('') : green('in reach');
+}
+
+/** Items (which may hold ANSI codes) three spaces apart after `lead`, broken between items to fit a screen `columns` wide. */
+function wrapVisible(items: string[], columns: number, lead: string): string[] {
+  const rows = [lead];
+  for (const item of items) {
+    const row = rows[rows.length - 1];
+    const fresh = row === lead || plainText(row).trim() === '';
+    if (!fresh && columns > 0 && plainText(row).length + 3 + plainText(item).length >= columns) rows.push(' '.repeat(plainText(lead).length) + item);
+    else rows[rows.length - 1] += (fresh ? '' : '   ') + item;
+  }
+  return rows;
+}
+
+/** Words of `text` in rows at most `width` long (a word longer than that gets a row of its own). */
+function wrapWords(text: string, width: number): string[] {
+  const rows: string[] = [];
+  for (const word of text.split(' ')) {
+    const last = rows.length - 1;
+    if (last >= 0 && rows[last].length + 1 + word.length <= width) rows[last] += ` ${word}`;
+    else rows.push(word);
+  }
+  return rows;
+}
+
 /**
- * The script browser: a page of one play around the cursor, with scene
- * headings (progress, or price if not owned), marks for written (+) and
- * pinned (@) lines, what each needs, and prices to buy the scene, act or
- * play under the cursor.
+ * The script browser: a page of one play around the cursor. Each scene has a
+ * dim heading with its progress; written lines are green with a +, pinned
+ * ones have an @, the cursor's line is inverse, and a NEEDS column lists the
+ * letters each line still needs. Lines too long for the screen wrap. Under
+ * them, prices to buy the scene, act or play under the cursor.
  */
-export function renderScript(state: GameState, playId: string, cursor: number, message = ''): string {
+export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0): string {
   const play = getPlay(playId);
   if (!play) return 'No plays loaded.';
   const done = state.completed[play.id] ?? [];
   const at = Math.max(0, Math.min(cursor, play.lines.length - 1));
   const first = Math.max(0, Math.min(at - Math.floor(scriptPageSize / 2), play.lines.length - scriptPageSize));
+  const shown = Array.from({ length: Math.min(scriptPageSize, play.lines.length - first) }, (_, k) => first + k);
   const pinned = (i: number) => state.pinned.some((p) => p.play === play.id && p.index === i);
+  const speakerWidth = 13;
+  const needsWidth = Math.max('NEEDS'.length, ...shown.map((i) => plainText(lineNeeds(state, play, i)).length));
+  const longest = Math.max(...shown.map((i) => play.lines[i].text.length));
+  // Text gets what the screen leaves after the marks, speaker and NEEDS column.
+  const textWidth = columns > 0 ? Math.max(20, Math.min(longest, columns - 1 - 3 - speakerWidth - 1 - 2 - needsWidth)) : longest;
+  const rowWidth = 3 + speakerWidth + 1 + textWidth + 2 + needsWidth;
+
   const rows: string[] = [];
-  for (let i = first; i < Math.min(first + scriptPageSize, play.lines.length); i++) {
+  for (const i of shown) {
     const line = play.lines[i];
     const prev = play.lines[i - 1];
+    const sc = sceneOf(play, i)!;
     if (i === first || prev.act !== line.act || prev.scene !== line.scene) {
-      const sc = sceneOf(play, i)!;
       const [w, total] = sceneProgress(state, play, sc);
       const status = ownsScene(state, play.id, sc)
-        ? `${count(w)}/${count(total)} written${w === total ? ', finished' : ''}`
-        : `${count(total)} lines, not owned`;
-      rows.push(`  -- ${sceneName(sc.act, sc.scene, play.genre)} (${status}) --`);
+        ? `${count(w)} / ${count(total)} written${w === total ? ` ${green('finished')}` : ''}`
+        : dim(`${count(total)} line${total === 1 ? '' : 's'}, not owned`);
+      const heading = ` ${dim(sceneName(sc.act, sc.scene, play.genre).toUpperCase())}   ${status}`;
+      rows.push(...(rows.length > 0 ? [''] : []), padVisible(heading, Math.max(rowWidth - needsWidth, plainText(heading).length + 2)) + dim('NEEDS'));
     }
-    const marks = (i === at ? '>' : ' ') + (done.includes(i) ? '+' : ' ') + (pinned(i) ? '@' : ' ');
-    const status = done.includes(i) ? '' : `   (${lineStatus(state, play, i)})`;
-    rows.push(`${marks} ${(line.speaker || '').padEnd(14).slice(0, 14)} ${slotHighlight(state, line.text, play.genre)}${status}`);
+    const written = done.includes(i);
+    const owned = ownsScene(state, play.id, sc);
+    const mark = (i === at ? '>' : ' ') + (written ? '+' : pinned(i) ? '@' : ' ');
+    const texts = wrapWords(line.text, textWidth);
+    const lines = texts.map((t, k) => {
+      const text = owned && !written ? slotHighlight(state, t, play.genre) : t;
+      const lead = k === 0 ? `${mark} ${(line.speaker || '').padEnd(speakerWidth).slice(0, speakerWidth)}` : ' '.repeat(3 + speakerWidth);
+      const needs = k === 0 ? lineNeeds(state, play, i) : '';
+      const row = `${lead} ${padVisible(text, textWidth)}  ${needs}`;
+      return k === 0 && !written && owned ? row.replace(line.speaker || '\u0000', dim(line.speaker)) : row;
+    });
+    rows.push(
+      ...lines.map((r) => {
+        if (i === at) return inverse(padVisible(plainText(r), rowWidth));
+        if (written) return green(plainText(r).trimEnd());
+        return owned ? r.trimEnd() : dim(plainText(r).trimEnd());
+      }),
+    );
   }
+
   const sc = sceneOf(play, at)!;
-  const section = (label: string, n: number) =>
-    n === 0 ? `${label}: owned` : `${label} ${state.currency >= n ? '*' : ''}${price(n, state.currency)} ${theme.currency}`;
+  const section = (key: string, label: string, n: number) =>
+    `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : state.currency >= n ? green(`* ${bold(formatNumber(n))} ${theme.currency}`) : `${formatNumber(n)} ${theme.currency}`}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
-    `=== ${play.title} (${genreNames[play.genre]}${locked ? ', locked' : ''}) ===   ` +
-      `${count(done.length)} of ${count(play.lines.length)} lines written   ` +
-      `line ${count(at + 1)}`,
+    titleBar(state, 'Script', columns),
+    '',
+    ` ${bold(play.title)}   ${dim(`${genreNames[play.genre]}${locked ? ', locked' : ''}`)}   ${count(done.length)} / ${count(play.lines.length)} lines written`,
     '',
     ...rows,
     '',
-    `+ written   @ pinned (${state.pinned.length}/${maxPinnedLines})`,
-    locked
-      ? `Open a ${genreNames[play.genre]} department to buy these.`
-      : play.genre === 'sonnet'
-        ? `Buy  [b] ${section('this sonnet', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[w] ${section('all the sonnets', sectionPrice(state, play))}   (* = affordable)`
-        : `Buy  [b] ${section('this scene', sectionPrice(state, play, sc.act, sc.key))}   ` +
-          `[a] ${section(`Act ${sc.act}`, sectionPrice(state, play, sc.act))}   ` +
-          `[w] ${section('whole play', sectionPrice(state, play))}   (* = affordable)`,
-    '[up/down] line   [left/right] scene   [pgup/pgdn] page   [tab] contents   [enter] pin/unpin',
-    '[,/.] previous/next scene you own   [f] next shortest line within reach   [esc] back to the typewriters',
+    dim(` + written   @ pinned (${state.pinned.length}/${maxPinnedLines})   NEEDS: letters you don't own yet`),
+    ...(locked
+      ? [` Open a ${genreNames[play.genre]} department to buy these.`]
+      : wrapVisible(
+          play.genre === 'sonnet'
+            ? [section('b', 'this sonnet', sectionPrice(state, play, sc.act, sc.key)), section('w', 'all the sonnets', sectionPrice(state, play))]
+            : [
+                section('b', 'scene', sectionPrice(state, play, sc.act, sc.key)),
+                section('a', `Act ${sc.act}`, sectionPrice(state, play, sc.act)),
+                section('w', 'whole play', sectionPrice(state, play)),
+              ],
+          columns,
+          ` ${dim('Buy')}  `,
+        )),
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
-    message,
+    rule(columns),
+    keyRow(
+      [
+        ['up/down', 'line'],
+        ['left/right', 'scene'],
+        ['pgup/pgdn', 'page'],
+        ['enter', 'pin'],
+        ['tab', 'contents'],
+        ['[/]', 'pinned lines'],
+        [',/.', 'scenes you own'],
+        ['f', 'shortest line in reach'],
+        ['esc', 'back'],
+      ],
+      columns,
+    ),
   ].join('\n');
 }
 
@@ -1018,45 +1092,58 @@ export const contentsPageSize = 20;
 /**
  * The script's table of contents: every play (when playId is null), or one
  * play's acts and scenes. `cursor` indexes availablePlays() or play.scenes.
+ * The cursor's row is inverse; locked plays and scenes you don't own are dim.
  */
-export function renderContents(state: GameState, playId: string | null, cursor: number, message = ''): string {
+export function renderContents(state: GameState, playId: string | null, cursor: number, message = '', columns = 0): string {
   const play = playId ? getPlay(playId) : undefined;
   const open = departmentGenres(state);
-  const items: { text: string; header?: string }[] = play
+  type Row = { cols: string[]; faded?: boolean; finished?: boolean; header?: string };
+  const items: Row[] = play
     ? play.scenes.map((sc, i) => {
         const [w, total] = sceneProgress(state, play, sc);
-        const status = ownsScene(state, play.id, sc)
-          ? `${count(w)}/${count(total)} written${w === total ? ', finished' : ''}`
-          : `${count(total)} lines, not owned`;
+        const owned = ownsScene(state, play.id, sc);
         const prev = play.scenes[i - 1];
-        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `Act ${sc.act}` : undefined;
-        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `  Scene ${sc.scene}`;
-        return { text: `${name.padEnd(12)} ${status}`, header };
+        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `ACT ${sc.act}` : undefined;
+        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `Scene ${sc.scene}`;
+        return {
+          cols: [name, owned ? `${count(w)} / ${count(total)}` : 'not owned', owned ? '' : `${count(total)} line${total === 1 ? '' : 's'}`],
+          faded: !owned,
+          finished: owned && w === total,
+          header,
+        };
       })
     : availablePlays().map((p) => {
         const owned = p.scenes.filter((sc) => ownsScene(state, p.id, sc)).length;
         const done = (state.completed[p.id] ?? []).length;
-        const status = !open.includes(p.genre)
-          ? 'locked'
-          : `${count(done)}/${count(p.lines.length)} lines written, ${count(owned)} of ${count(p.scenes.length)} ${p.genre === 'sonnet' ? 'sonnets' : 'scenes'} owned`;
-        return { text: `${p.title.padEnd(28)} ${genreNames[p.genre].padEnd(10)} ${status}` };
+        return open.includes(p.genre)
+          ? { cols: [p.title, genreNames[p.genre], `${count(done)} / ${count(p.lines.length)}`, `${count(owned)} / ${count(p.scenes.length)}`] }
+          : { cols: [p.title, genreNames[p.genre], 'locked', ''], faded: true };
       });
+  const headings = play ? [play.genre === 'sonnet' ? 'SONNET' : 'SCENE', 'WRITTEN', ''] : ['PLAY', 'GENRE', 'WRITTEN', 'SCENES OWNED'];
+  const widths = headings.map((h, c) => Math.max(h.length, ...items.map((x) => x.cols[c].length)));
+  const right = (c: number) => (play ? c === 1 : c >= 2);
+  const line = (mark: string, cols: string[]) => ` ${mark} ` + cols.map((t, c) => (right(c) ? t.padStart(widths[c]) : t.padEnd(widths[c]))).join('   ');
   const at = Math.max(0, Math.min(cursor, items.length - 1));
   const first = Math.max(0, Math.min(at - Math.floor(contentsPageSize / 2), items.length - contentsPageSize));
-  const rows = items.slice(first, first + contentsPageSize).flatMap((item, k) => [
-    ...(item.header ? [`  ${item.header}`] : []),
-    `${first + k === at ? '>' : ' '}   ${item.text}`,
-  ]);
+  const rows = items.slice(first, first + contentsPageSize).flatMap((item, k) => {
+    const text = line(first + k === at ? '>' : ' ', item.cols) + (item.finished ? '   finished' : '');
+    return [
+      ...(item.header ? [dim(` ${item.header}`)] : []),
+      first + k === at ? inverse(text + ' ') : item.faded ? dim(text.trimEnd()) : item.finished ? text.replace(/finished$/, green('finished')) : text.trimEnd(),
+    ];
+  });
   return [
-    play ? `=== Contents: ${play.title} ===` : '=== Contents: all plays ===',
+    titleBar(state, 'Contents', columns),
     '',
+    ...(play ? [` ${bold(play.title)}`, ''] : []),
+    dim(line(' ', headings).trimEnd()),
     ...rows,
+    ...(message ? ['', ` ${bold(message)}`] : []),
     '',
+    rule(columns),
     play
-      ? '[up/down] choose   [enter] go to this scene   [esc] back to all plays   [tab] close'
-      : '[up/down] choose   [enter] open this play\'s contents   [esc/tab] close',
-    '',
-    message,
+      ? keyRow([['up/down', 'choose'], ['enter', 'go to this scene'], ['esc', 'all plays'], ['tab', 'close']], columns)
+      : keyRow([['up/down', 'choose'], ['enter', "this play's acts and scenes"], ['esc', 'back']], columns),
   ].join('\n');
 }
 

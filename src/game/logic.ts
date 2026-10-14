@@ -526,6 +526,17 @@ export function nextOwnedScene(state: GameState, playId: string, index: number, 
   return { play: pick.play, index: pick.index };
 }
 
+/** The next (or previous) pinned line after a line, in play order then line order, wrapping around; null with no pins. */
+export function nextPin(state: GameState, playId: string, index: number, dir: 1 | -1): Pin | null {
+  const all = [...plays.values()];
+  const order = (id: string) => all.findIndex((p) => p.id === id);
+  const pins = [...state.pinned].sort((a, b) => order(a.play) - order(b.play) || a.index - b.index);
+  if (pins.length === 0) return null;
+  const cmp = (x: Pin) => order(x.play) - order(playId) || x.index - index;
+  const pick = dir > 0 ? pins.find((x) => cmp(x) > 0) ?? pins[0] : [...pins].reverse().find((x) => cmp(x) < 0) ?? pins[pins.length - 1];
+  return { play: pick.play, index: pick.index };
+}
+
 export function togglePin(state: GameState, playId: string, index: number): boolean {
   const play = plays.get(playId);
   if (!play || !ownsLine(state, play, index)) return false;

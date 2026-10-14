@@ -109,6 +109,7 @@ import {
   openDepartment,
   currentWork,
   nextOwnedScene,
+  nextPin,
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
 import { autoConnect, connectedRooms, cycleDoor, doorBetween, doorSides, isConnected, layOutOffice, loungeOf, placeDoor, servedBy, takeDoor, toggleHall } from '../src/game/layout';
@@ -1211,6 +1212,23 @@ describe('finding your place in the script', () => {
       expect(nextOwnedScene(s, 'a', 1, -1)).toEqual({ play: 'b', index: 0 });
       s.owned = [];
       expect(nextOwnedScene(s, 'a', 0, 1)).toBeNull();
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('skips to the next or previous pinned line, across plays and wrapping around', () => {
+    try {
+      const s = setup();
+      expect(nextPin(s, 'a', 0, 1)).toBeNull();
+      togglePin(s, 'b', 0);
+      togglePin(s, 'a', 3);
+      togglePin(s, 'a', 0);
+      expect(nextPin(s, 'a', 1, 1)).toEqual({ play: 'a', index: 3 });
+      expect(nextPin(s, 'a', 3, 1)).toEqual({ play: 'b', index: 0 });
+      expect(nextPin(s, 'b', 0, 1)).toEqual({ play: 'a', index: 0 }); // wraps around
+      expect(nextPin(s, 'a', 3, -1)).toEqual({ play: 'a', index: 0 });
+      expect(nextPin(s, 'a', 0, -1)).toEqual({ play: 'b', index: 0 });
     } finally {
       setPlays([]);
     }
