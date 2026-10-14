@@ -30,6 +30,9 @@ export interface MonkeyState {
   hatColor: string; // its hat's dye (a hatColors id), '' for undyed
   petHappiness: number; // happiness from petting (0.01 = 1%), wearing off
   trait: string; // a traits id, picked when it joins ('' until then); hidden until the manager's book is read
+  speedStat: number; // hidden stat: typing speed x this (0 until picked when it joins); shown once HR is built
+  stamina: number; // hidden stat: energy lasts x this (0 until picked)
+  jobs: Record<string, string>; // hidden: its feeling (monkeyStats.feelings id) about each job id; empty until picked
 }
 
 /**
@@ -173,14 +176,16 @@ export interface Stats {
   longestSentence: string[]; // the words of the longest chain that paid a Sentence
   secondsTyping: number; // time the monkeys have been at work, offline included
   dyes: number; // hats dyed
+  flipsWon: number; // coin flips won (all bananas doubled)
+  flipsLost: number; // coin flips lost (all bananas gone)
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0, flipsWon: 0, flipsLost: 0 };
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '' };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {} };
 }
 
 /** A rectangle of squares from (0, 0). */

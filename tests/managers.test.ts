@@ -271,3 +271,40 @@ describe('HR', () => {
     expect(L.hrRoom(back)?.kind).toBe('hr');
   });
 });
+
+describe('hidden stats and job feelings', () => {
+  it('are picked when a monkey joins, change what it does, and survive saves', async () => {
+    const { monkeyStats } = await import('../src/game/config');
+    const L = await import('../src/game/logic');
+    const s = department(1);
+    const m = s.monkeys[0];
+    m.trait = 'none';
+    giveTraits(s, () => 0); // lowest stats; the first feeling for every job
+    expect(m.speedStat).toBe(monkeyStats.min);
+    expect(m.stamina).toBe(monkeyStats.min);
+    expect(Object.values(m.jobs)).toEqual(Array(monkeyStats.jobs.length).fill(monkeyStats.feelings[0].id));
+    expect(L.jobOf(m)).toBe('typing');
+    const loves = monkeyStats.feelings[0].bonus;
+    const base = monkeySpeed(s, { ...m, speedStat: 1, jobs: {} });
+    expect(monkeySpeed(s, m)).toBeCloseTo(base * monkeyStats.min * (1 + loves));
+    m.jobs.typing = 'detests';
+    expect(L.jobBonus(m)).toBe(-0.4);
+    const back = deserialize(serialize(s)).monkeys[0];
+    expect(back).toMatchObject({ speedStat: m.speedStat, stamina: m.stamina, jobs: m.jobs });
+    expect(deserialize(serialize({ ...s, monkeys: [{ ...m, speedStat: 7, jobs: { typing: 'nonsense' } }] })).monkeys[0]).toMatchObject({ speedStat: 0, jobs: {} }); // picked again
+  });
+
+  it("scale a manager's bonus and show once an HR office is built", async () => {
+    const L = await import('../src/game/logic');
+    const s = department(managers.minDepartmentMonkeys);
+    buyRoom(s, 'office', 'comedy');
+    hireManager(s, 'comedy');
+    const boss = L.managerOf(s, 'comedy')!;
+    boss.managerLevel = 1;
+    boss.jobs = { managing: 'good' };
+    expect(L.managerMultiplier(s, s.monkeys[0])).toBeCloseTo((1 + managers.bonusPerLevel) * 1.1);
+    expect(L.statsShown(s)).toBe(false);
+    buyRoom(s, 'hr');
+    expect(L.statsShown(s)).toBe(true);
+  });
+});

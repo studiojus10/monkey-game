@@ -1,4 +1,4 @@
-import { hatColors, hats, research, hr } from '../game/config';
+import { hatColors, hats, research, hr, monkeyStats } from '../game/config';
 import {
   comboMultiplier,
   currentSpeed,
@@ -6,6 +6,9 @@ import {
   isResearcher,
   isHR,
   isTypist,
+  jobFeeling,
+  jobOf,
+  statsShown,
   monkeyGenre,
   monkeyHappiness,
   monkeyName,
@@ -16,7 +19,7 @@ import {
 import type { GameState } from '../game/state';
 import { dyed, genreNames, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
-import { bold, dim, inverse, keyRow, rule, titleBar } from './style';
+import { bold, dim, green, inverse, keyRow, red, rule, titleBar } from './style';
 
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
 export const rosterPageRows = 12;
@@ -42,6 +45,12 @@ function departmentName(state: GameState, i: number): string {
   if (isHR(m)) return hr.name;
   const g = monkeyGenre(state, m);
   return g ? genreNames[g] : 'No department yet';
+}
+
+/** A hidden stat as a percent: green above average, red below. */
+function statText(stat: number): string {
+  const text = `${Math.round((stat || 1) * 100)}%`;
+  return stat > 1 ? green(text) : stat && stat < 1 ? red(text) : text;
 }
 
 /**
@@ -91,6 +100,19 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
         `${label('Hat')} ${hat ? `${hat.name}${m.hatColor ? `, dyed ${hatColors.find((c) => c.id === m.hatColor)?.id}` : ''}: ${hatEffect(hat)}` : 'none'}`,
         ...(owned.length > 1 ? [`${label('Wardrobe')} ${owned.join(', ')}`] : []),
         `${label('Trait')} ${state.managerBook ? (trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?') : dim('unknown (perhaps a book somewhere explains monkeys)')}`,
+        ...(statsShown(state)
+          ? [
+              `${label('Stats')} speed ${statText(m.speedStat)}   stamina ${statText(m.stamina)}`,
+              `${label('Jobs')} ${monkeyStats.jobs
+                .map((j) => {
+                  const f = jobFeeling(m, j.id);
+                  const text = `${j.name} ${f.name}`;
+                  const shown = f.bonus > 0 ? green(text) : f.bonus < 0 ? red(text) : text;
+                  return j.id === jobOf(m) ? bold(shown) : shown;
+                })
+                .join(dim(', '))}`,
+            ]
+          : [`${label('Stats')} ${dim(`unknown (an ${hr.name} office would find out)`)}`]),
         `${label('Desk')} ${room ? `in the ${roomName(state, room)}` : 'none yet'}`,
       ];
 

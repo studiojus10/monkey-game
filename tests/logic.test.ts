@@ -130,6 +130,9 @@ function roomFor(s: GameState, genre: string): void {
 
 const rng = () => 0;
 
+/** No trait, average hidden stats and no feelings about any job: for tests that check exact amounts. */
+const plainMonkey = { trait: 'none', speedStat: 1, stamina: 1, jobs: { typing: 'fine', managing: 'fine', hr: 'fine', research: 'fine' } };
+
 describe('first letter', () => {
   it('can be A or I, and only once', () => {
     const s = createInitialState(0);
@@ -203,7 +206,7 @@ describe('typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
-    for (const m of s.monkeys) Object.assign(m, { skill: 60, trait: 'none' }); // far more letters a second than the budget; no trait
+    for (const m of s.monkeys) Object.assign(m, { skill: 60, ...plainMonkey }); // far more letters a second than the budget; no trait
     const due = Math.floor(monkeySpeed(s, s.monkeys[0])) * 2;
     tick(s, 1, rng);
     expect(s.stats.letters.I).toBeLessThanOrEqual(maxSimulatedLettersPerSecond + 1);
@@ -273,7 +276,7 @@ describe('typing', () => {
   it('offline typing is credited and capped', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.monkeys[0].trait = 'none';
+    Object.assign(s.monkeys[0], plainMonkey);
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
     expect(earned).toBe(maxOfflineSeconds * typing.baseLettersPerSecond);
   });
@@ -414,6 +417,7 @@ describe('monkeys', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey(), createMonkey());
+    for (const m of s.monkeys) Object.assign(m, plainMonkey);
     tick(s, 10, rng);
     expect(s.currency).toBe(3 * 10 * typing.baseLettersPerSecond);
     for (const m of s.monkeys) expect(m.line).toHaveLength(10 * typing.baseLettersPerSecond);
@@ -422,7 +426,7 @@ describe('monkeys', () => {
   it('long absences with many monkeys are estimated past the simulation limit', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.monkeys = Array.from({ length: 100 }, () => ({ ...createMonkey(), trait: 'none' }));
+    s.monkeys = Array.from({ length: 100 }, () => ({ ...createMonkey(), ...plainMonkey }));
     const letters = 100 * maxOfflineSeconds * typing.baseLettersPerSecond;
     expect(letters).toBeGreaterThan(maxOfflineLetters);
     const earned = applyOfflineProgress(s, maxOfflineSeconds * 1000, rng);
@@ -1893,7 +1897,7 @@ describe('achievements', () => {
   });
 
   it('every achievement has a known measure and a unique id', () => {
-    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios', 'researchers', 'researched', 'hrStaff']);
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios', 'researchers', 'researched', 'hrStaff', 'flipsWon', 'flipsLost']);
     for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
     expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
   });
@@ -1953,5 +1957,20 @@ describe('publishing a Folio', () => {
     chooseFirstLetter(third, 'i');
     typeLetter(third, 0, rng);
     expect(third.currency).toBeCloseTo(1 + 12 * folio.bonusPerPage); // the word I pays 1 point, times the Folio
+  });
+});
+
+describe('coin flip', () => {
+  it('doubles every banana or loses them all, just for fun', async () => {
+    const { flipCoin } = await import('../src/game/logic');
+    const s = createInitialState(0);
+    expect(flipCoin(s, () => 0)).toBeNull(); // nothing to bet
+    s.currency = 300;
+    expect(flipCoin(s, () => 0.2)).toBe(true);
+    expect(s.currency).toBe(600);
+    expect(flipCoin(s, () => 0.7)).toBe(false);
+    expect(s.currency).toBe(0);
+    expect(s.stats).toMatchObject({ flipsWon: 1, flipsLost: 1 });
+    expect(s.achievements).toEqual(expect.arrayContaining(['flip-won', 'flip-lost']));
   });
 });

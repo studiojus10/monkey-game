@@ -1,4 +1,4 @@
-import { desk, furnitureKinds, hatColors, hats, petting, research, traits, typing } from './config';
+import { desk, furnitureKinds, hatColors, hats, monkeyStats, petting, research, traits, typing } from './config';
 import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
@@ -66,6 +66,13 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       hatColor: hatColors.some((c) => c.id === m?.hatColor) ? str(m?.hatColor) : '',
       petHappiness: Math.min(petting.maxHappiness, Math.max(0, num(m?.petHappiness, 0))),
       trait: traits.some((t) => t.id === m?.trait) ? str(m?.trait) : '',
+      // Stats outside their range (or missing, in old saves) are picked again.
+      speedStat: num(m?.speedStat, 0) >= monkeyStats.min && num(m?.speedStat, 0) <= monkeyStats.max ? num(m?.speedStat, 0) : 0,
+      stamina: num(m?.stamina, 0) >= monkeyStats.min && num(m?.stamina, 0) <= monkeyStats.max ? num(m?.stamina, 0) : 0,
+      jobs:
+        m?.jobs && typeof m.jobs === 'object' && monkeyStats.jobs.every((j) => monkeyStats.feelings.some((f) => f.id === (m.jobs as Record<string, unknown>)[j.id]))
+          ? Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, String((m.jobs as Record<string, unknown>)[j.id])]))
+          : {},
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
@@ -123,6 +130,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       longestSentence: strings(st.longestSentence).filter((w) => /^[A-Z]+$/.test(w)),
       secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
       dyes: Math.max(0, Math.floor(num(st.dyes, 0))),
+      flipsWon: Math.max(0, Math.floor(num(st.flipsWon, 0))),
+      flipsLost: Math.max(0, Math.floor(num(st.flipsLost, 0))),
     };
     const oldPlay = file.version === 2 ? str(s.play) : '';
     const pinned = (Array.isArray(s.pinned) ? (s.pinned as unknown[]) : [])

@@ -255,6 +255,13 @@ describe('the roster', () => {
     expect(text).toContain('unknown');
     s.managerBook = true;
     expect(plain(renderRoster(s, 2))).toContain('Loner');
+    expect(plain(renderRoster(s, 2))).toContain('unknown (an HR office would find out)');
+    Object.assign(s.monkeys[1], { speedStat: 1.12, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'unsuited', research: 'detests' } });
+    s.office.push({ id: 'r9', kind: 'hr', department: '', cells: [[9, 9]] });
+    const shown = renderRoster(s, 2);
+    expect(plain(shown)).toContain('speed 112%   stamina 90%');
+    expect(plain(shown)).toContain('Typing loves, Managing fine, HR unsuited, Research detests');
+    expect(shown).toContain(bold(green('Typing loves'))); // its own job, in bold
     expect(plain(renderScreen(s))).toContain('[m] monkeys');
   });
 });
