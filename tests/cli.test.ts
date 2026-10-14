@@ -735,8 +735,13 @@ describe('publishing a Folio on screen', () => {
   });
 });
 
+// Unicode is allowed but ASCII is preferred, so the game runs in any terminal.
+// A screen may use only the non-ASCII characters listed here; add one when
+// the game starts printing it (Justin, 2026-10-14: "lets allow unicode then").
+const allowedUnicode = '';
+
 describe('plain ASCII', () => {
-  it('prints only ASCII (plus ANSI codes), so the game runs in any terminal', () => {
+  it('prints only ASCII (plus ANSI codes and the allowed Unicode), so the game runs in any terminal', () => {
     const s = started();
     s.currency = 1e12;
     s.monkeys[0].hats = ['tophat'];
@@ -754,7 +759,7 @@ describe('plain ASCII', () => {
       renderDictionary(s, 0),
       renderAchievements(s, 0),
     ];
-    for (const text of screens) expect(plain(text)).toMatch(/^[\x00-\x7f]*$/);
+    for (const text of screens) expect([...plain(text)].filter((c) => c > '\x7f' && !allowedUnicode.includes(c))).toEqual([]);
   });
 });
 

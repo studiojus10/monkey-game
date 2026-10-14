@@ -62,6 +62,10 @@ import {
   starterScenes,
   tick,
   toggleManager,
+  upgradeManager,
+  managerUpgradeCost,
+  folioPagesNow,
+  folioMultiplier,
   typewriterCost,
   typingUpgradeCost,
   assignMonkey,
@@ -157,6 +161,10 @@ function shop(): void {
       const i = departmentMonkeys(s, g).find((k) => canPromote(s, k));
       if (i !== undefined && toggleManager(s, i)) bought = true;
     }
+    // Manager upgrades with spare Lines, once the department's word slots are bought.
+    for (const i of s.monkeys.flatMap((m, k) => (m.manager ? [k] : []))) {
+      if (s.lines >= managerUpgradeCost(s, s.monkeys[i]) * 2 && upgradeManager(s, i)) bought = true;
+    }
     // Word slots (managers fill them) and typewriter keys.
     if (slotsUnlocked(s)) for (const g of departmentGenres(s)) if (buySlot(s, g)) bought = true;
     const key = availableKeys(s).find((k) => s.currency >= keyCost(s, k) * 3);
@@ -212,7 +220,9 @@ while (t < end) {
       `   -- ${fmt(t)}: ${s.letters.length} letters, ${s.monkeys.length} monkeys, ${written} lines written, ` +
         `points ${s.currency.toExponential(2)} (earned ${s.totalEarned.toExponential(2)}), Lines ${s.lines}, Sentences ${s.sentences} (${s.stats.chainSentences} from chains), Words ${s.words}, ` +
         `skill ${s.monkeys.map((m) => m.skill).join('/')}, rooms ${s.office.length}, ` +
-        `scenes owned ${s.owned.length}, lines in reach ${availablePlays().reduce((n, p) => n + reachableLines(s, p.id).length, 0)}`,
+        `scenes owned ${s.owned.length}, lines in reach ${availablePlays().reduce((n, p) => n + reachableLines(s, p.id).length, 0)}, ` +
+        `departments ${departmentGenres(s).length}, managers ${s.monkeys.filter((m) => m.manager).map((m) => m.managerLevel).join('/') || '-'}, ` +
+        `Folio pages ${folioPagesNow(s)} (would make points x${folioMultiplier({ ...s, folioPages: s.folioPages + folioPagesNow(s) }).toFixed(2)})`,
     );
     nextReport += 3600 * (hours > 24 ? 6 : 1);
   }
