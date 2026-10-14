@@ -92,6 +92,7 @@ describe('office space in saves', () => {
     expect(back.squaresBought).toBe(3);
     expect(back.settings.autoPlaceFurniture).toBe(false);
     expect(back.settings.lightBackground).toBe(false);
+    expect(back.settings.homeDepartment).toBe('');
     expect(back.furniture).toEqual([{ kind: 'desk', room: 'r1', x: 0, y: 0 }, { kind: 'plant', room: 'r2', x: 0, y: 0 }]);
     const old = JSON.parse(serialize(s));
     delete old.state.office;
@@ -102,6 +103,7 @@ describe('office space in saves', () => {
     expect(loaded.furniture.filter((f) => f.kind === 'desk')).toHaveLength(7);
     expect(loaded.settings.autoPlaceFurniture).toBe(true);
     expect(loaded.settings.lightBackground).toBe(false);
+    expect(loaded.settings.homeDepartment).toBe('');
   });
 
   it('keeps hallways, doors and per-department hiring, and lays out saves from before hallways', () => {

@@ -438,6 +438,25 @@ describe('office space on screen', () => {
     expect(squash(renderScreen(s, '', 'staff'))).toContain('Hire a monkey for Tragedies (0/10) room needed\n');
   });
 
+  it("shows one department's monkeys at a time on the home screen", () => {
+    const s = started();
+    s.departments = ['comedy', 'tragedy'];
+    s.monkeys[0].name = 'Clown';
+    s.monkeys.push({ ...createMonkey(), department: 'tragedy', name: 'Mourner' });
+    const first = plain(renderScreen(s));
+    expect(first).toContain(' COMEDIES   department 1 of 2\n');
+    expect(first).toContain('Clown');
+    expect(first).not.toContain('Mourner');
+    expect(first).toContain('[tab] department');
+    s.settings.homeDepartment = 'tragedy';
+    const second = plain(renderScreen(s));
+    expect(second).toContain(' TRAGEDIES   department 2 of 2\n');
+    expect(second).toContain('Mourner');
+    expect(second).not.toContain('Clown');
+    s.departments = ['comedy'];
+    expect(plain(renderScreen(s))).not.toContain('[tab]'); // one department: no heading, no key
+  });
+
   it('lists a hire line for each department, each with its own price', () => {
     const s = started();
     s.currency = 1e30;

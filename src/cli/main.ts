@@ -89,6 +89,7 @@ import {
   renderKeysMenu,
   renderScreen,
   renderHomeKeys,
+  homeGenre,
   folioPrompt,
   lineRoom,
   renderScript,
@@ -974,6 +975,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
+  } else if (key.name === 'tab' && !shop && departmentGenres(state).length > 1) {
+    const open = departmentGenres(state);
+    state.settings.homeDepartment = open[(open.indexOf(homeGenre(state)!) + 1) % open.length];
   } else if (key.name === 'return' || key.name === 'enter') {
     const i = poke(state);
     if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;

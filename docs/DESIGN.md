@@ -197,6 +197,7 @@ Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to pars
 ```
 
 - **Monkey table:** columns never change width (Justin: "I want to make sure the columns like monkey speed etc dont change width"): the name column fits the 12-character name limit, and with more than one department a department initial comes before the name. Energy is a percent (Justin preferred it to a bar, which took too much room): green above 80%, yellow above 20%, red at 20% and below, and a blue **Resting** on a break (`energyColors` in config.ts). Managers show `-` for speed, energy and combo, and what they're aiming at.
+- **One department at a time** (Justin, 2026-10-14: "I want to be able to change which typing department is displayed on the home screen"): with several departments the table shows one, named above it with "department 2 of 3"; `tab` shows the next. The choice is saved with the options.
 - **Letters:** the whole alphabet in order, each letter you own in its place and a dim `_` for the rest (Justin's idea).
 - **LATELY:** one feed for news: the last word, the last line written and the last milestone (dim), anything waiting for you (a Folio, a new department), and the newest message in bold.
 - **Keys:** two short rows, places to go and things to do, broken between keys to fit the screen. `?` lists every key, including save, reset and dev tools.

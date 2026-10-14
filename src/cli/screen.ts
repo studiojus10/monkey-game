@@ -169,6 +169,18 @@ function energyText(m: MonkeyState): string {
   return p > energyColors.green ? green(text) : p > energyColors.yellow ? yellow(text) : red(text);
 }
 
+/** The department whose monkeys the home screen shows: the one chosen with [tab], else the first. */
+export function homeGenre(state: GameState): Genre | undefined {
+  const open = departmentGenres(state);
+  return open.find((g) => g === state.settings.homeDepartment) ?? open[0];
+}
+
+/** The monkeys on the home screen, by index: with several departments, only the shown department's. */
+function homeMonkeys(state: GameState): number[] {
+  const shown = departmentGenres(state).length > 1 ? homeGenre(state) : undefined;
+  return state.monkeys.flatMap((m, i) => (!shown || monkeyGenre(state, m) === shown ? [i] : []));
+}
+
 /** The monkey table's column headings. */
 function monkeyHeadings(state: GameState): string {
   return dim(
@@ -215,6 +227,7 @@ function homeKeys(state: GameState, columns: number): string[] {
   return [
     keyRow([['space', 'shop'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
+      ...(departmentGenres(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
       ['enter', theme.pokeAction],
       ['n', 'name'],
       ['d', 'move'],
@@ -243,6 +256,7 @@ export function renderHomeKeys(state: GameState): string {
       ['c', 'options'],
     ]),
     ...group('MONKEYS', [
+      ...(departmentGenres(state).length > 1 ? [['tab', "show the next department's monkeys"] as [string, string]] : []),
       ['enter', theme.pokeAction],
       ['n', 'name a monkey'],
       ['d', 'move a monkey to another department'],
@@ -303,12 +317,17 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   const ownedScenes = scenesOwned(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
   const label = (s: string) => dim(` ${s.padEnd(8)}`);
+  const open = departmentGenres(state);
+  const shown = homeMonkeys(state);
+  const genre = homeGenre(state);
   const lines = [
     titleBar(state),
     '',
+    // With several departments, one at a time: its name, then which of how many.
+    ...(open.length > 1 && genre ? [` ${bold(genreNames[genre].toUpperCase())}${dim(`   department ${open.indexOf(genre) + 1} of ${open.length}`)}`] : []),
     monkeyHeadings(state),
-    ...state.monkeys.slice(0, maxMonkeyLines).map((_, i) => monkeyRow(state, i, room)),
-    ...(state.monkeys.length > maxMonkeyLines ? [dim(` ...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`)] : []),
+    ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room)),
+    ...(shown.length > maxMonkeyLines ? [dim(` ...and ${shown.length - maxMonkeyLines} more monkeys typing`)] : []),
     '',
     `${label('Letters')} ${letterRow(state)}`,
     `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,

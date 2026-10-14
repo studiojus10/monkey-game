@@ -17,6 +17,7 @@ The home screen has a title bar with your four currencies (Bananas, Words, Sente
 | --- | --- |
 | `1`–`3` | Pick your first department (genre), then a free first scene (start of the game only) |
 | `a` or `i` | Pick your first letter (start of the game only) |
+| `tab` | With several departments, show the next department's monkeys on the home screen (the home screen shows one department at a time) |
 | `enter` | Pet the monkey: the least happy typist gets a little happier (a heart, `<3`, shows by its name for a while). Just for fun: it barely changes anything |
 | `space` | Open or close the shop (closed at the start), a screen of its own (`esc` also closes it). It opens on the store you used last (the Typewriters store at first); left/right switch stores and `1`–`9` buy within the store. Items sit in columns: name, look, what it does and the price on the right. What you can afford has a green price and a `*` (a `*` on a store's tab too); what you can't yet is dim. Menus that ask which monkey (or which letter) stay open after a purchase so you can buy several; any other key closes them |
 | Typewriters store | Letter keys first (Bananas, plus Words from the 3rd letter on; then press the letters you want), a better typewriter for a monkey (+10 typing skill cap), typewriter keys menu (once you own 13 letters: `1`–`9` buys a key, `esc` goes back), word slots menu (once you own 13 letters, per department, `tab` switches: `b` buys a slot for Lines, `w` sets its word, `o` switches it on or off, left/right move its position) |

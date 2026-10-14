@@ -142,10 +142,11 @@ export interface GameState {
 export interface Settings {
   autoPlaceFurniture: boolean; // new furniture places itself; off opens the office map to place it
   lightBackground: boolean; // colours for a terminal with a light background (darker yellow, cyan and green)
+  homeDepartment: string; // the department whose monkeys the home screen shows ('' or a closed one: the first)
 }
 
 export function createSettings(): Settings {
-  return { autoPlaceFurniture: true, lightBackground: false };
+  return { autoPlaceFurniture: true, lightBackground: false, homeDepartment: '' };
 }
 
 /** Lifetime statistics, for the statistics page. They never affect play. */
