@@ -329,3 +329,126 @@ describe('traits that rub off on a room', () => {
     expect(L.roomEffect(s, s.monkeys[1], 'happiness')).toBe(-traitRules.maxRoomEffect);
   });
 });
+
+describe('hiring through HR', () => {
+  it('draws candidates once there is an HR office, prices them by their stats, and hires them as they are', async () => {
+    const { hr } = await import('../src/game/config');
+    const L = await import('../src/game/logic');
+    const s = department(managers.minDepartmentMonkeys);
+    L.drawCandidates(s, 1, () => 0.5);
+    expect(s.candidates).toEqual([]); // no HR office yet
+    buyRoom(s, 'office', 'comedy');
+    hireManager(s, 'comedy');
+    buyRoom(s, 'hr');
+    let r = 0;
+    L.drawCandidates(s, 1, () => ((r += 0.37) % 1));
+    expect(s.candidates).toHaveLength(hr.candidatesBase);
+    expect(s.candidatesIn).toBe(hr.refreshHours * 3600);
+    const best = { trait: 'loner', speedStat: 1.2, stamina: 1.2, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' } };
+    const worst = { ...best, speedStat: 0.8, stamina: 0.8, jobs: { ...best.jobs, typing: 'detests' } };
+    expect(L.candidateFactor(best, 'typing')).toBeCloseTo((1.2 * 1.2) ** 2);
+    expect(L.candidateFactor(worst, 'typing')).toBeCloseTo((0.8 * 0.6) ** 2);
+    s.candidates = [best, worst];
+    const base = L.nextMonkeyCost(s, 'comedy');
+    s.currency = Math.ceil(base * L.candidateFactor(best, 'typing'));
+    expect(L.buyMonkey(s, 'comedy', 0)).toBe(true);
+    expect(s.currency).toBe(0);
+    expect(s.monkeys[s.monkeys.length - 1]).toMatchObject({ speedStat: 1.2, stamina: 1.2, department: 'comedy' });
+    expect(s.candidates).toEqual([worst]); // taken off the list
+    expect(deserialize(serialize(s)).candidates).toEqual([worst]);
+    L.drawCandidates(s, hr.refreshHours * 3600, () => 0.5); // a new list after refreshHours
+    expect(s.candidates).toHaveLength(hr.candidatesBase);
+  });
+});
+
+describe('storing, selling and firing', () => {
+  it('puts furniture away for free reuse, sells it for half, and keeps desks', async () => {
+    const L = await import('../src/game/logic');
+    const { furnitureKinds, sellBack } = await import('../src/game/config');
+    const s = department(1);
+    const plant = furnitureKinds.find((k) => k.id === 'plant')!;
+    expect(buyFurniture(s, 'plant')).toBe(true);
+    const at = s.furniture.length - 1;
+    expect(L.canRemoveFurniture(s, 0)).toBe(false); // a desk
+    expect(L.storeFurniture(s, 0)).toBe(false);
+    const price = L.furnitureCost(s, 'plant');
+    expect(L.storeFurniture(s, at)).toBe(true);
+    expect(s.stored.furniture).toEqual({ plant: 1 });
+    expect(L.furnitureCost(s, 'plant')).toBe(price); // storing doesn't make the next one cheaper
+    const money = s.currency;
+    expect(buyFurniture(s, 'plant')).toBe(true); // out of storage, free
+    expect(s.currency).toBe(money);
+    expect(s.stored.furniture).toEqual({});
+    expect(L.sellFurniture(s, s.furniture.length - 1)).toBe(true);
+    expect(s.currency).toBe(money + Math.floor(plant.cost * sellBack));
+    expect(deserialize(serialize({ ...s, stored: { furniture: { plant: 2, nonsense: 1 }, hats: { crown: 1 } } })).stored).toEqual({ furniture: { plant: 2 }, hats: { crown: 1 } });
+  });
+
+  it("sells a monkey's hat, and fires monkeys (never the last typist), keeping their hats in storage", async () => {
+    const L = await import('../src/game/logic');
+    const { hats, sellBack } = await import('../src/game/config');
+    const s = department(2);
+    s.sentences = 1e9;
+    const cap = hats[0];
+    expect(L.wearHat(s, 1, cap.id)).toBe(true);
+    const sentences = s.sentences;
+    expect(L.sellHat(s, 1)).toBe(true);
+    expect(s.monkeys[1]).toMatchObject({ hat: '', hats: [] });
+    expect(s.sentences).toBe(sentences + Math.floor(cap.cost * sellBack));
+    L.wearHat(s, 1, cap.id);
+    expect(L.fireMonkey(s, 1)).toBe(true);
+    expect(s.monkeys).toHaveLength(1);
+    expect(s.stored.hats).toEqual({ [cap.id]: 1 });
+    expect(L.fireBlocker(s, 0)).toBe('your last typing monkey');
+    expect(L.fireMonkey(s, 0)).toBe(false);
+    const before = s.sentences;
+    expect(L.wearHat(s, 0, cap.id)).toBe(true); // out of storage, free
+    expect(s.sentences).toBe(before);
+    expect(s.stored.hats).toEqual({});
+  });
+});
+
+describe('M-numbers', () => {
+  it('stay with a monkey for good, even when others leave', async () => {
+    const L = await import('../src/game/logic');
+    const s = department(3);
+    s.monkeys.forEach((m, i) => ((m.number = i + 1), (m.name = '')));
+    L.fireMonkey(s, 1);
+    expect([0, 1].map((i) => L.monkeyName(s, i))).toEqual(['M-1', 'M-3']);
+    L.addMonkey(s, { department: 'comedy', name: '' });
+    expect(L.monkeyName(s, 2)).toBe('M-4');
+    const back = deserialize(serialize(s));
+    expect(back.monkeys.map((m) => m.number)).toEqual([1, 3, 4]);
+  });
+});
+
+describe('monkey names', () => {
+  it('every monkey gets a famous monkey name of its own, and can still be renamed', async () => {
+    const L = await import('../src/game/logic');
+    const { monkeyNames } = await import('../src/game/config');
+    const s = department(3);
+    for (let i = 0; i < 60; i++) L.addMonkey(s, { department: 'comedy' });
+    const names = s.monkeys.slice(3).map((m) => m.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((n) => n.length > 0 && n.length <= 12)).toBe(true);
+    expect(monkeyNames).toContain(names[0]);
+    expect(s.stats.renamed).toBe(0);
+    expect(L.renameMonkey(s, 3, 'Bob')).toBe(true);
+    expect(L.monkeyName(s, 3)).toBe('Bob');
+    expect(s.stats.renamed).toBe(1);
+  });
+});
+
+describe('old saves', () => {
+  it('give unnamed monkeys a famous name, and an empty rename gives one back', async () => {
+    const L = await import('../src/game/logic');
+    const s = department(3);
+    s.monkeys.forEach((m) => (m.name = ''));
+    const back = deserialize(serialize(s));
+    expect(back.monkeys.every((m) => m.name)).toBe(true);
+    expect(new Set(back.monkeys.map((m) => m.name)).size).toBe(3);
+    expect(L.renameMonkey(back, 0, '')).toBe(true);
+    expect(back.monkeys[0].name).not.toBe('');
+    expect(back.stats.renamed).toBe(0);
+  });
+});

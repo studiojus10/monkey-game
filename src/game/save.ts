@@ -1,7 +1,7 @@
 import { desk, furnitureKinds, hatColors, hats, monkeyStats, petting, research, traits, typing } from './config';
 import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
-import { createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
+import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
 // Version 2 had one chosen play (`play`) and pins as line numbers in it; it
@@ -19,6 +19,16 @@ export function serialize(state: GameState): string {
 }
 
 /** Parses a save, falling back to defaults for missing or corrupt fields. */
+/** Counts of stored things by id, keeping only known ids and whole counts above 0. */
+function storedCounts(v: unknown, known: (id: string) => boolean): Record<string, number> {
+  if (!v || typeof v !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(v as Record<string, unknown>)
+      .filter(([id, n]) => known(id) && typeof n === 'number' && Number.isFinite(n) && n >= 1)
+      .map(([id, n]) => [id, Math.floor(n as number)]),
+  );
+}
+
 export function deserialize(raw: string | null, now = Date.now()): GameState {
   const fresh = createInitialState(now);
   if (!raw) return fresh;
@@ -69,6 +79,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       // Stats outside their range (or missing, in old saves) are picked again.
       speedStat: num(m?.speedStat, 0) >= monkeyStats.min && num(m?.speedStat, 0) <= monkeyStats.max ? num(m?.speedStat, 0) : 0,
       stamina: num(m?.stamina, 0) >= monkeyStats.min && num(m?.stamina, 0) <= monkeyStats.max ? num(m?.stamina, 0) : 0,
+      number: Math.max(0, Math.floor(num(m?.number, 0))),
       jobs:
         m?.jobs && typeof m.jobs === 'object' && monkeyStats.jobs.every((j) => monkeyStats.feelings.some((f) => f.id === (m.jobs as Record<string, unknown>)[j.id]))
           ? Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, String((m.jobs as Record<string, unknown>)[j.id])]))
@@ -90,7 +101,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       l && typeof l.play === 'string' && Number.isInteger(l.index)
         ? { play: l.play, index: l.index, firstTime: !!l.firstTime, points: num(l.points, 0), sentence: !!l.sentence }
         : null;
-    const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey) : [];
+    // Monkeys from before M-numbers were kept get the one their place gave them.
+    const monkeys = Array.isArray(s.monkeys) ? s.monkeys.map(monkey).map((m, i) => ({ ...m, number: m.number || i + 1 })) : [];
+    // Monkeys from before names were given out get one now.
+    for (const m of monkeys) if (!m.name) m.name = monkeyNameFor(m.number, monkeys.map((o) => o.name));
     const ms = s.lastMilestone;
     const lastMilestone =
       ms && ['scene', 'act', 'play', 'sonnet'].includes(ms.kind) && typeof ms.play === 'string'
@@ -132,6 +146,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       dyes: Math.max(0, Math.floor(num(st.dyes, 0))),
       flipsWon: Math.max(0, Math.floor(num(st.flipsWon, 0))),
       flipsLost: Math.max(0, Math.floor(num(st.flipsLost, 0))),
+      renamed: Math.max(0, Math.floor(num(st.renamed, 0))),
     };
     const oldPlay = file.version === 2 ? str(s.play) : '';
     const pinned = (Array.isArray(s.pinned) ? (s.pinned as unknown[]) : [])
@@ -157,6 +172,15 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       researchOpen: s.researchOpen === true,
       researching: research.projects.some((p) => p.id === s.researching) ? str(s.researching) : '',
       researchProgress: Math.max(0, num(s.researchProgress, 0)),
+      candidates: (Array.isArray(s.candidates) ? (s.candidates as Partial<MonkeyState>[]) : [])
+        .map((c) => monkey(c))
+        .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
+        .map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs })),
+      candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
+      stored: {
+        furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),
+        hats: storedCounts((s.stored as { hats?: unknown } | undefined)?.hats, (id) => hats.some((h) => h.id === id)),
+      },
       researched: strings(s.researched).filter((id) => research.projects.some((p) => p.id === id)),
       researchersHired: Math.max(0, Math.floor(num(s.researchersHired, 0))),
       squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),
@@ -184,7 +208,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       letters: Array.isArray(s.letters)
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
         : [],
-      monkeys: monkeys.length > 0 ? monkeys : [createMonkey()],
+      monkeys: monkeys.length > 0 ? monkeys : [{ ...createMonkey(), number: 1, name: monkeyNameFor(1, []) }],
       monkeysBought: Object.fromEntries(
         Object.entries(s.monkeysBought && typeof s.monkeysBought === 'object' ? (s.monkeysBought as Record<string, unknown>) : {}).map(([k, v]) => [k, Math.max(0, Math.floor(num(v, 0)))]),
       ),

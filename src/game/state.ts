@@ -1,4 +1,4 @@
-import { office as officeRules } from './config';
+import { maxMonkeyNameLength, monkeyNames, office as officeRules } from './config';
 
 /** A piece of a monkey's current line: a scored word or a skipped letter. */
 export interface Segment {
@@ -32,6 +32,7 @@ export interface MonkeyState {
   trait: string; // a traits id, picked when it joins ('' until then); hidden until the manager's book is read
   speedStat: number; // hidden stat: typing speed x this (0 until picked when it joins); shown once HR is built
   stamina: number; // hidden stat: energy lasts x this (0 until picked)
+  number: number; // its M-number, kept for good (0: not given yet; then it goes by its place in the list)
   jobs: Record<string, string>; // hidden: its feeling (monkeyStats.feelings id) about each job id; empty until picked
 }
 
@@ -117,6 +118,9 @@ export interface GameState {
   researchProgress: number; // researcher-seconds of work done on it
   researched: string[]; // finished projects
   researchersHired: number; // researchers hired, for their price
+  candidates: Candidate[]; // monkeys HR could hire now (see hr in config.ts)
+  stored: { furniture: Record<string, number>; hats: Record<string, number> }; // put away: furniture off the map, hats of fired monkeys; used again for free
+  candidatesIn: number; // seconds until HR draws a new list of candidates (0: at the next tick)
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
@@ -160,6 +164,14 @@ export function createSettings(): Settings {
 }
 
 /** Lifetime statistics, for the statistics page. They never affect play. */
+/** Someone HR could hire: a monkey's trait and hidden stats, before it joins. */
+export interface Candidate {
+  trait: string;
+  speedStat: number;
+  stamina: number;
+  jobs: Record<string, string>;
+}
+
 export interface Stats {
   letters: Record<string, number>; // letter -> times typed
   words: Record<string, number>; // word -> times spelled
@@ -178,17 +190,34 @@ export interface Stats {
   dyes: number; // hats dyed
   flipsWon: number; // coin flips won (all bananas doubled)
   flipsLost: number; // coin flips lost (all bananas gone)
+  renamed: number; // monkeys the player renamed (they all start with a name of their own)
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0, flipsWon: 0, flipsLost: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0, flipsWon: 0, flipsLost: 0, renamed: 0 };
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {} };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, number: 0 };
 }
 
 /** A rectangle of squares from (0, 0). */
+/**
+ * A name for a new monkey: one of monkeyNames that nobody in `taken` has,
+ * picked by its M-number so it looks random but stays put (with " II", " III"
+ * and so on once every name is in use).
+ */
+export function monkeyNameFor(number: number, taken: string[]): string {
+  if (monkeyNames.length === 0) return '';
+  for (let round = 1; ; round++) {
+    const suffix = round === 1 ? '' : round <= 3 ? ` ${'I'.repeat(round)}` : ` ${round}`;
+    const free = monkeyNames
+      .map((n) => n + suffix)
+      .filter((n) => n.length <= maxMonkeyNameLength && !taken.includes(n));
+    if (free.length > 0) return free[(number * 7919) % free.length];
+  }
+}
+
 export function rectangle(width: number, height: number): [number, number][] {
   const cells: [number, number][] = [];
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) cells.push([x, y]);
@@ -218,6 +247,9 @@ export function createInitialState(now = Date.now()): GameState {
     researchProgress: 0,
     researched: [],
     researchersHired: 0,
+    candidates: [],
+    stored: { furniture: {}, hats: {} },
+    candidatesIn: 0,
     squaresBought: 0,
     furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
     departments: [],
@@ -235,7 +267,7 @@ export function createInitialState(now = Date.now()): GameState {
     keys: [],
     slots: [],
     letters: [],
-    monkeys: [createMonkey()],
+    monkeys: [{ ...createMonkey(), number: 1, name: monkeyNameFor(1, []) }],
     monkeysBought: {},
     unassignedMonkeys: 0,
     wordsTyped: 0,

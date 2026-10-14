@@ -96,7 +96,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
               `${label('Energy')} ${m.resting ? 'resting' : `${Math.round(m.energy * 100)}%`}   combo x${comboMultiplier(state, m)}`,
             ]
           : []),
-        `${label('Happiness')} +${Math.round(monkeyHappiness(state, m) * 100)}%${m.petHappiness > 0 ? dim(`  (petted lately: +${(m.petHappiness * 100).toFixed(1)}%)`) : ''}`,
+        `${label('Happiness')} ${monkeyHappiness(state, m) < 0 ? '' : '+'}${Math.round(monkeyHappiness(state, m) * 100)}%${m.petHappiness > 0 ? dim(`  (petted lately: +${(m.petHappiness * 100).toFixed(1)}%)`) : ''}`,
         `${label('Hat')} ${hat ? `${hat.name}${m.hatColor ? `, dyed ${hatColors.find((c) => c.id === m.hatColor)?.id}` : ''}: ${hatEffect(hat)}` : 'none'}`,
         ...(owned.length > 1 ? [`${label('Wardrobe')} ${owned.join(', ')}`] : []),
         `${label('Trait')} ${state.managerBook ? (trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?') : dim('unknown (perhaps a book somewhere explains monkeys)')}`,
@@ -127,6 +127,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([['up/down', 'choose a monkey'], ['n', 'rename it'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose a monkey'], ['n', 'rename it'], ['h', 'hat off'], ['$', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
   ].join('\n');
 }

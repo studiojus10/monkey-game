@@ -25,6 +25,14 @@ import {
   projectOf,
   canBuildLab,
   canBuildHR,
+  canRemoveFurniture,
+  storeFurniture,
+  sellFurniture,
+  sellValue,
+  sellHat,
+  fireBlocker,
+  fireMonkey,
+  hrRoom,
   hireHR,
   hrBlocker,
   hrCost,
@@ -130,6 +138,7 @@ import {
 } from './screen';
 import { forLightBackground } from './style';
 import { devTools } from '../game/dev';
+import { renderCandidates } from './hiring';
 import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
@@ -173,6 +182,7 @@ let showingHelp = false; // the [?] page: every key on the home screen
 let showingDev = false;
 let showingStats = false;
 let showingRoster = false; // the roster of monkeys ([m])
+let confirmingFire = false; // [f] in the roster asks first
 let rosterCursor = 0; // the chosen monkey's place in rosterOrder
 let showingAchievements = false;
 let achievementRow = 0;
@@ -228,6 +238,46 @@ function loadPlays(): PlayData[] {
     .map((f) => JSON.parse(readFileSync(dir + f, 'utf8')) as PlayData);
 }
 
+/** A hire under way through HR's list of candidates: the job, and the department for a typist or manager. */
+interface Hiring {
+  job: 'typing' | 'managing' | 'research' | 'hr';
+  genre?: Genre;
+}
+let hiring: Hiring | null = null;
+
+/** The usual price of a hire, before a candidate's stats change it. */
+function hiringBase(h: Hiring): number {
+  if (h.job === 'managing') return managerCost(state, h.genre!);
+  if (h.job === 'research') return researcherCost(state);
+  if (h.job === 'hr') return hrCost(state);
+  return nextMonkeyCost(state, h.genre);
+}
+
+/** What a hire is for, e.g. "a monkey for Comedies". */
+function hiringTitle(h: Hiring): string {
+  if (h.job === 'managing') return `a manager for ${genreNames[h.genre!]}`;
+  if (h.job === 'research') return 'a researcher';
+  if (h.job === 'hr') return `an ${hr.name} monkey`;
+  return h.genre ? `a monkey for ${genreNames[h.genre]}` : 'a monkey';
+}
+
+/** Makes a hire: candidate `from` on HR's list, or someone unseen. */
+function doHire(h: Hiring, from?: number): boolean {
+  if (h.job === 'managing') return hireManager(state, h.genre, from);
+  if (h.job === 'research') return hireResearcher(state, from);
+  if (h.job === 'hr') return hireHR(state, from);
+  return buyMonkey(state, h.genre, from);
+}
+
+/** Hires: through HR's list of candidates once there's an HR office, else straight away. */
+function hire(h: Hiring): void {
+  if (hrRoom(state)) {
+    hiring = h;
+    message = '';
+  } else if (doHire(h)) welcome(state.monkeys.length - 1);
+  else message = `Not enough ${theme.currency}.`;
+}
+
 /** Acts on a store item chosen with 1-9 (see storeItems). */
 function buyItem(id: string): void {
   if (id === 'train' || id === 'typewriter') {
@@ -250,20 +300,19 @@ function buyItem(id: string): void {
   } else if (id.startsWith('hire:')) {
     const g = id.slice('hire:'.length) as Genre;
     if (!departmentsWithRoom(state).includes(g)) message = noSeatMessage();
-    else if (state.currency < nextMonkeyCost(state, g)) message = `Not enough ${theme.currency}.`;
-    else if (buyMonkey(state, g)) startNaming(state.monkeys.length - 1);
-    else message = noSeatMessage();
+    else if (!hrRoom(state) && state.currency < nextMonkeyCost(state, g)) message = `Not enough ${theme.currency}.`;
+    else hire({ job: 'typing', genre: g });
   } else if (id === 'hire') {
     const rooms = departmentsWithRoom(state);
     if (!canSeatMonkey(state)) message = noSeatMessage();
-    else if (state.currency < nextMonkeyCost(state)) message = `Not enough ${theme.currency}.`;
+    else if (!hrRoom(state) && state.currency < nextMonkeyCost(state)) message = `Not enough ${theme.currency}.`;
     else if (rooms.length > 1) {
       pickingDeptFor = 'buy';
       message = deptPrompt('Which department gets the new monkey?');
-    } else if (buyMonkey(state)) startNaming(state.monkeys.length - 1);
+    } else hire({ job: 'typing', genre: rooms[0] });
   } else if (id === 'assign') {
     if (!canSeatMonkey(state)) message = noSeatMessage();
-    else if (assignMonkey(state)) startNaming(state.monkeys.length - 1);
+    else if (assignMonkey(state)) welcome(state.monkeys.length - 1);
     else {
       pickingDeptFor = 'assign';
       message = deptPrompt('Which department gets the new monkey?');
@@ -272,18 +321,18 @@ function buyItem(id: string): void {
     const g = id.slice('boss:'.length) as Genre;
     const blocked = managerBlocker(state, g);
     if (blocked) message = `${genreNames[g]} can't hire a manager yet: ${blocked}.${blocked.includes('office') || blocked.includes('door') || blocked.includes('desk') ? ' See the office map ([o]).' : ''}`;
-    else if (state.currency < managerCost(state, g)) message = `Not enough ${theme.currency}.`;
-    else if (hireManager(state, g)) startNaming(state.monkeys.length - 1);
+    else if (!hrRoom(state) && state.currency < managerCost(state, g)) message = `Not enough ${theme.currency}.`;
+    else hire({ job: 'managing', genre: g });
   } else if (id === 'researcher') {
     const blocked = researcherBlocker(state);
     if (blocked) message = `Can't hire a researcher: ${blocked}.${blocked === 'lab needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
-    else if (state.currency < researcherCost(state)) message = `Not enough ${theme.currency}.`;
-    else if (hireResearcher(state)) startNaming(state.monkeys.length - 1);
+    else if (!hrRoom(state) && state.currency < researcherCost(state)) message = `Not enough ${theme.currency}.`;
+    else hire({ job: 'research' });
   } else if (id === 'hr') {
     const blocked = hrBlocker(state);
     if (blocked) message = `Can't hire an HR monkey: ${blocked}.${blocked === 'HR office needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
-    else if (state.currency < hrCost(state)) message = `Not enough ${theme.currency}.`;
-    else if (hireHR(state)) startNaming(state.monkeys.length - 1);
+    else if (!hrRoom(state) && state.currency < hrCost(state)) message = `Not enough ${theme.currency}.`;
+    else hire({ job: 'hr' });
   } else if (id.startsWith('research:')) {
     const p = projectOf(id.slice('research:'.length));
     if (!p) return;
@@ -326,7 +375,7 @@ function buyItem(id: string): void {
     if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
     else if (!furnitureSpot(state, kind, where))
       message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
-    else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
+    else if (!state.stored.furniture[kind] && state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
     else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in. Move it on the office map with [o].`;
@@ -433,7 +482,9 @@ function draw() {
         : `Achievement unlocked: ${names.join(', ')}! [a] to see ${names.length === 1 ? 'it' : 'them'}.`);
   }
   // Clear the screen and move the cursor home, then redraw.
-  const screen = showingScript && contents
+  const screen = hiring
+    ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), message, columns)
+    : showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message, columns)
     : showingOptions
     ? renderOptions(state, columns)
@@ -484,7 +535,12 @@ function deptPrompt(question: string): string {
 }
 
 function namePrompt(): string {
-  return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for M-${namingMonkey + 1})`;
+  return `Name ${monkeyName(state, namingMonkey)}: ${nameDraft}_   (enter to save, esc to cancel, empty for a famous name)`;
+}
+
+/** A new monkey arrives with a name of its own; [n] renames it any time. */
+function welcome(index: number) {
+  message = `Say hello to ${monkeyName(state, index)}. ([n] renames a monkey any time.)`;
 }
 
 function startNaming(index: number) {
@@ -551,12 +607,30 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (hiring) {
+    const n = Number(str);
+    if (key.name === 'escape' || key.name === 'q') {
+      hiring = null;
+      message = '';
+    } else if (str && /^[0-9]$/.test(str) && n <= state.candidates.length) {
+      const h = hiring;
+      if (doHire(h, n === 0 ? undefined : n - 1)) {
+        hiring = null;
+        welcome(state.monkeys.length - 1);
+      } else message = `Not enough ${theme.currency}.`;
+    }
+    return draw();
+  }
+
   if (pickingDeptFor) {
     const what = pickingDeptFor;
     pickingDeptFor = '';
     const g = departmentsWithRoom(state)[Number(str) - 1];
-    const ok = g && (what === 'buy' ? buyMonkey(state, g) : assignMonkey(state, g));
-    if (ok) startNaming(state.monkeys.length - 1);
+    if (g && what === 'buy') {
+      hire({ job: 'typing', genre: g });
+      return draw();
+    }
+    if (g && assignMonkey(state, g)) welcome(state.monkeys.length - 1);
     else message = 'No monkey added.';
     return draw();
   }
@@ -932,6 +1006,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       readingManagerBook = true;
     } else if (str === '?' && !holding && !officeGrowing) {
       officeHelp = true;
+    } else if ((str === 's' || str === '$') && !holding && !officeGrowing) {
+      const here = roomAt(state, c.x, c.y);
+      const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
+      if (typeof spot !== 'number') message = 'No furniture there.';
+      else if (!canRemoveFurniture(state, spot)) message = 'Desks stay: monkeys work at them.';
+      else {
+        const name = furnitureName(state, spot);
+        const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
+        if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in storage. Buying another from the store takes it out for free.`;
+        else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} ${theme.currency}.`;
+      }
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
@@ -975,8 +1060,35 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingRoster) {
     const order = rosterOrder(state);
+    const i = order[rosterCursor];
+    const firing = confirmingFire;
+    confirmingFire = false;
     message = '';
-    if (key.name === 'escape' || key.name === 'q' || str === 'm') showingRoster = false;
+    if (firing) {
+      if (key.name === 'y' && i !== undefined) {
+        const name = monkeyName(state, i);
+        if (fireMonkey(state, i)) {
+          message = `${name} has left the office.`;
+          rosterCursor = Math.max(0, Math.min(rosterCursor, rosterOrder(state).length - 1));
+        }
+      } else message = 'Nobody was fired.';
+    } else if (key.name === 'escape' || key.name === 'q' || str === 'm') showingRoster = false;
+    else if (str === 'f' && i !== undefined) {
+      const blocked = fireBlocker(state, i);
+      if (blocked) message = `You can't fire ${monkeyName(state, i)}: ${blocked}.`;
+      else {
+        confirmingFire = true;
+        message = `Fire ${monkeyName(state, i)}? It leaves for good; its hats go into storage. [y] fire   (any other key: no)`;
+      }
+    } else if (str === 'h' && i !== undefined) {
+      const hat = hats.find((h) => h.id === state.monkeys[i].hat);
+      if (!hat) message = `${monkeyName(state, i)} wears no hat.`;
+      else if (wearHat(state, i, hat.id)) message = `${monkeyName(state, i)} took off the ${hat.name.toLowerCase()}; it stays in its wardrobe.`;
+    } else if (str === '$' && i !== undefined) {
+      const hat = hats.find((h) => h.id === state.monkeys[i].hat);
+      if (!hat) message = `${monkeyName(state, i)} wears no hat to sell.`;
+      else if (sellHat(state, i)) message = `Sold the ${hat.name.toLowerCase()} for ${formatNumber(sellValue(hat.cost))} Sentences.`;
+    }
     else if (key.name === 'up') rosterCursor = Math.max(0, rosterCursor - 1);
     else if (key.name === 'down') rosterCursor = Math.min(order.length - 1, rosterCursor + 1);
     else if (str === 'n' && order[rosterCursor] !== undefined) startNaming(order[rosterCursor]);
