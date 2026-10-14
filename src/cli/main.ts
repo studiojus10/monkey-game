@@ -448,7 +448,7 @@ function draw() {
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : renderScreen(state, message, shop, columns, storePage);
+          : renderScreen(state, message, shop, columns, storePage, process.stdout.rows || 0);
   process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
 }
 

@@ -228,6 +228,19 @@ describe('terminal screen', () => {
   });
 });
 
+describe('shop under the home screen', () => {
+  it('opens under the home screen when the screen is tall enough, else on its own', () => {
+    const s = started();
+    const tall = plain(renderScreen(s, '', 'staff', 80, 0, 60));
+    expect(tall).toContain('TYPING');
+    expect(tall).toContain('Hire a monkey');
+    expect(tall).not.toContain('> SHOP');
+    const short = plain(renderScreen(s, '', 'staff', 80, 0, 15));
+    expect(short).not.toContain('TYPING');
+    expect(short).toContain('> SHOP');
+  });
+});
+
 describe('letter picking', () => {
   it('lists the letters you can still buy with their values', () => {
     const s = createInitialState(0);
