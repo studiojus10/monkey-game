@@ -11,7 +11,7 @@ describe('development tools', () => {
   };
 
   it('adds a billion points, Lines and Sentences', () => {
-    expect(use('Add 1 billion points').currency).toBe(1e9);
+    expect(use('Add 1 billion bananas').currency).toBe(1e9);
     expect(use('Add 1,000 Lines').lines).toBe(1000);
     expect(use('Add 1,000 Sentences').sentences).toBe(1000);
   });
@@ -23,6 +23,6 @@ describe('development tools', () => {
   });
 
   it('lists each tool with its number key', () => {
-    expect(renderDevMenu()).toContain('[1] Add 1 billion points');
+    expect(renderDevMenu()).toContain('[1] Add 1 billion bananas');
   });
 });

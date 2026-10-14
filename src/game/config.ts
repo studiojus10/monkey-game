@@ -3,7 +3,7 @@
 
 export const theme = {
   title: 'Infinite Monkeys',
-  currency: 'Points',
+  currency: 'Bananas',
   pokeAction: 'pet the monkey',
 };
 
@@ -369,7 +369,7 @@ export const achievements: Achievement[] = [
   { id: 'crown', name: 'Long live the king', text: 'Crown a monkey', stat: 'wearing:crown', at: 1 },
   { id: 'halo', name: 'Angelic', text: 'Give a monkey a halo', stat: 'wearing:halo', at: 1 },
   { id: 'hats-all', name: 'Mad hatter', text: 'Own 7 different kinds of hat', stat: 'hatKinds', at: 7 },
-  { id: 'billion', name: 'Billionaire', text: 'Earn a billion Points', stat: 'points', at: 1e9 },
+  { id: 'billion', name: 'Billionaire', text: 'Earn a billion Bananas', stat: 'points', at: 1e9 },
   // Secrets: words the monkeys might stumble on.
   { id: 'word-monkey', name: 'Self-aware', text: 'The monkeys spelled MONKEY', stat: 'word:MONKEY', at: 1, secret: true },
   { id: 'word-banana', name: 'Snack break', text: 'The monkeys spelled BANANA', stat: 'word:BANANA', at: 1, secret: true },
@@ -492,6 +492,12 @@ export const maxPinnedLines = 5;
 
 /** Longest name a player can give a monkey. */
 export const maxMonkeyNameLength = 12;
+
+/**
+ * How a typist's energy shows on the home screen: green above `green` percent,
+ * yellow above `yellow`, red at or below it, and Resting (blue) on a break.
+ */
+export const energyColors = { green: 80, yellow: 20 };
 
 // Offline progress is capped so a long absence doesn't break balance.
 export const maxOfflineSeconds = 8 * 60 * 60;

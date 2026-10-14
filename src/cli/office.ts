@@ -221,7 +221,7 @@ export function renderOffice(
     '',
     "Each monkey gets a desk in its department's room. Every room needs a way in from room 1: doors (/) and hallways.",
     "A department enjoys the furniture in its room and in its lounge: the nearest break room by a door or hallway",
-    `(as near: the biggest, then the most furnished). Happiness: +points, slower tiring, faster breaks.${state.fengShuiBook ? ` Feng shui: chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} everywhere.` : ''}`,
+    `(as near: the biggest, then the most furnished). Happiness: +bananas, slower tiring, faster breaks.${state.fengShuiBook ? ` Feng shui: chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} everywhere.` : ''}`,
     ...(state.fengShuiBook ? ['[b] read the feng shui book again: what each room needs for good chi.'] : []),
     ...roomlessDepartments(state).map((g) => `The ${genreNames[g]} department needs a room: press [r] to buy one.`),
     `New room: ${price(roomCost(state), state.currency)} ${theme.currency}. One more square for a room: ${price(squareCost(state), state.currency)} ${theme.currency}.`,

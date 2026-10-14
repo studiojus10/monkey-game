@@ -87,6 +87,7 @@ import {
   managerUpgradePrompt,
   renderKeysMenu,
   renderScreen,
+  renderHomeKeys,
   folioPrompt,
   lineRoom,
   renderScript,
@@ -144,6 +145,7 @@ let contentsCursor = 0;
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
+let showingHelp = false; // the [?] page: every key on the home screen
 let showingDev = false;
 let showingStats = false;
 let showingAchievements = false;
@@ -393,7 +395,9 @@ function draw() {
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message, shop, columns, storePage);
+        : showingHelp
+          ? renderHomeKeys(state)
+          : renderScreen(state, message, shop, columns, storePage);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -433,7 +437,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const gained = next.folioPages - state.folioPages;
       state = next;
       save(state, storage);
-      message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Points x${folioMultiplier(state).toFixed(2)} for good. The monkeys start again.`;
+      message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Bananas x${folioMultiplier(state).toFixed(2)} for good. The monkeys start again.`;
     } else message = 'Not published. The monkeys keep typing.';
     return draw();
   }
@@ -913,6 +917,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingHelp) {
+    if (key.name === 'escape' || key.name === 'q' || str === '?') showingHelp = false;
+    return draw();
+  }
+
   if (showingKeys) {
     message = '';
     if (key.name === 'escape' || key.name === 'q') {
@@ -981,6 +990,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     openOffice();
   } else if (str === 'c') {
     showingOptions = true;
+  } else if (str === '?') {
+    showingHelp = true;
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'a') {

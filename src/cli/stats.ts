@@ -40,7 +40,7 @@ export function renderStats(state: GameState): string {
     `Longest line:       ${line && play ? `"${line.text}" (${play.title} ${lineLocation(line, play.genre)}, ${line.letters.length} letters)` : '-'}`,
     `Best line payout:   ${st.bestLinePoints > 0 ? `+${formatNumber(st.bestLinePoints)} ${theme.currency}` : '-'}`,
     `Monkeys petted:     ${formatNumber(st.pets)} time${st.pets === 1 ? '' : 's'}`,
-    `Folios published:   ${formatNumber(state.folios)}${state.folios > 0 ? ` (${formatNumber(state.folioPages)} pages: points x${folioMultiplier(state).toFixed(2)})` : ''}`,
+    `Folios published:   ${formatNumber(state.folios)}${state.folios > 0 ? ` (${formatNumber(state.folioPages)} pages: bananas x${folioMultiplier(state).toFixed(2)})` : ''}`,
     '',
     'Letters typed',
     ...(letterCells.length > 0
@@ -122,7 +122,7 @@ export function renderAchievements(state: GameState, row: number): string {
     ...(all.length > achievementPageRows ? [`(${top + 1}-${Math.min(all.length, top + achievementPageRows)} of ${all.length}: [up/down] scroll)`] : []),
     '',
     'Milestones',
-    `  Scenes finished: ${formatNumber(state.scenesDone.filter((k) => !sonnet(k)).length)} (points +${Math.round(state.pointsBonus * 1000) / 10}% for good)`,
+    `  Scenes finished: ${formatNumber(state.scenesDone.filter((k) => !sonnet(k)).length)} (bananas +${Math.round(state.pointsBonus * 1000) / 10}% for good)`,
     `  Acts finished:   ${formatNumber(state.actsDone.length)} (typing +${Math.round(state.speedBonus * 1000) / 10}% for good)`,
     `  Plays finished:  ${formatNumber(state.playsDone.length)}`,
     `  Sonnets:         ${plural(state.scenesDone.filter(sonnet).length, 'sonnet')} finished`,

@@ -101,7 +101,7 @@ Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is 
 
 ## Currencies
 
-- **Points** come from every word. They buy letters, typing speed and typewriter keys.
+- **Points** (shown as **Bananas** since 2026-10-14) come from every word. They buy letters, typing speed and typewriter keys.
 - **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy hats for your monkeys and repeatable upgrades such as raising the combo cap.
 - **Sentences also come from long chains (balance pass, 2026-10-13)**, so they are a slow but renewable currency: when a chain breaks, it pays 1 Sentence if it held 3+ words of 4+ letters, plus 1 for every 3 more (`sentenceRules` in config.ts). Measured with `scripts/simulate.ts`: about 40 in the first hour, about 100 an hour by hour 5. Looser rules gave far too many (any 3 words: 3K in the first hour); stricter ones (4 long words) almost none.
 - **Words** (2026-10-13) come from each **different** word your monkeys spell: one per new entry in the dictionary, so the supply is limited by the word list and your letters. An early-game limited currency. Words are spent on **letters** **(decided)**: each new letter costs points plus floor(¼ × letters owned²) Words (0, 1, 2, 4, 6, 9, ... 156 for the 26th; placeholder). The early steps stay small so a poor early letter like Q or J, which adds few new words, can't lock you out.
@@ -175,18 +175,32 @@ A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a la
 
 ## Screen layout (terminal)
 
+Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to parse"; "lets go through each section one at a time starting with home screen"). Mockups and the reasoning: the "Infinite Monkeys Screen Cleanup" artifact. Each kind of styling has one job on every screen (`src/cli/style.ts`): inverse is where you are (the title bar), bold is new or live (and keys), dim is what you can skip (headings, explanations, what you don't own yet); green, yellow, red and blue mean good, getting low, needs you and resting; each currency has its own colour (Bananas yellow, Words cyan, Sentences magenta, Lines blue). The currency is called **Bananas** for now (Justin, 2026-10-14: "to stay on the monkey theme"); code still calls it points.
+
 ```
-=== Infinite Monkeys ===
+ INFINITE MONKEYS     345.44K Bananas   1.11K Words   179 Sentences   3 Lines
 
-M-1(0.50/s)         x1  ITIEANTISSSOI_
-Bartholomew(0.50/s) x3  INTEEETSITAONAIEIN_
-Jo(0.50/s)          x1  INAENEATSTTNIET_
+ MONKEY                SPEED   ENERGY  COMBO  TYPING
+ A@ M-1               0.00/s  Resting     x1  ELHAORNEIESDIU_
+ #@ Bartholomew      421.4/s      98%     x3  EAHHSESDNRELUSENUDRUAAERSAARUTEART_
 
-1.2K Points   4 Sentences   12 Lines
-...
+ Letters  A _ _ D E _ _ H I _ _ L _ N O _ _ R S T U _ _ _ _ _   (12 of 26)
+ Script   3 / 2,160 lines written   9 scenes owned
+
+ LATELY
+   Last word: LOOED +30
+   A monkey wrote a line! "And I." (3.1)  already written
+   Bought a potted plant.
+ -----------------------------------------------------------------------------
+ [space] shop   [p] script   [o] office   [t] stats   [a] achievements   [w] dictionary
+ [enter] pet the monkey   [n] name   [d] move   [m] promote a monkey   [c] options   [?] all keys   [q] quit
 ```
 
-Monkey lines sit right under the title. Each starts with the monkey's name (M-1, M-2, ... until the player names it, up to 12 characters), its speed and its combo multiplier, padded so every monkey's text starts in the same column and the lines read as one block. Letters are always capitals; the live run of words is bold. `p` opens the script browser.
+- **Monkey table:** columns never change width (Justin: "I want to make sure the columns like monkey speed etc dont change width"): the name column fits the 12-character name limit, and with more than one department a department initial comes before the name. Energy is a percent (Justin preferred it to a bar, which took too much room): green above 80%, yellow above 20%, red at 20% and below, and a blue **Resting** on a break (`energyColors` in config.ts). Managers show `-` for speed, energy and combo, and what they're aiming at.
+- **Letters:** the whole alphabet in order, each letter you own in its place and a dim `_` for the rest (Justin's idea).
+- **LATELY:** one feed for news: the last word, the last line written and the last milestone (dim), anything waiting for you (a Folio, a new department), and the newest message in bold.
+- **Keys:** two short rows, places to go and things to do, broken between keys to fit the screen. `?` lists every key, including save, reset and dev tools.
+- Still to rework, one at a time: the shop (proposed as its own screen in columns), the office map, the script, statistics and the menus.
 
 ## Saves and offline progress
 

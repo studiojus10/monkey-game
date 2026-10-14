@@ -1,4 +1,4 @@
-import { dyeCost, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, type RoomKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, type RoomKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -30,8 +30,6 @@ import {
   canAffordLetter,
   monkeySpeed,
   currentSpeed,
-  breakLeft,
-  energyRates,
   nextMonkeyCost,
   departmentTypists,
   departmentsWithRoom,
@@ -56,6 +54,7 @@ import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
+import { blue, bold, dim, green, keyRow, red, rule, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -82,8 +81,6 @@ export function renderLine(m: MonkeyState, room = Infinity): string {
   return settled + (live ? bold(live) : '') + '_';
 }
 
-const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
-const green = (s: string) => `\x1b[32m${s}\x1b[39m`;
 
 /** A price in bold: green when you can afford it, the terminal's normal text color when you can't. */
 export function price(cost: number, have: number): string {
@@ -135,32 +132,123 @@ export function departmentPrompt(state: GameState): string {
 /** A bonus as a percentage, e.g. 0.215 -> "21.5%". */
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
-/**
- * Each shown monkey's label (icon, name, speed and energy) and
- * multiplier, padded so every monkey's text starts in the same column.
- */
-function monkeyLabels(state: GameState): { labels: string[][]; nameWidth: number; comboWidth: number } {
-  const shown = state.monkeys.slice(0, maxMonkeyLines);
-  // Pad names and multipliers so every monkey's text starts in the same column.
-  // With more than one department, each monkey's line starts with its department's initial.
-  const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
-  // A typist shows its speed now and its energy; on a break, how long is left.
-  const status = (m: MonkeyState) =>
-    m.manager
-      ? `${monkeySpeed(state, m).toFixed(2)}/s`
-      : m.resting
-        ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
-        : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
-  // Each monkey has an icon: its hat, if it wears one, on the left of its face.
-  // A monkey petted lately shows a heart, <3, until it wears off.
-  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${m.petHappiness > 0 ? '<3' : ''}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
-  return { labels, nameWidth: Math.max(...labels.map(([n]) => n.length)), comboWidth: Math.max(...labels.map(([, c]) => c.length)) };
+/** Column widths of the monkey table, fixed so nothing shifts as numbers change. */
+const col = { name: maxMonkeyNameLength, speed: 8, energy: 7, combo: 5 };
+
+/** Whether the monkey table has a department column (once there's more than one department). */
+const hasDeptColumn = (state: GameState) => departmentGenres(state).length > 1;
+
+/** Width of a monkey row before its line: icon, department, name and heart, speed, energy and combo. */
+function monkeyPrefixWidth(state: GameState): number {
+  return 1 + 3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2 + 2 + col.speed + 2 + col.energy + 2 + col.combo + 2;
 }
 
-/** Letters a monkey's line has room for on a screen this many columns wide (after its label, keeping the last column and the cursor free). */
+/** A speed for the SPEED column: 0.50/s, 33.3/s, 1.23K/s. */
+function speedText(n: number): string {
+  return `${n >= 1000 ? formatNumber(n) : n.toFixed(n < 10 ? 2 : 1)}/s`;
+}
+
+/** A typist's energy as a percent, green when fresh, yellow when tiring, red when nearly spent; Resting in blue on a break. */
+function energyText(m: MonkeyState): string {
+  if (m.manager) return dim('-'.padStart(col.energy));
+  if (m.resting) return blue('Resting'.padStart(col.energy));
+  const p = Math.round(m.energy * 100);
+  const text = `${p}%`.padStart(col.energy);
+  return p > energyColors.green ? green(text) : p > energyColors.yellow ? yellow(text) : red(text);
+}
+
+/** The monkey table's column headings. */
+function monkeyHeadings(state: GameState): string {
+  return dim(
+    ' ' + 'MONKEY'.padEnd(3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2) + '  ' + 'SPEED'.padStart(col.speed) + '  ' +
+      'ENERGY'.padStart(col.energy) + '  ' + 'COMBO'.padStart(col.combo) + '  ' + (state.monkeys.some((m) => m.manager) ? 'TYPING (or managing)' : 'TYPING'),
+  );
+}
+
+/** One monkey's row: its icon (hat dyed), department initial, name (a heart if petted lately), speed, energy, combo and line. */
+function monkeyRow(state: GameState, i: number, room: number): string {
+  const m = state.monkeys[i];
+  const dept = hasDeptColumn(state) ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '';
+  const name = `${monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
+  const speed = m.manager ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
+  const combo = m.manager ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m)}`.padStart(col.combo);
+  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : renderLine(m, room)}`;
+}
+
+/** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
 export function lineRoom(state: GameState, columns: number): number {
-  const { nameWidth, comboWidth } = monkeyLabels(state);
-  return columns - (nameWidth + 1 + comboWidth + 2) - 2;
+  return columns - monkeyPrefixWidth(state) - 2;
+}
+
+/** The alphabet in order: letters you own in their places, the rest as blank slots. */
+function letterRow(state: GameState): string {
+  const alphabet = Object.keys(letterValues).sort();
+  return alphabet.map((l) => (state.letters.includes(l) ? bold(l) : dim('_'))).join(' ') + dim(`   (${state.letters.length} of ${alphabet.length})`);
+}
+
+/** What happened lately: the last word, line and milestone (dim), anything waiting for you, then the newest message in bold. */
+function latelyLines(state: GameState, message: string): string[] {
+  const rows = [
+    ...(state.lastWord ? [dim(`Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}`)] : []),
+    ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
+    ...folioOffer(state),
+    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
+    ...(message ? [bold(message)] : []),
+  ];
+  return rows.length === 0 ? [] : ['', dim(' LATELY'), ...rows.map((r) => `   ${r}`)];
+}
+
+/** The keys shown under the home screen: where to go, then what to do. Every key is on the [?] page. */
+function homeKeys(state: GameState, shop: Store | null, page: number, columns: number): string[] {
+  const pages = shop ? storePages(state, shop) : 1;
+  return [
+    shop
+      ? keyRow([['1-9', 'buy (* = affordable)'], ['i', 'inspect'], ['tab', 'next store'], ...(pages > 1 ? [['up/down', `page ${page + 1} of ${pages}`] as [string, string]] : []), ['space', 'close the shop']], columns)
+      : keyRow([['space', 'shop'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
+    keyRow([
+      ['enter', theme.pokeAction],
+      ['n', 'name'],
+      ['d', 'move'],
+      ['m', 'promote a monkey'],
+      ['c', 'options'],
+      ...(canPublishFolio(state) ? [['f', 'publish a Folio'] as [string, string]] : []),
+      ['?', 'all keys'],
+      ['q', 'quit'],
+    ], columns),
+  ];
+}
+
+/** Every key on the home screen, for the [?] page. */
+export function renderHomeKeys(state: GameState): string {
+  const group = (title: string, keys: [string, string][]) => [dim(` ${title}`), ...keys.map(([k, what]) => `   ${bold(`[${k}]`.padEnd(9))} ${what}`), ''];
+  return [
+    titleBar(state, 'Keys'),
+    '',
+    ...group('GO TO', [
+      ['space', 'the shop (then [tab] next store, [1-9] buy, [i] inspect, [up/down] more items)'],
+      ['p', 'the script: plays, pins and scenes to buy'],
+      ['o', 'the office map'],
+      ['t', 'statistics'],
+      ['a', 'achievements'],
+      ['w', 'the dictionary of words your monkeys have spelled'],
+      ['c', 'options'],
+    ]),
+    ...group('MONKEYS', [
+      ['enter', theme.pokeAction],
+      ['n', 'name a monkey'],
+      ['d', 'move a monkey to another department'],
+      ['m', 'promote a monkey to manager (or back)'],
+    ]),
+    ...group('GAME', [
+      ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
+      ['s', 'save now (the game also saves on its own)'],
+      ['r', 'reset: start a new game'],
+      ['`', 'dev tools'],
+      ['q', 'quit'],
+    ]),
+    rule(),
+    keyRow([['esc', 'back']]),
+  ].join('\n');
 }
 
 /** Renders the whole game screen as plain text. */
@@ -216,35 +304,25 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
 
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
-  const shown = state.monkeys.slice(0, maxMonkeyLines);
-  const { labels, nameWidth, comboWidth } = monkeyLabels(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
+  const label = (s: string) => dim(` ${s.padEnd(8)}`);
+  lines.length = 0;
   lines.push(
-    ...shown.map((m, i) => `${dyed(m, labels[i][0].padEnd(nameWidth))} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m, room)}`),
-    ...(state.monkeys.length > maxMonkeyLines
-      ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
-      : []),
+    titleBar(state),
     '',
-    [`${formatNumber(state.currency)} ${theme.currency}`, `${formatNumber(state.words)} Words`, `${formatNumber(state.sentences)} Sentences`, `${formatNumber(state.lines)} Lines`]
-      .map(bold)
-      .join('   '),
-    `Letters: ${state.letters.join(' ')}`,
-    `Script: ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned, ` +
-      `${count(written)} / ${count(ownedLines)} lines written`,
-    ...milestoneSummary(state),
+    monkeyHeadings(state),
+    ...state.monkeys.slice(0, maxMonkeyLines).map((_, i) => monkeyRow(state, i, room)),
+    ...(state.monkeys.length > maxMonkeyLines ? [dim(` ...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`)] : []),
     '',
-    `Words typed: ${formatNumber(state.wordsTyped)}` +
-      (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
-    ...lastLineText(state),
-    ...lastMilestoneText(state),
-    ...folioOffer(state),
-    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
+    `${label('Letters')} ${letterRow(state)}`,
+    `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,
+    ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
+    ...latelyLines(state, message),
     ...pinnedText(state),
     '',
     ...(shop ? shopLines(state, shop, page) : []),
-    `[enter] ${theme.pokeAction}   [space] ${shop ? 'close the shop   [tab] next store   [1-9] buy (* = affordable)   [i] inspect' : 'open the shop'}   [p] script, pins & scenes   [o] office   [c] options   [t] stats   [w] dictionary   [a] achievements   [n] name / [d] move / [m] promote a monkey   ${canPublishFolio(state) ? '[f] publish a Folio   ' : ''}[s] save   [r] reset   [\`] dev tools   [q] quit`,
-    '',
-    message,
+    rule(columns),
+    ...homeKeys(state, shop, page, columns),
   );
   return lines.join('\n');
 }
@@ -360,7 +438,7 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           : []),
         { id: 'combo', star: state.sentences >= nextCap, text: `Raise combo cap (x${comboCap(state)} -> x${comboCap(state) + 1})   cost ${price(nextCap, state.sentences)} Sentences` },
         ...(managerChoices(state).length > 0
-          ? [{ id: 'manager', text: `Upgrade a manager: +${managers.bonusPerLevel}x points for its whole department (costs Lines)` }]
+          ? [{ id: 'manager', text: `Upgrade a manager: +${managers.bonusPerLevel}x bananas for its whole department (costs Lines)` }]
           : []),
       ];
     }
@@ -515,7 +593,7 @@ export function furnitureEffect(k: FurnitureKind, room: RoomKind): string {
   return [
     ...(k.drain ? [`monkeys tire ${pct(k.drain)} slower`] : []),
     ...(k.rest ? [`breaks go ${pct(k.rest)} faster`] : []),
-    ...(k.happiness ? [`+${pct(k.happiness)} points`] : []),
+    ...(k.happiness ? [`+${pct(k.happiness)} bananas`] : []),
     ...(k.rooms.length === 1 ? [`${room === 'break' ? 'break rooms' : "departments' rooms"} only`] : []),
   ].join(', ') + (k.size ? ` (takes ${k.size[0]} x ${k.size[1]} squares)` : '');
 }
@@ -716,18 +794,18 @@ function milestoneSummary(state: GameState): string[] {
   const scenesDone = state.scenesDone.filter((k) => getPlay(k.split(':')[0])?.genre !== 'sonnet').length;
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const parts = [
-    ...(scenesDone > 0 ? [`points +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`] : []),
+    ...(scenesDone > 0 ? [`bananas +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`] : []),
     ...(state.actsDone.length > 0 ? [`typing +${pct(state.speedBonus)} (${plural(state.actsDone.length, 'act')} finished)`] : []),
-    ...(state.folios > 0 ? [`Folio points +${pct(folioMultiplier(state) - 1)} (${plural(state.folios, 'Folio')} published)`] : []),
+    ...(state.folios > 0 ? [`Folio bananas +${pct(folioMultiplier(state) - 1)} (${plural(state.folios, 'Folio')} published)`] : []),
   ];
-  return parts.length > 0 ? [`Bonuses: ${parts.join('   ')}`] : [];
+  return parts.length > 0 ? [parts.join('   ')] : [];
 }
 
 /** The offer to publish a Folio, once a play is finished. */
 export function folioOffer(state: GameState): string[] {
   if (!canPublishFolio(state)) return [];
   const pages = folioPagesNow(state);
-  return [`* You can publish a Folio: [f] start over with ${count(pages)} more pages, points +${pct(pages * folio.bonusPerPage)} for good.`];
+  return [`* You can publish a Folio: [f] start over with ${count(pages)} more pages, bananas +${pct(pages * folio.bonusPerPage)} for good.`];
 }
 
 /** The question before publishing a Folio. */
@@ -737,7 +815,7 @@ export function folioPrompt(state: GameState): string {
   return (
     `Publish a Folio? Everything starts over: monkeys, letters, office, script and currencies. ` +
     `You keep achievements and statistics, and the Folio gains ${count(pages)} pages (one per line written, finished plays twice): ` +
-    `points x${after.toFixed(2)} for good. Press y to publish, any other key to keep playing.`
+    `bananas x${after.toFixed(2)} for good. Press y to publish, any other key to keep playing.`
   );
 }
 
@@ -747,7 +825,7 @@ function lastMilestoneText(state: GameState): string[] {
   if (!ms || !play) return [];
   if (ms.kind === 'scene') {
     return [
-      `* ${sceneName(ms.act, ms.scene, play.genre)} of ${play.title} finished! Points +${pct(ms.bonus)} for good, ` +
+      `* ${sceneName(ms.act, ms.scene, play.genre)} of ${play.title} finished! Bananas +${pct(ms.bonus)} for good, ` +
         `+${count(ms.sentences)} Sentences`,
     ];
   }
@@ -913,7 +991,7 @@ function pinnedText(state: GameState): string[] {
     const play = getPlay(p.play);
     const line = play?.lines[p.index];
     if (!play || !line) return [];
-    return [`  @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})`];
+    return [`   @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})`];
   });
-  return rows.length === 0 ? [] : ['', 'Pinned lines', ...rows];
+  return rows.length === 0 ? [] : ['', dim(' PINNED LINES'), ...rows];
 }
