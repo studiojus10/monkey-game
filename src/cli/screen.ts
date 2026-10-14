@@ -192,7 +192,7 @@ function monkeyPrefixWidth(state: GameState): number {
 }
 
 /** A speed for the SPEED column: 0.50/s, 33.3/s, 1.23K/s. */
-function speedText(n: number): string {
+export function speedText(n: number): string {
   return `${n >= 1000 ? formatNumber(n) : n.toFixed(n < 10 ? 2 : 1)}/s`;
 }
 
@@ -291,7 +291,7 @@ function latelyLines(state: GameState, message: string): string[] {
 /** The keys shown under the home screen: where to go, then what to do. Every key is on the [?] page. */
 function homeKeys(state: GameState, columns: number): string[] {
   return [
-    keyRow([['space', 'shop'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
+    keyRow([['space', 'shop'], ['m', 'monkeys'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
       ...(homeViews(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
       ['enter', theme.pokeAction],
@@ -313,6 +313,7 @@ export function renderHomeKeys(state: GameState): string {
     '',
     ...group('GO TO', [
       ['space', 'the shop (then [left/right] another store, [1-9] buy, [i] inspect, [up/down] more items)'],
+      ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
       ['p', 'the script: plays, pins and scenes to buy'],
       ['o', 'the office map'],
       ['t', 'statistics'],

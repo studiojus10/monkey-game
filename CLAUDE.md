@@ -33,6 +33,7 @@ src/
     style.ts       terminal styling with one job per style (bold, dim, inverse, colours), titleBar() (screen name and currencies), keyRow() (keys that wrap to the screen), rule(), forLightBackground() (the light-background option, applied in main.ts)
     office.ts      renderOffice(): the office map (rooms of any shape, desks, who sits where, furniture, windows, chi, cursor, grow mode) with a table of rooms; renderOfficeHelp() (its [?] page); inspectSquare() (the [i] inspect text); renderFengShuiBook(); renderManagerBook()
     (screen.ts also has renderOptions(): the options menu, state.settings)
+    roster.ts      renderRoster() and rosterOrder(): the [m] list of monkeys by department, then hire order, with details of the chosen one
     stats.ts       renderStats(), renderDictionary() and renderAchievements(): the statistics page, the A-Z dictionary of spelled words, the achievements page
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line

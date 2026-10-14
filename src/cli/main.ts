@@ -124,6 +124,7 @@ import {
 } from './screen';
 import { forLightBackground } from './style';
 import { devTools } from '../game/dev';
+import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
@@ -164,6 +165,8 @@ let showingKeys = false;
 let showingHelp = false; // the [?] page: every key on the home screen
 let showingDev = false;
 let showingStats = false;
+let showingRoster = false; // the roster of monkeys ([m])
+let rosterCursor = 0; // the chosen monkey's place in rosterOrder
 let showingAchievements = false;
 let achievementRow = 0;
 let showingOffice = false;
@@ -431,6 +434,8 @@ function draw() {
     ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
     ? renderAchievements(state, achievementRow, columns)
+    : showingRoster
+    ? renderRoster(state, rosterCursor, message, columns)
     : showingStats
     ? renderStats(state, columns)
     : showingDictionary
@@ -941,6 +946,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingRoster) {
+    const order = rosterOrder(state);
+    message = '';
+    if (key.name === 'escape' || key.name === 'q' || str === 'm') showingRoster = false;
+    else if (key.name === 'up') rosterCursor = Math.max(0, rosterCursor - 1);
+    else if (key.name === 'down') rosterCursor = Math.min(order.length - 1, rosterCursor + 1);
+    else if (str === 'n' && order[rosterCursor] !== undefined) startNaming(order[rosterCursor]);
+    return draw();
+  }
+
   if (showingStats || showingDictionary || showingAchievements) {
     const maxRow = Math.max(0, Math.ceil(dictionaryWords(state).length / dictionaryColumns) - dictionaryPageRows);
     const turnTo = (page: 't' | 'w' | 'a') => {
@@ -1058,6 +1073,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     showingOptions = true;
   } else if (str === '?') {
     showingHelp = true;
+  } else if (str === 'm') {
+    showingRoster = true;
   } else if (str === 't') {
     showingStats = true;
   } else if (str === 'a') {
