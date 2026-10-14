@@ -343,7 +343,7 @@ export function speedMultiplier(state: GameState): number {
 
 /** Letters per second for a monkey, from its typing skill and act bonuses. */
 export function monkeySpeed(state: GameState, m: MonkeyState, skill = m.skill): number {
-  return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed')) * (1 + traitBonus(state, m, 'speed')) * (m.speedStat || 1) * (1 + jobBonus(m));
+  return lettersPerSecond(skill) * speedMultiplier(state) * (1 + wearing(m, 'speed')) * (1 + traitBonus(state, m, 'speed')) * (m.speedStat || 1) * (1 + jobBonus(m)) * (1 + roomEffect(state, m, 'speed'));
 }
 
 let hour = 12;
@@ -446,6 +446,7 @@ export function traitMood(state: GameState, m: MonkeyState): number {
       return !!lounge && state.furniture.some((f) => f.room === lounge.id && traitRules.couchpotatoSeats.includes(f.kind)) ? 1 : 0;
     }
     case 'perfectionist':
+    case 'slacker':
       return 1;
     default:
       return 0;
@@ -458,6 +459,18 @@ export function traitBonus(state: GameState, m: MonkeyState, effect: 'speed' | '
   if (good === 0 && bad === 0) return 0;
   const mood = traitMood(state, m);
   return mood >= 0 ? good * mood : bad * -mood;
+}
+
+/** The other monkeys who work in the same room as a monkey. */
+export function roomMates(state: GameState, m: MonkeyState): MonkeyState[] {
+  const room = workRoom(state, m);
+  return room ? state.monkeys.filter((o) => o !== m && workRoom(state, o) === room) : [];
+}
+
+/** What the traits of a monkey's room-mates do to it (0.05 = +5%), up to traitRules.maxRoomEffect either way. */
+export function roomEffect(state: GameState, m: MonkeyState, effect: 'happiness' | 'speed'): number {
+  const n = roomMates(state, m).reduce((sum, o) => sum + (traitOf(o)?.room?.[effect] ?? 0), 0);
+  return Math.max(-traitRules.maxRoomEffect, Math.min(traitRules.maxRoomEffect, n));
 }
 
 /** What a monkey's hat gives it for one effect. */
@@ -569,7 +582,7 @@ export function happiness(state: GameState, genre: Genre | undefined): number {
 
 /** A monkey's happiness: its department's, plus its own from petting. Happier monkeys tire slower and rest faster. */
 export function monkeyHappiness(state: GameState, m: MonkeyState): number {
-  return happiness(state, monkeyGenre(state, m)) + m.petHappiness;
+  return happiness(state, monkeyGenre(state, m)) + m.petHappiness + roomEffect(state, m, 'happiness');
 }
 
 /** Seconds of typing that drain a monkey, and of rest that refill it, with the office's furniture and its happiness. */
