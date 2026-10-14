@@ -1966,9 +1966,9 @@ describe('coin flip', () => {
     const s = createInitialState(0);
     expect(flipCoin(s, () => 0)).toBeNull(); // nothing to bet
     s.currency = 300;
-    expect(flipCoin(s, () => 0.2)).toBe(true);
+    expect(flipCoin(s, () => 0.005)).toBe(true);
     expect(s.currency).toBe(600);
-    expect(flipCoin(s, () => 0.7)).toBe(false);
+    expect(flipCoin(s, () => 0.02)).toBe(false);
     expect(s.currency).toBe(0);
     expect(s.stats).toMatchObject({ flipsWon: 1, flipsLost: 1 });
     expect(s.achievements).toEqual(expect.arrayContaining(['flip-won', 'flip-lost']));

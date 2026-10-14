@@ -431,6 +431,9 @@ export const monkeyStats = {
   ],
 };
 
+/** The coin flip (Justin, 2026-10-14: "have it start out as 1% win 99% lose"): the chance heads comes up. */
+export const coinFlip = { winChance: 0.01 };
+
 export const traitRules = {
   dayStart: 6, // 6am
   nightStart: 20, // 8pm

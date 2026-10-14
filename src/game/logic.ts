@@ -41,6 +41,7 @@ import {
   type ResearchProject,
   hr,
   monkeyStats,
+  coinFlip,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
@@ -2121,13 +2122,14 @@ export function hrDiscount(state: GameState): number {
 
 /**
  * The coin flip, just for fun (Justin, 2026-10-14: "flip a coin and bet to
- * double all of their points or lose all of their points"): heads doubles
- * every banana you have, tails loses them all. Needs some bananas. Returns
- * whether it won, or null if there was nothing to bet.
+ * double all of their points or lose all of their points"): heads (a
+ * coinFlip.winChance chance) doubles every banana you have, tails loses them
+ * all. Needs some bananas. Returns whether it won, or null if there was
+ * nothing to bet.
  */
 export function flipCoin(state: GameState, rng: Rng): boolean | null {
   if (state.currency <= 0) return null;
-  const won = rng() < 0.5;
+  const won = rng() < coinFlip.winChance;
   if (won) {
     state.currency *= 2; // winnings don't count as earned, so they unlock no earning achievements
     state.stats.flipsWon++;
