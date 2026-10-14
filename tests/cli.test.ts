@@ -96,7 +96,7 @@ describe('terminal screen', () => {
     expect(text).toContain('Script: 2 scenes owned, 0 / 2 lines written');
     expect(text.split('\n')[2]).toBe(' @ M-1(0.50/s 100%) x1  \x1b[1mI\x1b[22m_');
     expect(text).toContain('Last word: I +1');
-    expect(plain(text)).toMatch(/^Shop +Typewriters\* +\[Staff\*\] +Script +Decor\* +Comforts +Hats$/m); // letters come first
+    expect(plain(text)).toMatch(/^Shop +Typewriters\* +\[Staff\*\] +Script +Department rooms\* +Break rooms +Hats$/m); // letters come first
     expect(plain(text)).toContain('[1] *Faster typing for M-1 (skill 0/10): 0.50 -> 0.63 letters/sec   cost 10 Points');
     expect(tools).toContain('[2] *Portable typewriter for M-1 (skill cap 10 -> 20)   cost 1.00K Points');
     expect(tools).toContain('[1] *Buy a letter key   cost 25 Points'); // the 2nd letter costs no Words
@@ -116,9 +116,9 @@ describe('terminal screen', () => {
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[space] close the shop   [tab] next store   [1-9] buy');
-    expect(open).toMatch(/^Shop +Typewriters +\[Staff\] +Script +Decor +Comforts +Hats$/m);
+    expect(open).toMatch(/^Shop +Typewriters +\[Staff\] +Script +Department rooms +Break rooms +Hats$/m);
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Typewriters\* +Staff\* +\[Script\] +Decor +Comforts +Hats$/m);
+    expect(plain(renderScreen(s, '', 'script'))).toMatch(/^Shop +Typewriters\* +Staff\* +\[Script\] +Department rooms +Break rooms +Hats$/m);
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -403,23 +403,28 @@ describe('office space on screen', () => {
 });
 
 describe('furniture', () => {
-  it('sells furniture in the Decor and Comforts stores', () => {
+  it('sells furniture by the kind of room it goes in', () => {
     const s = started();
     s.currency = 600;
-    const text = plain(renderScreen(s, '', 'decor'));
-    expect(text).toContain("Decor: in a department's room, its monkeys tire slower.");
-    expect(text).toContain("[1] *Potted plant [P] (wood): a department's monkeys tire 3% slower, +1% points   cost 500 Points");
-    expect(text).toContain("[2] *Scented candle [I] (fire): a department's monkeys tire 3% slower, +1% points   cost 500 Points"); // same price, same benefit
-    expect(text).not.toContain('Television');
+    const text = plain(renderScreen(s, '', 'department'));
+    expect(text).toMatch(/\[Department rooms\*\] +Break rooms +Hats/);
+    expect(text).toContain("For departments' rooms. Decor here makes the room's monkeys tire slower.");
+    expect(text).toContain('[1] *Potted plant [P] (wood): its monkeys tire 3% slower, +1% points   cost 500 Points');
+    expect(text).toContain('[2] *Scented candle [I] (fire): its monkeys tire 3% slower, +1% points   cost 500 Points'); // same price, same benefit
+    expect(text).toContain("[3] *Wall clock [K] (metal): its monkeys tire 3% slower, +1% points, departments' rooms only   cost 500 Points");
+    expect(text).not.toContain('Television'); // break rooms only
     expect(text).toContain('Page 1 of 2: [up] and [down] show more');
-    const comforts = plain(renderScreen(s, '', 'comforts'));
-    expect(comforts).toContain('[9]  Hammock [J] (wood): in a break room, breaks go 25% faster, +2% points (takes 2 x 1 squares)   cost 200.00K Points');
-    expect(comforts).not.toContain('Television'); // on the next page
-    const more = plain(renderScreen(s, '', 'comforts', 0, 1));
-    expect(more).toContain('[1]  Television [T] (fire): in a break room, breaks go 40% faster, +3% points   cost 1.00M Points');
-    expect(more).toContain('[2]  Hot tub [U] (water): in a break room, breaks go 40% faster, +3% points (takes 2 x 1 squares)   cost 1.00M Points');
-    expect(more).toContain('Page 2 of 2');
-    expect(storeChoices(s, 'comforts', 1).map((x) => x.id)).toEqual(['furniture:tv', 'furniture:hottub']);
+    expect(storeChoices(s, 'department', 1).map((x) => x.id)).toContain('furniture:cooler@department'); // fits either, but helps only in a break room
+    const lounge = plain(renderScreen(s, '', 'break'));
+    expect(lounge).toContain("For break rooms. Comforts here make every monkey's breaks faster.");
+    expect(lounge).toContain('[1]  Potted plant [P] (wood): +1% points   cost 500 Points'); // fits, but its decor works only in a department's room
+    expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
+    expect(lounge).not.toContain('[1] *'); // nowhere to put it
+    const last = plain(renderScreen(s, '', 'break', 0, 2));
+    expect(last).toContain('[1]  Television [T] (fire): breaks go 40% faster, +3% points, break rooms only   cost 1.00M Points');
+    expect(last).toContain('[2]  Hot tub [U] (water): breaks go 40% faster, +3% points, break rooms only (takes 2 x 1 squares)   cost 1.00M Points');
+    expect(last).toContain('Page 3 of 3');
+    expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
   });
 
@@ -454,7 +459,7 @@ describe('furniture', () => {
     expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: ON');
     s.settings.autoPlaceFurniture = false;
     expect(plain(renderOptions(s))).toContain('[1] Furniture places itself: off');
-    expect(plain(renderScreen(s, '', 'decor'))).toContain('New furniture opens the office map so you can place it.');
+    expect(plain(renderScreen(s, '', 'department'))).toContain('New furniture opens the office map so you can place it.');
   });
 
 });
@@ -485,11 +490,11 @@ describe('moving doors on the map', () => {
 
 describe('inspecting', () => {
   it('describes store items, or finds nothing of interest', () => {
-    expect(inspectItem('furniture:tv')).toBe('It only shows nature documentaries about monkeys. Electronics burn with Fire.');
+    expect(inspectItem('furniture:tv@break')).toBe('It only shows nature documentaries about monkeys. Electronics burn with Fire.');
     expect(inspectItem('hat:cowboy')).toBe('Yeehaw, but quietly: this is an office.');
     expect(inspectItem('combo')).toBe('Nothing of interest here.');
     expect(inspectItem(undefined)).toBe('Nothing of interest here.');
-    expect(plain(renderScreen(started(), '', 'decor'))).toContain('[i] inspect');
+    expect(plain(renderScreen(started(), '', 'department'))).toContain('[i] inspect');
   });
 });
 
@@ -502,7 +507,7 @@ describe('feng shui on screen', () => {
     expect(map).toContain('+===----+'); // in the bottom wall
     expect(map).toContain('=== : window');
     expect(map).not.toContain('chi');
-    expect(plain(renderScreen(s, '', 'decor'))).not.toContain('Feng shui book'); // not for sale: it hides in a bookshelf
+    expect(plain(renderScreen(s, '', 'department'))).not.toContain('Feng shui book'); // not for sale: it hides in a bookshelf
     s.furniture.push({ kind: 'bookshelf', room: 'r1', x: 1, y: 1 });
     const shelf = inspectSquare(s, 1, 1);
     expect(shelf.text).toContain('Rows of dusty old books.');

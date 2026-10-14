@@ -6,6 +6,7 @@ import {
   hatCost,
   addRoom,
   rotateFurniture,
+  allowedIn,
   achievementValue,
   canPublishFolio,
   folioPagesNow,
@@ -1361,7 +1362,7 @@ describe('office space', () => {
 });
 
 describe('furniture', () => {
-  it('buys furniture into a free square, a break room first, each costing more than the last', () => {
+  it('buys furniture into a free square where it works, each costing more than the last; some pieces fit only one kind of room', () => {
     const s = createInitialState(0);
     const plant = furnitureKinds[0];
     s.currency = 1e12;
@@ -1369,9 +1370,17 @@ describe('furniture', () => {
     expect(buyFurniture(s, plant.id)).toBe(true);
     expect(s.furniture[1]).toEqual({ kind: plant.id, room: 'r1', x: 1, y: 0 }); // next to the desk
     expect(furnitureCost(s, plant.id)).toBe(Math.ceil(plant.cost * plant.costGrowth));
+    expect(buyFurniture(s, 'tv')).toBe(false); // break rooms only
     expect(buyRoom(s, 'break')).toBe(true);
     expect(buyFurniture(s, plant.id)).toBe(true);
-    expect(s.furniture[2].room).toBe('r2');
+    expect(s.furniture[2].room).toBe('r1'); // decor goes where it works: a department's room
+    expect(buyFurniture(s, plant.id, 'break')).toBe(true); // unless asked for a break room
+    expect(s.furniture[3].room).toBe('r2');
+    expect(buyFurniture(s, 'tv')).toBe(true);
+    expect(s.furniture[4].room).toBe('r2');
+    expect(buyFurniture(s, 'clock', 'break')).toBe(false); // departments' rooms only
+    expect(allowedIn(s, 'tv', 'r1')).toBe(false);
+    expect(moveFurniture(s, 4, 'r1', 0, 1)).toBe(false);
     expect(buyFurniture(s, 'nonsense')).toBe(false);
   });
 
@@ -1612,7 +1621,7 @@ describe('bigger furniture', () => {
     const [x, y] = [...room.cells].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
     expect(fitsAt(s, room.id, 'couch', x, y)).toBe(true);
     expect(fitsAt(s, room.id, 'couch', x - 1, y)).toBe(false); // half outside the room
-    buyFurniture(s, 'plant');
+    buyFurniture(s, 'plant', 'break');
     const plant = s.furniture.length - 1;
     expect(s.furniture[plant]).toMatchObject({ room: room.id, x, y });
     expect(fitsAt(s, room.id, 'couch', x, y)).toBe(false);

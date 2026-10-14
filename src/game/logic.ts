@@ -714,9 +714,15 @@ export function footprint(f: Pick<Furniture, 'kind' | 'x' | 'y' | 'turned'>): [n
 
 const covers = (f: Furniture, x: number, y: number) => footprint(f).some(([px, py]) => px === x && py === y);
 
-/** Whether a piece fits with its first square at x, y: every square in the room and free (`ignore` is the piece being moved). */
+/** Whether a kind of furniture may stand in a room: televisions only in break rooms, for example (see furnitureKinds' rooms). */
+export function allowedIn(state: GameState, kind: string, roomId: string): boolean {
+  const room = state.office.find((r) => r.id === roomId);
+  return !!room && !!kindOf(kind)?.rooms.includes(room.kind);
+}
+
+/** Whether a piece fits with its first square at x, y: a room it may stand in, every square in it and free (`ignore` is the piece being moved). */
 export function fitsAt(state: GameState, roomId: string, kind: string, x: number, y: number, turned = false, ignore = -1): boolean {
-  return footprint({ kind, x, y, turned }).every(([px, py]) => {
+  return allowedIn(state, kind, roomId) && footprint({ kind, x, y, turned }).every(([px, py]) => {
     const here = cellAt(state, roomId, px, py);
     return here === 'floor' || here === ignore;
   });
@@ -838,9 +844,11 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   return true;
 }
 
-/** Where a new piece goes: the first spot it fits in a break room, else in any room (turned if only that fits). */
-export function furnitureSpot(state: GameState, kind = 'plant'): Omit<Furniture, 'kind'> | null {
-  const rooms = [...state.office.filter((r) => r.kind === 'break'), ...state.office.filter((r) => r.kind !== 'break')];
+/** Where a new piece goes: the first spot it fits in a room where it works, else in any room it may stand in (turned if only that fits). */
+export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room['kind']): Omit<Furniture, 'kind'> | null {
+  // Only rooms of roomKind when given; else rooms where it works first (decor in departments' rooms, comforts in break rooms).
+  const first: Room['kind'] = roomKind ?? ((kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
+  const rooms = [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
   const [w, h] = pieceSize(kind);
   for (const room of rooms) {
     for (const [x, y] of bestSquares(state, room)) {
@@ -871,10 +879,10 @@ export function furnitureCost(state: GameState, kind: string): number {
   return Math.ceil(k.cost * Math.pow(k.costGrowth, owned));
 }
 
-/** Buys a piece of furniture and stands it where it fits (see furnitureSpot). */
-export function buyFurniture(state: GameState, kind: string): boolean {
+/** Buys a piece of furniture and stands it where it fits (see furnitureSpot), in a room of roomKind if given. */
+export function buyFurniture(state: GameState, kind: string, roomKind?: Room['kind']): boolean {
   const cost = furnitureCost(state, kind);
-  const spot = furnitureSpot(state, kind);
+  const spot = furnitureSpot(state, kind, roomKind);
   if (!spot || state.currency < cost) return false;
   state.currency -= cost;
   state.furniture.push({ kind, ...spot });

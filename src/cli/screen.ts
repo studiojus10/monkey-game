@@ -1,4 +1,4 @@
-import { dyeCost, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { dyeCost, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, type RoomKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -307,14 +307,14 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
 }
 
 /** The shop's stores, shown as tabs; tab or left/right switches between them. */
-export const stores = ['typewriters', 'staff', 'script', 'decor', 'comforts', 'hats'] as const;
+export const stores = ['typewriters', 'staff', 'script', 'department', 'break', 'hats'] as const;
 export type Store = (typeof stores)[number];
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
   staff: 'Staff',
   script: 'Script',
-  decor: 'Decor',
-  comforts: 'Comforts',
+  department: 'Department rooms',
+  break: 'Break rooms',
   hats: 'Hats',
 };
 
@@ -388,27 +388,31 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           : { text: `Word slots: unlock when you own ${wordSlots.unlockLetters} letters` },
       ];
     }
-    case 'decor':
-    case 'comforts': {
-      const spot = !!furnitureSpot(state);
+    case 'department':
+    case 'break': {
+      const have = state.office.some((r) => r.kind === store);
+      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store)).sort((a, b) => a.cost - b.cost);
       return [
         {
           text:
-            store === 'decor'
-              ? "Decor: in a department's room, its monkeys tire slower."
-              : 'Comforts: in a break room, every monkey takes faster breaks.',
+            store === 'department'
+              ? "For departments' rooms. Decor here makes the room's monkeys tire slower."
+              : "For break rooms. Comforts here make every monkey's breaks faster.",
         },
-        ...furnitureKinds.filter((k) => (store === 'decor' ? k.drain > 0 : k.drain === 0)).map((k) => {
+        ...kinds.map((k) => {
           const cost = furnitureCost(state, k.id);
-          return { id: `furniture:${k.id}`, star: !!furnitureSpot(state, k.id) && state.currency >= cost, text: `${k.name} [${k.glyph}] (${k.element}): ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return {
+            id: `furniture:${k.id}@${store}`,
+            star: !!furnitureSpot(state, k.id, store) && state.currency >= cost,
+            text: `${k.name} [${k.glyph}] (${k.element}): ${furnitureEffect(k, store)}   cost ${price(cost, state.currency)} ${theme.currency}`,
+          };
         }),
         {
-          text: !spot
-            ? 'No free floor left: buy a break room or grow a room on the office map ([o]).'
-            : [
-                state.settings.autoPlaceFurniture ? 'New furniture places itself, in a break room first ([c] options).' : 'New furniture opens the office map so you can place it.',
-                ...(state.office.some((r) => r.kind === 'break') ? [] : ['With no break room, it takes a square a desk could use.']),
-              ].join(' '),
+          text: !have
+            ? `You have no ${store === 'break' ? 'break room' : "department's room"} yet: buy one on the office map ([o], then [r]).`
+            : state.settings.autoPlaceFurniture
+              ? `New furniture places itself in a ${store === 'break' ? 'break room' : "department's room"} ([c] options).`
+              : 'New furniture opens the office map so you can place it.',
         },
       ];
     }
@@ -500,18 +504,19 @@ export function dyePickPrompt(state: GameState, color: string): string {
 
 /** What inspecting a store item shows: its description, or nothing of interest. */
 export function inspectItem(id: string | undefined): string {
-  const [what, which] = (id ?? '').split(':');
+  const [what, which] = (id ?? '').split('@')[0].split(':');
   const d = what === 'furniture' ? furnitureKinds.find((k) => k.id === which)?.description : what === 'hat' ? hats.find((h) => h.id === which)?.description : undefined;
   return d ?? fengShui.nothing;
 }
 
 /** What a kind of furniture does, in a few words. */
-export function furnitureEffect(k: FurnitureKind): string {
+export function furnitureEffect(k: FurnitureKind, room: RoomKind): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return [
-    ...(k.drain ? [`a department's monkeys tire ${pct(k.drain)} slower`] : []),
-    ...(k.rest ? [`in a break room, breaks go ${pct(k.rest)} faster`] : []),
+    ...(room === 'department' && k.drain ? [`its monkeys tire ${pct(k.drain)} slower`] : []),
+    ...(room === 'break' && k.rest ? [`breaks go ${pct(k.rest)} faster`] : []),
     ...(k.happiness ? [`+${pct(k.happiness)} points`] : []),
+    ...(k.rooms.length === 1 ? [`${room === 'break' ? 'break rooms' : "departments' rooms"} only`] : []),
   ].join(', ') + (k.size ? ` (takes ${k.size[0]} x ${k.size[1]} squares)` : '');
 }
 

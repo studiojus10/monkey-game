@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, departmentRules, desk, dyeCost, hatColors, hats, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -10,6 +10,7 @@ import {
   hatCost,
   wearHat,
   buyFurniture,
+  allowedIn,
   readFengShuiBook,
   cellAt,
   pieceSize,
@@ -267,13 +268,14 @@ function buyItem(id: string): void {
       message = dyeColorPrompt();
     }
   } else if (id.startsWith('furniture:')) {
-    const kind = id.slice('furniture:'.length);
-    if (!furnitureSpot(state, kind))
-      message = furnitureSpot(state)
-        ? `No room for a ${kind}: it needs ${pieceSize(kind).join(' x ')} free squares in one room. Make space on the office map ([o]).`
-        : 'No free floor left. Buy a break room or grow a room on the office map ([o]).';
+    // furniture:<kind>@<room kind>: the store's section says which kind of room it goes in.
+    const [kind, where] = id.slice('furniture:'.length).split('@') as [string, RoomKind];
+    const rooms = where === 'break' ? 'break room' : "department's room";
+    if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
+    else if (!furnitureSpot(state, kind, where))
+      message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
     else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
-    else if (buyFurniture(state, kind)) {
+    else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in. Move it on the office map with [o].`;
       else {
@@ -842,6 +844,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         if (here && moveFurniture(state, heldFurniture, here.id, c.x, c.y)) heldFurniture = -1;
         else if (!here) message = 'Furniture goes inside a room.';
         else if (f.kind === desk.id && f.room !== here.id) message = "Desks stay in their department's room.";
+        else if (!allowedIn(state, f.kind, here.id))
+          message = `The ${furnitureName(state, heldFurniture)} only goes in ${furnitureKinds.find((k) => k.id === f.kind)?.rooms.includes('break') ? 'break rooms' : "departments' rooms"}.`;
         else message = `It doesn't fit there: every square it takes must be free floor in one room.${pieceSize(f.kind).join() === '1,1' ? '' : ' [r] turns it.'}`;
       } else if (heldDoor) {
         if (placeDoor(state, c.x, c.y, heldDoor.side)) heldDoor = null;
