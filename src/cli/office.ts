@@ -1,4 +1,4 @@
-import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, monkeyIcon, office as officeRules, theme, traits } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, monkeyIcon, office as officeRules, research, theme, traits } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
@@ -19,6 +19,7 @@ import {
   managerOf,
   officeOf,
   traitOf,
+  researchers,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
@@ -40,6 +41,7 @@ export function roomName(state: GameState, room: Room): string {
     const g = roomGenre(state, room);
     return g ? `${genreNames[g]} room` : 'Your room';
   }
+  if (room.kind === 'lab') return `${research.name} lab`;
   if (room.kind === 'office') return `${genreNames[room.department as keyof typeof genreNames] ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
@@ -269,13 +271,15 @@ function roomTable(state: GameState, columns = 0): string[] {
         String(i + 1),
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [r.kind === 'office' ? '-' : pct(roomChi(state, r))] : []),
+        ...(state.fengShuiBook ? [r.kind === 'office' || r.kind === 'lab' ? '-' : pct(roomChi(state, r))] : []),
         r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
       // A break room's "who" is the departments it's the lounge of.
       who:
-        r.kind === 'office'
+        r.kind === 'lab'
+          ? researchers(state).map((k) => monkeyName(state, k))
+          : r.kind === 'office'
           ? [boss ? `${monkeyName(state, state.monkeys.indexOf(boss))} (manager)` : 'no manager yet']
           : r.kind === 'department'
           ? departmentMonkeys(state, g)
@@ -325,6 +329,7 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     "   Each monkey gets a desk in its department's room.",
     "   A manager works in its department's office: a small room next door,",
     "   with a door between them and a manager's desk (D).",
+    `   ${research.name} researchers work in the ${research.name} lab.`,
     '   Every room needs a way in from room 1: doors (/) and hallways.',
     '   A room grows one square at a time ([x] on the map).',
     '   Windows (: or ===) go in walls that face outside.',

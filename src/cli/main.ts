@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, research, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -18,6 +18,13 @@ import {
   managerCost,
   officelessDepartments,
   setHour,
+  openResearch,
+  hireResearcher,
+  researcherBlocker,
+  researcherCost,
+  startResearch,
+  projectOf,
+  labRoom,
   cellAt,
   pieceSize,
   furnitureSpot,
@@ -94,7 +101,8 @@ import {
   renderKeysMenu,
   renderScreen,
   renderHomeKeys,
-  homeGenre,
+  homeView,
+  homeViews,
   folioPrompt,
   lineRoom,
   renderScript,
@@ -257,6 +265,19 @@ function buyItem(id: string): void {
     if (blocked) message = `${genreNames[g]} can't hire a manager yet: ${blocked}.${blocked.includes('office') || blocked.includes('door') || blocked.includes('desk') ? ' See the office map ([o]).' : ''}`;
     else if (state.currency < managerCost(state, g)) message = `Not enough ${theme.currency}.`;
     else if (hireManager(state, g)) startNaming(state.monkeys.length - 1);
+  } else if (id === 'research-open') {
+    if (openResearch(state)) message = `${research.name} is open! Buy it a lab on the office map ([o], then [r]), then hire researchers here.`;
+  } else if (id === 'researcher') {
+    const blocked = researcherBlocker(state);
+    if (blocked) message = `Can't hire a researcher: ${blocked}.${blocked === 'lab needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
+    else if (state.currency < researcherCost(state)) message = `Not enough ${theme.currency}.`;
+    else if (hireResearcher(state)) startNaming(state.monkeys.length - 1);
+  } else if (id.startsWith('research:')) {
+    const p = projectOf(id.slice('research:'.length));
+    if (!p) return;
+    if (state.researching) message = `${research.name} works on one project at a time.`;
+    else if (state.currency < p.cost) message = `Not enough ${theme.currency}.`;
+    else if (startResearch(state, p.id)) message = `${research.name} is researching ${p.name}.`;
   } else if (id === 'combo') {
     if (!buyCapRaise(state)) message = noSentences;
   } else if (id === 'keys') {
@@ -342,10 +363,11 @@ function noSeatMessage(): string {
 }
 
 /** Rooms on offer by number on the office map: a room for each department without one, then a manager's office for each without one. */
-function roomChoices(): { kind: RoomKind; genre: Genre }[] {
+function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
   return [
     ...roomlessDepartments(state).map((genre) => ({ kind: 'department' as const, genre })),
     ...officelessDepartments(state).map((genre) => ({ kind: 'office' as const, genre })),
+    ...(state.researchOpen && !labRoom(state) ? [{ kind: 'lab' as const }] : []),
   ];
 }
 
@@ -832,6 +854,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           ...(served.length > 0 ? [`It's the lounge of ${served.join(' and ')}.`] : []),
           ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
           ...(room.kind === 'office' ? ["It comes with a manager's desk. Hire a manager in the Staff store."] : []),
+          ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
         ].join(' ');
       }
       return draw();
@@ -884,7 +907,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
-      const choices = roomChoices().map((c, i) => `[${i + 1}] ${c.kind === 'office' ? `an office for ${genreNames[c.genre]}'s manager` : `a room for ${genreNames[c.genre]}`}`);
+      const choices = roomChoices().map(
+        (c, i) => `[${i + 1}] ${c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
+      );
       message = `Buy a room (${formatNumber(roomCost(state))} ${theme.currency}): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
@@ -991,9 +1016,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
-  } else if (key.name === 'tab' && !shop && departmentGenres(state).length > 1) {
-    const open = departmentGenres(state);
-    state.settings.homeDepartment = open[(open.indexOf(homeGenre(state)!) + 1) % open.length];
+  } else if (key.name === 'tab' && !shop && homeViews(state).length > 1) {
+    const views = homeViews(state);
+    state.settings.homeDepartment = views[(views.indexOf(homeView(state)!) + 1) % views.length];
   } else if (key.name === 'return' || key.name === 'enter') {
     const i = poke(state);
     if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;

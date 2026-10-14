@@ -206,3 +206,36 @@ describe('traits and offices in saves', () => {
     expect(deserialize(serialize(createInitialState(0))).managerBook).toBe(false);
   });
 });
+
+describe('R&D', () => {
+  it('opens at enough monkeys, needs a lab and researchers, and researches in real time, faster with more researchers', async () => {
+    const { research } = await import('../src/game/config');
+    const L = await import('../src/game/logic');
+    const s = department(research.opensAt - 1);
+    expect(L.openResearch(s)).toBe(false);
+    s.monkeys.push({ ...createMonkey(), department: 'comedy' });
+    expect(L.openResearch(s)).toBe(true);
+    expect(L.researcherBlocker(s)).toBe('lab needed');
+    expect(buyRoom(s, 'lab')).toBe(true);
+    expect(buyRoom(s, 'lab')).toBe(false); // one lab
+    expect(L.hireResearcher(s)).toBe(true);
+    expect(L.hireResearcher(s)).toBe(true);
+    const r = L.researchers(s);
+    expect(r).toHaveLength(2);
+    for (const i of r) s.monkeys[i].trait = 'none';
+    expect(L.isTypist(s.monkeys[r[0]])).toBe(false);
+    expect(L.monkeyGenre(s, s.monkeys[r[0]])).toBeUndefined();
+    const p = research.projects[0];
+    expect(L.startResearch(s, p.id)).toBe(true);
+    expect(L.startResearch(s, research.projects[1].id)).toBe(false); // one at a time
+    expect(L.researchSecondsLeft(s)).toBeCloseTo((p.hours * 3600) / 2);
+    L.advanceResearch(s, (p.hours * 3600) / 2);
+    expect(s.researched).toEqual([p.id]);
+    expect(s.researching).toBe('');
+    expect(L.researchBonus(s, 'drain')).toBeCloseTo(p.drain!);
+    const back = deserialize(serialize(s));
+    expect(back.researched).toEqual([p.id]);
+    expect(back.researchOpen).toBe(true);
+    expect(L.researchers(back)).toHaveLength(2);
+  });
+});

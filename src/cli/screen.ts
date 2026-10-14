@@ -1,4 +1,4 @@
-import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk } from '../game/config';
+import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -54,12 +54,23 @@ import {
   officeOf,
   traitOf,
   traitBonus,
+  isResearcher,
+  isTypist,
+  researchers,
+  canOpenResearch,
+  researcherBlocker,
+  researcherCost,
+  projectOf,
+  projectsLeft,
+  researchRate,
+  researchSecondsLeft,
+  researchShare,
 } from '../game/logic';
 import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
-import { formatNumber } from '../format';
+import { formatDuration, formatNumber } from '../format';
 import { blue, bold, dim, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
@@ -186,42 +197,69 @@ function speedText(n: number): string {
 
 /** A typist's energy as a percent, green when fresh, yellow when tiring, red when nearly spent; Resting in blue on a break. */
 function energyText(m: MonkeyState): string {
-  if (m.manager) return dim('-'.padStart(col.energy));
+  if (!isTypist(m)) return dim('-'.padStart(col.energy));
   if (m.resting) return blue('Resting'.padStart(col.energy));
   const p = Math.round(m.energy * 100);
   const text = `${p}%`.padStart(col.energy);
   return p > energyColors.green ? green(text) : p > energyColors.yellow ? yellow(text) : red(text);
 }
 
+/** The departments [tab] goes through on the home screen: the play departments, then R&D once it's open. */
+export function homeViews(state: GameState): string[] {
+  return [...departmentGenres(state), ...(state.researchOpen ? [research.id] : [])];
+}
+
 /** The department whose monkeys the home screen shows: the one chosen with [tab], else the first. */
+export function homeView(state: GameState): string | undefined {
+  const views = homeViews(state);
+  return views.find((g) => g === state.settings.homeDepartment) ?? views[0];
+}
+
+/** The play department the home screen shows, if it shows one (not R&D). */
 export function homeGenre(state: GameState): Genre | undefined {
-  const open = departmentGenres(state);
-  return open.find((g) => g === state.settings.homeDepartment) ?? open[0];
+  const view = homeView(state);
+  return view === research.id ? undefined : (view as Genre | undefined);
 }
 
 /** The monkeys on the home screen, by index: with several departments, only the shown department's. */
 function homeMonkeys(state: GameState): number[] {
-  const shown = departmentGenres(state).length > 1 ? homeGenre(state) : undefined;
-  return state.monkeys.flatMap((m, i) => (!shown || monkeyGenre(state, m) === shown ? [i] : []));
+  if (homeViews(state).length <= 1) return state.monkeys.map((_, i) => i);
+  if (homeView(state) === research.id) return researchers(state);
+  const shown = homeGenre(state);
+  return state.monkeys.flatMap((m, i) => (!isResearcher(m) && monkeyGenre(state, m) === shown ? [i] : []));
+}
+
+/** What R&D is up to, in a line: the project under way with how far along and how long it has left. */
+export function researchStatus(state: GameState): string {
+  const p = projectOf(state.researching);
+  if (!p) return projectsLeft(state).length > 0 ? 'No project under way: start one in the Research store.' : 'Every project is done.';
+  const left = researchSecondsLeft(state);
+  return `Researching ${p.name}: ${Math.floor(researchShare(state) * 100)}%, ${Number.isFinite(left) ? `${formatDuration(left)} left` : 'nobody working on it'}`;
 }
 
 /** The monkey table's column headings. */
 function monkeyHeadings(state: GameState): string {
   return dim(
     ' ' + 'MONKEY'.padEnd(3 + (hasDeptColumn(state) ? 2 : 0) + col.name + 2) + '  ' + (hasTraitColumn(state) ? 'TRAIT'.padEnd(col.trait) + '  ' : '') + 'SPEED'.padStart(col.speed) + '  ' +
-      'ENERGY'.padStart(col.energy) + '  ' + 'COMBO'.padStart(col.combo) + '  ' + (state.monkeys.some((m) => m.manager) ? 'TYPING (or managing)' : 'TYPING'),
+      'ENERGY'.padStart(col.energy) + '  ' + 'COMBO'.padStart(col.combo) + '  ' + (state.monkeys.some((m) => !isTypist(m)) ? 'TYPING (or managing, researching)' : 'TYPING'),
   );
 }
 
 /** One monkey's row: its icon (hat dyed), department initial, name (a heart if petted lately), speed, energy, combo and line. */
 function monkeyRow(state: GameState, i: number, room: number): string {
   const m = state.monkeys[i];
-  const dept = hasDeptColumn(state) ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '';
+  const dept = hasDeptColumn(state) ? `${isResearcher(m) ? 'R' : genreNames[monkeyGenre(state, m)!][0]} ` : '';
   const name = `${monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
-  const speed = m.manager ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
-  const combo = m.manager ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m)}`.padStart(col.combo);
+  const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
+  const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
-  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : renderLine(m, room)}`;
+  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : renderLine(m, room)}`;
+}
+
+/** A researcher's line on the home screen: what R&D is working on. */
+function researcherLine(state: GameState): string {
+  const p = projectOf(state.researching);
+  return p ? `RESEARCHING ${p.name.toUpperCase()} ${Math.floor(researchShare(state) * 100)}%` : dim('RESEARCHING nothing yet');
 }
 
 /** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
@@ -242,6 +280,8 @@ function latelyLines(state: GameState, message: string): string[] {
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
     ...folioOffer(state),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
+    ...(canOpenResearch(state) ? ['* You can open R&D in the Staff store.'] : []),
+    ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),
   ];
   return rows.length === 0 ? [] : ['', dim(' LATELY'), ...rows.map((r) => `   ${r}`)];
@@ -252,7 +292,7 @@ function homeKeys(state: GameState, columns: number): string[] {
   return [
     keyRow([['space', 'shop'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
-      ...(departmentGenres(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
+      ...(homeViews(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
       ['enter', theme.pokeAction],
       ['n', 'name'],
       ['d', 'move'],
@@ -280,7 +320,7 @@ export function renderHomeKeys(state: GameState): string {
       ['c', 'options'],
     ]),
     ...group('MONKEYS', [
-      ...(departmentGenres(state).length > 1 ? [['tab', "show the next department's monkeys"] as [string, string]] : []),
+      ...(homeViews(state).length > 1 ? [['tab', "show the next department's monkeys"] as [string, string]] : []),
       ['enter', theme.pokeAction],
       ['n', 'name a monkey'],
       ['d', 'move a monkey to another department'],
@@ -340,14 +380,15 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   const ownedScenes = scenesOwned(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
   const label = (s: string) => dim(` ${s.padEnd(8)}`);
-  const open = departmentGenres(state);
+  const views = homeViews(state);
   const shown = homeMonkeys(state);
-  const genre = homeGenre(state);
+  const view = homeView(state);
+  const viewName = view === research.id ? research.name : view ? genreNames[view as Genre] : '';
   const lines = [
     titleBar(state),
     '',
     // With several departments, one at a time: its name, then which of how many.
-    ...(open.length > 1 && genre ? [` ${bold(genreNames[genre].toUpperCase())}${dim(`   department ${open.indexOf(genre) + 1} of ${open.length}`)}`] : []),
+    ...(views.length > 1 && view ? [` ${bold(viewName.toUpperCase())}${dim(`   department ${views.indexOf(view) + 1} of ${views.length}`)}`] : []),
     monkeyHeadings(state),
     ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room)),
     ...(shown.length > maxMonkeyLines ? [dim(` ...and ${shown.length - maxMonkeyLines} more monkeys typing`)] : []),
@@ -366,7 +407,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
 
 /** Monkeys that type (not managers), by index. */
 export function typists(state: GameState): number[] {
-  return state.monkeys.flatMap((m, i) => (m.manager ? [] : [i]));
+  return state.monkeys.flatMap((m, i) => (isTypist(m) ? [i] : []));
 }
 
 /** Shop items for typing skill and typewriters: spelled out for one monkey, the cheapest for several. */
@@ -431,12 +472,13 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
 }
 
 /** The shop's stores, shown as tabs; left and right switch between them. */
-export const stores = ['typewriters', 'staff', 'script', 'department', 'break', 'hats'] as const;
+export const stores = ['typewriters', 'staff', 'script', 'research', 'department', 'break', 'hats'] as const;
 export type Store = (typeof stores)[number];
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
   staff: 'Staff',
   script: 'Script',
+  research: 'Research',
   department: 'Office',
   break: 'Breakroom',
   hats: 'Hats',
@@ -505,6 +547,17 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
           : hiring.length > 0 || open.length === 0
             ? [hire()]
             : [{ text: 'Hire a monkey: the department is full. Open another to hire more.' }]),
+        ...(canOpenResearch(state) ? [{ id: 'research-open', star: true, text: `Open ${research.name}!`, effect: 'research that runs in real time' }] : []),
+        ...(state.researchOpen
+          ? [
+              ((): ShopItem => {
+                const cost = researcherCost(state);
+                const blocked = researcherBlocker(state);
+                const item: ShopItem = { id: 'researcher', text: 'Hire a researcher', effect: `${researchers(state).length}/${research.maxResearchers} in ${research.name}` };
+                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
+              })(),
+            ]
+          : []),
         ...(managing.length > 0
           ? managing.map(hireManager)
           : open.some((g) => !managerOf(state, g))
@@ -589,6 +642,25 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
               ? `New furniture places itself in a ${store === 'break' ? 'break room' : "department's room"} ([c] options).`
               : 'New furniture opens the office map so you can place it.',
         },
+      ];
+    }
+    case 'research': {
+      if (!state.researchOpen) return [{ text: `${research.name} opens at ${research.opensAt} monkeys, in the Staff store.` }];
+      const busy = !!state.researching;
+      const rate = researchRate(state);
+      const done = research.projects.filter((p) => state.researched.includes(p.id)).map((p) => p.name);
+      return [
+        { text: researchStatus(state) },
+        ...projectsLeft(state)
+          .filter((p) => p.id !== state.researching)
+          .map((p): ShopItem => {
+            // How long it takes: with today's researchers, or with one if there are none.
+            const time = formatDuration((p.hours * 3600) / Math.max(1, rate));
+            const item: ShopItem = { id: `research:${p.id}`, text: p.name, effect: `${p.text} ${time}` };
+            return busy ? { ...item, blocked: 'one at a time' } : { ...item, star: state.currency >= p.cost, cost: [[p.cost, 'currency']] };
+          }),
+        ...(done.length > 0 ? [{ text: `Done: ${done.join(', ')}.` }] : []),
+        ...(rate === 0 ? [{ text: 'Nobody is researching: hire researchers in the Staff store.' }] : []),
       ];
     }
     case 'script':

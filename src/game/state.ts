@@ -68,7 +68,7 @@ export interface Milestone {
  */
 export interface Room {
   id: string;
-  kind: 'department' | 'break' | 'office'; // an office is a department's manager's office
+  kind: 'department' | 'break' | 'office' | 'lab'; // an office is a department's manager's office; the lab is R&D's
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
 }
@@ -109,6 +109,11 @@ export interface GameState {
   windows: Door[]; // windows, each in a wall on one side of a room's square that faces outside
   fengShuiBook: boolean; // read the feng shui book (found in a bookshelf): chi counts, and the office map shows it
   managerBook: boolean; // read the book in a manager's desk: monkeys' traits show
+  researchOpen: boolean; // R&D is open
+  researching: string; // the project under way ('' for none)
+  researchProgress: number; // researcher-seconds of work done on it
+  researched: string[]; // finished projects
+  researchersHired: number; // researchers hired, for their price
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
@@ -203,6 +208,11 @@ export function createInitialState(now = Date.now()): GameState {
     windows: [{ x: 1, y: 0, side: 'e' }],
     fengShuiBook: false,
     managerBook: false,
+    researchOpen: false,
+    researching: '',
+    researchProgress: 0,
+    researched: [],
+    researchersHired: 0,
     squaresBought: 0,
     furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
     departments: [],

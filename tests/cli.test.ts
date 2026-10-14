@@ -169,10 +169,10 @@ describe('terminal screen', () => {
     expect(open).toContain('[1-9] buy   [i] inspect   [left/right] store   [esc] back');
     expect(open).not.toContain('[tab]');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
-    expect(open).toContain('\n Typewriters   Staff   Script   Office   Breakroom   Hats \n');
+    expect(open).toContain('\n Typewriters   Staff   Script   Research   Office   Breakroom   Hats \n');
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Office   Breakroom   Hats \n');
+    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Research   Office   Breakroom   Hats \n');
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -779,7 +779,7 @@ describe('achievements on screen', () => {
     const text = plain(renderAchievements(s, 0));
     expect(text).toContain(`1 of ${achievements.length} unlocked`);
     expect(text).toMatch(/\[x\] Good monkey +Pet a monkey/);
-    expect(text).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   37 \/ 100/);
+    expect(plain(renderAchievements(s, 5))).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   37 \/ 100/);
     expect(renderAchievements(s, 0)).toContain('\x1b[32m[x]\x1b[39m'); // unlocked: a green mark
     const last = plain(renderAchievements(s, 999));
     expect(last).toMatch(/\[ \] \?\?\? +A secret/);

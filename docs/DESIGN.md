@@ -174,6 +174,10 @@ Every monkey has a **trait** (Justin, 2026-10-14: "giving individual monkeys ran
 
 Offices are too small for feng shui and don't count toward the office's chi.
 
+### R&D
+
+Built 2026-10-14 (Justin: R&D "mid game, before another play department", needs a room and desks with monkeys, research takes fixed real-world time, more R&D monkeys = faster). R&D opens at 8 monkeys (Staff store). It needs a lab, bought on the office map, and researchers: real monkeys (names, hats, traits) hired in the Staff store, up to 10, each with a desk in the lab. They don't type or tire. The Research store lists projects; one runs at a time, costs bananas to start, and takes a fixed number of hours for one researcher (two take half as long; a researcher's speed trait counts). Research runs in real time, including the whole time you're away. Finished projects are permanent boosts (`research` in config.ts, placeholders): tire slower, faster breaks, +10% bananas, faster typing, cheaper room squares, combo cap +1. [tab] on the home screen also shows R&D, with the project's progress. The lab doesn't count for feng shui. Marketing tactics will be added as projects when Marketing is built.
+
 ### The Sonnets department
 
 A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a late way to earn more **Lines**. Verse lines run to a meter rather than ending at sentence breaks, so sonnets score differently:
