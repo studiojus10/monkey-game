@@ -234,7 +234,7 @@ Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to pars
  [1-9] buy   [i] inspect   [left/right] store   [up/down] page 1 of 2   [esc] back
 ```
 
-- Its own screen; the open store's tab is inverse, the others dim. Items in columns (item, look, element, effect, price on the right); columns keep their width across a store's pages, and close up to one space apart when that's what fits an 80-column screen. Affordable: a green price with `*`. Not yet: the whole row dim. Notes are dim. Descriptions stay behind `i`.
+- Under the home screen when the terminal is tall enough for both (Justin, 2026-10-14), else its own screen; the open store's tab is inverse, the others dim. Items in columns (item, look, element, effect, price on the right); columns keep their width across a store's pages, and close up to one space apart when that's what fits an 80-column screen. Affordable: a green price with `*`. Not yet: the whole row dim. Notes are dim. Descriptions stay behind `i`.
 - Hire a monkey shows **desk needed** in red where the price goes when its department has no free square for a desk, or **room needed** when it has no room yet (Justin, 2026-10-14).
 - The ELEMENT column appears only once the feng shui book is read. A piece bigger than one square says so after its name, e.g. Couch (2x1).
 

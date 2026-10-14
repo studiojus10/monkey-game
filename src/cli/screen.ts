@@ -338,7 +338,7 @@ export function renderHomeKeys(state: GameState): string {
 }
 
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, page = 0): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, page = 0, rows = 0): string {
   if (state.owned.length === 0 && state.departments.length === 0) {
     const genres = departmentChoices(state);
     return openingScreen(
@@ -374,8 +374,16 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     );
   }
 
-  if (shop) return renderShop(state, shop, page, message, columns);
+  if (shop) {
+    // The shop opens under the home screen when the screen is tall enough for both, else on its own.
+    const both = [...homeLines(state, '', columns), rule(columns), ...renderShop(state, shop, page, message, columns, true).split('\n')];
+    return rows > 0 && both.length <= rows ? both.join('\n') : renderShop(state, shop, page, message, columns);
+  }
+  return [...homeLines(state, message, columns), '', rule(columns), ...homeKeys(state, columns)].join('\n');
+}
 
+/** The home screen above its keys: the monkey table, letters, script, LATELY and pins. */
+function homeLines(state: GameState, message: string, columns: number): string[] {
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
@@ -398,11 +406,8 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
     ...latelyLines(state, message),
     ...pinnedText(state),
-    '',
-    rule(columns),
-    ...homeKeys(state, columns),
   ];
-  return lines.join('\n');
+  return lines;
 }
 
 /** Monkeys that type (not managers), by index. */
@@ -794,9 +799,10 @@ function costText(item: ShopItem, boldNumbers = false): string {
  * on any with something you can afford), then the open store's items in
  * columns with prices on the right. What you can afford has a green price and
  * a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
- * only once the feng shui book is read.
+ * only once the feng shui book is read. `under` leaves out the title bar, for
+ * the shop under the home screen.
  */
-export function renderShop(state: GameState, store: Store, page = 0, message = '', columns = 0): string {
+export function renderShop(state: GameState, store: Store, page = 0, message = '', columns = 0, under = false): string {
   const items = storeItems(state, store);
   const numbered = items.filter((x) => x.id);
   const pages = storePages(state, store);
@@ -837,8 +843,7 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
   });
 
   return [
-    titleBar(state, 'Shop', columns),
-    '',
+    ...(under ? [] : [titleBar(state, 'Shop', columns), '']),
     tabs.join(' '),
     '',
     ...intro.map((x) => ` ${dim(x.text)}`),
