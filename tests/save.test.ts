@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { chooseFirstLetter, typeLetter } from '../src/game/logic';
+import { buyRoom, chooseFirstLetter, typeLetter } from '../src/game/logic';
+import { connectedRooms } from '../src/game/layout';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
@@ -84,5 +85,25 @@ describe('office space in saves', () => {
     expect(loaded.office).toHaveLength(1);
     expect(loaded.furniture.filter((f) => f.kind === 'desk')).toHaveLength(7);
     expect(loaded.settings.autoPlaceFurniture).toBe(true);
+  });
+
+  it('keeps hallways, doors and per-department hiring, and lays out saves from before hallways', () => {
+    const s = createInitialState(0);
+    s.currency = 1e12;
+    buyRoom(s, 'break');
+    s.monkeysBought = { comedy: 3 };
+    s.furniture[0].turned = true;
+    const back = deserialize(serialize(s));
+    expect(back.furniture[0].turned).toBe(true);
+    expect(back.halls).toEqual(s.halls);
+    expect(back.doors).toEqual(s.doors);
+    expect(back.monkeysBought).toEqual({ comedy: 3 });
+    const old = JSON.parse(serialize(s));
+    delete old.state.halls;
+    delete old.state.doors;
+    old.state.office[1].cells = [[0, 0], [1, 0], [0, 1], [1, 1]]; // every room on its own grid, as before
+    const loaded = deserialize(JSON.stringify(old));
+    expect(loaded.office[1].cells.some(([x, y]) => x === 0 && y === 0)).toBe(false);
+    expect(connectedRooms(loaded).has(loaded.office[1].id)).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ import {
   combo,
   extraWords,
   lineRewards,
+  sentenceRules,
   letterShop,
   lineWidth,
   maxOfflineLetters,
@@ -29,12 +30,13 @@ import {
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createMonkey, rectangle, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
+import { autoConnect, connectedRooms, placeRoom, roomCanUse } from './layout';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
 
 let wordList: readonly string[] = extraWords;
-let cached = new Map<string, { key: string; dict: Dictionary }>();
+let cached = new Map<string, { key: string; dict: Dictionary; letters: Snapshot; owned: Snapshot }>();
 
 /**
  * Sets the words that can score. The front end loads the word list and hands
@@ -88,13 +90,26 @@ export function ownsLine(state: GameState, play: Play, index: number): boolean {
  * play but opened no department counts that play's genre.)
  */
 export function departmentGenres(state: GameState): Genre[] {
+  // Called for nearly every letter typed, so it's remembered until departments or the script change.
+  const memo = genreMemo.get(state);
+  if (memo && unchanged(memo.departments, state.departments) && unchanged(memo.owned, state.owned)) return memo.list.slice();
   const list = state.departments.filter((g): g is Genre => genres.includes(g as Genre));
   for (const k of state.owned) {
     const g = plays.get(k.split(':')[0])?.genre;
     if (g && !list.includes(g)) list.push(g);
   }
-  return list;
+  genreMemo.set(state, { departments: snapshot(state.departments), owned: snapshot(state.owned), list });
+  return list.slice();
 }
+
+/**
+ * An array as it was: these lists only ever grow by push or get replaced
+ * whole, so the same array at the same length holds the same items.
+ */
+type Snapshot = { array: readonly string[]; length: number };
+const snapshot = (array: readonly string[]): Snapshot => ({ array, length: array.length });
+const unchanged = (s: Snapshot, array: readonly string[]) => s.array === array && s.length === array.length;
+const genreMemo = new WeakMap<GameState, { departments: Snapshot; owned: Snapshot; list: Genre[] }>();
 
 /** Genres that have at least one play. */
 export function genresWithPlays(): Genre[] {
@@ -282,8 +297,8 @@ export function buyAccessory(state: GameState, index: number, id: string): boole
   const m = state.monkeys[index];
   const a = accessories.find((x) => x.id === id);
   const cost = accessoryCost(state, id);
-  if (!m || !a || m.manager || m.accessories.includes(id) || state.currency < cost) return false;
-  state.currency -= cost;
+  if (!m || !a || m.manager || m.accessories.includes(id) || state.sentences < cost) return false;
+  state.sentences -= cost;
   m.accessories = [...m.accessories.filter((x) => accessories.find((y) => y.id === x)?.slot !== a.slot), id];
   return true;
 }
@@ -293,9 +308,15 @@ export function energyFactor(energy: number): number {
   return 1 - energyRules.maxSlowdown * (1 - energy);
 }
 
-/** A monkey's speed right now: tiredness slows it, and on a break it doesn't type. */
+/** Whether a monkey can get to its desk: its department's room connects to the office entrance. */
+export function canReachDesk(state: GameState, m: MonkeyState): boolean {
+  const room = departmentRoom(state, monkeyGenre(state, m));
+  return !room || connectedRooms(state).has(room.id);
+}
+
+/** A monkey's speed right now: tiredness slows it, and on a break (or locked out of its room) it doesn't type. */
 export function currentSpeed(state: GameState, m: MonkeyState): number {
-  return m.manager || m.resting ? 0 : monkeySpeed(state, m) * energyFactor(m.energy);
+  return m.manager || m.resting || !canReachDesk(state, m) ? 0 : monkeySpeed(state, m) * energyFactor(m.energy);
 }
 
 const kindOf = (id: string) => (id === desk.id ? desk : furnitureKinds.find((k) => k.id === id));
@@ -303,20 +324,22 @@ const kindOf = (id: string) => (id === desk.id ? desk : furnitureKinds.find((k) 
 /** How much slower a department's monkeys tire, from the decor in its room (0.1 = 10%). */
 export function drainCut(state: GameState, genre: Genre | undefined): number {
   const room = departmentRoom(state, genre);
-  const sum = state.furniture.reduce((n, f) => n + (room && f.room === room.id ? (kindOf(f.kind)?.drain ?? 0) : 0), 0);
+  if (!room || !connectedRooms(state).has(room.id)) return 0;
+  const sum = state.furniture.reduce((n, f) => n + (f.room === room.id ? (kindOf(f.kind)?.drain ?? 0) : 0), 0);
   return Math.min(energyRules.maxDrainCut, sum);
 }
 
-/** How much faster breaks go, from the comforts in break rooms (0.5 = 50%). */
+/** How much faster breaks go, from the comforts in break rooms you can reach (0.5 = 50%). */
 export function restBoost(state: GameState): number {
-  const breaks = new Set(state.office.filter((r) => r.kind === 'break').map((r) => r.id));
+  const open = connectedRooms(state);
+  const breaks = new Set(state.office.filter((r) => r.kind === 'break' && open.has(r.id)).map((r) => r.id));
   const sum = state.furniture.reduce((n, f) => n + (breaks.has(f.room) ? (kindOf(f.kind)?.rest ?? 0) : 0), 0);
   return Math.min(energyRules.maxRestBoost, sum);
 }
 
-/** Office happiness from all the furniture: points x (1 + happiness). */
+/** Office happiness from the furniture in rooms you can reach: points x (1 + happiness). */
 export function happiness(state: GameState): number {
-  const rooms = new Set(state.office.map((r) => r.id));
+  const rooms = connectedRooms(state);
   const sum = state.furniture.reduce((n, f) => n + (rooms.has(f.room) ? (kindOf(f.kind)?.happiness ?? 0) : 0), 0);
   return Math.min(energyRules.maxHappiness, sum);
 }
@@ -435,6 +458,12 @@ export function togglePin(state: GameState, playId: string, index: number): bool
 }
 
 /** Letters a line needs that you don't own yet. */
+/** True when you own every letter in `letters`. */
+export function inReach(state: GameState, letters: string): boolean {
+  for (const c of letters) if (!state.letters.includes(c)) return false;
+  return true;
+}
+
 export function missingLetters(state: GameState, letters: string): string[] {
   return [...new Set(letters)].filter((c) => !state.letters.includes(c)).sort();
 }
@@ -447,7 +476,7 @@ export function reachableLines(state: GameState, playId: string): number[] {
   return play.lines
     .map((line, i) => ({ line, i }))
     .filter(
-      ({ line, i }) => !done.has(i) && ownsLine(state, play, i) && missingLetters(state, line.letters).length === 0,
+      ({ line, i }) => !done.has(i) && ownsLine(state, play, i) && inReach(state, line.letters),
     )
     .sort((a, b) => a.line.letters.length - b.line.letters.length || a.i - b.i)
     .map(({ i }) => i);
@@ -491,13 +520,17 @@ function isOneLetterRun(word: string): boolean {
  * department's owned scenes (which always count), rebuilt only when they change.
  */
 export function dictionaryFor(state: GameState, genre = departmentGenres(state)[0]): Dictionary {
-  const key = [...state.letters].sort().join('') + '|' + state.owned.join('|');
   let entry = cached.get(genre ?? '');
+  // Checking the snapshots first skips building the key on almost every letter.
+  if (entry && unchanged(entry.letters, state.letters) && unchanged(entry.owned, state.owned)) return entry.dict;
+  const key = [...state.letters].sort().join('') + '|' + state.owned.join('|');
   if (entry?.key !== key) {
     const words = [...wordList, ...ownedLines(state, genre).words].filter((w) => !isOneLetterRun(w));
-    entry = { key, dict: new Dictionary(words, state.letters) };
+    entry = { key, dict: new Dictionary(words, state.letters), letters: snapshot(state.letters), owned: snapshot(state.owned) };
     cached.set(genre ?? '', entry);
   }
+  entry.letters = snapshot(state.letters);
+  entry.owned = snapshot(state.owned);
   return entry.dict;
 }
 
@@ -541,15 +574,19 @@ export function buyLetter(state: GameState, letter: string): boolean {
   return true;
 }
 
-/** Cost in Lines of the next monkey, given how many you have. */
-export function monkeyCost(owned: number): number {
-  return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, Math.max(0, owned - 1)));
+/** Cost in points of a monkey for the department-th department opened (from 0) that has already bought `bought`. */
+export function monkeyCost(bought: number, department = 0): number {
+  return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.departmentGrowth, department) * Math.pow(monkeyShop.costGrowth, bought));
 }
 
-/** Cost in Lines of the next monkey; free monkeys from acts don't raise it. */
-export function nextMonkeyCost(state: GameState): number {
-  const total = state.monkeys.length + state.unassignedMonkeys;
-  return monkeyCost(Math.max(1, total - milestones.actFreeMonkeys * state.actsDone.length));
+/**
+ * Cost in points of the next monkey for a department (by default the one a
+ * new monkey would go to). Only bought monkeys raise it; free ones from acts don't.
+ */
+export function nextMonkeyCost(state: GameState, genre?: Genre): number {
+  const open = departmentGenres(state);
+  const dept = genre ?? departmentsWithRoom(state)[0] ?? open[0] ?? '';
+  return monkeyCost(state.monkeysBought[dept] ?? 0, Math.max(0, open.indexOf(dept as Genre)));
 }
 
 /** The department a room belongs to: undefined for a break room. */
@@ -583,8 +620,32 @@ export function roomBounds(room: Room): { minX: number; maxX: number; minY: numb
 export function cellAt(state: GameState, roomId: string, x: number, y: number): number | 'floor' | null {
   const room = state.office.find((r) => r.id === roomId);
   if (!room || !hasCell(room, x, y)) return null;
-  const f = state.furniture.findIndex((p) => p.room === roomId && p.x === x && p.y === y);
+  const f = state.furniture.findIndex((p) => p.room === roomId && covers(p, x, y));
   return f >= 0 ? f : 'floor';
+}
+
+/** How many squares a kind of furniture takes, across and down. */
+export function pieceSize(kind: string, turned = false): [number, number] {
+  const [w, h] = (kind === desk.id ? desk : furnitureKinds.find((k) => k.id === kind))?.size ?? [1, 1];
+  return turned ? [h, w] : [w, h];
+}
+
+/** The squares a piece of furniture stands on: its own square and, for bigger pieces, those right of and below it. */
+export function footprint(f: Pick<Furniture, 'kind' | 'x' | 'y' | 'turned'>): [number, number][] {
+  const [w, h] = pieceSize(f.kind, f.turned);
+  const out: [number, number][] = [];
+  for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) out.push([f.x + dx, f.y + dy]);
+  return out;
+}
+
+const covers = (f: Furniture, x: number, y: number) => footprint(f).some(([px, py]) => px === x && py === y);
+
+/** Whether a piece fits with its first square at x, y: every square in the room and free (`ignore` is the piece being moved). */
+export function fitsAt(state: GameState, roomId: string, kind: string, x: number, y: number, turned = false, ignore = -1): boolean {
+  return footprint({ kind, x, y, turned }).every(([px, py]) => {
+    const here = cellAt(state, roomId, px, py);
+    return here === 'floor' || here === ignore;
+  });
 }
 
 /** A room's free squares, in reading order. */
@@ -625,10 +686,19 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
   const cost = roomCost(state);
   if (state.currency < cost || (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre)))) return false;
   state.currency -= cost;
-  const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
-  state.office.push({ id, kind, department: kind === 'department' ? genre! : '', cells: rectangle(officeRules.newRoomWidth, officeRules.newRoomHeight) });
+  addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight);
   seatWaiting(state);
   return true;
+}
+
+/** Adds a w x h room where it fits best, with a door and hallway to the rest of the office. Returns it. */
+export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number): Room {
+  const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
+  const [x0, y0] = placeRoom(state, width, height);
+  const room: Room = { id, kind, department: kind === 'department' ? department : '', cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
+  state.office.push(room);
+  autoConnect(state);
+  return room;
 }
 
 /** Points for the next square added to a room. */
@@ -636,24 +706,28 @@ export function squareCost(state: GameState): number {
   return Math.ceil(officeRules.squareBaseCost * Math.pow(officeRules.squareCostGrowth, state.squaresBought));
 }
 
-/** Squares a room could grow into: next to it, side by side, in reading order. */
-export function expansionSquares(room: Room): [number, number][] {
+/**
+ * Squares a room could grow into, in reading order: next to it, empty (not a
+ * hallway) and not touching another room.
+ */
+export function expansionSquares(state: GameState, room: Room): [number, number][] {
   const out: [number, number][] = [];
   for (const [x, y] of room.cells) {
     for (const [nx, ny] of [[x, y - 1], [x - 1, y], [x + 1, y], [x, y + 1]] as [number, number][]) {
-      if (!hasCell(room, nx, ny) && !out.some(([ox, oy]) => ox === nx && oy === ny)) out.push([nx, ny]);
+      if (!hasCell(room, nx, ny) && !out.some(([ox, oy]) => ox === nx && oy === ny) && roomCanUse(state, nx, ny, room)) out.push([nx, ny]);
     }
   }
   return out.sort(readingOrder);
 }
 
 /** The square a room grows into when you don't choose: the one that keeps it most compact. */
-export function bestExpansion(room: Room): [number, number] {
+export function bestExpansion(state: GameState, room: Room): [number, number] | undefined {
   const area = (cells: [number, number][]) => {
     const b = roomBounds({ ...room, cells });
     return (b.maxX - b.minX + 1) * (b.maxY - b.minY + 1);
   };
-  const options = expansionSquares(room);
+  const options = expansionSquares(state, room);
+  if (options.length === 0) return undefined;
   return options.reduce((best, c) => (area([...room.cells, c]) < area([...room.cells, best]) ? c : best), options[0]);
 }
 
@@ -662,8 +736,10 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   const room = state.office.find((r) => r.id === roomId);
   const cost = squareCost(state);
   if (!room || state.currency < cost) return false;
-  const [x, y] = square ?? bestExpansion(room);
-  if (!expansionSquares(room).some(([ex, ey]) => ex === x && ey === y)) return false;
+  const target = square ?? bestExpansion(state, room);
+  if (!target) return false;
+  const [x, y] = target;
+  if (!expansionSquares(state, room).some(([ex, ey]) => ex === x && ey === y)) return false;
   state.currency -= cost;
   room.cells.push([x, y]);
   state.squaresBought++;
@@ -671,12 +747,15 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   return true;
 }
 
-/** Where new furniture goes: the first free square of a break room, else of any room. */
-export function furnitureSpot(state: GameState): Omit<Furniture, 'kind'> | null {
+/** Where a new piece goes: the first spot it fits in a break room, else in any room (turned if only that fits). */
+export function furnitureSpot(state: GameState, kind = 'plant'): Omit<Furniture, 'kind'> | null {
   const rooms = [...state.office.filter((r) => r.kind === 'break'), ...state.office.filter((r) => r.kind !== 'break')];
+  const [w, h] = pieceSize(kind);
   for (const room of rooms) {
-    const square = freeSquares(state, room)[0];
-    if (square) return { room: room.id, x: square[0], y: square[1] };
+    for (const [x, y] of freeSquares(state, room)) {
+      if (fitsAt(state, room.id, kind, x, y)) return { room: room.id, x, y };
+      if (w !== h && fitsAt(state, room.id, kind, x, y, true)) return { room: room.id, x, y, turned: true };
+    }
   }
   return null;
 }
@@ -692,17 +771,32 @@ export function furnitureCost(state: GameState, kind: string): number {
 /** Buys a piece of furniture and stands it where it fits (see furnitureSpot). */
 export function buyFurniture(state: GameState, kind: string): boolean {
   const cost = furnitureCost(state, kind);
-  const spot = furnitureSpot(state);
+  const spot = furnitureSpot(state, kind);
   if (!spot || state.currency < cost) return false;
   state.currency -= cost;
   state.furniture.push({ kind, ...spot });
   return true;
 }
 
-/** Moves a piece of furniture to a free square. Desks stay in their department's room. */
+/**
+ * Turns a piece bigger than one square a quarter turn (a 2 x 1 couch stands
+ * 1 x 2). It doesn't check the floor: that happens when the piece is put
+ * down (see moveFurniture). One-square pieces don't turn.
+ */
+export function rotateFurniture(state: GameState, index: number): boolean {
+  const f = state.furniture[index];
+  if (!f) return false;
+  const [w, h] = pieceSize(f.kind);
+  if (w === h) return false;
+  if (f.turned) delete f.turned;
+  else f.turned = true;
+  return true;
+}
+
+/** Moves a piece of furniture so its first square is x, y, if all its squares are free floor of one room. Desks stay in their department's room. */
 export function moveFurniture(state: GameState, index: number, roomId: string, x: number, y: number): boolean {
   const f = state.furniture[index];
-  if (!f || cellAt(state, roomId, x, y) !== 'floor' || (f.kind === desk.id && f.room !== roomId)) return false;
+  if (!f || !fitsAt(state, roomId, f.kind, x, y, f.turned, index) || (f.kind === desk.id && f.room !== roomId)) return false;
   Object.assign(f, { room: roomId, x, y });
   return true;
 }
@@ -722,7 +816,7 @@ export function furnishOffice(state: GameState): void {
   }));
   state.monkeys.forEach((m) => {
     const room = state.office.find((r) => r.department === m.department) ?? state.office[0];
-    if (freeSquares(state, room).length === 0) room.cells.push(bestExpansion(room));
+    if (freeSquares(state, room).length === 0) room.cells.push(bestExpansion(state, room) ?? [Math.max(...room.cells.map(([x]) => x)) + 1, 0]);
     const [x, y] = freeSquares(state, room)[0];
     state.furniture.push({ kind: desk.id, room: room.id, x, y });
   });
@@ -757,14 +851,16 @@ function placeFor(state: GameState, genre?: Genre): string | null {
 }
 
 /**
- * Buys a monkey with Lines for a department. The department can be left out
+ * Buys a monkey with points for a department. The department can be left out
  * when only one has room; the player chooses otherwise.
  */
 export function buyMonkey(state: GameState, genre?: Genre): boolean {
-  const cost = nextMonkeyCost(state);
   const dept = placeFor(state, genre);
-  if (state.letters.length === 0 || state.lines < cost || dept === null) return false;
-  state.lines -= cost;
+  if (dept === null) return false;
+  const cost = nextMonkeyCost(state, (dept || undefined) as Genre | undefined);
+  if (state.letters.length === 0 || state.currency < cost) return false;
+  state.currency -= cost;
+  state.monkeysBought[dept] = (state.monkeysBought[dept] ?? 0) + 1;
   state.monkeys.push({ ...createMonkey(), department: dept });
   placeDesk(state, (dept || undefined) as Genre | undefined);
   return true;
@@ -818,8 +914,15 @@ function lineLength(m: MonkeyState): number {
   return m.line.reduce((n, s) => n + s.text.length, 0) + m.pending.length;
 }
 
+let lineLimit = lineWidth;
+
+/** How many letters a monkey's line holds before it starts over: a front end sets this to fit its screen. */
+export function setLineWidth(letters: number): void {
+  lineLimit = Math.max(10, Math.floor(letters) || lineWidth);
+}
+
 function addToLine(m: MonkeyState, segment: Segment): void {
-  if (lineLength(m) + segment.text.length > lineWidth) m.line = [];
+  if (lineLength(m) + segment.text.length > lineLimit) m.line = [];
   m.line.push(segment);
 }
 
@@ -1003,13 +1106,27 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
       countWord(state, m, e.text, paid, !!slot && e.text === slot);
       checkPlayLines(state, m);
     } else {
+      endChain(state, m);
       m.chainWords = [];
       m.chainPoints = 0;
       m.chainRecent = [];
       m.chainLength = 0;
+      m.chainCounted = 0;
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
+}
+
+/** Sentences a chain of `counted` long-enough words pays when it ends. */
+export function chainSentences(counted: number): number {
+  return counted < sentenceRules.chainWords ? 0 : 1 + Math.floor((counted - sentenceRules.chainWords) / sentenceRules.extraEvery);
+}
+
+/** A chain just broke: a long one pays Sentences. */
+function endChain(state: GameState, m: MonkeyState): void {
+  const n = chainSentences(m.chainCounted);
+  state.sentences += n;
+  state.stats.chainSentences += n;
 }
 
 /** Records a scored word in the statistics. Slot words count their letters as typed here. */
@@ -1024,6 +1141,7 @@ function countWord(state: GameState, m: MonkeyState, word: string, paid: number,
     st.bestWordPoints = paid;
   }
   st.longestChain = Math.max(st.longestChain, m.chainLength);
+  if (word.length >= sentenceRules.wordMinLength) m.chainCounted++;
 }
 
 /** The combo multiplier: how many different long words are in the chain, up to the cap. */
@@ -1234,7 +1352,7 @@ export function managerLine(state: GameState, genre: Genre | undefined): Pin | n
     const done = new Set(state.completed[play.id] ?? []);
     play.lines.forEach((line, index) => {
       if (done.has(index) || !ownsLine(state, play, index)) return;
-      const rank: [number, number] = [missingLetters(state, line.letters).length === 0 ? 0 : 1, line.words.length];
+      const rank: [number, number] = [inReach(state, line.letters) ? 0 : 1, line.words.length];
       if (rank[0] < bestRank[0] || (rank[0] === bestRank[0] && rank[1] < bestRank[1])) {
         best = { play: play.id, index };
         bestRank = rank;
@@ -1261,12 +1379,12 @@ export function manage(state: GameState): void {
     // An out-of-reach target is reconsidered when letters or script change, in case a line came within reach.
     const key = `${state.letters.join('')}|${state.owned.join('|')}`;
     const line = t && plays.get(t.play)?.lines[t.index];
-    const stale = !!line && missingLetters(state, line.letters).length > 0 && managerChecked.get(genre) !== key;
+    const stale = !!line && !inReach(state, line.letters) && managerChecked.get(genre) !== key;
     if (!t || done || stale) {
       if (t) unpin(state, t);
       boss.target = managerLine(state, genre);
       const picked = boss.target && plays.get(boss.target.play)?.lines[boss.target.index];
-      if (picked && missingLetters(state, picked.letters).length > 0) managerChecked.set(genre, key);
+      if (picked && !inReach(state, picked.letters)) managerChecked.set(genre, key);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
         state.pinned.push(boss.target);
       }
@@ -1328,19 +1446,19 @@ export function buyTypewriter(state: GameState, index = 0): boolean {
   return true;
 }
 
-export function tick(state: GameState, seconds: number, rng: Rng = Math.random): void {
+export function tick(state: GameState, seconds: number, rng: Rng = Math.random, lettersPerSecondCap = maxSimulatedLettersPerSecond): void {
   if (seconds <= 0 || state.letters.length === 0) return;
   state.stats.secondsTyping += seconds;
   manage(state);
   const due = state.monkeys.map((m) => {
-    if (m.manager) return 0;
+    if (m.manager || !canReachDesk(state, m)) return 0;
     m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds, energyRates(state, m));
     const n = Math.floor(m.progress);
     m.progress -= n;
     return n;
   });
   const total = due.reduce((a, b) => a + b, 0);
-  const budget = Math.max(state.monkeys.length, Math.floor(maxSimulatedLettersPerSecond * seconds));
+  const budget = Math.max(state.monkeys.length, Math.floor(lettersPerSecondCap * seconds));
   const share = total > budget ? budget / total : 1;
   const before = wordEarnings;
   const wordsBefore = state.wordsTyped;

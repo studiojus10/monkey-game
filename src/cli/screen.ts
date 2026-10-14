@@ -1,4 +1,4 @@
-import { accessories, monkeyIcon, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
+import { accessories, departmentRules, monkeyIcon, type Accessory, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, typewriterKeys, wordSlots } from '../game/config';
 import {
   availableKeys,
   furnitureSpot,
@@ -6,9 +6,6 @@ import {
   accessoryIn,
   furnitureCost,
   canSeatMonkey,
-  roomCost,
-  roomlessDepartments,
-  squareCost,
   availablePlays,
   departmentPicks,
   departmentChoices,
@@ -34,6 +31,8 @@ import {
   breakLeft,
   energyRates,
   nextMonkeyCost,
+  departmentTypists,
+  departmentsWithRoom,
   ownedProgress,
   ownsLine,
   ownsScene,
@@ -52,17 +51,25 @@ import {
 } from '../game/logic';
 import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
-import { roomName } from './office';
+
 import type { GameState, MonkeyState } from '../game/state';
 import { formatNumber } from '../format';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
- * then any letters still waiting to become a word and a cursor.
+ * then any letters still waiting to become a word and a cursor. At most
+ * `room` letters show: the newest ones.
  * Uses ANSI bold, which every common terminal supports.
  */
-export function renderLine(m: MonkeyState): string {
-  const text = m.line.map((s) => s.text.toUpperCase());
+export function renderLine(m: MonkeyState, room = Infinity): string {
+  let text = m.line.map((s) => s.text.toUpperCase());
+  // On a screen narrower than the line, its oldest letters drop off the left.
+  let over = text.join('').length + m.pending.length - room;
+  for (let i = 0; over > 0 && i < text.length; i++) {
+    const cut = Math.min(over, text[i].length);
+    text = text.map((t, j) => (j === i ? t.slice(cut) : t));
+    over -= cut;
+  }
   // The live part is bold: the current run of back-to-back words plus any
   // letters still forming a word. If the newest letter was skipped, just it.
   let lastSkip = m.line.length - 1;
@@ -94,7 +101,7 @@ export function unownedLetters(state: GameState): string[] {
 /** The prompt shown while picking which letter to buy, with each letter's value. */
 export function letterPickPrompt(state: GameState): string {
   const choices = unownedLetters(state).map((l) => `${l}(${letterValues[l]})`);
-  return `Press the letter to buy, any other key cancels. Values: ${choices.join(' ')}`;
+  return `Press letters to buy (any other key: done). Values: ${choices.join(' ')}`;
 }
 
 /** Exact counts with thousands separators, e.g. 4,011. */
@@ -126,8 +133,39 @@ export function departmentPrompt(state: GameState): string {
 /** A bonus as a percentage, e.g. 0.215 -> "21.5%". */
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
+/**
+ * Each shown monkey's label (icon, name, accessories, speed and energy) and
+ * multiplier, padded so every monkey's text starts in the same column.
+ */
+function monkeyLabels(state: GameState): { labels: string[][]; nameWidth: number; comboWidth: number } {
+  const shown = state.monkeys.slice(0, maxMonkeyLines);
+  // Pad names and multipliers so every monkey's text starts in the same column.
+  // With more than one department, each monkey's line starts with its department's initial.
+  const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
+  // A typist shows its speed now and its energy; on a break, how long is left.
+  const status = (m: MonkeyState) =>
+    m.manager
+      ? `${monkeySpeed(state, m).toFixed(2)}/s`
+      : m.resting
+        ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
+        : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
+  // Each monkey has an icon, its hat if it wears one; other accessories show as letters after its name.
+  const worn = (m: MonkeyState) => {
+    const glyphs = accessories.filter((a) => !a.icon && m.accessories.includes(a.id)).map((a) => a.glyph).join('');
+    return glyphs ? `[${glyphs}]` : '';
+  };
+  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
+  return { labels, nameWidth: Math.max(...labels.map(([n]) => n.length)), comboWidth: Math.max(...labels.map(([, c]) => c.length)) };
+}
+
+/** Letters a monkey's line has room for on a screen this many columns wide (after its label, keeping the last column and the cursor free). */
+export function lineRoom(state: GameState, columns: number): number {
+  const { nameWidth, comboWidth } = monkeyLabels(state);
+  return columns - (nameWidth + 1 + comboWidth + 2) - 2;
+}
+
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = '', shop: Store | null = null): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0): string {
   const lines = [`=== ${theme.title} ===`, ''];
 
   if (state.owned.length === 0 && state.departments.length === 0) {
@@ -180,32 +218,17 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
   const shown = state.monkeys.slice(0, maxMonkeyLines);
-  // Pad names and multipliers so every monkey's text starts in the same column.
-  // With more than one department, each monkey's line starts with its department's initial.
-  const tag = (m: MonkeyState) => (departmentGenres(state).length > 1 ? `${genreNames[monkeyGenre(state, m)!][0]} ` : '');
-  // A typist shows its speed now and its energy; on a break, how long is left.
-  const status = (m: MonkeyState) =>
-    m.manager
-      ? `${monkeySpeed(state, m).toFixed(2)}/s`
-      : m.resting
-        ? `break ${Math.ceil(breakLeft(m, energyRates(state, m)))}s`
-        : `${currentSpeed(state, m).toFixed(2)}/s ${Math.round(m.energy * 100)}%`;
-  // Each monkey has an icon, its hat if it wears one; other accessories show as letters after its name.
-  const worn = (m: MonkeyState) => {
-    const glyphs = accessories.filter((a) => !a.icon && m.accessories.includes(a.id)).map((a) => a.glyph).join('');
-    return glyphs ? `[${glyphs}]` : '';
-  };
-  const labels = shown.map((m, i) => [`${iconOf(m)} ${tag(m)}${monkeyName(state, i)}${worn(m)}(${status(m)})`, `x${comboMultiplier(state, m)}`]);
-  const nameWidth = Math.max(...labels.map(([n]) => n.length));
-  const comboWidth = Math.max(...labels.map(([, c]) => c.length));
+  const { labels, nameWidth, comboWidth } = monkeyLabels(state);
+  const room = columns > 0 ? lineRoom(state, columns) : Infinity;
   lines.push(
-    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m)}`),
+    ...shown.map((m, i) => `${labels[i][0].padEnd(nameWidth)} ${labels[i][1].padEnd(comboWidth)}  ${m.manager ? managerLine(m) : renderLine(m, room)}`),
     ...(state.monkeys.length > maxMonkeyLines
       ? [`...and ${state.monkeys.length - maxMonkeyLines} more monkeys typing`]
       : []),
     '',
-    `${bold(`${formatNumber(state.currency)} ${theme.currency}`)}   ${formatNumber(state.sentences)} Sentences   ` +
-      `${formatNumber(state.lines)} Lines   ${formatNumber(state.words)} Words`,
+    [`${formatNumber(state.currency)} ${theme.currency}`, `${formatNumber(state.words)} Words`, `${formatNumber(state.sentences)} Sentences`, `${formatNumber(state.lines)} Lines`]
+      .map(bold)
+      .join('   '),
     `Letters: ${state.letters.join(' ')}`,
     `Script: ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned, ` +
       `${count(written)} / ${count(ownedLines)} lines written`,
@@ -215,7 +238,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       (state.lastWord ? `   Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}` : ''),
     ...lastLineText(state),
     ...lastMilestoneText(state),
-    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Real estate store.'] : []),
+    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...pinnedText(state),
     '',
     ...(shop ? shopLines(state, shop) : []),
@@ -280,19 +303,18 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
       const capped = what === 'skill' && m.skill >= skillCap(m);
       return `[${i + 1}] ${monkeyName(state, i)} ${m.skill}/${skillCap(m)}${capped ? ' (needs a typewriter)' : ` ${price(cost, state.currency)}`}`;
     });
-  return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}`;
+  return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}   (any other key: done)`;
 }
 
 /** The shop's stores, shown as tabs; tab or left/right switches between them. */
-export const stores = ['staff', 'typewriters', 'furniture', 'script', 'accessories', 'estate'] as const;
+export const stores = ['typewriters', 'staff', 'script', 'furniture', 'accessories'] as const;
 export type Store = (typeof stores)[number];
 export const storeNames: Record<Store, string> = {
-  staff: 'Staff',
   typewriters: 'Typewriters',
-  furniture: 'Furniture',
+  staff: 'Staff',
   script: 'Script',
+  furniture: 'Furniture',
   accessories: 'Accessories',
-  estate: 'Real estate',
 };
 
 /** Something for sale in a store. Items without an id are information only and get no number. */
@@ -307,13 +329,27 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
   const typingShop = typingItems(state);
   switch (store) {
     case 'staff': {
-      const nextMonkey = nextMonkeyCost(state);
       const nextCap = capRaiseCost(state.comboCapLevel);
+      const open = departmentGenres(state);
+      // With several departments each has its own price, so each gets its own line.
+      const hire = (genre?: Genre): ShopItem => {
+        const cost = nextMonkeyCost(state, genre);
+        const where = genre ? ` for ${genreNames[genre]} (${departmentTypists(state, genre)}/${departmentRules.maxTypists})` : ` (you have ${state.monkeys.length})`;
+        return { id: genre ? `hire:${genre}` : 'hire', star: state.currency >= cost, text: `Hire a monkey${where}   cost ${price(cost, state.currency)} ${theme.currency}` };
+      };
+      const rooms = departmentsWithRoom(state);
       return [
+        ...(departmentPicks(state) > 0
+          ? [{ id: 'department', star: true, text: 'Open a new department!' }]
+          : nextDepartmentAt(state) > 0
+            ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys` }]
+            : []),
         typingShop.skill,
-        canSeatMonkey(state)
-          ? { id: 'hire', star: state.lines >= nextMonkey, text: `Hire a monkey (you have ${state.monkeys.length})   cost ${price(nextMonkey, state.lines)} Lines` }
-          : { text: "Hire a monkey: no free square for its desk. Grow its department's room in Real estate." },
+        ...(!canSeatMonkey(state)
+          ? [{ text: "Hire a monkey: no free square for its desk. Grow its department's room on the office map ([o])." }]
+          : open.length > 1
+            ? rooms.map((g) => hire(g))
+            : [hire()]),
         ...(state.unassignedMonkeys > 0
           ? [
               canSeatMonkey(state)
@@ -356,11 +392,11 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
       return [
         ...furnitureKinds.map((k) => {
           const cost = furnitureCost(state, k.id);
-          return { id: `furniture:${k.id}`, star: spot && state.currency >= cost, text: `${k.name} [${k.glyph}]: ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return { id: `furniture:${k.id}`, star: !!furnitureSpot(state, k.id) && state.currency >= cost, text: `${k.name} [${k.glyph}]: ${furnitureEffect(k)}   cost ${price(cost, state.currency)} ${theme.currency}` };
         }),
         {
           text: !spot
-            ? 'No free floor left: buy a break room or grow a room in the Real estate store.'
+            ? 'No free floor left: buy a break room or grow a room on the office map ([o]).'
             : [
                 state.settings.autoPlaceFurniture ? 'New furniture places itself, in a break room first ([c] options).' : 'New furniture opens the office map so you can place it.',
                 ...(state.office.some((r) => r.kind === 'break') ? [] : ['With no break room, it takes a square a desk could use.']),
@@ -376,32 +412,9 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         ...accessories.map((a) => {
           const cost = accessoryCost(state, a.id);
           const someone = team.some((i) => !state.monkeys[i].accessories.includes(a.id));
-          return { id: `accessory:${a.id}`, star: someone && state.currency >= cost, text: `${a.name} [${a.icon ?? a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.currency)} ${theme.currency}` };
+          return { id: `accessory:${a.id}`, star: someone && state.sentences >= cost, text: `${a.name} [${a.icon ?? a.glyph}], ${a.slot}: ${accessoryEffect(a)}   cost ${price(cost, state.sentences)} Sentences` };
         }),
         { text: "Each is for one monkey, one per slot (head, eyes, ears, hands, feet). A hat changes the monkey's icon; the rest show as letters after its name." },
-      ];
-    }
-    case 'estate': {
-      const roomPrice = roomCost(state);
-      const squarePrice = squareCost(state);
-      return [
-        ...(departmentPicks(state) > 0
-          ? [{ id: 'department', text: 'Open a new department!' }]
-          : nextDepartmentAt(state) > 0
-            ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys` }]
-            : []),
-        { id: 'map', text: 'View and design the office map' },
-        ...roomlessDepartments(state).map((g) => ({
-          id: `room:${g}`,
-          star: state.currency >= roomPrice,
-          text: `Buy a room for the ${genreNames[g]} department   cost ${price(roomPrice, state.currency)} ${theme.currency}`,
-        })),
-        { id: 'room:break', star: state.currency >= roomPrice, text: `Buy a break room for furniture   cost ${price(roomPrice, state.currency)} ${theme.currency}` },
-        ...state.office.map((r) => ({
-          id: `grow:${r.id}`,
-          star: state.currency >= squarePrice,
-          text: `Grow the ${roomName(state, r)} by a square (${r.cells.length} now)   cost ${price(squarePrice, state.currency)} ${theme.currency}`,
-        })),
       ];
     }
   }
@@ -443,7 +456,7 @@ export function accessoryPickPrompt(state: GameState, id: string): string {
       const note = m.accessories.includes(id) ? ' (has one)' : worn ? ` (swaps its ${worn.name.toLowerCase()})` : '';
       return `[${i + 1}] ${monkeyName(state, i)}${note}`;
     });
-  return `${a.name} for which monkey? ${rows.join('   ')}`;
+  return `${a.name} (${price(accessoryCost(state, id), state.sentences)} Sentences) for which monkey? ${rows.join('   ')}   (any other key: done)`;
 }
 
 /** What a kind of furniture does, in a few words. */
@@ -453,7 +466,7 @@ export function furnitureEffect(k: FurnitureKind): string {
     ...(k.drain ? [`a department's monkeys tire ${pct(k.drain)} slower`] : []),
     ...(k.rest ? [`in a break room, breaks go ${pct(k.rest)} faster`] : []),
     ...(k.happiness ? [`+${pct(k.happiness)} points`] : []),
-  ].join(', ');
+  ].join(', ') + (k.size ? ` (takes ${k.size[0]} x ${k.size[1]} squares)` : '');
 }
 
 /** The numbered (buyable) items of a store, in key order 1-9. */
@@ -617,7 +630,7 @@ export function managerUpgradePrompt(state: GameState): string {
     return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} ` +
       `${price(managerUpgradeCost(state, m), state.lines)} Lines`;
   });
-  return `Upgrade which manager? ${choices.join('   ')}   (any other key cancels)`;
+  return `Upgrade which manager? ${choices.join('   ')}   (any other key: done)`;
 }
 
 /** How many scenes the player owns, across plays. */

@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { departmentRules, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { departmentRules, desk, managers, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -10,12 +10,14 @@ import {
   buyAccessory,
   buyFurniture,
   cellAt,
+  pieceSize,
   furnitureSpot,
   furnitureCost,
   moveFurniture,
+  rotateFurniture,
   buyRoom,
   expandRoom,
-  roomBounds,
+  roomlessDepartments,
   roomCost,
   squareCost,
   canSeatMonkey,
@@ -33,6 +35,7 @@ import {
   starterScenes,
   departmentChoices,
   monkeyGenre,
+  canAffordLetter,
   moveMonkey,
   assignMonkey,
   departmentsWithRoom,
@@ -60,12 +63,13 @@ import {
   setSlotWord,
   setPlays,
   setWordList,
+  setLineWidth,
   tick,
   togglePin,
   toggleSlot,
 } from '../game/logic';
 import { load, save } from '../game/save';
-import { createInitialState } from '../game/state';
+import { createInitialState, type Door, type Side } from '../game/state';
 import { formatNumber } from '../format';
 import { fileStorage } from './fileStorage';
 import {
@@ -77,6 +81,7 @@ import {
   managerUpgradePrompt,
   renderKeysMenu,
   renderScreen,
+  lineRoom,
   renderScript,
   renderContents,
   stores,
@@ -93,7 +98,8 @@ import {
 } from './screen';
 import { devTools } from '../game/dev';
 import { dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderDictionary, renderStats } from './stats';
-import { furnitureName, renderOffice, roomName, type Cell } from './office';
+import { sideName, furnitureName, renderOffice, roomName, type Cell } from './office';
+import { cycleDoor, officeBounds, placeDoor, roomAt, takeDoor, toggleHall } from '../game/layout';
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -105,6 +111,14 @@ const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
 const storage = fileStorage(savePath);
 
 let state = load(storage);
+/** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
+function fitLines(): number {
+  const columns = process.stdout.columns || 80;
+  if (state.monkeys.length > 0) setLineWidth(lineRoom(state, columns));
+  return columns;
+}
+
+fitLines();
 const offline = applyOfflineProgress(state, Date.now());
 let message =
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
@@ -121,13 +135,16 @@ let showingDev = false;
 let showingStats = false;
 let showingOffice = false;
 let officeCursor: Cell | null = null; // the selected cell on the office map
-let officeExpanding = false; // choosing a square to grow the cursor's room
+let officeGrowing = ''; // id of the room whose new square is being chosen
+let buyingRoom = false; // choosing what room to buy on the office map
 let showingOptions = false;
 let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
+let heldTurned = false; // whether it was turned when picked up, for esc
+let heldDoor: { from: Door; side: Side } | null = null; // a door being moved on the office map
 let showingDictionary = false;
 let dictionaryRow = 0;
 let shop: Store | null = null; // the open store; the shop starts closed and space opens and closes it
-let lastStore: Store = 'staff';
+let lastStore: Store = 'typewriters';
 let showingSlots = false;
 let selectedSlot = 0; // index into state.slots
 let slotDept = 0; // index into departmentGenres(state)
@@ -180,9 +197,14 @@ function buyItem(id: string): void {
       pickingLetter = true;
       message = letterPickPrompt(state);
     }
+  } else if (id.startsWith('hire:')) {
+    const g = id.slice('hire:'.length) as Genre;
+    if (state.currency < nextMonkeyCost(state, g)) message = `Not enough ${theme.currency}.`;
+    else if (buyMonkey(state, g)) startNaming(state.monkeys.length - 1);
+    else message = noSeatMessage();
   } else if (id === 'hire') {
     const rooms = departmentsWithRoom(state);
-    if (state.lines < nextMonkeyCost(state)) message = 'Not enough Lines. Lines come from writing lines of the play.';
+    if (state.currency < nextMonkeyCost(state)) message = `Not enough ${theme.currency}.`;
     else if (!canSeatMonkey(state)) message = noSeatMessage();
     else if (rooms.length > 1) {
       pickingDeptFor = 'buy';
@@ -196,7 +218,7 @@ function buyItem(id: string): void {
       message = deptPrompt('Which department gets the new monkey?');
     }
   } else if (id === 'combo') {
-    if (!buyCapRaise(state)) message = 'Not enough Sentences. Sentences come from writing lines of 3+ words.';
+    if (!buyCapRaise(state)) message = noSentences;
   } else if (id === 'keys') {
     showingKeys = true;
   } else if (id === 'slots') {
@@ -211,21 +233,10 @@ function buyItem(id: string): void {
     message = managerUpgradePrompt(state);
   } else if (id === 'script') {
     openScript();
-  } else if (id.startsWith('room:')) {
-    const what = id.slice('room:'.length);
-    if (state.currency < roomCost(state)) message = `Not enough ${theme.currency}.`;
-    else if (what === 'break' ? buyRoom(state, 'break') : buyRoom(state, 'department', what as Genre)) {
-      message = `You have a new room, the ${roomName(state, state.office[state.office.length - 1])}. See it on the office map with [o].`;
-    }
-  } else if (id.startsWith('grow:')) {
-    const room = state.office.find((r) => r.id === id.slice('grow:'.length));
-    if (room) message = expandRoom(state, room.id) ? `The ${roomName(state, room)} grew by a square. Choose squares yourself with [x] on the office map.` : `Not enough ${theme.currency}.`;
-  } else if (id === 'map') {
-    openOffice();
   } else if (id.startsWith('accessory:')) {
     const what = id.slice('accessory:'.length);
     const team = typists(state);
-    if (state.currency < accessoryCost(state, what)) message = `Not enough ${theme.currency}.`;
+    if (state.sentences < accessoryCost(state, what)) message = noSentences;
     else if (team.length === 1) message = buyAccessoryFor(team[0], what);
     else {
       pickingAccessory = what;
@@ -233,7 +244,10 @@ function buyItem(id: string): void {
     }
   } else if (id.startsWith('furniture:')) {
     const kind = id.slice('furniture:'.length);
-    if (!furnitureSpot(state)) message = 'No free floor left. Buy a break room or grow a room in Real estate.';
+    if (!furnitureSpot(state, kind))
+      message = furnitureSpot(state)
+        ? `No room for a ${kind}: it needs ${pieceSize(kind).join(' x ')} free squares in one room. Make space on the office map ([o]).`
+        : 'No free floor left. Buy a break room or grow a room on the office map ([o]).';
     else if (state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
     else if (buyFurniture(state, kind)) {
       const i = state.furniture.length - 1;
@@ -242,7 +256,7 @@ function buyItem(id: string): void {
         // Placing it yourself: the map opens with the new piece in hand.
         openOffice();
         const f = state.furniture[i];
-        officeCursor = { room: f.room, x: f.x, y: f.y };
+        officeCursor = { x: f.x, y: f.y };
         heldFurniture = i;
         message = `Where should the ${furnitureName(state, i)} go? [esc] leaves it here.`;
       }
@@ -254,26 +268,29 @@ function buyItem(id: string): void {
 function buyAccessoryFor(i: number, id: string): string {
   const name = monkeyName(state, i);
   if (state.monkeys[i].accessories.includes(id)) return `${name} already has one.`;
-  return buyAccessory(state, i, id) ? `${name} looks sharp.` : `Not enough ${theme.currency}.`;
+  return buyAccessory(state, i, id) ? `${name} looks sharp.` : noSentences;
 }
+
+const noSentences = 'Not enough Sentences. They come from long chains of words and from lines of the play.';
 
 /** Why a new monkey can't be seated. */
 function noSeatMessage(): string {
   const genres = departmentGenres(state);
   return genres.length > 0 && genres.every((g) => departmentTypists(state, g) >= departmentRules.maxTypists)
-    ? 'Every department is full. Open another in Real estate.'
-    : "No free square for a desk. Grow a department's room in Real estate.";
+    ? 'Every department is full. Open another in the Staff store.'
+    : "No free square for a desk. Grow a department's room on the office map ([o]).";
 }
 
 /** Opens the office map with the cursor in the top-left corner of the first room. */
 function openOffice(): void {
   showingOffice = true;
   heldFurniture = -1;
-  officeExpanding = false;
+  officeGrowing = '';
+  buyingRoom = false;
   message = '';
-  if (!officeCursor || !state.office.some((r) => r.id === officeCursor!.room)) {
-    const b = roomBounds(state.office[0]);
-    officeCursor = { room: state.office[0].id, x: b.minX, y: b.minY };
+  if (!officeCursor) {
+    const [x, y] = state.office[0].cells[0];
+    officeCursor = { x, y };
   }
 }
 
@@ -300,13 +317,14 @@ function buyTyping(i: number, what: 'skill' | 'typewriter'): string {
 }
 
 function draw() {
+  const columns = fitLines();
   // Clear the screen and move the cursor home, then redraw.
   const screen = showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message)
     : showingOptions
     ? renderOptions(state)
     : showingOffice
-    ? renderOffice(state, message, officeCursor, heldFurniture, officeExpanding)
+    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null)
     : showingStats
     ? renderStats(state)
     : showingDictionary
@@ -319,7 +337,7 @@ function draw() {
       ? renderKeysMenu(state, message)
       : showingSlots
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message)
-        : renderScreen(state, message, shop);
+        : renderScreen(state, message, shop, columns);
   process.stdout.write('\x1b[2J\x1b[H' + screen + '\n');
 }
 
@@ -392,11 +410,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  // Picking menus stay open after a purchase so you can buy more; any other key closes them.
   if (pickingManagerUpgrade) {
-    pickingManagerUpgrade = false;
     const i = managerChoices(state)[Number(str) - 1];
-    if (i === undefined) message = 'No manager upgraded.';
-    else message = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Lines.';
+    if (i === undefined) {
+      pickingManagerUpgrade = false;
+      message = 'Done.';
+    } else {
+      const result = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Lines.';
+      message = `${result}  ${managerUpgradePrompt(state)}`;
+    }
     return draw();
   }
 
@@ -426,19 +449,21 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (pickingAccessory) {
     const what = pickingAccessory;
-    pickingAccessory = '';
     const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) message = 'Nothing bought.';
-    else message = buyAccessoryFor(i, what);
+    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) {
+      pickingAccessory = '';
+      message = 'Done.';
+    } else message = `${buyAccessoryFor(i, what)}  ${accessoryPickPrompt(state, what)}`;
     return draw();
   }
 
   if (pickingTyping) {
     const what = pickingTyping;
-    pickingTyping = '';
     const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) message = 'Nothing bought.';
-    else message = buyTyping(i, what);
+    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) {
+      pickingTyping = '';
+      message = 'Done.';
+    } else message = `${buyTyping(i, what) || `${monkeyName(state, i)} types faster.`}  ${typingPickPrompt(state, what)}`;
     return draw();
   }
 
@@ -461,9 +486,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (pickingLetter) {
-    pickingLetter = false;
     const letter = str?.toUpperCase() ?? '';
-    message = buyLetter(state, letter) ? `You bought ${letter}.` : 'No letter bought.';
+    if (!/^[A-Z]$/.test(letter) || state.letters.includes(letter)) {
+      pickingLetter = false;
+      message = 'Done.';
+    } else if (buyLetter(state, letter)) {
+      pickingLetter = canAffordLetter(state);
+      message = pickingLetter ? `You bought ${letter}.  ${letterPickPrompt(state)}` : `You bought ${letter}.`;
+    } else {
+      pickingLetter = false;
+      message = 'Not enough to buy that letter.';
+    }
     return draw();
   }
 
@@ -619,41 +652,89 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingOffice && officeCursor) {
     message = '';
-    const rooms = state.office;
-    const at = Math.max(0, rooms.findIndex((r) => r.id === officeCursor!.room));
-    const room = rooms[at];
     const c = officeCursor;
-    // The cursor stays on the room's grid; while growing it, one square further out.
-    const b = roomBounds(room);
-    const m = officeExpanding ? 1 : 0;
+    const here = roomAt(state, c.x, c.y);
+    if (buyingRoom) {
+      buyingRoom = false;
+      const roomless = roomlessDepartments(state);
+      const g = roomless[Number(str) - 1];
+      if (str !== 'b' && !g) message = 'No room bought.';
+      else if (state.currency < roomCost(state)) message = `Not enough ${theme.currency}.`;
+      else if (g ? buyRoom(state, 'department', g) : buyRoom(state, 'break')) {
+        const room = state.office[state.office.length - 1];
+        Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
+        message = `You have a new room, the ${roomName(state, room)}, with a hallway to the rest of the office.`;
+      }
+      return draw();
+    }
+    // The cursor roams the office and one square around it.
+    const b = officeBounds(state);
+    const holding = heldFurniture >= 0 || !!heldDoor;
     if (key.name === 'escape' || key.name === 'q' || str === 'o') {
-      if (officeExpanding) officeExpanding = false;
-      else if (heldFurniture >= 0) heldFurniture = -1; // it stays where it was
-      else showingOffice = false;
-    } else if (key.name === 'up') c.y = Math.max(b.minY - m, c.y - 1);
-    else if (key.name === 'down') c.y = Math.min(b.maxY + m, c.y + 1);
-    else if (key.name === 'left') c.x = Math.max(b.minX - m, c.x - 1);
-    else if (key.name === 'right') c.x = Math.min(b.maxX + m, c.x + 1);
-    else if (key.name === 'tab') {
-      const next = rooms[(at + 1) % rooms.length];
-      const nb = roomBounds(next);
-      officeCursor = { room: next.id, x: Math.min(Math.max(c.x, nb.minX), nb.maxX), y: Math.min(Math.max(c.y, nb.minY), nb.maxY) };
-    } else if (str === 'x' && heldFurniture < 0) {
-      officeExpanding = !officeExpanding;
-      if (!officeExpanding) Object.assign(c, { x: Math.min(Math.max(c.x, b.minX), b.maxX), y: Math.min(Math.max(c.y, b.minY), b.maxY) });
-    } else if (key.name === 'return' || key.name === 'enter') {
-      const here = cellAt(state, c.room, c.x, c.y);
-      if (officeExpanding) {
-        if (here !== null) message = 'That square is already part of the room. Choose a +.';
+      if (officeGrowing) officeGrowing = '';
+      else if (heldFurniture >= 0) {
+        // It stays where it was, turned the way it was.
+        const f = state.furniture[heldFurniture];
+        if (heldTurned) f.turned = true;
+        else delete f.turned;
+        heldFurniture = -1;
+      } else if (heldDoor) {
+        state.doors.push(heldDoor.from);
+        heldDoor = null;
+      } else showingOffice = false;
+    } else if (key.name === 'up') c.y = Math.max(b.minY - 1, c.y - 1);
+    else if (key.name === 'down') c.y = Math.min(b.maxY + 1, c.y + 1);
+    else if (key.name === 'left') c.x = Math.max(b.minX - 1, c.x - 1);
+    else if (key.name === 'right') c.x = Math.min(b.maxX + 1, c.x + 1);
+    else if (key.name === 'tab' && !officeGrowing) {
+      const rooms = state.office;
+      const next = rooms[(rooms.indexOf(here!) + 1) % rooms.length];
+      const [x, y] = [...next.cells].sort((p, q) => p[1] - q[1] || p[0] - q[0])[0];
+      Object.assign(c, { x, y });
+    } else if (str === 'r' && heldFurniture >= 0) {
+      if (!rotateFurniture(state, heldFurniture)) message = 'Only pieces bigger than one square turn.';
+    } else if (str === 'r' && heldDoor) {
+      const turn: Record<Side, Side> = { n: 'e', e: 's', s: 'w', w: 'n' };
+      heldDoor.side = turn[heldDoor.side];
+    } else if (str === 'x' && !holding) {
+      if (officeGrowing) officeGrowing = '';
+      else if (here) officeGrowing = here.id;
+      else message = 'Put the cursor in the room you want to grow.';
+    } else if (str === 'd' && !holding && !officeGrowing) {
+      if (!cycleDoor(state, c.x, c.y)) message = here ? 'Doors go in walls onto a hallway or another room.' : 'Doors go on the edge of a room.';
+    } else if (str === 'h' && !holding && !officeGrowing) {
+      if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
+    } else if (str === 'r' && !officeGrowing) {
+      buyingRoom = true;
+      const roomless = roomlessDepartments(state).map((g, i) => `[${i + 1}] a room for ${genreNames[g]}`);
+      message = `Buy a room (${formatNumber(roomCost(state))} ${theme.currency}): ${[...roomless, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
+    } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+      // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
+      if (officeGrowing) {
+        const room = state.office.find((r) => r.id === officeGrowing);
+        if (here) message = 'That square is already part of a room. Choose a +.';
         else if (state.currency < squareCost(state)) message = `Not enough ${theme.currency}.`;
-        else if (!expandRoom(state, room.id, [c.x, c.y])) message = 'Rooms grow next to a square they already have. Choose a +.';
+        else if (!room || !expandRoom(state, room.id, [c.x, c.y])) message = 'Rooms grow onto empty squares next to them, not touching another room. Choose a +.';
       } else if (heldFurniture >= 0) {
-        if (here === heldFurniture || moveFurniture(state, heldFurniture, c.room, c.x, c.y)) heldFurniture = -1;
-        else if (here === null) message = 'That is outside the room.';
-        else if (here === 'floor') message = "Desks stay in their department's room.";
-        else message = 'Something is already there.';
-      } else if (typeof here === 'number') heldFurniture = here;
-      else message = here === null ? 'That is outside the room.' : 'No furniture there. Buy some in the Furniture store.';
+        const f = state.furniture[heldFurniture];
+        if (here && moveFurniture(state, heldFurniture, here.id, c.x, c.y)) heldFurniture = -1;
+        else if (!here) message = 'Furniture goes inside a room.';
+        else if (f.kind === desk.id && f.room !== here.id) message = "Desks stay in their department's room.";
+        else message = `It doesn't fit there: every square it takes must be free floor in one room.${pieceSize(f.kind).join() === '1,1' ? '' : ' [r] turns it.'}`;
+      } else if (heldDoor) {
+        if (placeDoor(state, c.x, c.y, heldDoor.side)) heldDoor = null;
+        else message = here ? `No door fits the ${sideName[heldDoor.side]} wall here: it needs a hallway or another room behind it. [r] tries the next wall.` : 'Doors go in the walls of a room.';
+      } else {
+        const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
+        const door = typeof spot === 'number' || !here ? undefined : takeDoor(state, c.x, c.y);
+        if (typeof spot === 'number') {
+          heldFurniture = spot;
+          heldTurned = !!state.furniture[spot].turned;
+          // A bigger piece is held by its top left square.
+          Object.assign(c, { x: state.furniture[spot].x, y: state.furniture[spot].y });
+        } else if (door) heldDoor = { from: door, side: door.side };
+        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Furniture store; [d] adds a door.';
+      }
     }
     return draw();
   }

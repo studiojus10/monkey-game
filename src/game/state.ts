@@ -19,6 +19,7 @@ export interface MonkeyState {
   chainPoints: number; // sum of the chain's word points, before the multiplier
   chainRecent: string[]; // the chain's latest words, enough to hold the longest play line
   chainLength: number; // words in the current chain, for word slots
+  chainCounted: number; // words in the current chain long enough to count towards a Sentence
   skill: number; // typing skill level: "Faster typing" bought for this monkey
   typewriter: number; // typewriter tier, 0 = the first; caps skill at (tier + 1) x levelsPerTypewriter
   energy: number; // 1 = rested, 0 = worn out; a tired monkey types slower
@@ -67,12 +68,22 @@ export interface Room {
   cells: [number, number][];
 }
 
+export type Side = 'n' | 'e' | 's' | 'w';
+
+/** A door in the wall on one side of a room's square, into a hallway or another room. */
+export interface Door {
+  x: number;
+  y: number;
+  side: Side;
+}
+
 /** A piece of furniture standing on one square of a room. Desks are furniture too. */
 export interface Furniture {
   kind: string; // 'desk' or a furnitureKinds id
   room: string; // a Room id
   x: number;
   y: number;
+  turned?: boolean; // a piece bigger than one square, turned a quarter turn (its width and height swap)
 }
 
 /** A line pinned to the home screen. */
@@ -87,7 +98,9 @@ export interface GameState {
   sentences: number; // currency: every time a play line (3+ words) is typed
   lines: number; // currency: first completion of each play line
   words: number; // currency: one for each different word ever spelled (each new dictionary entry)
-  office: Room[]; // rooms, in the order bought; the first is where you start
+  office: Room[]; // rooms, in the order bought, on one grid; the first is where you start (the entrance)
+  halls: [number, number][]; // hallway squares
+  doors: Door[];
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
   departments: string[]; // genres with a department, in the order opened: the first at the start, more as monkeys grow
@@ -106,6 +119,7 @@ export interface GameState {
   slots: WordSlot[];
   letters: string[]; // owned letters; empty until the player picks one
   monkeys: MonkeyState[];
+  monkeysBought: Record<string, number>; // monkeys bought per department ('' before the first opens), for its price
   unassignedMonkeys: number; // earned monkeys waiting for the player to pick their department
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
@@ -136,15 +150,16 @@ export interface Stats {
   longestLine: Pin | null; // the longest play line written (by letters)
   bestLinePoints: number; // the biggest first-time line payout
   pets: number; // times the player petted a monkey
+  chainSentences: number; // Sentences paid by long chains
   secondsTyping: number; // time the monkeys have been at work, offline included
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, secondsTyping: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, secondsTyping: 0 };
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, skill: 0, typewriter: 0, energy: 1, resting: false, accessories: [] };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, skill: 0, typewriter: 0, energy: 1, resting: false, accessories: [] };
 }
 
 /** A rectangle of squares from (0, 0). */
@@ -167,6 +182,8 @@ export function createInitialState(now = Date.now()): GameState {
     lines: 0,
     words: 0,
     office: [starterRoom()],
+    halls: [],
+    doors: [],
     squaresBought: 0,
     furniture: [{ kind: 'desk', room: 'r1', x: 0, y: 0 }],
     departments: [],
@@ -185,6 +202,7 @@ export function createInitialState(now = Date.now()): GameState {
     slots: [],
     letters: [],
     monkeys: [createMonkey()],
+    monkeysBought: {},
     unassignedMonkeys: 0,
     wordsTyped: 0,
     lastWord: '',

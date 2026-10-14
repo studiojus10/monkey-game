@@ -1,6 +1,7 @@
 import { accessories, desk, furnitureKinds, typing } from './config';
 import { furnishOffice } from './logic';
-import { createInitialState, createMonkey, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
+import { layOutOffice } from './layout';
+import { createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
 
 // Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
 // Version 2 had one chosen play (`play`) and pins as line numbers in it; it
@@ -51,6 +52,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       chainPoints: num(m?.chainPoints, 0),
       chainRecent: strings(m?.chainRecent),
       chainLength: Math.max(0, Math.floor(num(m?.chainLength, 0))),
+      chainCounted: Math.max(0, Math.floor(num(m?.chainCounted, 0))),
       // Saves from before per-monkey skill had one shared "Faster typing" level: every monkey keeps it,
       // with the typewriter it needs.
       skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
@@ -110,6 +112,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
           : null,
       bestLinePoints: Math.max(0, num(st.bestLinePoints, 0)),
       pets: Math.max(0, Math.floor(num(st.pets, 0))),
+      chainSentences: Math.max(0, Math.floor(num(st.chainSentences, 0))),
       secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
     };
     const oldPlay = file.version === 2 ? str(s.play) : '';
@@ -124,10 +127,14 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       lines: num(s.lines, 0),
       words: num(s.words, Object.keys(stats.words).length), // saves from before Words count what they've spelled
       office: rooms,
+      halls: (Array.isArray(s.halls) ? (s.halls as unknown[]) : []).filter(isCell).map(([x, y]) => [x, y] as [number, number]),
+      doors: (Array.isArray(s.doors) ? (s.doors as Partial<Door>[]) : [])
+        .filter((d) => d && Number.isInteger(d.x) && Number.isInteger(d.y) && ['n', 'e', 's', 'w'].includes(d.side as string))
+        .map((d) => ({ x: d.x!, y: d.y!, side: d.side! })),
       squaresBought: Math.max(0, Math.floor(num(s.squaresBought, 0))),
       furniture: (Array.isArray(s.furniture) ? s.furniture : [])
         .filter((f) => f && (f.kind === desk.id || furnitureKinds.some((k) => k.id === f.kind)) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))
-        .map((f) => ({ kind: f.kind, room: f.room, x: f.x, y: f.y })),
+        .map((f) => ({ kind: f.kind, room: f.room, x: f.x, y: f.y, ...(f.turned === true ? { turned: true } : {}) })),
       departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,
@@ -150,6 +157,9 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
         : [],
       monkeys: monkeys.length > 0 ? monkeys : [createMonkey()],
+      monkeysBought: Object.fromEntries(
+        Object.entries(s.monkeysBought && typeof s.monkeysBought === 'object' ? (s.monkeysBought as Record<string, unknown>) : {}).map(([k, v]) => [k, Math.max(0, Math.floor(num(v, 0)))]),
+      ),
       unassignedMonkeys: Math.max(0, Math.floor(num(s.unassignedMonkeys, 0))),
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
@@ -160,6 +170,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     };
     // Saves from before rooms get an office that seats their monkeys.
     if (state.office.length === 0) furnishOffice(state);
+    // Saves from before hallways had each room on its own grid: lay them out and connect them.
+    if (!Array.isArray(s.halls)) layOutOffice(state);
     return state;
   } catch {
     return fresh;

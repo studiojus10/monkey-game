@@ -42,13 +42,16 @@ export const letterShop = {
 };
 
 /**
- * You start with one monkey. More monkeys are a late upgrade paid in Lines
- * (first-time line completions); the n-th one you buy costs
- * baseCost x costGrowth^(n-1) Lines.
+ * You start with one monkey. More monkeys are paid in Points. Each
+ * department has its own price: the n-th monkey bought for the d-th
+ * department opened (both from 0) costs
+ * baseCost x departmentGrowth^d x costGrowth^n, so every department takes
+ * days to fill however many monkeys came before it.
  */
 export const monkeyShop = {
-  baseCost: 10,
-  costGrowth: 2,
+  baseCost: 300_000, // scripts/simulate.ts: 2nd monkey after about 2.5h, a full department (10) after about 3 days
+  costGrowth: 6,
+  departmentGrowth: 100,
 };
 
 /**
@@ -61,6 +64,17 @@ export const combo = {
   maxMultiplier: 3,
   capRaiseBaseCost: 1,
   capRaiseCostGrowth: 2,
+};
+
+/**
+ * Sentences from babbling: when a monkey's chain ends, it pays a Sentence if
+ * it held at least chainWords words of wordMinLength+ letters, and one more
+ * for every extraEvery such words past that. Renewable and slow-paced.
+ */
+export const sentenceRules = {
+  chainWords: 3, // measured with scripts/simulate.ts: about 40 the first hour, about 100 an hour by hour 5
+  wordMinLength: 4, // the same long words that raise the combo
+  extraEvery: 3,
 };
 
 /**
@@ -171,6 +185,7 @@ export const office = {
   roomCostGrowth: 10,
   squareBaseCost: 500,
   squareCostGrowth: 1.15,
+  mapWidth: 18, // squares across the office map before new rooms go below instead
 };
 
 /**
@@ -191,6 +206,7 @@ export interface FurnitureKind {
   drain: number; // decor: in a department's room, its monkeys tire this much slower (0.03 = 3%)
   rest: number; // in a break room, every monkey's breaks go this much faster (0.15 = 15%)
   happiness: number; // anywhere in the office: points x (1 + happiness), added up
+  size?: [number, number]; // squares across and down (1 x 1 when missing); turning a piece swaps them
 }
 
 /** The desk every monkey gets free, in its department's room. Not sold. */
@@ -200,8 +216,9 @@ export const furnitureKinds: FurnitureKind[] = [
   { id: 'plant', name: 'Potted plant', glyph: 'P', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01 },
   { id: 'lamp', name: 'Floor lamp', glyph: 'L', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01 },
   { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02 },
+  { id: 'bench', name: 'Bench', glyph: 'H', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1] },
   { id: 'cooler', name: 'Water cooler', glyph: 'W', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01 },
-  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02 },
+  { id: 'couch', name: 'Couch', glyph: 'C', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1] },
   { id: 'tv', name: 'Television', glyph: 'T', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03 },
 ];
 
@@ -248,15 +265,16 @@ export interface Accessory {
 /** A monkey's face in its icon; a hat goes on its left. All icons are ASCII. */
 export const monkeyIcon = '@';
 
+/** Accessories cost Sentences: a steady, renewable sink that grows with your staff. */
 export const accessories: Accessory[] = [
-  { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 5_000, costGrowth: 1.5, points: 0.1 },
-  { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 10_000, costGrowth: 1.5, drain: 0.15 },
-  { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 10_000, costGrowth: 1.5, rest: 0.3 },
-  { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 25_000, costGrowth: 1.5, speed: 0.1 },
-  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: 'd', cost: 2_000, costGrowth: 1.5, drain: 0.1 },
-  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '#', cost: 50_000, costGrowth: 1.5, points: 0.15 },
-  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '^', cost: 100_000, costGrowth: 2, combo: 1 },
-  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: 'W', cost: 10_000_000, costGrowth: 3, points: 0.1, speed: 0.1 },
+  { id: 'glasses', name: 'Reading glasses', slot: 'eyes', glyph: 'g', cost: 50, costGrowth: 1.5, points: 0.1 },
+  { id: 'headphones', name: 'Headphones', slot: 'ears', glyph: 'h', cost: 100, costGrowth: 1.5, drain: 0.15 },
+  { id: 'slippers', name: 'Fuzzy slippers', slot: 'feet', glyph: 's', cost: 100, costGrowth: 1.5, rest: 0.3 },
+  { id: 'mug', name: 'Coffee mug', slot: 'hands', glyph: 'c', cost: 250, costGrowth: 1.5, speed: 0.1 },
+  { id: 'baseball', name: 'Baseball cap', slot: 'head', glyph: 'b', icon: 'd', cost: 20, costGrowth: 1.5, drain: 0.1 },
+  { id: 'tophat', name: 'Top hat', slot: 'head', glyph: 'o', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15 },
+  { id: 'cap', name: 'Thinking cap', slot: 'head', glyph: 't', icon: '^', cost: 1_000, costGrowth: 2, combo: 1 },
+  { id: 'crown', name: 'Crown', slot: 'head', glyph: 'k', icon: 'W', cost: 100_000, costGrowth: 3, points: 0.1, speed: 0.1 },
 ];
 
 export const departmentRules = {
@@ -296,7 +314,7 @@ export const managers = {
   upgradeCostGrowth: 2,
 };
 
-/** Letters per typewriter line on screen. */
+/** Letters per typewriter line until a front end sets its own (the terminal sets it to reach the screen's edge). */
 export const lineWidth = 60;
 
 /**
