@@ -309,7 +309,7 @@ function monkeyRow(state: GameState, i: number, room: number, chosen = false): s
   // The home cursor: the chosen monkey's name inverse.
   const name = `${chosen ? inverse(monkeyName(state, i).padEnd(col.name)) : monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
-  const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m)}`.padStart(col.combo);
+  const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m).toFixed(1)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
   return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : renderLine(m, room)}`;
 }

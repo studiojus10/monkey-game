@@ -361,7 +361,7 @@ describe('buying letters', () => {
   });
 
   it('longer words become possible and score more', () => {
-    setWordList(['IT', 'TI']); // two-letter words: no combo
+    setWordList(['IT', 'TI']);
     try {
       const s = createInitialState(0);
       chooseFirstLetter(s, 'i');
@@ -371,8 +371,8 @@ describe('buying letters', () => {
       const seq = [0, 0.9, 0.9, 0];
       const next = () => seq[n++];
       for (let i = 0; i < 4; i++) typeLetter(s, 0, next);
-      // I T -> IT (4); T I -> TI (4)
-      expect(s.currency).toBe(8);
+      // I T -> IT (4 at x1.1); T I -> TI (4): the chain's 8 at x1.2
+      expect(s.currency).toBeCloseTo(8 * 1.2);
       expect(s.monkeys[0].line.map((x) => x.text)).toEqual(['IT', 'TI']);
     } finally {
       setWordList([]);
@@ -455,26 +455,21 @@ describe('combos', () => {
     for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
   };
 
-  it('multiplies a chain by its number of different long words, up to the cap', () => {
-    setWordList(['CAT', 'QUIZ', 'ZANY', 'QUAY', 'ZETA']);
+  it('adds 0.1 to the multiplier for each word of 2+ letters in a chain, up to the cap', () => {
+    setWordList(['CAT', 'QUIZ', 'ZANY']);
     try {
       const s = createInitialState(0);
       s.letters = [...letters];
       const m = s.monkeys[0];
       typeAll(s, 'CAT');
-      expect(s.lastWordPoints).toBe(15);
-      expect(comboMultiplier(s, m)).toBe(1); // too short to count
+      expect(comboMultiplier(s, m)).toBe(1.1);
+      expect(s.lastWordPoints).toBeCloseTo(15 * 1.1);
       typeAll(s, 'QUIZ');
-      expect(s.lastWordPoints).toBe(88); // first long word: x1
-      typeAll(s, 'ZANY');
-      expect(comboMultiplier(s, m)).toBe(2);
-      expect(s.lastWordPoints).toBe((15 + 88 + 64) * 2 - (15 + 88)); // 231
+      expect(comboMultiplier(s, m)).toBe(1.2);
+      expect(s.lastWordPoints).toBeCloseTo((15 + 88) * 1.2 - 15 * 1.1); // the whole chain at the new multiplier
       typeAll(s, 'CAT');
-      expect(s.lastWordPoints).toBe(30); // short word paid at x2
-      typeAll(s, 'QUIZ');
-      expect(comboMultiplier(s, m)).toBe(2); // repeat doesn't count
-      typeAll(s, 'QUAY');
-      typeAll(s, 'ZETA');
+      expect(comboMultiplier(s, m)).toBe(1.3); // repeats count too
+      for (let i = 0; i < 30; i++) typeAll(s, 'ZANY');
       expect(comboMultiplier(s, m)).toBe(combo.maxMultiplier);
       typeAll(s, 'X');
       expect(comboMultiplier(s, m)).toBe(1);
@@ -1082,8 +1077,8 @@ describe('manager monkeys', () => {
       const pick = (ch: string) => () => (s.letters.indexOf(ch) + 0.5) / s.letters.length;
       s.monkeys[1] = createMonkey();
       for (const ch of 'DAY') typeLetter(s, 1, pick(ch)); // no such word here: D is skipped, then AY
-      typeLetter(s, 1, pick('D')); // AY scores 10 x the bonus
-      expect(s.currency).toBeCloseTo(10 * (1 + managers.bonusPerLevel));
+      typeLetter(s, 1, pick('D')); // AY scores 10 at combo x1.1, x the bonus
+      expect(s.currency).toBeCloseTo(10 * 1.1 * (1 + managers.bonusPerLevel));
     } finally {
       setPlays([]);
     }
@@ -1663,7 +1658,7 @@ describe('hats', () => {
     expect(wearHat(s, 0, 'cap')).toBe(true); // a monkey wears one hat at a time
     expect(monkeySpeed(s, m)).toBeCloseTo(base);
     expect(wearing(m, 'points')).toBe(0);
-    expect(comboMultiplier(s, { ...m, chainWords: ['AAAA', 'BBBB', 'CCCC', 'DDDD', 'EEEE'] })).toBe(comboCap(s) + 1);
+    expect(comboMultiplier(s, { ...m, chainWords: Array(50).fill('AT') })).toBe(comboCap(s) + 1);
     expect(wearHat(s, 0, 'cowboy')).toBe(true);
     energy.drainSeconds = 600;
     expect(energyRates(s, m).drainSeconds).toBeCloseTo(600 / 0.75);

@@ -130,7 +130,7 @@ describe('terminal screen', () => {
     expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
     const rows = plain(text).split('\n');
     expect(rows[2]).toBe(' MONKEY                SPEED   ENERGY  COMBO  TYPING');
-    expect(rows[3]).toBe('  @ M-1               0.50/s     100%     x1  I_');
+    expect(rows[3]).toBe('  @ M-1               0.50/s     100%   x1.0  I_');
     expect(plain(text)).toContain('Last word: I +1');
     expect(text).toContain(bold('hello')); // the newest message, under LATELY
     expect(plain(text)).toContain('[q] quit');

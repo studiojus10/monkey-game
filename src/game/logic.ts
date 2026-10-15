@@ -1552,17 +1552,17 @@ function countWord(state: GameState, m: MonkeyState, word: string, paid: number,
 
 /** The combo multiplier: how many different long words are in the chain, up to the cap. */
 export function comboMultiplier(state: GameState, m: MonkeyState): number {
-  return Math.min(comboCap(state) + wearing(m, 'combo'), Math.max(1, m.chainWords.length));
+  return Math.min(comboCap(state) + wearing(m, 'combo'), Math.round((1 + combo.step * m.chainWords.length) * 10) / 10);
 }
 
 /**
  * Adds a word to the monkey's chain and returns what it pays: whatever
  * brings the chain's total up to (sum of its word points) x multiplier.
- * Short or repeated words join the chain but don't raise the multiplier.
+ * One-letter words join the chain but don't raise the multiplier.
  */
 function scoreInChain(state: GameState, m: MonkeyState, word: string): number {
   const before = m.chainPoints * comboMultiplier(state, m);
-  if (word.length >= combo.minWordLength && !m.chainWords.includes(word)) m.chainWords.push(word);
+  if (word.length >= combo.minWordLength && m.chainWords.length < 1000) m.chainWords.push(word);
   m.chainPoints += wordPoints(word);
   m.chainLength++;
   m.chainRecent.push(word);

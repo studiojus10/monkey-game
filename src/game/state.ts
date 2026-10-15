@@ -15,7 +15,7 @@ export interface MonkeyState {
   pending: string; // letters that might still become a word
   line: Segment[]; // what's on the current typewriter line, for display
   progress: number; // fraction of the next letter typed so far
-  chainWords: string[]; // different long words in the current chain (back-to-back words)
+  chainWords: string[]; // the words that build the combo in the current chain (back-to-back words)
   chainPoints: number; // sum of the chain's word points, before the multiplier
   chainRecent: string[]; // the chain's latest words, enough to hold the longest play line
   chainLength: number; // words in the current chain, for word slots

@@ -92,12 +92,12 @@ Each monkey's line on screen runs to the edge of the terminal (Justin, 2026-10-1
 
 Words typed back to back on the same monkey's line form a chain. The whole chain is worth the sum of its words' points × its multiplier.
 
-- **Only long, different words raise the multiplier.** Each word of **4+ letters** that isn't already in the chain adds one to the multiplier. Shorter words and repeats still join the chain and are paid at the current multiplier, but don't raise it. This keeps the early game slow, when short words are all you can make.
+- **Every word of 2+ letters adds +0.1 to the multiplier**, repeats included (Justin, 2026-10-15, "Small steps": with the old rule, one more per *different* 4+ letter word, monkeys sat at x1 about 98% of the time). One-letter words (A, I) join the chain but don't raise it, so a lone I can't build a combo. The multiplier shows with one decimal, e.g. x1.3.
 - **The multiplier is capped**, starting at **×3**. Raising the cap is an upgrade bought with [Sentences](#currencies).
 - A **skipped letter** breaks the chain.
 - Points are paid as the chain grows: when a word lands, you receive whatever brings the chain's total up to (sum of its words) × multiplier.
 
-Example: `CAT` (15) is too short to count, so it pays 15 at ×1. `QUIZ` (88) is the first long word, still ×1. `ZANY` (64) makes it ×2, so the chain total becomes (15 + 88 + 64) × 2 = 334 and ZANY pays 231. Another `CAT` pays 30 (15 at ×2). A repeated `QUIZ` doesn't raise the multiplier.
+Example: `CAT` (15) makes it ×1.1 and pays 16.5. `QUIZ` (88) makes it ×1.2, so the chain total becomes (15 + 88) × 1.2 = 123.6 and QUIZ pays 107.1. Another `CAT` makes it ×1.3.
 
 ## Currencies
 
@@ -290,7 +290,7 @@ Each step is a small pull request that you can play with `npm start` before the 
 1. **One monkey, one letter.** Replace the placeholder Worker/Workshop content. At the start you pick A or I; one slow monkey types it on screen, each word scores 1, and "Faster typing" is for sale. Builds the word matcher with tests.
 2. **Buying letters.** A letter shop, the real word list, letter values and length scoring, scored words highlighted and skipped letters dimmed.
 3. **More monkeys.** A monkey shop that unlocks at 13 letters, one line per monkey on screen, offline progress by simulation.
-4. **Combos.** Chains and the multiplier (4+ letter words, capped at ×3), combo shown per monkey. (Built.)
+4. **Combos.** Chains and the multiplier (+0.1 per word of 2+ letters, capped at ×3), combo shown per monkey. (Built.)
 5. **Pick a play.** Play choice at the start, the script view, lines completed when typed word for word, line bonuses, the Sentences and Lines currencies, Sentences buying combo-cap raises and Lines buying monkeys. (Built.)
 6. **Typewriter keys.** Combination keys and word keys (earned by spelling a word often), unlocking at 13 letters. (Built.)
 7. **Word slots.** Buy slots, set and change their words, switch them on and off, aimed at pinned lines. (Built, along with the script browser and pins.)

@@ -99,7 +99,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
         ...(isTypist(m)
           ? [
               `${label('Typing')} skill ${m.skill}/${skillCap(m)} on a ${typewriterName(m.typewriter)}, ${speedText(currentSpeed(state, m))} now`,
-              `${label('Energy')} ${m.resting ? 'resting' : `${Math.round(m.energy * 100)}%`}   combo x${comboMultiplier(state, m)}`,
+              `${label('Energy')} ${m.resting ? 'resting' : `${Math.round(m.energy * 100)}%`}   combo x${comboMultiplier(state, m).toFixed(1)}`,
             ]
           : []),
         `${label('Happiness')} ${monkeyHappiness(state, m) < 0 ? '' : '+'}${Math.round(monkeyHappiness(state, m) * 100)}%${m.petHappiness > 0 ? dim(`  (petted lately: +${(m.petHappiness * 100).toFixed(1)}%)`) : ''}`,
