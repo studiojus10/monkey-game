@@ -19,6 +19,8 @@ import {
   fitsAt,
   canReachDesk,
   wearHat,
+  moveHat,
+  swapTypewriters,
   dyeHat,
   wearing,
   drainCut,
@@ -1586,6 +1588,28 @@ describe('furniture effects', () => {
 });
 
 describe('hats', () => {
+  it('moves hats between monkeys and storage, and swaps typewriters', () => {
+    const s = createInitialState(0);
+    s.monkeys.push(createMonkey());
+    s.monkeys[0].hats = ['tophat'];
+    s.monkeys[0].hat = 'tophat';
+    expect(moveHat(s, 0, 'tophat', 1)).toBe(true);
+    expect(s.monkeys[0].hat).toBe(''); // taken off
+    expect(s.monkeys[1].hats).toEqual(['tophat']);
+    expect(moveHat(s, 0, 'tophat', 1)).toBe(false); // M-1 has none left
+    expect(moveHat(s, 1, 'tophat', 'storage')).toBe(true);
+    expect(s.stored.hats).toEqual({ tophat: 1 });
+    s.monkeys[1].hats = ['tophat'];
+    expect(moveHat(s, 'storage', 'tophat', 1)).toBe(false); // one of each kind
+    expect(moveHat(s, 'storage', 'tophat', 0)).toBe(true);
+    expect(s.stored.hats).toEqual({});
+    s.monkeys[0].typewriter = 3;
+    expect(swapTypewriters(s, 0, 1)).toBe(true);
+    expect([s.monkeys[0].typewriter, s.monkeys[1].typewriter]).toEqual([0, 3]);
+    s.monkeys[1].tempLeft = 100;
+    expect(swapTypewriters(s, 0, 1)).toBe(false); // temps keep theirs
+  });
+
   it('buys a hat with Sentences, each of a kind dearer than the last', () => {
     const s = createInitialState(0);
     s.monkeys.push(createMonkey());

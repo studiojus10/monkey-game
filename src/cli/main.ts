@@ -99,6 +99,8 @@ import {
   publishFolio,
   canPublishFolio,
   flipCoin,
+  moveHat,
+  swapTypewriters,
   flipChance,
   folioMultiplier,
   tick,
@@ -144,13 +146,14 @@ import {
   scriptPageSize,
   renderOptions,
   dyeColorPrompt,
-  dyePickPrompt,
-  hatPickPrompt,
+  dyePick,
+  hatPick,
   inspectItem,
 } from './screen';
 import { forLightBackground } from './style';
 import { devTools } from '../game/dev';
 import { renderCandidates } from './hiring';
+import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
@@ -244,8 +247,11 @@ let shopCursor = 0; // the chosen item in the open store, counted over all its p
 let officeShop: Store | null = null; // the office map's furniture shop, when open
 let lastOfficeStore: Store = 'department';
 let scriptShop = false; // the script page's shop, when open
-let pickingHat = ''; // choosing a monkey for this hat
-let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
+let giving: { kind: 'hat'; id: string } | { kind: 'dye'; color: string } | null = null; // the menu of monkeys to give a hat or dye to
+let showingInventory = false;
+let invRow = 0; // the inventory cursor's row (monkeys, then storage) and item in it
+let invCol = 0;
+let invHeld: { who: Holder; item: Item } | null = null; // the item being moved in the inventory
 let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
 let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
@@ -402,8 +408,9 @@ function buyItem(id: string): void {
     const what = id.slice('hat:'.length);
     if (state.monkeys.length === 1) message = wearHatOn(0, what);
     else {
-      pickingHat = what;
-      message = hatPickPrompt(state, what);
+      giving = { kind: 'hat', id: what };
+      menuCursor = 0;
+      message = '';
     }
   } else if (id === 'dye') {
     if (!state.monkeys.some((m) => m.hat)) message = 'No monkey is wearing a hat to dye.';
@@ -597,7 +604,12 @@ function draw() {
   }
   // Clear the screen and move the cursor home, then redraw.
   const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
-  const screen = hiring
+  const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
+  const screen = pick
+    ? renderMonkeyPicker(state, pick.title, pick.notes, menuCursor, shown, columns)
+    : showingInventory
+    ? renderInventory(state, invRow, invCol, invHeld, shown, columns)
+    : hiring
     ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), shown, columns, menuCursor)
     : showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns)
@@ -670,7 +682,7 @@ function startNaming(index: number) {
 
 /** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
 function pickerOpen(): boolean {
-  return !!(pickingDeptFor || pickingManagerUpgrade || pickingHat || pickingDyeColor || pickingDye !== null || pickingTyping || pickingDepartment || pickingLetter || buyingRoom);
+  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || pickingLetter || buyingRoom);
 }
 
 /** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */
@@ -800,13 +812,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingHat) {
-    const what = pickingHat;
-    const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
-      pickingHat = '';
-      message = 'Done.';
-    } else message = `${wearHatOn(i, what)}  ${hatPickPrompt(state, what)}`;
+  if (giving) {
+    const n = state.monkeys.length;
+    let row = menuKey(key, n);
+    if (row < 0 && str && /^[1-9]$/.test(str) && Number(str) <= n) row = menuCursor = Number(str) - 1;
+    if (row >= 0) message = giving.kind === 'hat' ? wearHatOn(row, giving.id) : dyeHatOn(row, giving.color);
+    else if (key.name === 'escape' || key.name === 'q') {
+      giving = null;
+      message = '';
+    }
     return draw();
   }
 
@@ -819,20 +833,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const wearers = state.monkeys.flatMap((m, i) => (m.hat ? [i] : []));
       if (wearers.length === 1) message = dyeHatOn(wearers[0], color);
       else {
-        pickingDye = color;
-        message = dyePickPrompt(state, color);
+        giving = { kind: 'dye', color };
+        menuCursor = 0;
+        message = '';
       }
     }
-    return draw();
-  }
-
-  if (pickingDye !== null) {
-    const color = pickingDye;
-    const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
-      pickingDye = null;
-      message = 'Done.';
-    } else message = `${dyeHatOn(i, color)}  ${dyePickPrompt(state, color)}`;
     return draw();
   }
 
@@ -1201,6 +1206,48 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingInventory) {
+    message = '';
+    const rows = inventoryRows(state);
+    invRow = Math.max(0, Math.min(invRow, rows.length - 1));
+    const here = rows[invRow];
+    const name = (who: Holder) => (who === 'storage' ? 'storage' : monkeyName(state, who));
+    if (key.name === 'escape' || key.name === 'q' || (str === 'i' && !invHeld)) {
+      if (invHeld) invHeld = null;
+      else showingInventory = false;
+    } else if (key.name === 'up' || key.name === 'down') {
+      invRow = (invRow + (key.name === 'up' ? rows.length - 1 : 1)) % rows.length;
+      invCol = Math.max(0, Math.min(invCol, rows[invRow].items.length - 1));
+    } else if ((key.name === 'left' || key.name === 'right') && here.items.length > 0) {
+      invCol = (invCol + (key.name === 'left' ? here.items.length - 1 : 1)) % here.items.length;
+    } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+      const item = here.items[invCol];
+      if (!invHeld) {
+        if (!item) message = 'Nothing there to pick up.';
+        else if (item.kind === 'typewriter' && isTemp(state.monkeys[here.who as number])) message = 'Temps keep their own typewriter.';
+        else invHeld = { who: here.who, item };
+      } else if (invHeld.who === here.who) invHeld = null; // put back where it was
+      else if (invHeld.item.kind === 'hat') {
+        const what = itemName(state, invHeld.who, invHeld.item).toLowerCase();
+        if (moveHat(state, invHeld.who, invHeld.item.id, here.who)) {
+          message = here.who === 'storage' ? `The ${what} is in storage.` : `${name(here.who)} has the ${what} now. [w] puts it on.`;
+          invHeld = null;
+          invCol = Math.max(0, Math.min(invCol, inventoryRows(state)[invRow].items.length - 1));
+        } else message = `${name(here.who)} has a ${what} already.`;
+      } else if (here.who === 'storage') message = 'Typewriters stay with monkeys: put it on another monkey to swap.';
+      else if (swapTypewriters(state, invHeld.who as number, here.who)) {
+        message = `${name(invHeld.who)} and ${name(here.who)} swapped typewriters.`;
+        invHeld = null;
+      } else message = 'Temps keep their own typewriter.';
+    } else if (str === 'w' && !invHeld) {
+      const item = here.items[invCol];
+      if (here.who === 'storage') message = 'Give it to a monkey first: pick it up and put it on one.';
+      else if (item?.kind !== 'hat') message = 'Choose a hat to wear.';
+      else message = wearHatOn(here.who, item.id);
+    }
+    return draw();
+  }
+
   if (showingRoster) {
     const order = rosterOrder(state);
     const i = order[rosterCursor];
@@ -1369,6 +1416,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     menuCursor = 0;
   } else if (str === '?') {
     showingHelp = true;
+  } else if (str === 'i') {
+    showingInventory = true;
+    invHeld = null;
   } else if (str === 'm') {
     showingRoster = true;
   } else if (str === 't') {

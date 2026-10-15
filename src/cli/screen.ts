@@ -351,7 +351,7 @@ function latelyLines(state: GameState, message: string): string[] {
 /** The keys shown under the home screen: where to go, then what to do. Every key is on the [?] page. */
 function homeKeys(state: GameState, columns: number): string[] {
   return [
-    keyRow([['space', 'shop'], ['m', 'monkeys'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
+    keyRow([['space', 'shop'], ['m', 'monkeys'], ['i', 'inventory'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
       ...(homeViews(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
       ['up/down', 'choose a monkey'],
@@ -376,6 +376,7 @@ export function renderHomeKeys(state: GameState): string {
     ...group('GO TO', [
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
+      ['i', 'the inventory: move hats between monkeys and storage, swap typewriters'],
       ['p', 'the script: plays, pins and scenes to buy'],
       ['o', 'the office map'],
       ['t', 'statistics'],
@@ -866,21 +867,15 @@ export function hatEffect(h: Hat): string {
   ].join(', ');
 }
 
-/** The monkeys a picker offers (keys 1-9), with a note for each. */
-function monkeyChoices(state: GameState, note: (m: MonkeyState) => string): string {
-  return state.monkeys
-    .slice(0, 9)
-    .map((m, i) => `[${i + 1}] ${monkeyName(state, i)}${note(m)}`)
-    .join('   ');
-}
-
-/** The prompt for choosing which monkey gets a hat. */
-export function hatPickPrompt(state: GameState, id: string): string {
+/** The monkey menu for giving a hat: its title, and a note for each monkey. */
+export function hatPick(state: GameState, id: string): { title: string; notes: string[] } {
   const h = hats.find((x) => x.id === id)!;
-  const rows = monkeyChoices(state, (m) =>
-    m.hat === id ? ' (wearing it: takes it off)' : m.hats.includes(id) ? ' (has one: free)' : hatOf(m) ? ` (swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()})` : '',
-  );
-  return `${h.name} (${priceNamed(hatCost(state, id), state.sentences, 'sentences')}) for which monkey? ${rows}   (any other key: done)`;
+  return {
+    title: `${h.name} (${priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets it?`,
+    notes: state.monkeys.map((m) =>
+      m.hat === id ? 'wearing it: takes it off' : m.hats.includes(id) ? 'has one: free' : hatOf(m) ? `swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()}` : '',
+    ),
+  };
 }
 
 /** The prompt for choosing a dye. */
@@ -888,11 +883,13 @@ export function dyeColorPrompt(): string {
   return `Dye which colour? ${hatColors.map((c, i) => `[${i + 1}] ${paint(c.id, c.name)}`).join('   ')}   [0] undyed   (any other key cancels)`;
 }
 
-/** The prompt for choosing which monkey's hat to dye. */
-export function dyePickPrompt(state: GameState, color: string): string {
+/** The monkey menu for dyeing a hat `color` ('' washes it out). */
+export function dyePick(state: GameState, color: string): { title: string; notes: string[] } {
   const name = hatColors.find((c) => c.id === color)?.name ?? 'Undyed';
-  const rows = monkeyChoices(state, (m) => (!m.hat ? ' (no hat)' : m.hatColor === color ? ' (already)' : ''));
-  return `${paint(color, name)} (${color ? priceNamed(dyeCost, state.sentences, 'sentences') : 'free'}) for which monkey's hat? ${rows}   (any other key: done)`;
+  return {
+    title: `${paint(color, name)} (${color ? priceNamed(dyeCost, state.sentences, 'sentences') : 'free'}): which monkey's hat?`,
+    notes: state.monkeys.map((m) => (!m.hat ? 'no hat' : m.hatColor === color ? 'already' : '')),
+  };
 }
 
 /** What inspecting a store item shows: its description, or nothing of interest. */

@@ -19,10 +19,10 @@ import {
   renderOptions,
   promptChoices,
   highlightChoice,
-  hatPickPrompt,
+  hatPick,
   inspectItem,
   dyeColorPrompt,
-  dyePickPrompt,
+  dyePick,
   slotHighlight,
   stores,
   openStores,
@@ -36,6 +36,7 @@ import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
+import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, monkeyNames } from '../src/game/config';
 import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
@@ -182,7 +183,7 @@ describe('terminal screen', () => {
     const s = started();
     const closed = plain(renderScreen(s));
     expect(closed).not.toContain('Faster typing');
-    expect(closed).toContain('[space] shop   [m] monkeys   [p] script   [o] office');
+    expect(closed).toContain('[space] shop   [m] monkeys   [i] inventory   [p] script');
     expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [n] name');
     expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[7mM-1 *\x1b\[27m/); // the chosen monkey's name
     const open = plain(renderScreen(s, '', 'staff'));
@@ -860,14 +861,37 @@ describe('hats on screen', () => {
     expect(renderScreen(s)).toContain('\x1b[31m#\x1b[39m@ M-1'); // a dyed hat shows in its colour
     expect(renderOffice(s)).toContain('|\x1b[31m#\x1b[39m@]');
     s.monkeys.push(createMonkey());
-    expect(plain(hatPickPrompt(s, 'tophat'))).toBe('Top hat (750 Sentences) for which monkey? [1] M-1 (wearing it: takes it off)   [2] M-2   (any other key: done)');
+    const top = hatPick(s, 'tophat');
+    expect(plain(top.title)).toBe('Top hat (750 Sentences): which monkey gets it?');
+    expect(top.notes).toEqual(['wearing it: takes it off', '']);
+    const menu = plain(renderMonkeyPicker(s, top.title, top.notes, 1));
+    expect(menu).toContain(' [1]  #@ M-1  wearing it: takes it off');
+    expect(menu).toContain('[enter] give');
+    expect(renderMonkeyPicker(s, top.title, top.notes, 1)).toContain(inverse(' [2]   @ M-2  ')); // the cursor's monkey
     s.monkeys[0].hat = 'cap';
     s.monkeys[0].hats.push('cap');
-    expect(plain(hatPickPrompt(s, 'tophat'))).toContain('[1] M-1 (has one: free)');
-    expect(plain(hatPickPrompt(s, 'crown'))).toContain('[1] M-1 (swaps its thinking cap)');
+    expect(hatPick(s, 'tophat').notes[0]).toBe('has one: free');
+    expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap');
     expect(plain(dyeColorPrompt())).toContain('[1] Red   [2] Green');
-    expect(plain(dyePickPrompt(s, 'red'))).toBe("Red (10 Sentences) for which monkey's hat? [1] M-1 (already)   [2] M-2 (no hat)   (any other key: done)");
-    expect(plain(dyePickPrompt(s, ''))).toContain('Undyed (free)');
+    expect(plain(dyePick(s, 'red').title)).toBe("Red (10 Sentences): which monkey's hat?");
+    expect(dyePick(s, 'red').notes).toEqual(['already', 'no hat']);
+    expect(plain(dyePick(s, '').title)).toContain('Undyed (free)');
+  });
+
+  it('shows the inventory: typewriters and hats per monkey, then storage', () => {
+    const s = started();
+    s.monkeys[0].hats = ['tophat', 'cap'];
+    s.monkeys[0].hat = 'cap';
+    s.stored.hats = { crown: 1 };
+    expect(inventoryRows(s).map((r) => r.items.length)).toEqual([3, 1]);
+    const text = plain(renderInventory(s, 0, 1, null));
+    expect(text).toContain('M-1');
+    expect(text).toContain('Rusty');
+    expect(text).toContain('^ Thinking cap (on)');
+    expect(text).toContain('Storage');
+    expect(text).toContain('Crown');
+    expect(renderInventory(s, 0, 2, null)).toContain(inverse('^ Thinking cap (on)')); // hats in shop order: top hat, then thinking cap
+    expect(plain(renderInventory(s, 1, 0, { who: 0, item: { kind: 'hat', id: 'tophat' } }))).toContain('Moving: Top hat from M-1');
   });
 });
 

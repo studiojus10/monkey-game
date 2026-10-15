@@ -2358,6 +2358,37 @@ export function sellHat(state: GameState, index: number): boolean {
   return true;
 }
 
+/**
+ * Moves one hat from a monkey's wardrobe (or storage, 'storage') to another
+ * monkey's wardrobe (or storage). A monkey keeps one of each kind; one
+ * losing the hat it wears takes it off.
+ */
+export function moveHat(state: GameState, from: number | 'storage', id: string, to: number | 'storage'): boolean {
+  if (from === to || !hats.some((h) => h.id === id)) return false;
+  const giver = from === 'storage' ? undefined : state.monkeys[from];
+  const taker = to === 'storage' ? undefined : state.monkeys[to];
+  if (from === 'storage' ? !state.stored.hats[id] : !giver?.hats.includes(id)) return false;
+  if (to !== 'storage' && (!taker || taker.hats.includes(id))) return false;
+  if (giver) {
+    giver.hats = giver.hats.filter((h) => h !== id);
+    if (giver.hat === id) giver.hat = '';
+  } else unstore(state.stored.hats, id);
+  if (taker) taker.hats.push(id);
+  else state.stored.hats[id] = (state.stored.hats[id] ?? 0) + 1;
+  return true;
+}
+
+/**
+ * Two monkeys swap typewriters. Skill stays with the monkey; one above its
+ * new typewriter's cap keeps it but can't train further. Temps can't swap.
+ */
+export function swapTypewriters(state: GameState, a: number, b: number): boolean {
+  const [x, y] = [state.monkeys[a], state.monkeys[b]];
+  if (!x || !y || a === b || isTemp(x) || isTemp(y)) return false;
+  [x.typewriter, y.typewriter] = [y.typewriter, x.typewriter];
+  return true;
+}
+
 /** Why a monkey can't be fired ('' if it can): the office needs at least one typing monkey. */
 export function fireBlocker(state: GameState, index: number): string {
   const m = state.monkeys[index];
