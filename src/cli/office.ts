@@ -245,7 +245,7 @@ export function renderOffice(
     ...roomTable(state, columns),
     ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
     '',
-    ` ${label('New room', roomCost(state), state.currency)} ${priceNamed(roomCost(state), state.currency)}   ${label('One more square', squareCost(state), state.currency)} ${priceNamed(squareCost(state), state.currency)}`,
+    ` ${label('New room', roomCost(state), state.sentences)} ${priceNamed(roomCost(state), state.sentences, 'sentences')}   ${label('One more square', squareCost(state), state.sentences)} ${priceNamed(squareCost(state), state.sentences, 'sentences')}`,
     '',
     ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
     ...(message ? [` ${bold(message)}`] : []),

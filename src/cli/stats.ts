@@ -54,6 +54,11 @@ export function renderStats(state: GameState, columns = 0): string {
   };
   return [
     titleBar(state, 'Stats', columns),
+    ...section('TIME', [
+      stat('Time played', duration(st.secondsOpen + st.secondsAway)),
+      stat('Game open', duration(st.secondsOpen)),
+      stat('In the background', duration(st.secondsAway), 'closed, monkeys typing'),
+    ]),
     ...section('TYPING', [
       stat('Time typing', duration(st.secondsTyping)),
       stat('Letters typed', formatNumber(lettersTyped)),

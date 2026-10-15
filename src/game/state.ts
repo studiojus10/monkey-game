@@ -150,6 +150,8 @@ export interface GameState {
   achievements: string[]; // ids of achievements unlocked, in order
   folios: number; // Folios published (prestige resets)
   folioPages: number; // pages banked by every Folio published (Marketing's royalties count them)
+  freeLetters: number; // letters you can take for free (letterGifts)
+  letterGifts: string[]; // ids of the letterGifts given this game
   folioBoost: number; // bananas x this for good: every Folio's (1 + its pages x folio.bonusPerPage), multiplied together
   lastSaved: number; // epoch ms
 }
@@ -191,6 +193,8 @@ export interface Stats {
   sentencesWritten: number; // chains long enough to pay a Sentence
   longestSentence: string[]; // the words of the longest chain that paid a Sentence
   secondsTyping: number; // time the monkeys have been at work, offline included
+  secondsOpen: number; // time with the game open
+  secondsAway: number; // time the game was closed and the monkeys kept typing in the background
   dyes: number; // hats dyed
   flipsWon: number; // coin flips won (all bananas doubled)
   flipsLost: number; // coin flips lost (all bananas gone)
@@ -198,7 +202,7 @@ export interface Stats {
 }
 
 export function createStats(): Stats {
-  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, dyes: 0, flipsWon: 0, flipsLost: 0, renamed: 0 };
+  return { letters: {}, words: {}, longestWord: '', bestWord: '', bestWordPoints: 0, longestChain: 0, linesTyped: 0, longestLine: null, bestLinePoints: 0, pets: 0, chainSentences: 0, sentencesWritten: 0, longestSentence: [], secondsTyping: 0, secondsOpen: 0, secondsAway: 0, dyes: 0, flipsWon: 0, flipsLost: 0, renamed: 0 };
 }
 
 export function createMonkey(): MonkeyState {
@@ -306,6 +310,8 @@ export function createInitialState(now = Date.now()): GameState {
     achievements: [],
     folios: 0,
     folioPages: 0,
+    freeLetters: 0,
+    letterGifts: [],
     folioBoost: 1,
     lastSaved: now,
   };

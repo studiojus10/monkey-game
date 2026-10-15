@@ -333,7 +333,10 @@ function buyItem(id: string): void {
       message = typingPickPrompt(state, what);
     }
   } else if (id === 'letter') {
-    if (state.currency < letterCost(state.letters.length)) {
+    if (state.freeLetters > 0) {
+      pickingLetter = true;
+      message = letterPickPrompt(state);
+    } else if (state.currency < letterCost(state.letters.length)) {
       message = `Not enough ${theme.currency}.`;
     } else if (state.words < letterWordsCost(state.letters.length)) {
       message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
@@ -1088,7 +1091,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       buyingRoom = false;
       const choice = roomChoices()[Number(str) - 1];
       if (str !== 'b' && !choice) message = 'No room bought.';
-      else if (state.currency < roomCost(state)) message = `Not enough ${theme.currency}.`;
+      else if (state.sentences < roomCost(state)) message = noSentences;
       else if (choice ? buyRoom(state, choice.kind, choice.genre) : buyRoom(state, 'break')) {
         const room = state.office[state.office.length - 1];
         Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
@@ -1172,13 +1175,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const choices = roomChoices().map(
         (c, i) => `[${i + 1}] ${c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
       );
-      message = `Buy a room (${formatNumber(roomCost(state))} ${theme.currency}): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
+      message = `Buy a room (${formatNumber(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
       if (officeGrowing) {
         const room = state.office.find((r) => r.id === officeGrowing);
         if (here) message = 'That square is already part of a room. Choose a +.';
-        else if (state.currency < squareCost(state)) message = `Not enough ${theme.currency}.`;
+        else if (state.sentences < squareCost(state)) message = noSentences;
         else if (!room || !expandRoom(state, room.id, [c.x, c.y])) message = 'Rooms grow onto empty squares next to them, not touching another room. Choose a +.';
       } else if (heldFurniture >= 0) {
         const f = state.furniture[heldFurniture];
@@ -1462,6 +1465,7 @@ setInterval(() => {
   const now = Date.now();
   setHour(new Date().getHours());
   const temps = tempsNow();
+  state.stats.secondsOpen += (now - last) / 1000;
   tick(state, (now - last) / 1000);
   message = tempsGone(temps) || message;
   last = now;

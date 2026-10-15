@@ -27,7 +27,7 @@ describe('windows', () => {
     expect(windowSides(s, 1, 0)).toEqual(['n']);
     toggleHall(s, 2, 0);
     s.windows = [{ x: 1, y: 0, side: 'e' }];
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     expect(expandRoom(s, 'r1', [2, 0])).toBe(true);
     expect(s.windows).toHaveLength(1);
     const [w] = s.windows;
@@ -171,7 +171,7 @@ describe('feng shui', () => {
 describe('windows and new rooms', () => {
   it('keeps every window facing outside when a new room and its hallway arrive', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     for (let i = 0; i < 4; i++) expect(buyRoom(s, 'break')).toBe(true);
     for (const r of s.office) expect(s.windows.filter((w) => r.cells.some(([x, y]) => x === w.x && y === w.y)).length, r.id).toBeGreaterThan(0);
     for (const w of s.windows) expect(windowSides(s, w.x, w.y)).toContain(w.side);

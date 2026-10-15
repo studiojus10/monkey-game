@@ -1,4 +1,4 @@
-import { scriptShop, dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
+import { letterGifts, scriptShop, dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -337,6 +337,9 @@ function latelyLines(state: GameState, message: string): string[] {
     ...(state.lastWord ? [dim(`Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}`)] : []),
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
     ...folioOffer(state),
+    ...(state.freeLetters > 0 && unownedLetters(state).length > 0
+      ? [`* A free letter ${letterGifts.find((g) => g.id === state.letterGifts[state.letterGifts.length - 1])?.text ?? ''}! Take it in the Typewriters store.`]
+      : []),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
@@ -714,7 +717,9 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const nextLetter = letterCost(state.letters.length);
       const nextLetterWords = letterWordsCost(state.letters.length);
       return [
-        ...(unownedLetters(state).length > 0
+        ...(unownedLetters(state).length > 0 && state.freeLetters > 0
+          ? [{ id: 'letter', star: true, text: 'Take a free letter', effect: `a gift: you choose it (${state.freeLetters} free, ${unownedLetters(state).length} left)` }]
+          : unownedLetters(state).length > 0
           ? [
               {
                 id: 'letter',

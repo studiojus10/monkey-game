@@ -151,7 +151,7 @@ function shop(): void {
       const g = departmentChoices(s)[0];
       if (g && openDepartment(s, g)) bought = true;
     }
-    for (const g of roomlessDepartments(s)) if (s.currency >= roomCost(s) && buyRoom(s, 'department', g)) bought = true;
+    for (const g of roomlessDepartments(s)) if (s.sentences >= roomCost(s) && buyRoom(s, 'department', g)) bought = true;
     // Monkeys, with floor space for them: each department has its own price, so the cheapest with room.
     {
       const rooms = departmentsWithRoom(s);
@@ -159,7 +159,7 @@ function shop(): void {
       const want = departmentGenres(s).length > 0 ? departmentGenres(s).reduce((a, b) => (nextMonkeyCost(s, a) <= nextMonkeyCost(s, b) ? a : b)) : undefined;
       if (want && s.currency >= nextMonkeyCost(s, want) && !rooms.includes(want) && departmentTypists(s, want) < departmentRules.maxTypists) {
         const room = departmentRoom(s, want);
-        if (room && s.currency >= squareCost(s) + nextMonkeyCost(s, want)) expandRoom(s, room.id);
+        if (room && s.sentences >= squareCost(s) && s.currency >= nextMonkeyCost(s, want)) expandRoom(s, room.id);
       }
       if (g ? s.currency >= nextMonkeyCost(s, g) && buyMonkey(s, g) : s.currency >= nextMonkeyCost(s) && buyMonkey(s)) bought = true;
     }
@@ -188,7 +188,7 @@ function shop(): void {
     // A little furniture with spare points, and better hats with spare Sentences.
     const f = furnitureKinds.find((k) => s.currency >= furnitureCost(s, k.id) * 10 && furnitureSpot(s, k.id));
     if (f && s.office.some((r) => r.kind === 'break') && buyFurniture(s, f.id)) bought = true;
-    if (!s.office.some((r) => r.kind === 'break') && s.monkeys.length >= 5 && s.currency >= roomCost(s) * 5 && buyRoom(s, 'break')) bought = true;
+    if (!s.office.some((r) => r.kind === 'break') && s.monkeys.length >= 5 && s.sentences >= roomCost(s) * 5 && buyRoom(s, 'break')) bought = true;
     const rank = (id: string) => hats.findIndex((h) => h.id === id);
     for (const h of [...hats].reverse()) {
       const i = typists.find((k) => rank(s.monkeys[k].hat) < rank(h.id));

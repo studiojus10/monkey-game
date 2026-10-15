@@ -39,7 +39,7 @@ function department(typists: number): GameState {
     const [x, y] = room.cells.find(([cx, cy]) => !s.furniture.some((f) => f.room === room.id && f.x === cx && f.y === cy))!;
     s.furniture.push({ kind: 'desk', room: room.id, x, y });
   }
-  s.currency = 1e15;
+  s.currency = s.sentences = 1e15;
   return s;
 }
 
@@ -473,7 +473,7 @@ describe('temps', () => {
   it('come in HR lists with better stats, cost less, cannot be upgraded, and leave when their time is up', async () => {
     const L = await import('../src/game/logic');
     const s = department(6);
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     s.lines = 1e9;
     buyRoom(s, 'office', 'comedy');
     hireManager(s, 'comedy');

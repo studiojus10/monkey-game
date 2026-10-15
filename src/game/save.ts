@@ -148,6 +148,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       sentencesWritten: Math.max(0, Math.floor(num(st.sentencesWritten, 0))),
       longestSentence: strings(st.longestSentence).filter((w) => /^[A-Z]+$/.test(w)),
       secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
+      secondsOpen: Math.max(0, num(st.secondsOpen, 0)),
+      secondsAway: Math.max(0, num(st.secondsAway, 0)),
       dyes: Math.max(0, Math.floor(num(st.dyes, 0))),
       flipsWon: Math.max(0, Math.floor(num(st.flipsWon, 0))),
       flipsLost: Math.max(0, Math.floor(num(st.flipsLost, 0))),
@@ -230,6 +232,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       folios: Math.max(0, Math.floor(num(s.folios, 0))),
       folioPages: Math.max(0, Math.floor(num(s.folioPages, 0))),
       // Saves from before Folios multiplied each other: all pages in one.
+      freeLetters: Math.max(0, Math.floor(num(s.freeLetters, 0))),
+      letterGifts: strings(s.letterGifts),
       folioBoost: num(s.folioBoost, 0) >= 1 ? num(s.folioBoost, 0) : 1 + Math.max(0, Math.floor(num(s.folioPages, 0))) * folio.bonusPerPage,
       lastSaved: num(s.lastSaved, now),
     };

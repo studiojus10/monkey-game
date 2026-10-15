@@ -257,10 +257,10 @@ describe('the Research store', () => {
     const s = started();
     expect(openStores(s)).not.toContain('research');
     s.monkeys.push(...Array.from({ length: 7 }, createMonkey));
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab')).toBe(true);
     expect(openStores(s)[openStores(s).length - 1]).toBe('research');
-    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Hats\s+Research/);
+    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Hats\*?\s+Research/);
   });
 });
 
@@ -400,7 +400,7 @@ describe('typewriter keys menu', () => {
     expect(keyChoices(s)).toContain('HE');
     expect(text).toMatch(/ \[1\] HE   combination    [\d.]+[KMBT]? Bananas/);
     expect(text).toMatch(/ \[2\] THE  word /);
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     expect(renderKeysMenu(s)).toContain(`${green('*')} ${yellow(`${bold('4.00M')} Bananas`)}`); // affordable: * and price in Bananas' yellow
     expect(plain(renderKeysMenu(s, '', 80)).split('\n').every((r) => r.length <= 80)).toBe(true);
   });
@@ -445,6 +445,11 @@ describe('statistics and dictionary', () => {
     expect(text).toContain('\n LETTERS TYPED\n   I 3\n');
     expect(text).toContain('    1. I           3');
     expect(renderStats(s)).toContain('\x1b[2m TYPING\x1b[22m'); // headings are dim
+    s.stats.secondsOpen = 3600;
+    s.stats.secondsAway = 7200;
+    expect(plain(renderStats(s))).toMatch(/Time played +3h/);
+    expect(plain(renderStats(s))).toMatch(/Game open +1h/);
+    expect(plain(renderStats(s))).toMatch(/In the background +2h/);
   });
 
   it('shows Folios only once one is published', () => {
@@ -504,7 +509,7 @@ describe('office space on screen', () => {
     const s = started();
     s.monkeys.push(createMonkey(), createMonkey(), createMonkey());
     s.furniture.push({ kind: 'desk', room: 'r1', x: 1, y: 0 }, { kind: 'desk', room: 'r1', x: 0, y: 1 }, { kind: 'desk', room: 'r1', x: 1, y: 1 });
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     const staff = renderScreen(s, '', 'staff');
     expect(squash(staff)).toContain('[2] Hire a monkey you have 4 desk needed\n'); // no price: a desk is what it needs
     expect(staff).toContain(red('desk needed'));
@@ -533,7 +538,7 @@ describe('office space on screen', () => {
 
   it('lists a hire line for each department, each with its own price', () => {
     const s = started();
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
     const staff = squash(renderScreen(s, '', 'staff'));
@@ -565,7 +570,7 @@ describe('office space on screen', () => {
 
   it('draws hallways and doors between rooms, and warns about a room with no way in', () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
     const text = plain(renderOffice(s));
@@ -578,7 +583,7 @@ describe('office space on screen', () => {
 
   it("shows each department's lounge, and the departments each break room is the lounge of", () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
     buyRoom(s, 'break'); // against both, with a door into each
@@ -597,7 +602,7 @@ describe('office space on screen', () => {
 
   it('places rooms to keep the map narrow enough for the terminal', () => {
     const s = started();
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     for (let i = 0; i < 6; i++) buyRoom(s, 'break');
     s.monkeys[0].manager = true;
     const text = plain(renderOffice(s));
@@ -644,7 +649,7 @@ describe('furniture', () => {
 
   it('sells the scene, act and play under the cursor in the script page\'s shop', () => {
     const s = started();
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     const at = { play: 'test', line: 0 };
     expect(openStores(s, 'script')).toEqual(['script']);
     expect(storeChoices(s, 'script', 0, at).map((x) => x.id)).toEqual(['section:b', 'section:a', 'section:w']);
@@ -670,7 +675,7 @@ describe('furniture', () => {
   it('fits every store on an 80-column screen, elements and all', () => {
     const s = started();
     s.fengShuiBook = true;
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.sentences = 1e12;
     for (const store of stores)
       for (let page = 0; page < storePages(s, store); page++)
@@ -733,7 +738,7 @@ describe('energy on screen', () => {
 describe('moving doors on the map', () => {
   it('shows a door being moved in the wall it would go in', () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     buyRoom(s, 'break'); // a hallway square west of room 1, with a door into it at 0,0
     s.doors = s.doors.filter((d) => !(d.x === 0 && d.y === 0));
     const text = plain(renderOffice(s, '', { x: 0, y: 0 }, -1, false, 'w'));
@@ -792,7 +797,7 @@ describe('managers and traits on screen', () => {
   /** A department of five typists with an office next door, before any manager. */
   const staffed = () => {
     const s = started();
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     s.office[0].cells.push([0, 2], [1, 2], [0, 3], [1, 3]);
     for (let k = 1; k < 5; k++) {
       s.monkeys.push({ ...createMonkey(), department: 'comedy' });
@@ -945,7 +950,7 @@ const allowedUnicode = '';
 describe('plain ASCII', () => {
   it('prints only ASCII (plus ANSI codes and the allowed Unicode), so the game runs in any terminal', () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.monkeys[0].hats = ['tophat'];
     s.monkeys[0].hat = 'tophat';
     s.monkeys[0].hatColor = 'blue';

@@ -1,5 +1,6 @@
 import {
   combo,
+  letterGifts,
   extraWords,
   lineRewards,
   sentenceRules,
@@ -824,21 +825,42 @@ export function letterWordsCost(owned: number): number {
   return Math.floor(letterShop.wordsCostFactor * owned ** letterShop.wordsCostPower);
 }
 
-/** Whether you have the points and Words for your next letter. */
+/** Whether you have a free letter, or the points and Words for your next letter. */
 export function canAffordLetter(state: GameState): boolean {
-  return state.currency >= letterCost(state.letters.length) && state.words >= letterWordsCost(state.letters.length);
+  return state.freeLetters > 0 || (state.currency >= letterCost(state.letters.length) && state.words >= letterWordsCost(state.letters.length));
 }
 
-/** Buys a letter you don't own yet, for points and Words. */
+/** Buys a letter you don't own yet: a free one if you have one (letterGifts), else for points and Words. */
 export function buyLetter(state: GameState, letter: string): boolean {
   const l = letter.toUpperCase();
   const cost = letterCost(state.letters.length);
   if (state.letters.length === 0 || !/^[A-Z]$/.test(l) || state.letters.includes(l)) return false;
   if (!canAffordLetter(state)) return false;
-  state.words -= letterWordsCost(state.letters.length);
-  state.currency -= cost;
+  if (state.freeLetters > 0) state.freeLetters--;
+  else {
+    state.words -= letterWordsCost(state.letters.length);
+    state.currency -= cost;
+  }
   state.letters.push(l);
   return true;
+}
+
+/** Play lines written this game, in every play. */
+export function linesWritten(state: GameState): number {
+  return Object.values(state.completed).reduce((n, done) => n + done.length, 0);
+}
+
+/** Gives the free letters (letterGifts) whose milestones you have reached; returns the gifts given. */
+export function checkLetterGifts(state: GameState): typeof letterGifts {
+  const given = letterGifts.filter(
+    (g) => !state.letterGifts.includes(g.id) && (g.what === 'lines' ? linesWritten(state) : state.monkeys.length) >= g.at,
+  );
+  for (const g of given) {
+    state.letterGifts.push(g.id);
+    // A letter only helps while some are left to own.
+    if (state.letters.length + state.freeLetters < 26) state.freeLetters++;
+  }
+  return given;
 }
 
 /** Cost in points of a monkey for the department-th department opened (from 0) that has already bought `bought`. */
@@ -1018,13 +1040,13 @@ export function roomCost(state: GameState): number {
  */
 export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): boolean {
   const cost = roomCost(state);
-  if (state.currency < cost) return false;
+  if (state.sentences < cost) return false;
   if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
   if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
   if (kind === 'lab' && !canBuildLab(state)) return false;
   if (kind === 'hr' && !canBuildHR(state)) return false;
   if (kind === 'marketing' && !canBuildMarketing(state)) return false;
-  state.currency -= cost;
+  state.sentences -= cost;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height);
     const square = bestSquares(state, room, true)[0];
@@ -1087,12 +1109,12 @@ export function bestExpansion(state: GameState, room: Room): [number, number] | 
 export function expandRoom(state: GameState, roomId: string, square?: [number, number]): boolean {
   const room = state.office.find((r) => r.id === roomId);
   const cost = squareCost(state);
-  if (!room || state.currency < cost) return false;
+  if (!room || state.sentences < cost) return false;
   const target = square ?? bestExpansion(state, room);
   if (!target) return false;
   const [x, y] = target;
   if (!expansionSquares(state, room).some(([ex, ey]) => ex === x && ey === y)) return false;
-  state.currency -= cost;
+  state.sentences -= cost;
   const touched = touchingRooms(state, room);
   room.cells.push([x, y]);
   state.squaresBought++;
@@ -1904,6 +1926,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state);
   advanceResearch(state, seconds);
+  checkLetterGifts(state);
   earn(state, royalties(state) * seconds);
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
@@ -2001,6 +2024,7 @@ export function checkAchievements(state: GameState): string[] {
  */
 export function applyOfflineProgress(state: GameState, now: number, rng: Rng = Math.random): number {
   const away = Math.max(0, (now - state.lastSaved) / 1000);
+  if (state.letters.length > 0) state.stats.secondsAway += away;
   const seconds = Math.min(away, maxOfflineSeconds);
   const letters = seconds * state.monkeys.reduce((n, m) => n + (isTypist(m) ? monkeySpeed(state, m) : 0), 0);
   const simulated = Math.min(1, maxOfflineLetters / Math.max(letters, 1));

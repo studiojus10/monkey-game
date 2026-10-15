@@ -108,7 +108,7 @@ describe('office space in saves', () => {
 
   it('keeps hallways, doors and per-department hiring, and lays out saves from before hallways', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     s.monkeysBought = { comedy: 3 };
     s.folios = 2;

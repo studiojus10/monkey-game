@@ -42,6 +42,20 @@ export const letterShop = {
 };
 
 /**
+ * Free letters, given for reaching milestones away from the script itself
+ * (Justin, 2026-10-15: "if letters stall things ... a handful of letters
+ * awarded as bonuses for completing other tasks"), so the last letters don't
+ * all have to be bought. `lines` counts play lines written this game,
+ * `monkeys` monkeys you have. The player picks the letter. Placeholders.
+ */
+export const letterGifts: { id: string; what: 'lines' | 'monkeys'; at: number; text: string }[] = [
+  { id: 'lines1000', what: 'lines', at: 1000, text: 'for writing 1,000 lines' },
+  { id: 'monkeys10', what: 'monkeys', at: 10, text: 'for a full office of 10 monkeys' },
+  { id: 'lines2500', what: 'lines', at: 2500, text: 'for writing 2,500 lines' },
+  { id: 'monkeys20', what: 'monkeys', at: 20, text: 'for 20 monkeys' },
+];
+
+/**
  * You start with one monkey. More monkeys are paid in Points. Each
  * department has its own price: the n-th monkey bought for the d-th
  * department opened (both from 0) costs
@@ -176,7 +190,8 @@ export const scriptShop = {
  * rooms hold furniture. You start with one small room; new rooms (starting at
  * newRoomWidth x newRoomHeight) cost roomBaseCost x roomCostGrowth^(rooms bought
  * before), and rooms grow one square at a time, the n-th square bought costing
- * squareBaseCost x squareCostGrowth^n. Everything places itself; the office
+ * squareBaseCost x squareCostGrowth^n. Both are paid in Sentences (Justin,
+ * 2026-10-15: Sentences piled up with little to buy). Everything places itself; the office
  * map is there for players who want to design the layout. Costs are placeholders.
  */
 export const office = {
@@ -184,9 +199,9 @@ export const office = {
   starterHeight: 2,
   newRoomWidth: 3,
   newRoomHeight: 3,
-  roomBaseCost: 10_000,
+  roomBaseCost: 100,
   roomCostGrowth: 10,
-  squareBaseCost: 500,
+  squareBaseCost: 10,
   squareCostGrowth: 1.15,
   mapWidth: 18, // squares across the office map before new rooms go below instead
 };
