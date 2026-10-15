@@ -156,10 +156,35 @@ export function highlightChoice(prompt: string, k: number): string {
   return c ? prompt.slice(0, c.start) + inverse(prompt.slice(c.start, c.end)) + prompt.slice(c.end) : prompt;
 }
 
-/** The prompt shown while picking which letter to buy, with each letter's value. */
-export function letterPickPrompt(state: GameState): string {
-  const choices = unownedLetters(state).map((l) => `${l}(${letterValues[l]})`);
-  return `Press letters to buy (any other key: done). Values: ${choices.join(' ')}`;
+/**
+ * The letter picker, for bought and free letters alike: A to Z with the
+ * letters already owned dimmed, and the cursor on one of the letters still
+ * to get (`cursor` counts those).
+ */
+export function renderLetterPicker(state: GameState, free: boolean, cursor: number, message = '', columns = 0): string {
+  const open = unownedLetters(state);
+  const chosen = open[Math.min(cursor, open.length - 1)];
+  const letters = Object.keys(letterValues)
+    .sort()
+    .map((l) => (state.letters.includes(l) ? dim(l) : l === chosen ? inverse(l) : bold(l)))
+    .join(' ');
+  const gift = achievements.find((a) => a.id === state.letterGifts[state.letterGifts.length - 1])?.name ?? '';
+  const title = free
+    ? `A free letter${gift ? ` for "${gift}"` : ''}! Choose one.${state.freeLetters > 1 ? `  (${state.freeLetters} free letters)` : ''}`
+    : `Buy a letter for ${priceNamed(letterCost(state.letters.length), state.currency)}${letterWordsCost(state.letters.length) > 0 ? ` and ${priceNamed(letterWordsCost(state.letters.length), state.words, 'words')}` : ''}.`;
+  return [
+    titleBar(state, 'Letters', columns),
+    '',
+    ` ${title}`,
+    '',
+    `   ${letters}`,
+    '',
+    ` ${dim('Dimmed letters are yours already.')}`,
+    ...(message ? ['', ` ${bold(message)}`] : []),
+    '',
+    rule(columns),
+    keyRow([['left/right', 'choose'], ['enter', free ? 'take' : 'buy'], ['A-Z', free ? 'take' : 'buy'], ...(free ? [] : [['esc', 'done'] as [string, string]])], columns),
+  ].join('\n');
 }
 
 /** Exact counts with thousands separators, e.g. 4,011. */
@@ -337,9 +362,6 @@ function latelyLines(state: GameState, message: string): string[] {
     ...(state.lastWord ? [dim(`Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}`)] : []),
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
     ...folioOffer(state),
-    ...(state.freeLetters > 0 && unownedLetters(state).length > 0
-      ? [`* ${state.freeLetters === 1 ? 'A free letter' : `${state.freeLetters} free letters`} for "${achievements.find((a) => a.id === state.letterGifts[state.letterGifts.length - 1])?.name ?? ''}"! Take ${state.freeLetters === 1 ? 'it' : 'them'} in the Typewriters store.`]
-      : []),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
@@ -717,9 +739,6 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const nextLetter = letterCost(state.letters.length);
       const nextLetterWords = letterWordsCost(state.letters.length);
       return [
-        ...(unownedLetters(state).length > 0 && state.freeLetters > 0
-          ? [{ id: 'free-letter', star: true, text: 'Take a free letter', effect: `you choose it (${state.freeLetters} free, or keep them for later)` }]
-          : []),
         ...(unownedLetters(state).length > 0
           ? [
               {

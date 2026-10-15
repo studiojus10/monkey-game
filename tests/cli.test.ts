@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
 import {
   keyChoices,
-  letterPickPrompt,
+  renderLetterPicker,
   maxMonkeyLines,
   renderKeysMenu,
   renderLine,
@@ -32,7 +32,7 @@ import {
   renderShop,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
+import { bold, cyan, forLightBackground, green, inverse, plainText, red, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
@@ -302,13 +302,26 @@ describe('shop under the home screen', () => {
 });
 
 describe('letter picking', () => {
-  it('lists the letters you can still buy with their values', () => {
+  it('shows A to Z with owned letters dimmed and no values', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'a');
-    const prompt = letterPickPrompt(s);
-    expect(prompt).not.toContain('A(1)');
-    expect(prompt).toContain('B(3)');
-    expect(prompt).toContain('Z(10)');
+    const text = renderLetterPicker(s, false, 0);
+    expect(text).toContain('\x1b[2mA\x1b[');
+    expect(text).toContain('Z');
+    expect(text).not.toContain('B(3)');
+    expect(text).toContain('Buy a letter');
+    expect(text).toContain('esc');
+  });
+
+  it('offers a free letter with no way out', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'a');
+    s.freeLetters = 2;
+    s.letterGifts = ['first-hire'];
+    const text = plainText(renderLetterPicker(s, true, 0));
+    expect(text).toContain('A free letter for');
+    expect(text).toContain('2 free letters');
+    expect(text).not.toContain('esc');
   });
 });
 

@@ -113,7 +113,8 @@ import { formatMultiplier, formatNumber, setScientific } from '../format';
 import { fileStorage } from './fileStorage';
 import {
   keyChoices,
-  letterPickPrompt,
+  renderLetterPicker,
+  unownedLetters,
   genreNames,
   departmentPrompt,
   managerChoices,
@@ -241,6 +242,7 @@ let readingManagerBook = false; // the manager's book, open from the office map
 let officeHelp = false; // the office map's [?] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding a book (feng shui or the manager's), just inspected: [y] reads it
 let menuCursor = 0; // the chosen row of the open menu (opening screens, options, dev tools, keys, hiring)
+let letterCursor = 0; // the chosen letter in the letter picker, among the letters not owned
 let pickCursor = 0; // the chosen choice of a picker on the message line
 let homeCursor = 0; // the chosen monkey's row in the home screen's table
 let shopCursor = 0; // the chosen item in the open store, counted over all its pages
@@ -332,9 +334,6 @@ function buyItem(id: string): void {
       pickingTyping = what;
       message = typingPickPrompt(state, what);
     }
-  } else if (id === 'free-letter') {
-    pickingLetter = 'free';
-    message = letterPickPrompt(state);
   } else if (id === 'letter') {
     if (state.currency < letterCost(state.letters.length)) {
       message = `Not enough ${theme.currency}.`;
@@ -342,7 +341,8 @@ function buyItem(id: string): void {
       message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
     } else {
       pickingLetter = true;
-      message = letterPickPrompt(state);
+      letterCursor = 0;
+      message = '';
     }
   } else if (id.startsWith('hire:')) {
     const g = id.slice('hire:'.length) as Genre;
@@ -594,6 +594,11 @@ function shopKey(store: Store, str: string | undefined, key: { name?: string }):
 
 function draw() {
   const columns = fitLines();
+  // A free letter pops up the letter picker, once nothing else is waiting on an answer.
+  if (!pickingLetter && state.freeLetters > 0 && unownedLetters(state).length > 0 && !pickerOpen() && !giving && namingMonkey < 0 && !confirmingFolio) {
+    pickingLetter = 'free';
+    letterCursor = 0;
+  }
   // New achievements get a message (offline ones too, on the first draw).
   const fresh = state.achievements.slice(achievementsSeen);
   if (fresh.length > 0) {
@@ -608,7 +613,9 @@ function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
-  const screen = pick
+  const screen = pickingLetter
+    ? renderLetterPicker(state, pickingLetter === 'free', letterCursor, message, columns)
+    : pick
     ? renderMonkeyPicker(state, pick.title, pick.notes, menuCursor, shown, columns)
     : showingInventory
     ? renderInventory(state, invRow, invCol, invHeld, shown, columns)
@@ -685,7 +692,7 @@ function startNaming(index: number) {
 
 /** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
 function pickerOpen(): boolean {
-  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || pickingLetter || buyingRoom);
+  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
 }
 
 /** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */
@@ -700,6 +707,34 @@ function menuKey(key: { name?: string }, n: number): number {
 
 function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
   if (key.ctrl && key.name === 'c') return quit();
+
+  // The letter picker: a popup until a letter is chosen (free letters can't be put off).
+  if (pickingLetter) {
+    const open = unownedLetters(state);
+    const free = pickingLetter === 'free';
+    if (['left', 'right', 'up', 'down'].includes(key.name ?? '')) {
+      const back = key.name === 'left' || key.name === 'up';
+      letterCursor = (Math.min(letterCursor, open.length - 1) + (back ? open.length - 1 : 1)) % open.length;
+      return draw();
+    }
+    const letter = key.name === 'return' || key.name === 'enter' ? open[Math.min(letterCursor, open.length - 1)] : (str ?? '').toUpperCase();
+    if (!open.includes(letter)) {
+      if (free) message = /^[A-Z]$/.test(letter) ? `You have ${letter} already. Choose another letter.` : 'Choose a letter first.';
+      else {
+        pickingLetter = false;
+        message = '';
+      }
+    } else if (buyLetter(state, letter, free)) {
+      const done = `You ${free ? 'took' : 'bought'} ${letter}.`;
+      pickingLetter = unownedLetters(state).length === 0 ? false : free ? (state.freeLetters > 0 ? 'free' : false) : canAffordLetter(state);
+      letterCursor = 0;
+      message = pickingLetter && free ? `${done} Another free letter!` : done;
+    } else {
+      pickingLetter = false;
+      message = 'Not enough to buy that letter.';
+    }
+    return draw();
+  }
 
   // A picker on the message line: arrows move its cursor and enter picks, as if its key were pressed.
   if (!pickerOpen()) pickCursor = 0;
@@ -864,21 +899,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingLetter) {
-    const letter = str?.toUpperCase() ?? '';
-    if (!/^[A-Z]$/.test(letter) || state.letters.includes(letter)) {
-      pickingLetter = false;
-      message = 'Done.';
-    } else if (buyLetter(state, letter, pickingLetter === 'free')) {
-      const done = `You ${pickingLetter === 'free' ? 'took' : 'bought'} ${letter}.`;
-      pickingLetter = pickingLetter === 'free' ? (state.freeLetters > 0 ? 'free' : false) : canAffordLetter(state);
-      message = pickingLetter ? `${done}  ${letterPickPrompt(state)}` : done;
-    } else {
-      pickingLetter = false;
-      message = 'Not enough to buy that letter.';
-    }
-    return draw();
-  }
 
   if (showingScript && contents) {
     message = '';
