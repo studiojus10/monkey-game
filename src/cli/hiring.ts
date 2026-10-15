@@ -3,7 +3,7 @@ import { hirePrice, jobFeeling, traitOf } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration } from '../format';
 import { priceNamed } from './screen';
-import { bold, dim, green, keyRow, padVisible, red, rule, titleBar } from './style';
+import { bold, dim, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar } from './style';
 
 /** A stat as a percent: green above average, red below. */
 function percent(stat: number): string {
@@ -17,7 +17,7 @@ function percent(stat: number): string {
  * manager's book is read), whether it's a temp, and price; [0] hires someone
  * unseen at the usual price.
  */
-export function renderCandidates(state: GameState, job: string, title: string, base: number, message = '', columns = 0): string {
+export function renderCandidates(state: GameState, job: string, title: string, base: number, message = '', columns = 0, cursor = -1): string {
   const jobName = monkeyStats.jobs.find((j) => j.id === job)?.name ?? job;
   const rows = state.candidates.map((c, i) => {
     const f = jobFeeling({ ...createMonkey(), ...c }, job);
@@ -33,7 +33,8 @@ export function renderCandidates(state: GameState, job: string, title: string, b
       padVisible(c.tempLeft > 0 ? `temp ${formatDuration(c.tempLeft)}` : 'for good', 11),
       priceNamed(price, state.currency),
     ].join('  ');
-  });
+  }).map((r, i) => (i === cursor ? inverse(plainText(r)) : r));
+  const unseen = ` [0]  someone unseen  ${priceNamed(base, state.currency)}`;
   return [
     titleBar(state, `Hiring: ${title}`, columns),
     '',
@@ -42,7 +43,7 @@ export function renderCandidates(state: GameState, job: string, title: string, b
     dim(['    ', 'SPEED  ', 'STAMINA ', jobName.toUpperCase().padEnd(9), 'TRAIT         ', 'STAYS      ', 'PRICE'].join('  ')),
     ...(rows.length > 0 ? rows : [dim('     Nobody right now.')]),
     '',
-    ` [0]  someone unseen  ${priceNamed(base, state.currency)}`,
+    cursor === state.candidates.length ? inverse(plainText(unseen)) : unseen,
     ...(state.candidates.some((c) => c.tempLeft > 0)
       ? ['', dim(` Temps cost less and work better, but leave in time and can't be upgraded.`)]
       : []),
@@ -51,6 +52,6 @@ export function renderCandidates(state: GameState, job: string, title: string, b
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([[rows.length > 0 ? `0-${rows.length}` : '0', 'hire'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose'], ['enter', 'hire'], [rows.length > 0 ? `0-${rows.length}` : '0', 'hire'], ['esc', 'back']], columns),
   ].join('\n');
 }

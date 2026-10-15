@@ -1552,17 +1552,17 @@ function countWord(state: GameState, m: MonkeyState, word: string, paid: number,
 
 /** The combo multiplier: how many different long words are in the chain, up to the cap. */
 export function comboMultiplier(state: GameState, m: MonkeyState): number {
-  return Math.min(comboCap(state) + wearing(m, 'combo'), Math.max(1, m.chainWords.length));
+  return Math.min(comboCap(state) + wearing(m, 'combo'), Math.round((1 + combo.step * m.chainWords.length) * 10) / 10);
 }
 
 /**
  * Adds a word to the monkey's chain and returns what it pays: whatever
  * brings the chain's total up to (sum of its word points) x multiplier.
- * Short or repeated words join the chain but don't raise the multiplier.
+ * One-letter words join the chain but don't raise the multiplier.
  */
 function scoreInChain(state: GameState, m: MonkeyState, word: string): number {
   const before = m.chainPoints * comboMultiplier(state, m);
-  if (word.length >= combo.minWordLength && !m.chainWords.includes(word)) m.chainWords.push(word);
+  if (word.length >= combo.minWordLength && m.chainWords.length < 1000) m.chainWords.push(word);
   m.chainPoints += wordPoints(word);
   m.chainLength++;
   m.chainRecent.push(word);
@@ -2355,6 +2355,37 @@ export function sellHat(state: GameState, index: number): boolean {
   m.hat = '';
   m.hatColor = '';
   state.sentences += sellValue(h.cost);
+  return true;
+}
+
+/**
+ * Moves one hat from a monkey's wardrobe (or storage, 'storage') to another
+ * monkey's wardrobe (or storage). A monkey keeps one of each kind; one
+ * losing the hat it wears takes it off.
+ */
+export function moveHat(state: GameState, from: number | 'storage', id: string, to: number | 'storage'): boolean {
+  if (from === to || !hats.some((h) => h.id === id)) return false;
+  const giver = from === 'storage' ? undefined : state.monkeys[from];
+  const taker = to === 'storage' ? undefined : state.monkeys[to];
+  if (from === 'storage' ? !state.stored.hats[id] : !giver?.hats.includes(id)) return false;
+  if (to !== 'storage' && (!taker || taker.hats.includes(id))) return false;
+  if (giver) {
+    giver.hats = giver.hats.filter((h) => h !== id);
+    if (giver.hat === id) giver.hat = '';
+  } else unstore(state.stored.hats, id);
+  if (taker) taker.hats.push(id);
+  else state.stored.hats[id] = (state.stored.hats[id] ?? 0) + 1;
+  return true;
+}
+
+/**
+ * Two monkeys swap typewriters. Skill stays with the monkey; one above its
+ * new typewriter's cap keeps it but can't train further. Temps can't swap.
+ */
+export function swapTypewriters(state: GameState, a: number, b: number): boolean {
+  const [x, y] = [state.monkeys[a], state.monkeys[b]];
+  if (!x || !y || a === b || isTemp(x) || isTemp(y)) return false;
+  [x.typewriter, y.typewriter] = [y.typewriter, x.typewriter];
   return true;
 }
 

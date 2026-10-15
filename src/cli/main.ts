@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -99,6 +99,8 @@ import {
   publishFolio,
   canPublishFolio,
   flipCoin,
+  moveHat,
+  swapTypewriters,
   flipChance,
   folioMultiplier,
   tick,
@@ -132,6 +134,8 @@ import {
   type Store,
   type ScriptSpot,
   homeChosen,
+  highlightChoice,
+  promptChoices,
   homeMonkeys,
   maxMonkeyLines,
   trainees,
@@ -142,13 +146,14 @@ import {
   scriptPageSize,
   renderOptions,
   dyeColorPrompt,
-  dyePickPrompt,
-  hatPickPrompt,
+  dyePick,
+  hatPick,
   inspectItem,
 } from './screen';
 import { forLightBackground } from './style';
 import { devTools } from '../game/dev';
 import { renderCandidates } from './hiring';
+import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
@@ -235,13 +240,18 @@ let readingBook = false; // the feng shui book, open from the office map
 let readingManagerBook = false; // the manager's book, open from the office map
 let officeHelp = false; // the office map's [?] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding a book (feng shui or the manager's), just inspected: [y] reads it
+let menuCursor = 0; // the chosen row of the open menu (opening screens, options, dev tools, keys, hiring)
+let pickCursor = 0; // the chosen choice of a picker on the message line
 let homeCursor = 0; // the chosen monkey's row in the home screen's table
 let shopCursor = 0; // the chosen item in the open store, counted over all its pages
 let officeShop: Store | null = null; // the office map's furniture shop, when open
 let lastOfficeStore: Store = 'department';
 let scriptShop = false; // the script page's shop, when open
-let pickingHat = ''; // choosing a monkey for this hat
-let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
+let giving: { kind: 'hat'; id: string } | { kind: 'dye'; color: string } | null = null; // the menu of monkeys to give a hat or dye to
+let showingInventory = false;
+let invRow = 0; // the inventory cursor's row (monkeys, then storage) and item in it
+let invCol = 0;
+let invHeld: { who: Holder; item: Item } | null = null; // the item being moved in the inventory
 let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
 let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
@@ -305,6 +315,7 @@ function doHire(h: Hiring, from?: number): boolean {
 function hire(h: Hiring): void {
   if (hrRoom(state)) {
     hiring = h;
+    menuCursor = 0;
     message = '';
   } else if (doHire(h)) welcome(state.monkeys.length - 1);
   else message = `Not enough ${theme.currency}.`;
@@ -380,6 +391,7 @@ function buyItem(id: string): void {
     if (!buyCapRaise(state)) message = noSentences;
   } else if (id === 'keys') {
     showingKeys = true;
+    menuCursor = 0;
   } else if (id === 'slots') {
     showingSlots = true;
     if (slotDept >= departmentGenres(state).length) slotDept = 0;
@@ -396,8 +408,9 @@ function buyItem(id: string): void {
     const what = id.slice('hat:'.length);
     if (state.monkeys.length === 1) message = wearHatOn(0, what);
     else {
-      pickingHat = what;
-      message = hatPickPrompt(state, what);
+      giving = { kind: 'hat', id: what };
+      menuCursor = 0;
+      message = '';
     }
   } else if (id === 'dye') {
     if (!state.monkeys.some((m) => m.hat)) message = 'No monkey is wearing a hat to dye.';
@@ -590,12 +603,18 @@ function draw() {
         : `Achievement unlocked: ${names.join(', ')}! [a] to see ${names.length === 1 ? 'it' : 'them'}.`);
   }
   // Clear the screen and move the cursor home, then redraw.
-  const screen = hiring
-    ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), message, columns)
+  const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
+  const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
+  const screen = pick
+    ? renderMonkeyPicker(state, pick.title, pick.notes, menuCursor, shown, columns)
+    : showingInventory
+    ? renderInventory(state, invRow, invCol, invHeld, shown, columns)
+    : hiring
+    ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), shown, columns, menuCursor)
     : showingScript && contents
-    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message, columns)
+    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns)
     : showingOptions
-    ? renderOptions(state, columns)
+    ? renderOptions(state, columns, menuCursor)
     : showingOffice && readingBook
     ? renderFengShuiBook(state)
     : showingOffice && readingManagerBook
@@ -605,28 +624,28 @@ function draw() {
     : showingOffice && officeShop
     ? officeShopScreen(columns)
     : showingOffice
-    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
+    ? renderOffice(state, shown, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
     ? renderAchievements(state, achievementRow, columns)
     : showingRoster
-    ? renderRoster(state, rosterCursor, message, columns)
+    ? renderRoster(state, rosterCursor, shown, columns)
     : showingStats
     ? renderStats(state, columns)
     : showingDictionary
       ? renderDictionary(state, dictionaryRow, columns)
       : showingScript && scriptShop
-    ? renderScript(state, scriptSpot().play, scriptCursor, '', columns, renderShop(state, 'script', shopCursor, message, columns, true, scriptSpot()))
+    ? renderScript(state, scriptSpot().play, scriptCursor, '', columns, renderShop(state, 'script', shopCursor, shown, columns, true, scriptSpot()))
     : showingScript
-    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message, columns)
+    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, shown, columns)
     : showingDev
-      ? renderDevMenu(state, message, columns)
+      ? renderDevMenu(state, shown, columns, menuCursor)
       : showingKeys
-      ? renderKeysMenu(state, message, columns)
+      ? renderKeysMenu(state, shown, columns, menuCursor)
       : showingSlots
-        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message, columns)
+        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, shown, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : renderScreen(state, message, shop, columns, shopCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
+          : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
   process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
 }
 
@@ -661,8 +680,38 @@ function startNaming(index: number) {
   message = namePrompt();
 }
 
+/** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
+function pickerOpen(): boolean {
+  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || pickingLetter || buyingRoom);
+}
+
+/** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */
+function menuKey(key: { name?: string }, n: number): number {
+  if (n <= 0) return -1;
+  if (key.name === 'up' || key.name === 'down') {
+    menuCursor = (Math.min(menuCursor, n - 1) + (key.name === 'up' ? n - 1 : 1)) % n;
+    return -1;
+  }
+  return key.name === 'return' || key.name === 'enter' ? Math.min(menuCursor, n - 1) : -1;
+}
+
 function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
   if (key.ctrl && key.name === 'c') return quit();
+
+  // A picker on the message line: arrows move its cursor and enter picks, as if its key were pressed.
+  if (!pickerOpen()) pickCursor = 0;
+  else {
+    const choices = promptChoices(message);
+    if (choices.length > 0 && ['up', 'down', 'left', 'right'].includes(key.name ?? '')) {
+      const back = key.name === 'up' || key.name === 'left';
+      pickCursor = (Math.min(pickCursor, choices.length - 1) + (back ? choices.length - 1 : 1)) % choices.length;
+      return draw();
+    }
+    if (choices.length > 0 && (key.name === 'return' || key.name === 'enter')) {
+      str = choices[Math.min(pickCursor, choices.length - 1)].key;
+      key = { name: str.toLowerCase() };
+    }
+  }
 
   if (confirmingFolio) {
     confirmingFolio = false;
@@ -721,6 +770,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (hiring) {
+    const row = menuKey(key, state.candidates.length + 1);
+    if (row >= 0) str = String(row === state.candidates.length ? 0 : row + 1);
     const n = Number(str);
     if (key.name === 'escape' || key.name === 'q') {
       hiring = null;
@@ -761,13 +812,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingHat) {
-    const what = pickingHat;
-    const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
-      pickingHat = '';
-      message = 'Done.';
-    } else message = `${wearHatOn(i, what)}  ${hatPickPrompt(state, what)}`;
+  if (giving) {
+    const n = state.monkeys.length;
+    let row = menuKey(key, n);
+    if (row < 0 && str && /^[1-9]$/.test(str) && Number(str) <= n) row = menuCursor = Number(str) - 1;
+    if (row >= 0) message = giving.kind === 'hat' ? wearHatOn(row, giving.id) : dyeHatOn(row, giving.color);
+    else if (key.name === 'escape' || key.name === 'q') {
+      giving = null;
+      message = '';
+    }
     return draw();
   }
 
@@ -780,20 +833,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const wearers = state.monkeys.flatMap((m, i) => (m.hat ? [i] : []));
       if (wearers.length === 1) message = dyeHatOn(wearers[0], color);
       else {
-        pickingDye = color;
-        message = dyePickPrompt(state, color);
+        giving = { kind: 'dye', color };
+        menuCursor = 0;
+        message = '';
       }
     }
-    return draw();
-  }
-
-  if (pickingDye !== null) {
-    const color = pickingDye;
-    const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || i >= state.monkeys.length) {
-      pickingDye = null;
-      message = 'Done.';
-    } else message = `${dyeHatOn(i, color)}  ${dyePickPrompt(state, color)}`;
     return draw();
   }
 
@@ -990,6 +1034,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingOptions) {
+    const row = menuKey(key, 3);
+    if (row >= 0) str = String(row + 1);
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
     else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
@@ -1160,6 +1206,48 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingInventory) {
+    message = '';
+    const rows = inventoryRows(state);
+    invRow = Math.max(0, Math.min(invRow, rows.length - 1));
+    const here = rows[invRow];
+    const name = (who: Holder) => (who === 'storage' ? 'storage' : monkeyName(state, who));
+    if (key.name === 'escape' || key.name === 'q' || (str === 'i' && !invHeld)) {
+      if (invHeld) invHeld = null;
+      else showingInventory = false;
+    } else if (key.name === 'up' || key.name === 'down') {
+      invRow = (invRow + (key.name === 'up' ? rows.length - 1 : 1)) % rows.length;
+      invCol = Math.max(0, Math.min(invCol, rows[invRow].items.length - 1));
+    } else if ((key.name === 'left' || key.name === 'right') && here.items.length > 0) {
+      invCol = (invCol + (key.name === 'left' ? here.items.length - 1 : 1)) % here.items.length;
+    } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+      const item = here.items[invCol];
+      if (!invHeld) {
+        if (!item) message = 'Nothing there to pick up.';
+        else if (item.kind === 'typewriter' && isTemp(state.monkeys[here.who as number])) message = 'Temps keep their own typewriter.';
+        else invHeld = { who: here.who, item };
+      } else if (invHeld.who === here.who) invHeld = null; // put back where it was
+      else if (invHeld.item.kind === 'hat') {
+        const what = itemName(state, invHeld.who, invHeld.item).toLowerCase();
+        if (moveHat(state, invHeld.who, invHeld.item.id, here.who)) {
+          message = here.who === 'storage' ? `The ${what} is in storage.` : `${name(here.who)} has the ${what} now. [w] puts it on.`;
+          invHeld = null;
+          invCol = Math.max(0, Math.min(invCol, inventoryRows(state)[invRow].items.length - 1));
+        } else message = `${name(here.who)} has a ${what} already.`;
+      } else if (here.who === 'storage') message = 'Typewriters stay with monkeys: put it on another monkey to swap.';
+      else if (swapTypewriters(state, invHeld.who as number, here.who)) {
+        message = `${name(invHeld.who)} and ${name(here.who)} swapped typewriters.`;
+        invHeld = null;
+      } else message = 'Temps keep their own typewriter.';
+    } else if (str === 'w' && !invHeld) {
+      const item = here.items[invCol];
+      if (here.who === 'storage') message = 'Give it to a monkey first: pick it up and put it on one.';
+      else if (item?.kind !== 'hat') message = 'Choose a hat to wear.';
+      else message = wearHatOn(here.who, item.id);
+    }
+    return draw();
+  }
+
   if (showingRoster) {
     const order = rosterOrder(state);
     const i = order[rosterCursor];
@@ -1229,6 +1317,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingDev) {
     message = '';
+    const row = menuKey(key, devTools.length);
+    if (row >= 0) str = String(row + 1);
     const tool = str && /^[1-9]$/.test(str) ? devTools[Number(str) - 1] : undefined;
     if (key.name === 'escape' || str === '`' || key.name === 'q') showingDev = false;
     else if (tool) {
@@ -1245,6 +1335,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingKeys) {
     message = '';
+    const row = menuKey(key, keyChoices(state).length);
+    if (row >= 0) str = String(row + 1);
     if (key.name === 'escape' || key.name === 'q') {
       showingKeys = false;
     } else if (str && /^[1-9]$/.test(str)) {
@@ -1255,6 +1347,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   message = '';
+  // The opening screens' choices: arrows and enter, or their keys.
+  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : state.owned.length === 0 ? starterScenes(state).length : state.letters.length === 0 ? startingLetters.length : 0;
+  if (opening > 0) {
+    const row = menuKey(key, opening);
+    if (row >= 0) {
+      str = state.owned.length > 0 ? startingLetters[row].toLowerCase() : String(row + 1);
+      menuCursor = 0;
+    }
+  }
   if (key.name === 'q') {
     return quit();
   } else if (state.owned.length === 0 && state.departments.length === 0) {
@@ -1307,12 +1408,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     openScript();
   } else if (str === '`') {
     showingDev = true;
+    menuCursor = 0;
   } else if (str === 'o') {
     openOffice();
   } else if (str === 'c') {
     showingOptions = true;
+    menuCursor = 0;
   } else if (str === '?') {
     showingHelp = true;
+  } else if (str === 'i') {
+    showingInventory = true;
+    invHeld = null;
   } else if (str === 'm') {
     showingRoster = true;
   } else if (str === 't') {
