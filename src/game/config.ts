@@ -730,6 +730,19 @@ export const monkeyNames = [
 ];
 
 /**
+ * Parody names (Justin, 2026-10-15: "king kong could be bing bong... sometimes
+ * it can be the real name sometimes... a semi-rhyming or sorta similar
+ * sounding parody"): a new monkey gets a parody of one of monkeyNames with
+ * this chance, and always once every real name is taken. A parody swaps the
+ * sounds before the first vowel of every word for one of `onsets` (Kong ->
+ * Bong, Abu -> Babu); words with no vowel, like Mr, stay.
+ */
+export const parodyNames = {
+  chance: 0.3,
+  onsets: ['B', 'D', 'F', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'T', 'W', 'Z', 'Bl', 'Br', 'Ch', 'Fl', 'Gr', 'Sh', 'Sn', 'Sp', 'Wh'],
+};
+
+/**
  * How a typist's energy shows on the home screen: green above `green` percent,
  * yellow above `yellow`, red at or below it, and Resting (blue) on a break.
  */

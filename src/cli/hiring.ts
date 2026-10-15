@@ -44,7 +44,7 @@ export function renderCandidates(state: GameState, job: string, title: string, b
     '',
     ` [0]  someone unseen  ${priceNamed(base, state.currency)}`,
     ...(state.candidates.some((c) => c.tempLeft > 0)
-      ? ['', dim(` Temps are cheaper and better, but leave when their time is up and can't be upgraded.`)]
+      ? ['', dim(` Temps cost less and work better, but leave in time and can't be upgraded.`)]
       : []),
     '',
     dim(` New candidates in ${formatDuration(state.candidatesIn)}.`),

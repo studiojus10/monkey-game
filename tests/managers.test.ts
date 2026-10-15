@@ -431,11 +431,27 @@ describe('monkey names', () => {
     const names = s.monkeys.slice(3).map((m) => m.name);
     expect(new Set(names).size).toBe(names.length);
     expect(names.every((n) => n.length > 0 && n.length <= 12)).toBe(true);
-    expect(monkeyNames).toContain(names[0]);
+    const { monkeyParodies } = await import('../src/game/state');
+    const known = new Set([...monkeyNames, ...monkeyParodies()]);
+    expect(names.every((n) => known.has(n))).toBe(true);
+    expect(names.some((n) => monkeyNames.includes(n))).toBe(true);
+    expect(names.some((n) => !monkeyNames.includes(n))).toBe(true); // some parodies too
     expect(s.stats.renamed).toBe(0);
     expect(L.renameMonkey(s, 3, 'Bob')).toBe(true);
     expect(L.monkeyName(s, 3)).toBe('Bob');
     expect(s.stats.renamed).toBe(1);
+  });
+});
+
+describe('parody names', () => {
+  it('swap the sounds before each first vowel, keeping words with no vowel', async () => {
+    const { parodyOf, monkeyParodies } = await import('../src/game/state');
+    const { monkeyNames } = await import('../src/game/config');
+    expect(parodyOf('King Kong', 'B')).toBe('Bing Bong');
+    expect(parodyOf('Abu', 'B')).toBe('Babu');
+    expect(parodyOf('Mr Teeny', 'Sp')).toBe('Mr Speeny');
+    expect(parodyOf('Chim-Chim', 'Fl')).toBe('Flim-Flim');
+    expect(monkeyParodies().some((n) => monkeyNames.includes(n))).toBe(false);
   });
 });
 
