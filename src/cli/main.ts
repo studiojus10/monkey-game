@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, theme } from '../game/config';
+import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -132,6 +132,8 @@ import {
   type Store,
   type ScriptSpot,
   homeChosen,
+  highlightChoice,
+  promptChoices,
   homeMonkeys,
   maxMonkeyLines,
   trainees,
@@ -235,6 +237,8 @@ let readingBook = false; // the feng shui book, open from the office map
 let readingManagerBook = false; // the manager's book, open from the office map
 let officeHelp = false; // the office map's [?] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding a book (feng shui or the manager's), just inspected: [y] reads it
+let menuCursor = 0; // the chosen row of the open menu (opening screens, options, dev tools, keys, hiring)
+let pickCursor = 0; // the chosen choice of a picker on the message line
 let homeCursor = 0; // the chosen monkey's row in the home screen's table
 let shopCursor = 0; // the chosen item in the open store, counted over all its pages
 let officeShop: Store | null = null; // the office map's furniture shop, when open
@@ -305,6 +309,7 @@ function doHire(h: Hiring, from?: number): boolean {
 function hire(h: Hiring): void {
   if (hrRoom(state)) {
     hiring = h;
+    menuCursor = 0;
     message = '';
   } else if (doHire(h)) welcome(state.monkeys.length - 1);
   else message = `Not enough ${theme.currency}.`;
@@ -380,6 +385,7 @@ function buyItem(id: string): void {
     if (!buyCapRaise(state)) message = noSentences;
   } else if (id === 'keys') {
     showingKeys = true;
+    menuCursor = 0;
   } else if (id === 'slots') {
     showingSlots = true;
     if (slotDept >= departmentGenres(state).length) slotDept = 0;
@@ -590,12 +596,13 @@ function draw() {
         : `Achievement unlocked: ${names.join(', ')}! [a] to see ${names.length === 1 ? 'it' : 'them'}.`);
   }
   // Clear the screen and move the cursor home, then redraw.
+  const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
   const screen = hiring
-    ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), message, columns)
+    ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), shown, columns, menuCursor)
     : showingScript && contents
-    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, message, columns)
+    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns)
     : showingOptions
-    ? renderOptions(state, columns)
+    ? renderOptions(state, columns, menuCursor)
     : showingOffice && readingBook
     ? renderFengShuiBook(state)
     : showingOffice && readingManagerBook
@@ -605,28 +612,28 @@ function draw() {
     : showingOffice && officeShop
     ? officeShopScreen(columns)
     : showingOffice
-    ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
+    ? renderOffice(state, shown, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
     ? renderAchievements(state, achievementRow, columns)
     : showingRoster
-    ? renderRoster(state, rosterCursor, message, columns)
+    ? renderRoster(state, rosterCursor, shown, columns)
     : showingStats
     ? renderStats(state, columns)
     : showingDictionary
       ? renderDictionary(state, dictionaryRow, columns)
       : showingScript && scriptShop
-    ? renderScript(state, scriptSpot().play, scriptCursor, '', columns, renderShop(state, 'script', shopCursor, message, columns, true, scriptSpot()))
+    ? renderScript(state, scriptSpot().play, scriptCursor, '', columns, renderShop(state, 'script', shopCursor, shown, columns, true, scriptSpot()))
     : showingScript
-    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message, columns)
+    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, shown, columns)
     : showingDev
-      ? renderDevMenu(state, message, columns)
+      ? renderDevMenu(state, shown, columns, menuCursor)
       : showingKeys
-      ? renderKeysMenu(state, message, columns)
+      ? renderKeysMenu(state, shown, columns, menuCursor)
       : showingSlots
-        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message, columns)
+        ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, shown, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : renderScreen(state, message, shop, columns, shopCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
+          : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
   process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
 }
 
@@ -661,8 +668,38 @@ function startNaming(index: number) {
   message = namePrompt();
 }
 
+/** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
+function pickerOpen(): boolean {
+  return !!(pickingDeptFor || pickingManagerUpgrade || pickingHat || pickingDyeColor || pickingDye !== null || pickingTyping || pickingDepartment || pickingLetter || buyingRoom);
+}
+
+/** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */
+function menuKey(key: { name?: string }, n: number): number {
+  if (n <= 0) return -1;
+  if (key.name === 'up' || key.name === 'down') {
+    menuCursor = (Math.min(menuCursor, n - 1) + (key.name === 'up' ? n - 1 : 1)) % n;
+    return -1;
+  }
+  return key.name === 'return' || key.name === 'enter' ? Math.min(menuCursor, n - 1) : -1;
+}
+
 function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
   if (key.ctrl && key.name === 'c') return quit();
+
+  // A picker on the message line: arrows move its cursor and enter picks, as if its key were pressed.
+  if (!pickerOpen()) pickCursor = 0;
+  else {
+    const choices = promptChoices(message);
+    if (choices.length > 0 && ['up', 'down', 'left', 'right'].includes(key.name ?? '')) {
+      const back = key.name === 'up' || key.name === 'left';
+      pickCursor = (Math.min(pickCursor, choices.length - 1) + (back ? choices.length - 1 : 1)) % choices.length;
+      return draw();
+    }
+    if (choices.length > 0 && (key.name === 'return' || key.name === 'enter')) {
+      str = choices[Math.min(pickCursor, choices.length - 1)].key;
+      key = { name: str.toLowerCase() };
+    }
+  }
 
   if (confirmingFolio) {
     confirmingFolio = false;
@@ -721,6 +758,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (hiring) {
+    const row = menuKey(key, state.candidates.length + 1);
+    if (row >= 0) str = String(row === state.candidates.length ? 0 : row + 1);
     const n = Number(str);
     if (key.name === 'escape' || key.name === 'q') {
       hiring = null;
@@ -990,6 +1029,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingOptions) {
+    const row = menuKey(key, 3);
+    if (row >= 0) str = String(row + 1);
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
     else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
@@ -1229,6 +1270,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingDev) {
     message = '';
+    const row = menuKey(key, devTools.length);
+    if (row >= 0) str = String(row + 1);
     const tool = str && /^[1-9]$/.test(str) ? devTools[Number(str) - 1] : undefined;
     if (key.name === 'escape' || str === '`' || key.name === 'q') showingDev = false;
     else if (tool) {
@@ -1245,6 +1288,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingKeys) {
     message = '';
+    const row = menuKey(key, keyChoices(state).length);
+    if (row >= 0) str = String(row + 1);
     if (key.name === 'escape' || key.name === 'q') {
       showingKeys = false;
     } else if (str && /^[1-9]$/.test(str)) {
@@ -1255,6 +1300,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   message = '';
+  // The opening screens' choices: arrows and enter, or their keys.
+  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : state.owned.length === 0 ? starterScenes(state).length : state.letters.length === 0 ? startingLetters.length : 0;
+  if (opening > 0) {
+    const row = menuKey(key, opening);
+    if (row >= 0) {
+      str = state.owned.length > 0 ? startingLetters[row].toLowerCase() : String(row + 1);
+      menuCursor = 0;
+    }
+  }
   if (key.name === 'q') {
     return quit();
   } else if (state.owned.length === 0 && state.departments.length === 0) {
@@ -1307,10 +1361,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     openScript();
   } else if (str === '`') {
     showingDev = true;
+    menuCursor = 0;
   } else if (str === 'o') {
     openOffice();
   } else if (str === 'c') {
     showingOptions = true;
+    menuCursor = 0;
   } else if (str === '?') {
     showingHelp = true;
   } else if (str === 'm') {

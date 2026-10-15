@@ -17,6 +17,8 @@ import {
   renderContents,
   renderSlotsMenu,
   renderOptions,
+  promptChoices,
+  highlightChoice,
   hatPickPrompt,
   inspectItem,
   dyeColorPrompt,
@@ -88,14 +90,24 @@ describe('terminal screen', () => {
     const genres = plain(renderScreen(s, '', null, 80));
     expect(genres.split('\n')[0]).toBe(' INFINITE MONKEYS ');
     expect(genres).toContain('   [1] Comedies   Test Play');
-    expect(genres).toContain(' [1] choose   [q] quit');
+    expect(genres).toContain(' [up/down] choose   [enter] pick   [1] pick   [q] quit');
+    expect(renderScreen(s, '', null, 80, 0)).toContain(inverse('   [1] Comedies   Test Play')); // the cursor's choice
     openDepartment(s, 'comedy');
     expect(plain(renderScreen(s))).toContain('   [1] Test Play, Act 1, scene 1   1 line');
     chooseStarterScene(s, 'test', '1.1');
     const text = plain(renderScreen(s));
     expect(text).toContain('   [a] A\n   [i] I\n');
-    expect(text).toContain(' [a/i] choose   [q] quit');
+    expect(text).toContain(' [a/i] pick   [q] quit');
     expect(text).not.toContain('Bananas');
+  });
+
+  it('finds the choices in a picker prompt and highlights the chosen one', () => {
+    const prompt = `Hat for which monkey? [1] ${green('Ann')} (free)   [2] Bob   (any other key: done)`;
+    expect(promptChoices(prompt).map((c) => c.key)).toEqual(['1', '2']);
+    expect(highlightChoice(prompt, 1)).toContain(inverse('[2] Bob'));
+    expect(highlightChoice(prompt, 0)).toContain(inverse(`[1] ${green('Ann')} (free)`));
+    expect(promptChoices('Press letters to buy (any other key: done). Values: B(3) C(3)').map((c) => c.key)).toEqual(['B', 'C']);
+    expect(highlightChoice('Values: B(3) C(3)', 1)).toBe(`Values: B(3) ${inverse('C(3)')}`);
   });
 
   it('shows the currencies, letters, the monkey table and controls', () => {
@@ -693,6 +705,7 @@ describe('furniture', () => {
   it('has an option to place furniture yourself', () => {
     const s = started();
     expect(squash(renderOptions(s))).toContain('[1] Furniture places itself ON');
+    expect(renderOptions(s, 0, 1)).toMatch(/\x1b\[7m \[2\] Light background/);
     s.settings.autoPlaceFurniture = false;
     expect(squash(renderOptions(s))).toContain('[1] Furniture places itself off');
     expect(squash(renderOptions(s))).toContain('[2] Light background off');

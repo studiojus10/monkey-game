@@ -135,6 +135,27 @@ export function unownedLetters(state: GameState): string[] {
     .filter((l) => !state.letters.includes(l));
 }
 
+/**
+ * The choices in a picker prompt on the message line: each [k] (or, for
+ * letters, each A(1)) with where its text starts and ends in the prompt.
+ */
+export function promptChoices(prompt: string): { key: string; start: number; end: number }[] {
+  const found: { key: string; start: number; end: number }[] = [];
+  for (const m of prompt.matchAll(/\[([0-9a-z])\] |(?<=[ :])([A-Z])\(\d+\)/g)) {
+    const start = m.index!;
+    const letter = !!m[2];
+    const after = prompt.indexOf(letter ? ' ' : '   ', start + m[0].length);
+    found.push({ key: m[1] ?? m[2], start, end: after < 0 ? prompt.length : after });
+  }
+  return found;
+}
+
+/** A picker prompt with its `k`th choice inverse: the picker's cursor. */
+export function highlightChoice(prompt: string, k: number): string {
+  const c = promptChoices(prompt)[k];
+  return c ? prompt.slice(0, c.start) + inverse(prompt.slice(c.start, c.end)) + prompt.slice(c.end) : prompt;
+}
+
 /** The prompt shown while picking which letter to buy, with each letter's value. */
 export function letterPickPrompt(state: GameState): string {
   const choices = unownedLetters(state).map((l) => `${l}(${letterValues[l]})`);
@@ -157,15 +178,16 @@ export const genreNames: Record<Genre, string> = {
  * a line of story, a dim explanation, the choices with dim details lined up
  * after them, and the keys.
  */
-function openingScreen(intro: string, explain: string[], choices: [string, string, string][], keys: [string, string][], message: string, columns: number): string {
+function openingScreen(intro: string, explain: string[], choices: [string, string, string][], keys: [string, string][], message: string, columns: number, cursor = -1): string {
   const width = Math.max(...choices.map(([, name]) => name.length));
+  const row = ([key, name, details]: [string, string, string]) => `   ${bold(`[${key}]`)} ${details ? `${name.padEnd(width)}   ${dim(details)}` : name}`;
   return [
     bold(inverse(` ${theme.title.toUpperCase()} `)),
     '',
     ...(intro ? [` ${intro}`] : []),
     ...explain.map((r) => dim(` ${r}`)),
     '',
-    ...choices.map(([key, name, details]) => `   ${bold(`[${key}]`)} ${details ? `${name.padEnd(width)}   ${dim(details)}` : name}`),
+    ...choices.map((c, k) => (k === cursor ? inverse(plainText(row(c))) : row(c))),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
@@ -390,9 +412,10 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       'Somewhere, infinite monkeys are trying to write Shakespeare.',
       ['Choose their first department. Each works on one genre; the others', 'open as you gather more monkeys.'],
       genres.map((g, i) => [String(i + 1), genreNames[g], availablePlays().filter((p) => p.genre === g).map((p) => p.title).join(', ')]),
-      [[genres.length === 1 ? '1' : `1-${genres.length}`, 'choose'], ['q', 'quit']],
+      [['up/down', 'choose'], ['enter', 'pick'], [genres.length === 1 ? '1' : `1-${genres.length}`, 'pick'], ['q', 'quit']],
       message,
       columns,
+      cursor,
     );
   }
 
@@ -402,9 +425,10 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       'Choose a free first scene for your monkeys to work toward.',
       ['Later you can buy more scenes, acts and whole plays in the script.'],
       scenes.map(({ play, scene }, i) => [String(i + 1), `${play.title}, ${sceneName(scene.act, scene.scene)}`, `${count(scene.lines.length)} line${scene.lines.length === 1 ? '' : 's'}`]),
-      [[scenes.length === 1 ? '1' : `1-${scenes.length}`, 'choose'], ['q', 'quit']],
+      [['up/down', 'choose'], ['enter', 'pick'], [scenes.length === 1 ? '1' : `1-${scenes.length}`, 'pick'], ['q', 'quit']],
       message,
       columns,
+      cursor,
     );
   }
 
@@ -413,9 +437,10 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       'Your monkey sits at a typewriter with no keys.',
       ['Pick its first letter. It has to be a word on its own.'],
       startingLetters.map((l) => [l.toLowerCase(), l, ''] as [string, string, string]),
-      [[startingLetters.map((l) => l.toLowerCase()).join('/'), 'choose'], ['q', 'quit']],
+      [['up/down', 'choose'], ['enter', 'pick'], [startingLetters.map((l) => l.toLowerCase()).join('/'), 'pick'], ['q', 'quit']],
       message,
       columns,
+      cursor,
     );
   }
 
@@ -980,9 +1005,12 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
 }
 
 /** The options menu. */
-export function renderOptions(state: GameState, columns = 0): string {
+export function renderOptions(state: GameState, columns = 0, cursor = -1): string {
   const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
-  const option = (key: string, label: string, on: boolean, notes: string[]) => [` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`, ...notes.map((n) => dim(`     ${n}`)), ''];
+  const option = (key: string, label: string, on: boolean, notes: string[]) => {
+    const row = ` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`;
+    return [Number(key) - 1 === cursor ? inverse(plainText(row)) : row, ...notes.map((n) => dim(`     ${n}`)), ''];
+  };
   return [
     titleBar(state, 'Options', columns),
     '',
@@ -993,22 +1021,22 @@ export function renderOptions(state: GameState, columns = 0): string {
     ...option('2', 'Light background', state.settings.lightBackground, ["On: darker colours that are easy to read when your terminal's theme is light."]),
     ...option('3', 'Scientific numbers', state.settings.scientific, ['On: big numbers as 1.23e45. Off: short names (1.23M, 4.56Qa, 7.89Vg).']),
     rule(columns),
-    keyRow([['1-3', 'switch'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose'], ['enter', 'switch'], ['1-3', 'switch'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
 /** The development tools menu, for testing features. */
-export function renderDevMenu(state: GameState, message = '', columns = 0): string {
+export function renderDevMenu(state: GameState, message = '', columns = 0, cursor = -1): string {
   return [
     titleBar(state, 'Dev tools', columns),
     '',
     dim(' For testing: these change your save.'),
     '',
-    ...devTools.map((t, i) => ` ${bold(`[${i + 1}]`)} ${t.label}`),
+    ...devTools.map((t, i) => (i === cursor ? inverse(` [${i + 1}] ${t.label}`) : ` ${bold(`[${i + 1}]`)} ${t.label}`)),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([[`1-${devTools.length}`, 'use a tool'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose'], ['enter', 'use it'], [`1-${devTools.length}`, 'use a tool'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
@@ -1088,7 +1116,7 @@ function nextWordKeys(state: GameState): string[] {
 }
 
 /** The typewriter keys menu: combination keys and the word keys your monkeys have unlocked. */
-export function renderKeysMenu(state: GameState, message = '', columns = 0): string {
+export function renderKeysMenu(state: GameState, message = '', columns = 0, cursor = -1): string {
   const owned = state.keys.length > 0 ? state.keys.join(' ') : dim('none yet');
   const choices = keyChoices(state).map((k) => ({ k, kind: typewriterKeys.combinations.includes(k) ? 'combination' : 'word', cost: keyCost(state, k) }));
   const keyWidth = Math.max(3, ...choices.map((c) => c.k.length));
@@ -1104,6 +1132,7 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0): str
     '',
     ...choices.map(({ k, kind, cost }, i) => {
       const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
+      if (i === cursor) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
       return state.currency >= cost
         ? `${row(green(k.padEnd(keyWidth)))}${green('*')} ${currencyColors.currency(`${bold(formatNumber(cost))} ${theme.currency}`)}`
         : dim(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
@@ -1114,7 +1143,10 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0): str
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([...(choices.length > 0 ? [[`1-${choices.length}`, 'buy'] as [string, string]] : []), ['esc', 'back']], columns),
+    keyRow(
+      [...(choices.length > 0 ? [['up/down', 'choose'], ['enter', 'buy'], [`1-${choices.length}`, 'buy']] as [string, string][] : []), ['esc', 'back']],
+      columns,
+    ),
   ].join('\n');
 }
 
