@@ -149,7 +149,8 @@ export interface GameState {
   stats: Stats;
   achievements: string[]; // ids of achievements unlocked, in order
   folios: number; // Folios published (prestige resets)
-  folioPages: number; // pages banked by every Folio published: points x (1 + pages x folio.bonusPerPage)
+  folioPages: number; // pages banked by every Folio published (Marketing's royalties count them)
+  folioBoost: number; // bananas x this for good: every Folio's (1 + its pages x folio.bonusPerPage), multiplied together
   lastSaved: number; // epoch ms
 }
 
@@ -157,11 +158,12 @@ export interface GameState {
 export interface Settings {
   autoPlaceFurniture: boolean; // new furniture places itself; off opens the office map to place it
   lightBackground: boolean; // colours for a terminal with a light background (darker yellow, cyan and green)
+  scientific: boolean; // big numbers as 1.23e45 instead of short names
   homeDepartment: string; // the department whose monkeys the home screen shows ('' or a closed one: the first)
 }
 
 export function createSettings(): Settings {
-  return { autoPlaceFurniture: true, lightBackground: false, homeDepartment: '' };
+  return { autoPlaceFurniture: true, lightBackground: false, homeDepartment: '', scientific: false };
 }
 
 /** Lifetime statistics, for the statistics page. They never affect play. */
@@ -304,6 +306,7 @@ export function createInitialState(now = Date.now()): GameState {
     achievements: [],
     folios: 0,
     folioPages: 0,
+    folioBoost: 1,
     lastSaved: now,
   };
 }

@@ -546,8 +546,14 @@ export const petting = {
  * finishedPlayPages more per line of each finished play. Every page banked
  * raises points by bonusPerPage for good. Placeholders.
  */
+/**
+ * Folios (Justin, 2026-10-14: "late game numbers get REALLY big; Folios
+ * could feed bigger multipliers"): each Folio multiplies bananas by 1 + its
+ * pages x bonusPerPage, and Folios multiply each other, so every one
+ * published makes the next count for more.
+ */
 export const folio = {
-  bonusPerPage: 0.001, // +0.1% points a page: a finished Midsummer (2,160 lines, counted twice) is about +432%
+  bonusPerPage: 0.001, // +0.1% points a page: a finished Midsummer (2,160 lines, counted twice) is about x5.3
   finishedPlayPages: 1,
 };
 

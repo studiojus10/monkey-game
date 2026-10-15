@@ -309,9 +309,14 @@ export function pointsMultiplier(state: GameState, m?: MonkeyState): number {
   return (1 + state.pointsBonus) * (1 + happiness(state, m && monkeyGenre(state, m))) * folioMultiplier(state) * (m ? 1 + traitBonus(state, m, 'pay') : 1) * (1 + researchBonus(state, 'points'));
 }
 
-/** Points are multiplied by this for good, from the pages of every Folio published. */
+/** Points are multiplied by this for good: every Folio published multiplies it by 1 + its pages x bonusPerPage. */
 export function folioMultiplier(state: GameState): number {
-  return 1 + state.folioPages * folio.bonusPerPage;
+  return state.folioBoost;
+}
+
+/** What folioMultiplier would be after publishing a Folio now. */
+export function folioMultiplierAfter(state: GameState): number {
+  return state.folioBoost * (1 + folioPagesNow(state) * folio.bonusPerPage);
 }
 
 /** Whether a Folio can be published: a whole play is finished. */
@@ -336,6 +341,7 @@ export function publishFolio(state: GameState): GameState | null {
   const next = createInitialState(state.lastSaved);
   next.folios = state.folios + 1;
   next.folioPages = state.folioPages + folioPagesNow(state);
+  next.folioBoost = folioMultiplierAfter(state);
   next.achievements = [...state.achievements];
   next.stats = state.stats;
   next.settings = state.settings;

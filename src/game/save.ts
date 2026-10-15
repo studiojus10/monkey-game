@@ -1,4 +1,4 @@
-import { desk, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
+import { desk, folio, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
 import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
@@ -223,11 +223,14 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       lastWordPoints: num(s.lastWordPoints, 0),
       settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false, lightBackground: s.settings?.lightBackground === true,
         homeDepartment: typeof s.settings?.homeDepartment === 'string' ? s.settings.homeDepartment : '',
+        scientific: s.settings?.scientific === true,
       },
       stats,
       achievements: strings(s.achievements),
       folios: Math.max(0, Math.floor(num(s.folios, 0))),
       folioPages: Math.max(0, Math.floor(num(s.folioPages, 0))),
+      // Saves from before Folios multiplied each other: all pages in one.
+      folioBoost: num(s.folioBoost, 0) >= 1 ? num(s.folioBoost, 0) : 1 + Math.max(0, Math.floor(num(s.folioPages, 0))) * folio.bonusPerPage,
       lastSaved: num(s.lastSaved, now),
     };
     // Saves from before rooms get an office that seats their monkeys.

@@ -107,7 +107,7 @@ import {
 } from '../game/logic';
 import { load, save } from '../game/save';
 import { createInitialState, type Door, type Side } from '../game/state';
-import { formatNumber } from '../format';
+import { formatMultiplier, formatNumber, setScientific } from '../format';
 import { fileStorage } from './fileStorage';
 import {
   keyChoices,
@@ -159,6 +159,7 @@ const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
 const storage = fileStorage(savePath);
 
 let state = load(storage);
+setScientific(state.settings.scientific);
 /** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
 function fitLines(): number {
   const columns = process.stdout.columns || 80;
@@ -590,7 +591,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const gained = next.folioPages - state.folioPages;
       state = next;
       save(state, storage);
-      message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Bananas x${folioMultiplier(state).toFixed(2)} for good. The monkeys start again.`;
+      message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Bananas ${formatMultiplier(folioMultiplier(state))} for good. The monkeys start again.`;
     } else message = 'Not published. The monkeys keep typing.';
     return draw();
   }
@@ -613,6 +614,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (key.name === 'y') {
       storage.clear();
       state = createInitialState();
+      setScientific(false);
       message = 'Progress reset.';
     } else {
       message = 'Reset cancelled.';
@@ -935,6 +937,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
     else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
+    else if (str === '3') setScientific((state.settings.scientific = !state.settings.scientific));
     return draw();
   }
 

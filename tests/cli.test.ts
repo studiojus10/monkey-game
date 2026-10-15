@@ -859,12 +859,13 @@ describe('publishing a Folio on screen', () => {
     s.completed = { test: [0, 1] };
     s.playsDone = ['test'];
     const text = plain(renderScreen(s));
-    expect(text).toContain('* You can publish a Folio: [f] start over with 4 more pages, bananas +0.4% for good.');
+    expect(text).toContain('* You can publish a Folio: [f] start over with 4 more pages, bananas x1.00 for good.');
     expect(text).toContain('[f] publish a Folio');
-    expect(folioPrompt(s)).toContain('bananas x1.00 for good. Press y to publish');
+    expect(folioPrompt(s)).toContain('bananas x1.00 for good (each Folio multiplies the last). Press y to publish');
     s.folios = 1;
     s.folioPages = 500;
-    expect(plain(renderScreen(s))).toContain('Folio bananas +50% (1 Folio published)');
+    s.folioBoost = 1.5;
+    expect(plain(renderScreen(s))).toContain('Folio bananas x1.50 (1 Folio published)');
   });
 });
 

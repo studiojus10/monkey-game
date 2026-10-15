@@ -1948,7 +1948,7 @@ describe('publishing a Folio', () => {
     expect(next.settings.autoPlaceFurniture).toBe(false);
     expect(next.achievements).toEqual(['first-pet', 'first-folio']);
     expect(folioMultiplier(next)).toBeCloseTo(1 + 6 * folio.bonusPerPage);
-    // A second Folio adds to the first.
+    // A second Folio multiplies the first.
     next.completed = { 'folio-test': [0, 1, 2] };
     next.playsDone = ['folio-test'];
     const third = publishFolio(next)!;
@@ -1956,7 +1956,9 @@ describe('publishing a Folio', () => {
     expect(third.folioPages).toBe(12);
     chooseFirstLetter(third, 'i');
     typeLetter(third, 0, rng);
-    expect(third.currency).toBeCloseTo(1 + 12 * folio.bonusPerPage); // the word I pays 1 point, times the Folio
+    // Folios multiply each other.
+    expect(folioMultiplier(third)).toBeCloseTo((1 + 6 * folio.bonusPerPage) ** 2);
+    expect(third.currency).toBeCloseTo((1 + 6 * folio.bonusPerPage) ** 2); // the word I pays 1 point, times the Folios
   });
 });
 
