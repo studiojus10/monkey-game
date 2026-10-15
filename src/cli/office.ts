@@ -1,4 +1,4 @@
-import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
@@ -21,6 +21,7 @@ import {
   traitOf,
   researchers,
   hrStaff,
+  marketers,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
@@ -44,6 +45,7 @@ export function roomName(state: GameState, room: Room): string {
   }
   if (room.kind === 'lab') return `${research.name} lab`;
   if (room.kind === 'hr') return `${hr.name} office`;
+  if (room.kind === 'marketing') return `${marketing.name} office`;
   if (room.kind === 'office') return `${genreNames[room.department as keyof typeof genreNames] ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
@@ -275,7 +277,7 @@ function roomTable(state: GameState, columns = 0): string[] {
         String(i + 1),
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' ? '-' : pct(roomChi(state, r))] : []),
+        ...(state.fengShuiBook ? [r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' ? '-' : pct(roomChi(state, r))] : []),
         r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
@@ -285,6 +287,8 @@ function roomTable(state: GameState, columns = 0): string[] {
           ? researchers(state).map((k) => monkeyName(state, k))
           : r.kind === 'hr'
           ? hrStaff(state).map((k) => monkeyName(state, k))
+          : r.kind === 'marketing'
+          ? marketers(state).map((k) => monkeyName(state, k))
           : r.kind === 'office'
           ? [boss ? `${monkeyName(state, state.monkeys.indexOf(boss))} (manager)` : 'no manager yet']
           : r.kind === 'department'

@@ -40,6 +40,7 @@ import {
   research,
   type ResearchProject,
   hr,
+  marketing,
   monkeyStats,
   coinFlip,
   sellBack,
@@ -177,9 +178,14 @@ export function isHR(m: MonkeyState): boolean {
   return m.department === hr.id;
 }
 
-/** Whether a monkey works outside the play departments (R&D or HR). */
+/** Whether a monkey works in Marketing. */
+export function isMarketer(m: MonkeyState): boolean {
+  return m.department === marketing.id;
+}
+
+/** Whether a monkey works outside the play departments (R&D, HR or Marketing). */
 export function isStaff(m: MonkeyState): boolean {
-  return isResearcher(m) || isHR(m);
+  return isResearcher(m) || isHR(m) || isMarketer(m);
 }
 
 /** Whether a monkey types: not a manager, not in R&D or HR. */
@@ -371,20 +377,18 @@ export function giveTraits(state: GameState, rng: Rng): void {
     const stat = () => Math.round((monkeyStats.min + rng() * (monkeyStats.max - monkeyStats.min)) * 100) / 100;
     if (!m.speedStat) m.speedStat = stat();
     if (!m.stamina) m.stamina = stat();
-    if (Object.keys(m.jobs).length === 0)
-      m.jobs = Object.fromEntries(
-        monkeyStats.jobs.map((j) => {
-          let r = rng();
-          const f = monkeyStats.feelings.find((x) => (r -= x.weight) < 0) ?? monkeyStats.feelings[monkeyStats.feelings.length - 1];
-          return [j.id, f.id];
-        }),
-      );
+    for (const j of monkeyStats.jobs) {
+      if (m.jobs[j.id]) continue;
+      let r = rng();
+      const f = monkeyStats.feelings.find((x) => (r -= x.weight) < 0) ?? monkeyStats.feelings[monkeyStats.feelings.length - 1];
+      m.jobs = { ...m.jobs, [j.id]: f.id };
+    }
   }
 }
 
 /** The job a monkey does: managing, research, hr or typing (a monkeyStats.jobs id). */
 export function jobOf(m: MonkeyState): string {
-  return m.manager ? 'managing' : isResearcher(m) ? 'research' : isHR(m) ? 'hr' : 'typing';
+  return m.manager ? 'managing' : isResearcher(m) ? 'research' : isHR(m) ? 'hr' : isMarketer(m) ? 'marketing' : 'typing';
 }
 
 /** How a monkey feels about a job (fine until its stats are picked). */
@@ -406,6 +410,7 @@ export function statsShown(state: GameState): boolean {
 export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
   if (isResearcher(m)) return labRoom(state);
   if (isHR(m)) return hrRoom(state);
+  if (isMarketer(m)) return marketingRoom(state);
   const genre = monkeyGenre(state, m);
   return (m.manager ? officeOf(state, genre) : undefined) ?? departmentRoom(state, genre);
 }
@@ -417,7 +422,7 @@ export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
 export function traitMood(state: GameState, m: MonkeyState): number {
   const room = workRoom(state, m);
   const inRoom = (kinds: string[]) => !!room && state.furniture.some((f) => f.room === room.id && kinds.includes(f.kind));
-  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : room?.kind === 'hr' ? hrStaff(state).length : 1;
+  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : room?.kind === 'hr' ? hrStaff(state).length : room?.kind === 'marketing' ? marketers(state).length : 1;
   switch (m.trait) {
     case 'claustrophobic': {
       const index = state.monkeys.indexOf(m);
@@ -947,6 +952,10 @@ export function deskOf(state: GameState, index: number): number | undefined {
     const room = hrRoom(state);
     return room ? roomDesks(state, room)[hrStaff(state).indexOf(index)] : undefined;
   }
+  if (isMarketer(m)) {
+    const room = marketingRoom(state);
+    return room ? roomDesks(state, room)[marketers(state).indexOf(index)] : undefined;
+  }
   const genre = monkeyGenre(state, m);
   const office = officeOf(state, genre);
   if (m.manager && office) {
@@ -1008,6 +1017,7 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
   if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
   if (kind === 'lab' && !canBuildLab(state)) return false;
   if (kind === 'hr' && !canBuildHR(state)) return false;
+  if (kind === 'marketing' && !canBuildMarketing(state)) return false;
   state.currency -= cost;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height);
@@ -1885,6 +1895,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state);
   advanceResearch(state, seconds);
+  earn(state, royalties(state) * seconds);
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
     m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds, energyRates(state, m));
@@ -1931,6 +1942,7 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'researchers': return ms.filter(isResearcher).length;
     case 'researched': return state.researched.length;
     case 'hrStaff': return ms.filter(isHR).length;
+    case 'marketers': return ms.filter(isMarketer).length;
     case 'departments': return state.departments.length;
     case 'rooms': return state.office.length;
     case 'furniture': return state.furniture.filter((f) => f.kind !== desk.id).length;
@@ -2044,7 +2056,7 @@ export function projectOf(id: string): ResearchProject | undefined {
 
 /** Projects not yet finished (the one under way included), in order. */
 export function projectsLeft(state: GameState): ResearchProject[] {
-  return research.projects.filter((p) => !state.researched.includes(p.id));
+  return research.projects.filter((p) => !state.researched.includes(p.id) && (p.needs !== 'marketing' || !!marketingRoom(state) || state.researching === p.id));
 }
 
 /** Starts a project, paying its price. One at a time. */
@@ -2092,7 +2104,7 @@ export function advanceResearch(state: GameState, seconds: number): void {
 }
 
 /** What finished projects add up to for one effect (see research in config.ts). */
-export function researchBonus(state: GameState, effect: 'points' | 'speed' | 'drain' | 'rest' | 'combo' | 'squares'): number {
+export function researchBonus(state: GameState, effect: 'points' | 'speed' | 'drain' | 'rest' | 'combo' | 'squares' | 'marketing'): number {
   let n = 0;
   for (const id of state.researched) n += projectOf(id)?.[effect] ?? 0;
   return n;
@@ -2106,6 +2118,66 @@ export function hrRoom(state: GameState): Room | undefined {
 /** HR monkeys, by index. */
 export function hrStaff(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (isHR(m) ? [i] : []));
+}
+
+/** Marketing's office, if built. */
+export function marketingRoom(state: GameState): Room | undefined {
+  return state.office.find((r) => r.kind === 'marketing');
+}
+
+/** Marketing monkeys, by index. */
+export function marketers(state: GameState): number[] {
+  return state.monkeys.flatMap((m, i) => (isMarketer(m) ? [i] : []));
+}
+
+/** Whether Marketing's office can be built on the office map: there's an HR office and no Marketing office yet. */
+export function canBuildMarketing(state: GameState): boolean {
+  return !marketingRoom(state) && !!hrRoom(state);
+}
+
+/** Bananas for the next marketing monkey (before HR's discount on a candidate). */
+export function marketingCost(state: GameState): number {
+  return Math.ceil(marketing.hireCost * Math.pow(marketing.hireCostGrowth, state.monkeysBought[marketing.id] ?? 0));
+}
+
+/** Why a marketing monkey can't be hired right now, money aside ('' if one can). */
+export function marketingBlocker(state: GameState): string {
+  const room = marketingRoom(state);
+  if (!room) return 'Marketing office needed';
+  if (marketers(state).length >= marketing.maxStaff) return 'Marketing full';
+  return freeSquares(state, room).length > 0 ? '' : 'desk needed';
+}
+
+/** Hires a marketing monkey into Marketing's office, with a desk. */
+export function hireMarketer(state: GameState, from?: number): boolean {
+  const cost = hirePrice(state, marketingCost(state), 'marketing', from);
+  if (marketingBlocker(state) || state.currency < cost) return false;
+  state.currency -= cost;
+  state.monkeysBought[marketing.id] = (state.monkeysBought[marketing.id] ?? 0) + 1;
+  addMonkey(state, { ...takeCandidate(state, from), department: marketing.id });
+  const room = marketingRoom(state)!;
+  const square = bestSquares(state, room, true)[0];
+  state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+  return true;
+}
+
+/** How popular your work is: the lines of every scene finished this run, and Folio pages (worth perPage / perLine lines each). */
+export function popularity(state: GameState): { lines: number; pages: number } {
+  const lines = state.scenesDone.reduce((n, key) => {
+    const [id, scene] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+    return n + (getPlay(id)?.scenes.find((sc) => sc.key === scene)?.lines.length ?? 0);
+  }, 0);
+  return { lines, pages: state.folioPages };
+}
+
+/** Bananas a second Marketing earns: royalties on finished scenes and Folio pages, per marketing monkey at its desk (more or less by how it feels about marketing), raised by tactics. */
+export function royalties(state: GameState): number {
+  const working = marketers(state)
+    .filter((i) => canReachDesk(state, state.monkeys[i]) && deskOf(state, i) !== undefined)
+    .reduce((n, i) => n + (1 + jobBonus(state.monkeys[i])) * (1 + traitBonus(state, state.monkeys[i], 'speed')), 0);
+  if (working <= 0) return 0;
+  const { lines, pages } = popularity(state);
+  return working * (lines * marketing.perLine + pages * marketing.perPage) * (1 + researchBonus(state, 'marketing'));
 }
 
 /** Whether HR's office can be built on the office map: a manager has been hired and there's no HR office yet. */

@@ -220,7 +220,7 @@ export interface FurnitureKind {
 }
 
 /** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
-export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr';
+export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing';
 
 /** The five feng shui elements. A room with all five is balanced. */
 export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
@@ -372,6 +372,8 @@ export interface ResearchProject {
   rest?: number;
   combo?: number;
   squares?: number;
+  marketing?: number; // a marketing tactic: royalties up by this share
+  needs?: 'marketing'; // listed only once there's a Marketing office
 }
 
 export const research = {
@@ -389,6 +391,10 @@ export const research = {
     { id: 'floorplans', name: 'Open floor plans', text: 'Room squares cost 25% less.', hours: 24, cost: 1_000_000_000, squares: 0.25 },
     { id: 'rhythm', name: 'Typing rhythm', text: 'Combo cap +1.', hours: 48, cost: 10_000_000_000, combo: 1 },
     { id: 'tenfinger', name: 'Ten-finger typing', text: 'Monkeys type 20% faster.', hours: 72, cost: 1e11, speed: 0.2 },
+    // Marketing tactics (Justin, 2026-10-14: "marketing tactics researched in R&D boost it").
+    { id: 'posters', name: 'Posters', text: 'Royalties +50%.', hours: 4, cost: 10_000_000, marketing: 0.5, needs: 'marketing' },
+    { id: 'radio', name: 'Radio ads', text: 'Royalties +100%.', hours: 24, cost: 1_000_000_000, marketing: 1, needs: 'marketing' },
+    { id: 'booktour', name: 'Book tour', text: 'Royalties +200%.', hours: 72, cost: 1e11, marketing: 2, needs: 'marketing' },
   ] as ResearchProject[],
 };
 
@@ -431,6 +437,26 @@ export const hr = {
 };
 
 /**
+ * Marketing (Justin, 2026-10-14: "Marketing earns bananas from published
+ * Folios by count and popularity"): a department that doesn't type, opened by
+ * building its office on the office map once there's an HR office. Marketing
+ * monkeys are hired into it with a desk each, up to maxStaff. Each one at its
+ * desk earns royalties every second (offline too): perLine for every line of
+ * every scene finished this run, and perPage for every page of every Folio
+ * published (they stay popular for good). Marketing tactics researched in R&D
+ * raise royalties. Placeholders.
+ */
+export const marketing = {
+  id: 'marketing', // a marketing monkey's department
+  name: 'Marketing',
+  maxStaff: 5,
+  hireCost: 10_000_000,
+  hireCostGrowth: 3,
+  perLine: 10,
+  perPage: 100,
+};
+
+/**
  * Hidden stats (Justin, 2026-10-14: "monkeys can have hidden stats like typing
  * speed, total energy... specialties in their jobs"). Every monkey gets, at
  * random when it joins: speed (its typing speed x this) and stamina (how long
@@ -447,6 +473,7 @@ export const monkeyStats = {
     { id: 'typing', name: 'Typing' },
     { id: 'managing', name: 'Managing' },
     { id: 'hr', name: 'HR' },
+    { id: 'marketing', name: 'Marketing' },
     { id: 'research', name: 'Research' },
   ],
   feelings: [
@@ -555,6 +582,7 @@ export const achievements: Achievement[] = [
   { id: 'first-manager', name: 'Middle management', text: 'Hire a manager', stat: 'managers', at: 1 },
   { id: 'first-researcher', name: 'Lab coats', text: 'Hire a researcher', stat: 'researchers', at: 1 },
   { id: 'first-hr', name: 'Human resources', text: 'Hire an HR monkey', stat: 'hrStaff', at: 1 },
+  { id: 'first-marketing', name: 'Now in paperback', text: 'Hire a marketing monkey', stat: 'marketers', at: 1 },
   { id: 'first-research', name: 'Eureka!', text: 'Finish a research project', stat: 'researched', at: 1 },
   { id: 'first-department', name: 'Expansion', text: 'Open a second department', stat: 'departments', at: 2 },
   { id: 'first-room', name: 'Room to breathe', text: 'Buy a new room', stat: 'rooms', at: 2 },

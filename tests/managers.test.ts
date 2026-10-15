@@ -509,3 +509,43 @@ describe('temps', () => {
     expect(L.fireBlocker(s, 1)).toBe('');
   });
 });
+
+describe('Marketing', () => {
+  it('opens after HR; marketing monkeys earn royalties on finished scenes and Folio pages, raised by tactics', async () => {
+    const { marketing, research } = await import('../src/game/config');
+    const L = await import('../src/game/logic');
+    const { setPlays } = L;
+    setPlays([{ id: 'mk', title: 'Mk', genre: 'comedy', lines: [[1, 1, 'A', 'I am'], [1, 1, 'B', 'I'], [1, 2, 'A', 'Am I']] }]);
+    const s = department(managers.minDepartmentMonkeys);
+    buyRoom(s, 'office', 'comedy');
+    hireManager(s, 'comedy');
+    expect(L.canBuildMarketing(s)).toBe(false); // HR first
+    expect(L.projectsLeft(s).some((p) => p.needs === 'marketing')).toBe(false); // tactics hidden
+    buyRoom(s, 'hr');
+    expect(L.marketingBlocker(s)).toBe('Marketing office needed');
+    expect(buyRoom(s, 'marketing')).toBe(true);
+    expect(L.projectsLeft(s).some((p) => p.needs === 'marketing')).toBe(true);
+    s.scenesDone = ['mk:1.1'];
+    s.folioPages = 3;
+    expect(L.popularity(s)).toEqual({ lines: 2, pages: 3 });
+    expect(L.royalties(s)).toBe(0); // nobody in Marketing yet
+    expect(L.hireMarketer(s)).toBe(true);
+    const i = L.marketers(s)[0];
+    Object.assign(s.monkeys[i], { jobs: { ...s.monkeys[i].jobs, marketing: 'fine' }, trait: 'bookworm' });
+    expect(L.isTypist(s.monkeys[i])).toBe(false);
+    expect(s.furniture[deskOf(s, i)!].room).toBe(L.marketingRoom(s)!.id);
+    const per = 2 * marketing.perLine + 3 * marketing.perPage;
+    expect(L.royalties(s)).toBeCloseTo(per);
+    s.researched = research.projects.filter((p) => p.marketing).map((p) => p.id);
+    const boost = research.projects.reduce((n, p) => n + (p.marketing ?? 0), 0);
+    expect(L.royalties(s)).toBeCloseTo(per * (1 + boost));
+    const before = s.currency;
+    L.tick(s, 10, () => 0.99);
+    expect(s.currency - before).toBeGreaterThanOrEqual(per * (1 + boost) * 10 - 1);
+    expect(L.checkAchievements(s)).toEqual([]); // already counted by tick
+    expect(s.achievements).toContain('first-marketing');
+    const back = deserialize(serialize(s));
+    expect(L.marketers(back)).toHaveLength(1);
+    expect(L.marketingRoom(back)?.kind).toBe('marketing');
+  });
+});

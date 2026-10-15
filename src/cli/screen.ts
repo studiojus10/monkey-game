@@ -1,4 +1,4 @@
-import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr } from '../game/config';
+import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -61,6 +61,12 @@ import {
   researchers,
   canBuildLab,
   canBuildHR,
+  canBuildMarketing,
+  marketers,
+  marketingBlocker,
+  marketingCost,
+  marketingRoom,
+  royalties,
   hrBlocker,
   hrCost,
   hrRoom,
@@ -304,6 +310,8 @@ function latelyLines(state: GameState, message: string): string[] {
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
+    ...(canBuildMarketing(state) ? [`* You can build a ${marketing.name} office on the office map ([o], then [r]).`] : []),
+    ...(royalties(state) > 0 ? [`${marketing.name}: royalties ${formatNumber(royalties(state))} ${theme.currency}/s`] : []),
     ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),
   ];
@@ -607,6 +615,20 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
                   id: 'hr',
                   text: 'Hire an HR monkey',
                   effect: `${hrStaff(state).length}/${hr.maxStaff}: each +${Math.round(hr.happierEach * 100)}% happy, monkeys ${Math.round(hr.discountEach * 100)}% cheaper`,
+                };
+                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
+              })(),
+            ]
+          : []),
+        ...(marketingRoom(state)
+          ? [
+              ((): ShopItem => {
+                const cost = marketingCost(state);
+                const blocked = marketingBlocker(state);
+                const item: ShopItem = {
+                  id: 'marketing',
+                  text: 'Hire a marketing monkey',
+                  effect: `${marketers(state).length}/${marketing.maxStaff}: royalties on finished scenes and Folios`,
                 };
                 return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
               })(),
