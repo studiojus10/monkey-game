@@ -260,11 +260,11 @@ describe('the roster', () => {
     s.managerBook = true;
     expect(plain(renderRoster(s, 2))).toContain('Loner');
     expect(plain(renderRoster(s, 2))).toContain('unknown (an HR office would find out)');
-    Object.assign(s.monkeys[1], { speedStat: 1.12, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'unsuited', research: 'detests' } });
+    Object.assign(s.monkeys[1], { speedStat: 1.12, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'unsuited', research: 'detests', marketing: 'good' } });
     s.office.push({ id: 'r9', kind: 'hr', department: '', cells: [[9, 9]] });
     const shown = renderRoster(s, 2);
     expect(plain(shown)).toContain('speed 112%   stamina 90%');
-    expect(plain(shown)).toContain('Typing loves, Managing fine, HR unsuited, Research detests');
+    expect(plain(shown)).toContain('Typing loves, Managing fine, HR unsuited, Marketing good, Research detests');
     expect(shown).toContain(bold(green('Typing loves'))); // its own job, in bold
     expect(plain(renderScreen(s))).toContain('[m] monkeys');
   });
@@ -834,9 +834,9 @@ describe('achievements on screen', () => {
     s.achievements = ['first-pet'];
     const text = plain(renderAchievements(s, 0));
     expect(text).toContain(`1 of ${achievements.length} unlocked`);
-    expect(plain(renderAchievements(s, 1))).toMatch(/\[x\] Good monkey +Pet a monkey/);
+    expect(plain(renderAchievements(s, 2))).toMatch(/\[x\] Good monkey +Pet a monkey/);
     expect(plain(renderAchievements(s, 5))).toMatch(/\[ \] Best friends +Pet the monkeys 100 times   37 \/ 100/);
-    expect(renderAchievements(s, 1)).toContain('\x1b[32m[x]\x1b[39m'); // unlocked: a green mark
+    expect(renderAchievements(s, 2)).toContain('\x1b[32m[x]\x1b[39m'); // unlocked: a green mark
     const last = plain(renderAchievements(s, 999));
     expect(last).toMatch(/\[ \] \?\?\? +A secret/);
     expect(last.split('\n').slice(1).join('\n')).not.toContain('MONKEY'); // past the title bar

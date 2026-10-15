@@ -73,7 +73,7 @@ export interface Milestone {
  */
 export interface Room {
   id: string;
-  kind: 'department' | 'break' | 'office' | 'lab' | 'hr'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office
+  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
 }

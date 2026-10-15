@@ -1897,7 +1897,7 @@ describe('achievements', () => {
   });
 
   it('every achievement has a known measure and a unique id', () => {
-    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios', 'researchers', 'researched', 'hrStaff', 'flipsWon', 'flipsLost']);
+    const known = new Set(['wordsSpelled', 'lettersOwned', 'chain', 'chainSentences', 'linesWritten', 'scenes', 'acts', 'plays', 'monkeys', 'named', 'managers', 'departments', 'rooms', 'furniture', 'harmony', 'hats', 'hatKinds', 'dyed', 'skill', 'typewriter', 'keys', 'slots', 'pets', 'happiest', 'longestWord', 'dictionary', 'lettersTyped', 'biggestDepartment', 'hoursTyping', 'points', 'folios', 'researchers', 'researched', 'hrStaff', 'marketers', 'flipsWon', 'flipsLost']);
     for (const a of achievements) expect(known.has(a.stat) || /^(word|wearing):/.test(a.stat), a.id).toBe(true);
     expect(new Set(achievements.map((a) => a.id)).size).toBe(achievements.length);
   });

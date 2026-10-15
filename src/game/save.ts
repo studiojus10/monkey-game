@@ -83,14 +83,16 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       stamina: inStatRange(num(m?.stamina, 0)) ? num(m?.stamina, 0) : 0,
       tempLeft: Math.max(0, num(m?.tempLeft, 0)),
       number: Math.max(0, Math.floor(num(m?.number, 0))),
-      jobs:
-        m?.jobs && typeof m.jobs === 'object' && monkeyStats.jobs.every((j) => monkeyStats.feelings.some((f) => f.id === (m.jobs as Record<string, unknown>)[j.id]))
-          ? Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, String((m.jobs as Record<string, unknown>)[j.id])]))
-          : {},
+      // Feelings about each job; jobs missing (added since the save) are picked when the game runs.
+      jobs: Object.fromEntries(
+        monkeyStats.jobs
+          .map((j) => [j.id, (m?.jobs as Record<string, unknown> | undefined)?.[j.id]])
+          .filter(([, f]) => monkeyStats.feelings.some((x) => x.id === f)) as [string, string][],
+      ),
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
-      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr') && Array.isArray(r.cells))
+      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing') && Array.isArray(r.cells))
       .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]) }))
       .filter((r) => r.cells.length > 0);
     const completed: Record<string, number[]> = {};
