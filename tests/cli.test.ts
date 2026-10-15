@@ -171,18 +171,19 @@ describe('terminal screen', () => {
     const closed = plain(renderScreen(s));
     expect(closed).not.toContain('Faster typing');
     expect(closed).toContain('[space] shop   [m] monkeys   [p] script   [o] office');
-    expect(closed).toContain('[enter] pet the monkey   [n] name');
+    expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [n] name');
+    expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[7mM-1 *\x1b\[27m/); // the chosen monkey's name
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[up/down] choose   [enter] buy   [1-9] buy   [[/]] store   [i] inspect   [esc] back');
     expect(open).not.toContain('[tab]');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
-    expect(open).toContain('\n Typewriters   Staff   Script   Hats \n'); // furniture is sold on the office map
+    expect(open).toContain('\n Typewriters   Staff   Hats \n'); // furniture is sold on the office map, scenes on the script page
     expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[7m \[1\] Faster typing/); // the cursor's item
     expect(renderScreen(s, '', 'staff')).not.toContain(inverse(' [1]'));
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Hats \n');
+    expect(plain(renderScreen(s, '', 'hats'))).toContain('\n Typewriters*  Staff*  Hats \n');
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -626,6 +627,20 @@ describe('furniture', () => {
     expect(last).toContain(' page 3 of 3\n');
     expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
+  });
+
+  it('sells the scene, act and play under the cursor in the script page\'s shop', () => {
+    const s = started();
+    s.currency = 1e9;
+    const at = { play: 'test', line: 0 };
+    expect(openStores(s, 'script')).toEqual(['script']);
+    expect(storeChoices(s, 'script', 0, at).map((x) => x.id)).toEqual(['section:b', 'section:a', 'section:w']);
+    expect(storeChoices(s, 'script', 0, at)[0].blocked).toBe('owned'); // the free first scene
+    const page = squash(renderScript(s, 'test', 0, '', 0, renderShop(s, 'script', 0, '', 0, true, at)));
+    expect(page).toContain(' Script \n');
+    expect(page).toContain('[2] Act 1');
+    expect(page).not.toContain('[tab] contents'); // the shop takes the place of the keys
+    expect(squash(renderScript(s, 'test', 0))).toContain('[space] shop');
   });
 
   it("opens the office map's furniture shop under the map", () => {
