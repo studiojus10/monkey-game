@@ -2,7 +2,7 @@ import { achievements, theme } from '../game/config';
 import { achievementValue, folioMultiplier, getPlay } from '../game/logic';
 import { lineLocation } from '../game/plays';
 import type { GameState } from '../game/state';
-import { formatDuration, formatNumber } from '../format';
+import { formatDuration, formatMultiplier, formatNumber } from '../format';
 import { dim, green, keyRow, rule, titleBar } from './style';
 
 /** Rows of the dictionary page shown at once. */
@@ -79,7 +79,7 @@ export function renderStats(state: GameState, columns = 0): string {
     ...(state.folios > 0
       ? section('FOLIOS', [
           stat('Published', formatNumber(state.folios)),
-          stat('Pages', formatNumber(state.folioPages), `bananas x${folioMultiplier(state).toFixed(2)} for good`),
+          stat('Pages', formatNumber(state.folioPages), `bananas ${formatMultiplier(folioMultiplier(state))} for good`),
         ])
       : []),
     ...section('LETTERS TYPED', [

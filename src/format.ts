@@ -1,12 +1,25 @@
-const suffixes = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
+// Short names up to vigintillion (1e63); bigger numbers use exponents.
+const suffixes = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc', 'Ud', 'Dd', 'Td', 'Qad', 'Qid', 'Sxd', 'Spd', 'Ocd', 'Nod', 'Vg'];
 
-/** Formats large numbers as 1.23K, 4.56M, ... and falls back to exponent notation. */
+let scientific = false;
+
+/** Shows numbers from a million up in scientific notation (1.23e45) instead of short names: the Scientific numbers option. */
+export function setScientific(on: boolean): void {
+  scientific = on;
+}
+
+/** Formats large numbers as 1.23K, 4.56M, ... (or 1.23e6 with setScientific) and falls back to exponent notation. */
 export function formatNumber(n: number): string {
   if (!Number.isFinite(n)) return 'inf';
   if (Math.abs(n) < 1000) return n < 10 && n % 1 !== 0 ? n.toFixed(1) : Math.floor(n).toString();
   const tier = Math.floor(Math.log10(Math.abs(n)) / 3);
-  if (tier >= suffixes.length) return n.toExponential(2);
+  if (tier >= suffixes.length || (scientific && tier >= 2)) return n.toExponential(2).replace('e+', 'e');
   return (n / Math.pow(1000, tier)).toFixed(2) + suffixes[tier];
+}
+
+/** A multiplier: x1.25 below a thousand, then like any big number (x4.56M). */
+export function formatMultiplier(n: number): string {
+  return `x${n < 1000 ? n.toFixed(2) : formatNumber(n)}`;
 }
 
 /** A length of time: 45s, 12m 5s, 3h 20m, 2d 4h 0m. */

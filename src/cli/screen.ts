@@ -1,8 +1,9 @@
-import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, folio, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
+import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
   folioMultiplier,
+  folioMultiplierAfter,
   folioPagesNow,
   furnitureSpot,
   hatCost,
@@ -84,7 +85,7 @@ import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
-import { formatDuration, formatNumber } from '../format';
+import { formatDuration, formatMultiplier, formatNumber } from '../format';
 import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
@@ -953,8 +954,9 @@ export function renderOptions(state: GameState, columns = 0): string {
       'Off: buying furniture opens the office map so you can place it.',
     ]),
     ...option('2', 'Light background', state.settings.lightBackground, ["On: darker colours that are easy to read when your terminal's theme is light."]),
+    ...option('3', 'Scientific numbers', state.settings.scientific, ['On: big numbers as 1.23e45. Off: short names (1.23M, 4.56Qa, 7.89Vg).']),
     rule(columns),
-    keyRow([['1-2', 'switch'], ['esc', 'back']], columns),
+    keyRow([['1-3', 'switch'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
@@ -1123,7 +1125,7 @@ function milestoneSummary(state: GameState): string[] {
   const parts = [
     ...(scenesDone > 0 ? [`bananas +${pct(state.pointsBonus)} (${plural(scenesDone, 'scene')} finished)`] : []),
     ...(state.actsDone.length > 0 ? [`typing +${pct(state.speedBonus)} (${plural(state.actsDone.length, 'act')} finished)`] : []),
-    ...(state.folios > 0 ? [`Folio bananas +${pct(folioMultiplier(state) - 1)} (${plural(state.folios, 'Folio')} published)`] : []),
+    ...(state.folios > 0 ? [`Folio bananas ${formatMultiplier(folioMultiplier(state))} (${plural(state.folios, 'Folio')} published)`] : []),
   ];
   return parts.length > 0 ? [parts.join('   ')] : [];
 }
@@ -1132,17 +1134,16 @@ function milestoneSummary(state: GameState): string[] {
 export function folioOffer(state: GameState): string[] {
   if (!canPublishFolio(state)) return [];
   const pages = folioPagesNow(state);
-  return [`* You can publish a Folio: [f] start over with ${count(pages)} more pages, bananas +${pct(pages * folio.bonusPerPage)} for good.`];
+  return [`* You can publish a Folio: [f] start over with ${count(pages)} more pages, bananas ${formatMultiplier(folioMultiplierAfter(state))} for good.`];
 }
 
 /** The question before publishing a Folio. */
 export function folioPrompt(state: GameState): string {
   const pages = folioPagesNow(state);
-  const after = 1 + (state.folioPages + pages) * folio.bonusPerPage;
   return (
     `Publish a Folio? Everything starts over: monkeys, letters, office, script and currencies. ` +
     `You keep achievements and statistics, and the Folio gains ${count(pages)} pages (one per line written, finished plays twice): ` +
-    `bananas x${after.toFixed(2)} for good. Press y to publish, any other key to keep playing.`
+    `bananas ${formatMultiplier(folioMultiplierAfter(state))} for good (each Folio multiplies the last). Press y to publish, any other key to keep playing.`
   );
 }
 

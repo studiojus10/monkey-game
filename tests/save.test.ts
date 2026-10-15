@@ -120,6 +120,9 @@ describe('office space in saves', () => {
     expect(back.doors).toEqual(s.doors);
     expect(back.monkeysBought).toEqual({ comedy: 3 });
     expect([back.folios, back.folioPages]).toEqual([2, 1234]);
+    const before = JSON.parse(serialize(s));
+    delete before.state.folioBoost;
+    expect(deserialize(JSON.stringify(before)).folioBoost).toBeCloseTo(1 + 1234 * 0.001); // a save from before Folios multiplied: all its pages in one
     const old = JSON.parse(serialize(s));
     delete old.state.halls;
     delete old.state.doors;
