@@ -415,6 +415,19 @@ export const hr = {
   candidatesBase: 3,
   maxCandidates: 9,
   refreshHours: 1,
+  // Temps (step 4; Justin, 2026-10-14: "temp employees... expire after a
+  // while, can't be upgraded, but have higher base stats/positive traits"):
+  // each candidate is a temp with tempChance. A temp has stats from
+  // tempStats, a trait from tempTraits, and feels good about or loves every
+  // job; it costs tempPrice of a candidate's price, leaves after tempHours
+  // (its desk free, its hats into storage), and can't get faster typing, a
+  // typewriter or a manager upgrade. Placeholders.
+  tempChance: 1 / 3,
+  tempHours: 8,
+  tempPrice: 0.25,
+  tempStats: { min: 1.1, max: 1.4 },
+  tempTraits: ['cheerleader', 'motivator', 'social', 'greenthumb', 'bookworm', 'couchpotato'],
+  tempFeelings: ['good', 'loves'],
 };
 
 /**

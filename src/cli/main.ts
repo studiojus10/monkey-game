@@ -33,6 +33,7 @@ import {
   fireBlocker,
   fireMonkey,
   hrRoom,
+  isTemp,
   hireHR,
   hrBlocker,
   hrCost,
@@ -124,7 +125,7 @@ import {
   storeChoices,
   storePages,
   type Store,
-  typists,
+  trainees,
   typingPickPrompt,
   renderDevMenu,
   contentsPageSize,
@@ -164,9 +165,26 @@ function fitLines(): number {
 fitLines();
 let achievementsSeen = state.achievements.length; // achievements unlocked by now; newer ones get a message
 setHour(new Date().getHours());
+
+/** The temps working now, by M-number, to tell when one leaves. */
+function tempsNow(): Map<number, string> {
+  return new Map(state.monkeys.flatMap((m, i) => (isTemp(m) ? [[m.number, monkeyName(state, i)] as [number, string]] : [])));
+}
+
+/** A message for temps that left since `before` ('' if none). */
+function tempsGone(before: Map<number, string>): string {
+  const gone = [...before].filter(([n]) => !state.monkeys.some((m) => m.number === n)).map(([, name]) => name);
+  return gone.length === 0 ? '' : `${gone.join(', ')} finished ${gone.length === 1 ? 'its' : 'their'} temp job${gone.length === 1 ? '' : 's'} and left. The desk is free.`;
+}
+
+const tempsBefore = tempsNow();
 const offline = applyOfflineProgress(state, Date.now());
-let message =
-  offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '';
+let message = [
+  offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '',
+  tempsGone(tempsBefore),
+]
+  .filter(Boolean)
+  .join(' ');
 let confirmingReset = false;
 let confirmingFolio = false;
 let confirmingFlip = false;
@@ -282,8 +300,9 @@ function hire(h: Hiring): void {
 function buyItem(id: string): void {
   if (id === 'train' || id === 'typewriter') {
     const what = id === 'train' ? 'skill' : 'typewriter';
-    const team = typists(state);
-    if (team.length === 1) message = buyTyping(team[0], what);
+    const team = trainees(state);
+    if (team.length === 0) message = 'Temps can\'t be upgraded.';
+    else if (team.length === 1) message = buyTyping(team[0], what);
     else if (team.length > 1) {
       pickingTyping = what;
       message = typingPickPrompt(state, what);
@@ -704,7 +723,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (pickingTyping) {
     const what = pickingTyping;
     const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || !typists(state).includes(i)) {
+    if (!str || !/^[1-9]$/.test(str) || !trainees(state).includes(i)) {
       pickingTyping = '';
       message = 'Done.';
     } else message = `${buyTyping(i, what) || `${monkeyName(state, i)} types faster.`}  ${typingPickPrompt(state, what)}`;
@@ -1254,7 +1273,9 @@ let last = Date.now();
 setInterval(() => {
   const now = Date.now();
   setHour(new Date().getHours());
+  const temps = tempsNow();
   tick(state, (now - last) / 1000);
+  message = tempsGone(temps) || message;
   last = now;
   draw();
 }, FRAME_MS);

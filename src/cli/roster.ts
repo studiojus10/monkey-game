@@ -5,6 +5,7 @@ import {
   deskOf,
   isResearcher,
   isHR,
+  isTemp,
   isTypist,
   jobFeeling,
   jobOf,
@@ -19,6 +20,7 @@ import {
 import type { GameState } from '../game/state';
 import { dyed, genreNames, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
+import { formatDuration } from '../format';
 import { bold, dim, green, inverse, keyRow, red, rule, titleBar } from './style';
 
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
@@ -71,7 +73,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     }
     if (k < top || k >= top + rosterPageRows) return;
     const m = state.monkeys[i];
-    const role = m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : '';
+    const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
     // The cursor's row is inverse; the others show the hat in its dye.
     const row = `${iconOf(m)} ${monkeyName(state, i)}${role ? `  (${role})` : ''}`;
     list.push(k === at ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
@@ -90,6 +92,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     : [
         ` ${bold(`${iconOf(m)} ${monkeyName(state, i)}`)}${dim(`   hired #${i + 1}`)}`,
         `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : isHR(m) ? `Works in ${hr.name}: keeps the monkeys happy` : `Types for ${departmentName(state, i)}`}`,
+        ...(isTemp(m) ? [`${label('Temp')} leaves in ${formatDuration(m.tempLeft)}; temps can't be upgraded`] : []),
         ...(isTypist(m)
           ? [
               `${label('Typing')} skill ${m.skill}/${skillCap(m)} on a ${typewriterName(m.typewriter)}, ${speedText(currentSpeed(state, m))} now`,

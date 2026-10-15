@@ -32,6 +32,7 @@ export interface MonkeyState {
   trait: string; // a traits id, picked when it joins ('' until then); hidden until the manager's book is read
   speedStat: number; // hidden stat: typing speed x this (0 until picked when it joins); shown once HR is built
   stamina: number; // hidden stat: energy lasts x this (0 until picked)
+  tempLeft: number; // a temp's seconds left before it leaves (0: not a temp)
   number: number; // its M-number, kept for good (0: not given yet; then it goes by its place in the list)
   jobs: Record<string, string>; // hidden: its feeling (monkeyStats.feelings id) about each job id; empty until picked
 }
@@ -170,6 +171,7 @@ export interface Candidate {
   speedStat: number;
   stamina: number;
   jobs: Record<string, string>;
+  tempLeft: number; // a temp's working time in seconds (0: not a temp)
 }
 
 export interface Stats {
@@ -198,10 +200,9 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, number: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
 }
 
-/** A rectangle of squares from (0, 0). */
 /**
  * A name for a new monkey: one of monkeyNames that nobody in `taken` has,
  * picked by its M-number so it looks random but stays put (with " II", " III"
@@ -218,6 +219,7 @@ export function monkeyNameFor(number: number, taken: string[]): string {
   }
 }
 
+/** A rectangle of squares from (0, 0). */
 export function rectangle(width: number, height: number): [number, number][] {
   const cells: [number, number][] = [];
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) cells.push([x, y]);

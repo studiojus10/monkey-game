@@ -56,6 +56,7 @@ import {
   roomMates,
   traitBonus,
   isResearcher,
+  isTemp,
   isTypist,
   researchers,
   canBuildLab,
@@ -439,9 +440,14 @@ export function typists(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (isTypist(m) ? [i] : []));
 }
 
+/** Typing monkeys that can be upgraded: all but temps. */
+export function trainees(state: GameState): number[] {
+  return typists(state).filter((i) => !isTemp(state.monkeys[i]));
+}
+
 /** Shop items for typing skill and typewriters: spelled out for one monkey, the cheapest for several. */
 function typingItems(state: GameState): { skill: ShopItem; typewriter: ShopItem } {
-  const team = typists(state);
+  const team = trainees(state);
   const can = (n: number) => state.currency >= n;
   const trainable = team.filter((i) => state.monkeys[i].skill < skillCap(state.monkeys[i]));
   const cheapestSkill = Math.min(...trainable.map((i) => typingUpgradeCost(state.monkeys[i].skill)));
@@ -489,7 +495,7 @@ function typingItems(state: GameState): { skill: ShopItem; typewriter: ShopItem 
 
 /** Picker prompt for Faster typing or a better typewriter: each typing monkey with its skill and the price. */
 export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter'): string {
-  const rows = typists(state)
+  const rows = trainees(state)
     .filter((i) => i < 9)
     .map((i) => {
       const m = state.monkeys[i];
@@ -1063,7 +1069,7 @@ function managerLine(m: MonkeyState): string {
 
 /** Managers by monkey index, for the upgrade menu (keys 1-9 in this order). */
 export function managerChoices(state: GameState): number[] {
-  return state.monkeys.flatMap((m, i) => (m.manager ? [i] : [])).slice(0, 9);
+  return state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) ? [i] : [])).slice(0, 9);
 }
 
 /** The prompt for upgrading a manager, with each one's next bonus and price. */

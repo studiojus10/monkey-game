@@ -1739,7 +1739,7 @@ export function managerUpgradeCost(state: GameState, m: MonkeyState): number {
 /** Upgrades a manager with Lines. */
 export function upgradeManager(state: GameState, index: number): boolean {
   const m = state.monkeys[index];
-  if (!m?.manager) return false;
+  if (!m?.manager || isTemp(m)) return false;
   const cost = managerUpgradeCost(state, m);
   if (state.lines < cost) return false;
   state.lines -= cost;
@@ -1857,7 +1857,7 @@ export function typewriterCost(m: MonkeyState): number {
 /** Buys one level of typing skill ("Faster typing") for monkey `index`, up to its typewriter's cap. */
 export function buyFasterTyping(state: GameState, index = 0): boolean {
   const m = state.monkeys[index];
-  if (!m || state.letters.length === 0 || m.skill >= skillCap(m)) return false;
+  if (!m || isTemp(m) || state.letters.length === 0 || m.skill >= skillCap(m)) return false;
   const cost = typingUpgradeCost(m.skill);
   if (state.currency < cost) return false;
   state.currency -= cost;
@@ -1868,7 +1868,7 @@ export function buyFasterTyping(state: GameState, index = 0): boolean {
 /** Buys monkey `index` a better typewriter, allowing another set of skill levels. */
 export function buyTypewriter(state: GameState, index = 0): boolean {
   const m = state.monkeys[index];
-  if (!m || state.letters.length === 0) return false;
+  if (!m || isTemp(m) || state.letters.length === 0) return false;
   const cost = typewriterCost(m);
   if (state.currency < cost) return false;
   state.currency -= cost;
@@ -1881,6 +1881,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   state.stats.secondsTyping += seconds;
   giveTraits(state, rng);
   drawCandidates(state, seconds, rng);
+  endTemps(state, seconds);
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state);
   advanceResearch(state, seconds);
@@ -2194,7 +2195,19 @@ export function drawCandidates(state: GameState, seconds: number, rng: Rng): voi
   if (state.candidatesIn > 0) return;
   const pool = { ...state, monkeys: Array.from({ length: candidateCount(state) }, createMonkey) };
   giveTraits(pool, rng);
-  state.candidates = pool.monkeys.map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs }));
+  state.candidates = pool.monkeys.map(({ trait, speedStat, stamina, jobs }) => {
+    if (rng() >= hr.tempChance) return { trait, speedStat, stamina, jobs, tempLeft: 0 };
+    // A temp: better stats, a helpful trait, happy in any job.
+    const pick = <T>(list: T[]) => list[Math.min(list.length - 1, Math.floor(rng() * list.length))];
+    const stat = () => Math.round((hr.tempStats.min + rng() * (hr.tempStats.max - hr.tempStats.min)) * 100) / 100;
+    return {
+      trait: pick(hr.tempTraits),
+      speedStat: stat(),
+      stamina: stat(),
+      jobs: Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, pick(hr.tempFeelings)])),
+      tempLeft: hr.tempHours * 3600,
+    };
+  });
   state.candidatesIn = hr.refreshHours * 3600;
 }
 
@@ -2211,7 +2224,7 @@ export function candidateFactor(c: Candidate, job: string): number {
 /** A hire's price: the job's price, times the candidate's factor when hiring one (from: its index in state.candidates). */
 export function hirePrice(state: GameState, base: number, job: string, from?: number): number {
   const c = from === undefined ? undefined : state.candidates[from];
-  return c ? Math.ceil(base * candidateFactor(c, job)) : base;
+  return c ? Math.ceil(base * candidateFactor(c, job) * (c.tempLeft > 0 ? hr.tempPrice : 1)) : base;
 }
 
 /** Takes a candidate off the list, for a hire: its trait and stats (nothing for an unseen hire). */
@@ -2268,7 +2281,9 @@ export function sellHat(state: GameState, index: number): boolean {
 export function fireBlocker(state: GameState, index: number): string {
   const m = state.monkeys[index];
   if (!m) return 'no such monkey';
-  return isTypist(m) && state.monkeys.filter(isTypist).length <= 1 ? 'your last typing monkey' : '';
+  // Temps leave on their own, so the office keeps one typing monkey that isn't a temp.
+  const staying = (o: MonkeyState) => isTypist(o) && !isTemp(o);
+  return staying(m) && state.monkeys.filter(staying).length <= 1 ? 'your last typing monkey' : '';
 }
 
 /**
@@ -2278,9 +2293,33 @@ export function fireBlocker(state: GameState, index: number): string {
  */
 export function fireMonkey(state: GameState, index: number): boolean {
   if (fireBlocker(state, index)) return false;
+  letGo(state, index);
+  return true;
+}
+
+/** A monkey leaves: its desk stays, free, and its hats go into storage. */
+function letGo(state: GameState, index: number): void {
   const [m] = state.monkeys.splice(index, 1);
   for (const id of m.hats) state.stored.hats[id] = (state.stored.hats[id] ?? 0) + 1;
   if (m.manager) manage(state);
-  return true;
+}
+
+/** Whether a monkey is a temp (hired from HR's list; it leaves when its time is up). */
+export function isTemp(m: MonkeyState): boolean {
+  return m.tempLeft > 0;
+}
+
+/** Temps work their time down; those whose time is up leave. Returns the names of those who left. */
+export function endTemps(state: GameState, seconds: number): string[] {
+  const left: string[] = [];
+  for (let i = state.monkeys.length - 1; i >= 0; i--) {
+    const m = state.monkeys[i];
+    if (!isTemp(m)) continue;
+    m.tempLeft -= seconds;
+    if (m.tempLeft > 0) continue;
+    left.unshift(monkeyName(state, i));
+    letGo(state, i);
+  }
+  return left;
 }
 
