@@ -1,4 +1,4 @@
-import { desk, furnitureKinds, hatColors, hats, monkeyStats, petting, research, traits, typing } from './config';
+import { desk, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
 import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
@@ -42,6 +42,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const strings = (v: unknown) =>
       Array.isArray(v) ? v.filter((w): w is string => typeof w === 'string') : [];
     const oldTypingLevel = Math.max(0, Math.floor(num((s as { typingLevel?: unknown }).typingLevel, 0)));
+    // Hidden stats run from monkeyStats.min up to a temp's best.
+    const inStatRange = (n: number) => n >= monkeyStats.min && n <= Math.max(monkeyStats.max, hr.tempStats.max);
     const monkey = (m: Partial<MonkeyState>): MonkeyState => ({
       name: str(m?.name),
       department: str(m?.department),
@@ -77,8 +79,9 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       petHappiness: Math.min(petting.maxHappiness, Math.max(0, num(m?.petHappiness, 0))),
       trait: traits.some((t) => t.id === m?.trait) ? str(m?.trait) : '',
       // Stats outside their range (or missing, in old saves) are picked again.
-      speedStat: num(m?.speedStat, 0) >= monkeyStats.min && num(m?.speedStat, 0) <= monkeyStats.max ? num(m?.speedStat, 0) : 0,
-      stamina: num(m?.stamina, 0) >= monkeyStats.min && num(m?.stamina, 0) <= monkeyStats.max ? num(m?.stamina, 0) : 0,
+      speedStat: inStatRange(num(m?.speedStat, 0)) ? num(m?.speedStat, 0) : 0,
+      stamina: inStatRange(num(m?.stamina, 0)) ? num(m?.stamina, 0) : 0,
+      tempLeft: Math.max(0, num(m?.tempLeft, 0)),
       number: Math.max(0, Math.floor(num(m?.number, 0))),
       jobs:
         m?.jobs && typeof m.jobs === 'object' && monkeyStats.jobs.every((j) => monkeyStats.feelings.some((f) => f.id === (m.jobs as Record<string, unknown>)[j.id]))
@@ -175,7 +178,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       candidates: (Array.isArray(s.candidates) ? (s.candidates as Partial<MonkeyState>[]) : [])
         .map((c) => monkey(c))
         .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
-        .map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs })),
+        .map(({ trait, speedStat, stamina, jobs, tempLeft }) => ({ trait, speedStat, stamina, jobs, tempLeft })),
       candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
       stored: {
         furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),

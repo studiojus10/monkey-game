@@ -415,6 +415,19 @@ export const hr = {
   candidatesBase: 3,
   maxCandidates: 9,
   refreshHours: 1,
+  // Temps (step 4; Justin, 2026-10-14: "temp employees... expire after a
+  // while, can't be upgraded, but have higher base stats/positive traits"):
+  // each candidate is a temp with tempChance. A temp has stats from
+  // tempStats, a trait from tempTraits, and feels good about or loves every
+  // job; it costs tempPrice of a candidate's price, leaves after tempHours
+  // (its desk free, its hats into storage), and can't get faster typing, a
+  // typewriter or a manager upgrade. Placeholders.
+  tempChance: 1 / 3,
+  tempHours: 8,
+  tempPrice: 0.25,
+  tempStats: { min: 1.1, max: 1.4 },
+  tempTraits: ['cheerleader', 'motivator', 'social', 'greenthumb', 'bookworm', 'couchpotato'],
+  tempFeelings: ['good', 'loves'],
 };
 
 /**
@@ -715,6 +728,19 @@ export const monkeyNames = [
   'Nim Chimpsky', 'Bonzo', 'Magilla', 'Grape Ape', 'Mighty Joe', 'Momo', 'Jack', 'Kiki', 'Darwin', 'Judy',
   'Boots', 'Spike', 'Pippi', 'Bobo', 'Lancelot', 'Tarzan', 'Kong', 'Chim-Chim', 'Iago', 'Mr Teeny',
 ];
+
+/**
+ * Parody names (Justin, 2026-10-15: "king kong could be bing bong... sometimes
+ * it can be the real name sometimes... a semi-rhyming or sorta similar
+ * sounding parody"): a new monkey gets a parody of one of monkeyNames with
+ * this chance, and always once every real name is taken. A parody swaps the
+ * sounds before the first vowel of every word for one of `onsets` (Kong ->
+ * Bong, Abu -> Babu); words with no vowel, like Mr, stay.
+ */
+export const parodyNames = {
+  chance: 0.3,
+  onsets: ['B', 'D', 'F', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'T', 'W', 'Z', 'Bl', 'Br', 'Ch', 'Fl', 'Gr', 'Sh', 'Sn', 'Sp', 'Wh'],
+};
 
 /**
  * How a typist's energy shows on the home screen: green above `green` percent,

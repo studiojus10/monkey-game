@@ -912,11 +912,11 @@ describe('furniture colours', () => {
 describe('hiring screen', () => {
   it('lists candidates with their stats and prices, and someone unseen at the usual price', () => {
     const s = started();
-    s.candidates = [{ trait: 'loner', speedStat: 1.1, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' } }];
+    s.candidates = [{ trait: 'loner', speedStat: 1.1, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' }, tempLeft: 0 }];
     s.candidatesIn = 600;
     const text = plain(renderCandidates(s, 'typing', 'a monkey for Comedies', 1000, '', 80));
     expect(text).toContain('HIRING: A MONKEY FOR COMEDIES');
-    expect(squash(text)).toContain(`[1] 110% 90% loves ? 1.44K Bananas`);
+    expect(squash(text)).toContain(`[1] 110% 90% loves ? for good 1.44K Bananas`);
     expect(squash(text)).toContain('[0] someone unseen 1.00K Bananas');
     expect(text).toContain('New candidates in 10m');
     s.managerBook = true;

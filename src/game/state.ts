@@ -1,4 +1,4 @@
-import { maxMonkeyNameLength, monkeyNames, office as officeRules } from './config';
+import { maxMonkeyNameLength, monkeyNames, parodyNames, office as officeRules } from './config';
 
 /** A piece of a monkey's current line: a scored word or a skipped letter. */
 export interface Segment {
@@ -32,6 +32,7 @@ export interface MonkeyState {
   trait: string; // a traits id, picked when it joins ('' until then); hidden until the manager's book is read
   speedStat: number; // hidden stat: typing speed x this (0 until picked when it joins); shown once HR is built
   stamina: number; // hidden stat: energy lasts x this (0 until picked)
+  tempLeft: number; // a temp's seconds left before it leaves (0: not a temp)
   number: number; // its M-number, kept for good (0: not given yet; then it goes by its place in the list)
   jobs: Record<string, string>; // hidden: its feeling (monkeyStats.feelings id) about each job id; empty until picked
 }
@@ -170,6 +171,7 @@ export interface Candidate {
   speedStat: number;
   stamina: number;
   jobs: Record<string, string>;
+  tempLeft: number; // a temp's working time in seconds (0: not a temp)
 }
 
 export interface Stats {
@@ -198,26 +200,50 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, number: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
 }
 
-/** A rectangle of squares from (0, 0). */
+/** A name with the sounds before each word's first vowel swapped for `onset` (King Kong -> Bing Bong); words without a vowel stay. */
+export function parodyOf(name: string, onset: string): string {
+  return name.replace(/[A-Za-z]+/g, (word) => {
+    const start = word.search(/[aeiouAEIOU]/);
+    if (start < 0 || (start === 0 && word.length <= 1)) return word;
+    const rest = word.slice(start).toLowerCase();
+    return word[0] === word[0].toUpperCase() ? onset + rest : onset.toLowerCase() + rest;
+  });
+}
+
+/** Every parody of every famous monkey name (see parodyNames in config.ts), none the same as a real one. */
+export function monkeyParodies(): string[] {
+  const real = new Set(monkeyNames);
+  const all = monkeyNames.flatMap((n) => parodyNames.onsets.map((o) => parodyOf(n, o)));
+  return [...new Set(all)].filter((n) => !real.has(n));
+}
+
 /**
- * A name for a new monkey: one of monkeyNames that nobody in `taken` has,
- * picked by its M-number so it looks random but stays put (with " II", " III"
- * and so on once every name is in use).
+ * A name for a new monkey that nobody in `taken` has, picked by its M-number
+ * so it looks random but stays put: one of monkeyNames, or with
+ * parodyNames.chance (and always once the real names are all in use) a
+ * parody of one (with " II", " III" and so on once even those run out).
  */
 export function monkeyNameFor(number: number, taken: string[]): string {
   if (monkeyNames.length === 0) return '';
-  for (let round = 1; ; round++) {
-    const suffix = round === 1 ? '' : round <= 3 ? ` ${'I'.repeat(round)}` : ` ${round}`;
-    const free = monkeyNames
-      .map((n) => n + suffix)
-      .filter((n) => n.length <= maxMonkeyNameLength && !taken.includes(n));
-    if (free.length > 0) return free[(number * 7919) % free.length];
+  const pick = (list: string[]) => list[(number * 7919) % list.length];
+  const free = (list: string[]) => list.filter((n) => n.length <= maxMonkeyNameLength && !taken.includes(n));
+  const parody = ((number * 2654435761) >>> 0) % 1000 < parodyNames.chance * 1000;
+  const real = free(monkeyNames);
+  if (!parody && real.length > 0) return pick(real);
+  const parodies = free(monkeyParodies());
+  if (parodies.length > 0) return pick(parodies);
+  if (real.length > 0) return pick(real);
+  for (let round = 2; ; round++) {
+    const suffix = round <= 3 ? ` ${'I'.repeat(round)}` : ` ${round}`;
+    const more = free(monkeyNames.map((n) => n + suffix));
+    if (more.length > 0) return pick(more);
   }
 }
 
+/** A rectangle of squares from (0, 0). */
 export function rectangle(width: number, height: number): [number, number][] {
   const cells: [number, number][] = [];
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) cells.push([x, y]);

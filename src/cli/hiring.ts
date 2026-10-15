@@ -1,5 +1,5 @@
 import { hr, monkeyStats } from '../game/config';
-import { candidateFactor, jobFeeling, traitOf } from '../game/logic';
+import { hirePrice, jobFeeling, traitOf } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration } from '../format';
 import { priceNamed } from './screen';
@@ -14,7 +14,8 @@ function percent(stat: number): string {
 /**
  * HR's list of candidates for a job (a monkeyStats.jobs id) whose usual price
  * is `base`: each one's speed, stamina, feeling about the job, trait (once the
- * manager's book is read) and price; [0] hires someone unseen at the usual price.
+ * manager's book is read), whether it's a temp, and price; [0] hires someone
+ * unseen at the usual price.
  */
 export function renderCandidates(state: GameState, job: string, title: string, base: number, message = '', columns = 0): string {
   const jobName = monkeyStats.jobs.find((j) => j.id === job)?.name ?? job;
@@ -22,13 +23,14 @@ export function renderCandidates(state: GameState, job: string, title: string, b
     const f = jobFeeling({ ...createMonkey(), ...c }, job);
     const feeling = f.bonus > 0 ? green(f.name) : f.bonus < 0 ? red(f.name) : f.name;
     const trait = state.managerBook ? (traitOf({ ...createMonkey(), ...c })?.name ?? '?') : dim('?');
-    const price = Math.ceil(base * candidateFactor(c, job));
+    const price = hirePrice(state, base, job, i);
     return [
       ` [${i + 1}]`,
       padVisible(percent(c.speedStat), 7),
       padVisible(percent(c.stamina), 8),
       padVisible(feeling, 9),
       padVisible(trait, 14),
+      padVisible(c.tempLeft > 0 ? `temp ${formatDuration(c.tempLeft)}` : 'for good', 11),
       priceNamed(price, state.currency),
     ].join('  ');
   });
@@ -37,10 +39,13 @@ export function renderCandidates(state: GameState, job: string, title: string, b
     '',
     dim(` ${hr.name} found these monkeys, priced by speed, stamina and feeling about ${jobName.toLowerCase()}.`),
     '',
-    dim(['    ', 'SPEED  ', 'STAMINA ', jobName.toUpperCase().padEnd(9), 'TRAIT         ', 'PRICE'].join('  ')),
+    dim(['    ', 'SPEED  ', 'STAMINA ', jobName.toUpperCase().padEnd(9), 'TRAIT         ', 'STAYS      ', 'PRICE'].join('  ')),
     ...(rows.length > 0 ? rows : [dim('     Nobody right now.')]),
     '',
     ` [0]  someone unseen  ${priceNamed(base, state.currency)}`,
+    ...(state.candidates.some((c) => c.tempLeft > 0)
+      ? ['', dim(` Temps cost less and work better, but leave in time and can't be upgraded.`)]
+      : []),
     '',
     dim(` New candidates in ${formatDuration(state.candidatesIn)}.`),
     ...(message ? ['', ` ${bold(message)}`] : []),

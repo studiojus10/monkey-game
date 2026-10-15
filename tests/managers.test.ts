@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { managerDesk, managers, traits } from '../src/game/config';
+import { hats, hr, managerDesk, managers, traits } from '../src/game/config';
 import {
   buyFurniture,
   buyRoom,
@@ -344,7 +344,7 @@ describe('hiring through HR', () => {
     L.drawCandidates(s, 1, () => ((r += 0.37) % 1));
     expect(s.candidates).toHaveLength(hr.candidatesBase);
     expect(s.candidatesIn).toBe(hr.refreshHours * 3600);
-    const best = { trait: 'loner', speedStat: 1.2, stamina: 1.2, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' } };
+    const best = { trait: 'loner', speedStat: 1.2, stamina: 1.2, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' }, tempLeft: 0 };
     const worst = { ...best, speedStat: 0.8, stamina: 0.8, jobs: { ...best.jobs, typing: 'detests' } };
     expect(L.candidateFactor(best, 'typing')).toBeCloseTo((1.2 * 1.2) ** 2);
     expect(L.candidateFactor(worst, 'typing')).toBeCloseTo((0.8 * 0.6) ** 2);
@@ -431,11 +431,27 @@ describe('monkey names', () => {
     const names = s.monkeys.slice(3).map((m) => m.name);
     expect(new Set(names).size).toBe(names.length);
     expect(names.every((n) => n.length > 0 && n.length <= 12)).toBe(true);
-    expect(monkeyNames).toContain(names[0]);
+    const { monkeyParodies } = await import('../src/game/state');
+    const known = new Set([...monkeyNames, ...monkeyParodies()]);
+    expect(names.every((n) => known.has(n))).toBe(true);
+    expect(names.some((n) => monkeyNames.includes(n))).toBe(true);
+    expect(names.some((n) => !monkeyNames.includes(n))).toBe(true); // some parodies too
     expect(s.stats.renamed).toBe(0);
     expect(L.renameMonkey(s, 3, 'Bob')).toBe(true);
     expect(L.monkeyName(s, 3)).toBe('Bob');
     expect(s.stats.renamed).toBe(1);
+  });
+});
+
+describe('parody names', () => {
+  it('swap the sounds before each first vowel, keeping words with no vowel', async () => {
+    const { parodyOf, monkeyParodies } = await import('../src/game/state');
+    const { monkeyNames } = await import('../src/game/config');
+    expect(parodyOf('King Kong', 'B')).toBe('Bing Bong');
+    expect(parodyOf('Abu', 'B')).toBe('Babu');
+    expect(parodyOf('Mr Teeny', 'Sp')).toBe('Mr Speeny');
+    expect(parodyOf('Chim-Chim', 'Fl')).toBe('Flim-Flim');
+    expect(monkeyParodies().some((n) => monkeyNames.includes(n))).toBe(false);
   });
 });
 
@@ -450,5 +466,46 @@ describe('old saves', () => {
     expect(L.renameMonkey(back, 0, '')).toBe(true);
     expect(back.monkeys[0].name).not.toBe('');
     expect(back.stats.renamed).toBe(0);
+  });
+});
+
+describe('temps', () => {
+  it('come in HR lists with better stats, cost less, cannot be upgraded, and leave when their time is up', async () => {
+    const L = await import('../src/game/logic');
+    const s = department(6);
+    s.currency = 1e15;
+    s.lines = 1e9;
+    buyRoom(s, 'office', 'comedy');
+    hireManager(s, 'comedy');
+    buyRoom(s, 'hr');
+    L.drawCandidates(s, 1, () => 0); // rng 0: every candidate a temp
+    expect(s.candidates.every((c) => c.tempLeft === hr.tempHours * 3600)).toBe(true);
+    const c = s.candidates[0];
+    expect(c.speedStat).toBeGreaterThanOrEqual(hr.tempStats.min);
+    expect(hr.tempTraits).toContain(c.trait);
+    expect(Object.values(c.jobs).every((f) => hr.tempFeelings.includes(f))).toBe(true);
+    const base = L.nextMonkeyCost(s, 'comedy');
+    expect(L.hirePrice(s, base, 'typing', 0)).toBe(Math.ceil(base * L.candidateFactor(c, 'typing') * hr.tempPrice));
+    expect(L.buyMonkey(s, 'comedy', 0)).toBe(true);
+    const i = s.monkeys.length - 1;
+    const temp = s.monkeys[i];
+    expect(L.isTemp(temp)).toBe(true);
+    expect(L.buyFasterTyping(s, i)).toBe(false);
+    expect(L.buyTypewriter(s, i)).toBe(false);
+    temp.hats = [hats[0].id];
+    const count = s.monkeys.length;
+    expect(L.endTemps(s, hr.tempHours * 3600 - 1)).toEqual([]);
+    expect(L.endTemps(s, 1)).toEqual([temp.name]);
+    expect(s.monkeys).toHaveLength(count - 1);
+    expect(s.stored.hats[hats[0].id]).toBe(1);
+    expect(deserialize(serialize(s)).candidates.every((x) => x.tempLeft > 0)).toBe(true);
+  });
+
+  it('never leave the office without a typing monkey: the last permanent one cannot be fired', async () => {
+    const L = await import('../src/game/logic');
+    const s = department(2);
+    s.monkeys[1].tempLeft = 100;
+    expect(L.fireBlocker(s, 0)).toBe('your last typing monkey');
+    expect(L.fireBlocker(s, 1)).toBe('');
   });
 });
