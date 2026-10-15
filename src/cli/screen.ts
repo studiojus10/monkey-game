@@ -1,4 +1,4 @@
-import { dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
+import { scriptShop, dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -251,11 +251,17 @@ export function homeGenre(state: GameState): Genre | undefined {
 }
 
 /** The monkeys on the home screen, by index: with several departments, only the shown department's. */
-function homeMonkeys(state: GameState): number[] {
+export function homeMonkeys(state: GameState): number[] {
   if (homeViews(state).length <= 1) return state.monkeys.map((_, i) => i);
   if (homeView(state) === research.id) return researchers(state);
   const shown = homeGenre(state);
   return state.monkeys.flatMap((m, i) => (!isResearcher(m) && monkeyGenre(state, m) === shown ? [i] : []));
+}
+
+/** The monkey at place `cursor` in the home screen's table (kept to the rows shown), or -1 with none. */
+export function homeChosen(state: GameState, cursor: number): number {
+  const shown = homeMonkeys(state).slice(0, maxMonkeyLines);
+  return shown.length === 0 ? -1 : shown[Math.max(0, Math.min(cursor, shown.length - 1))];
 }
 
 /** What R&D is up to, in a line: the project under way with how far along and how long it has left. */
@@ -275,10 +281,11 @@ function monkeyHeadings(state: GameState): string {
 }
 
 /** One monkey's row: its icon (hat dyed), department initial, name (a heart if petted lately), speed, energy, combo and line. */
-function monkeyRow(state: GameState, i: number, room: number): string {
+function monkeyRow(state: GameState, i: number, room: number, chosen = false): string {
   const m = state.monkeys[i];
   const dept = hasDeptColumn(state) ? `${isResearcher(m) ? 'R' : genreNames[monkeyGenre(state, m)!][0]} ` : '';
-  const name = `${monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
+  // The home cursor: the chosen monkey's name inverse.
+  const name = `${chosen ? inverse(monkeyName(state, i).padEnd(col.name)) : monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
   const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
@@ -325,7 +332,9 @@ function homeKeys(state: GameState, columns: number): string[] {
     keyRow([['space', 'shop'], ['m', 'monkeys'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
       ...(homeViews(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
-      ['enter', theme.pokeAction],
+      ['up/down', 'choose a monkey'],
+      ['enter', 'details'],
+      ['h', theme.pokeAction],
       ['n', 'name'],
       ['d', 'move'],
       ['c', 'options'],
@@ -343,7 +352,7 @@ export function renderHomeKeys(state: GameState): string {
     titleBar(state, 'Keys'),
     '',
     ...group('GO TO', [
-      ['space', 'the shop (then [left/right] another store, [1-9] buy, [i] inspect, [up/down] more items)'],
+      ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
       ['p', 'the script: plays, pins and scenes to buy'],
       ['o', 'the office map'],
@@ -354,9 +363,11 @@ export function renderHomeKeys(state: GameState): string {
     ]),
     ...group('MONKEYS', [
       ...(homeViews(state).length > 1 ? [['tab', "show the next department's monkeys"] as [string, string]] : []),
-      ['enter', theme.pokeAction],
-      ['n', 'name a monkey'],
-      ['d', 'move a monkey to another department'],
+      ['up/down', 'choose a monkey (its name is highlighted)'],
+      ['enter', "the chosen monkey's details"],
+      ['h', theme.pokeAction],
+      ['n', 'name the chosen monkey'],
+      ['d', 'move the chosen monkey to another department'],
     ]),
     ...group('GAME', [
       ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
@@ -372,7 +383,7 @@ export function renderHomeKeys(state: GameState): string {
 }
 
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, page = 0, rows = 0): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0, chosen = -1): string {
   if (state.owned.length === 0 && state.departments.length === 0) {
     const genres = departmentChoices(state);
     return openingScreen(
@@ -410,14 +421,14 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
 
   if (shop) {
     // The shop opens under the home screen when the screen is tall enough for both, else on its own.
-    const both = [...homeLines(state, '', columns), rule(columns), ...renderShop(state, shop, page, message, columns, true).split('\n')];
-    return rows > 0 && both.length <= rows ? both.join('\n') : renderShop(state, shop, page, message, columns);
+    const both = [...homeLines(state, '', columns, chosen), rule(columns), ...renderShop(state, shop, cursor, message, columns, true).split('\n')];
+    return rows > 0 && both.length <= rows ? both.join('\n') : renderShop(state, shop, cursor, message, columns);
   }
-  return [...homeLines(state, message, columns), '', rule(columns), ...homeKeys(state, columns)].join('\n');
+  return [...homeLines(state, message, columns, chosen), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
 
 /** The home screen above its keys: the monkey table, letters, script, LATELY and pins. */
-function homeLines(state: GameState, message: string, columns: number): string[] {
+function homeLines(state: GameState, message: string, columns: number, chosen = -1): string[] {
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
@@ -432,7 +443,7 @@ function homeLines(state: GameState, message: string, columns: number): string[]
     // With several departments, one at a time: its name, then which of how many.
     ...(views.length > 1 && view ? [` ${bold(viewName.toUpperCase())}${dim(`   department ${views.indexOf(view) + 1} of ${views.length}`)}`] : []),
     monkeyHeadings(state),
-    ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room)),
+    ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room, i === chosen)),
     ...(shown.length > maxMonkeyLines ? [dim(` ...and ${shown.length - maxMonkeyLines} more monkeys typing`)] : []),
     '',
     `${label('Letters')} ${letterRow(state)}`,
@@ -516,12 +527,23 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
   return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}   (any other key: done)`;
 }
 
-/** The shop's stores, shown as tabs; left and right switch between them. */
-export const stores = ['typewriters', 'staff', 'script', 'department', 'break', 'hats', 'research'] as const;
-export type Store = (typeof stores)[number];
+/** The main shop's stores, shown as tabs; [ ] (or left and right) switch between them. */
+export const stores = ['typewriters', 'staff', 'hats', 'research'] as const;
+/** The office map's own shop: furniture, by the kind of room it goes in. */
+export const officeStores = ['department', 'break'] as const;
+/** The script page's own shop: the scene, act and play under the cursor. */
+export type Store = (typeof stores)[number] | (typeof officeStores)[number] | 'script';
 
-/** The stores you can open now: Research only once the R&D lab is built. */
-export function openStores(state: GameState): Store[] {
+/** Where the script page's cursor is, for the Script store. */
+export interface ScriptSpot {
+  play: string;
+  line: number;
+}
+
+/** The stores you can open now beside `store`: the office map's furniture stores, the script page's, or the main shop's (Research only once the R&D lab is built). */
+export function openStores(state: GameState, store: Store = 'typewriters'): Store[] {
+  if (store === 'script') return ['script'];
+  if ((officeStores as readonly Store[]).includes(store)) return [...officeStores];
   return stores.filter((x) => x !== 'research' || !!labRoom(state));
 }
 export const storeNames: Record<Store, string> = {
@@ -560,7 +582,7 @@ export interface ShopItem {
 const currencyNames: Record<Currency, string> = { currency: theme.currency, words: 'Words', sentences: 'Sentences', lines: 'Lines' };
 
 /** What a store sells. Numbered items (those with an id) are bought with 1-9 in this order. */
-export function storeItems(state: GameState, store: Store): ShopItem[] {
+export function storeItems(state: GameState, store: Store, at?: ScriptSpot): ShopItem[] {
   const typingShop = typingItems(state);
   switch (store) {
     case 'staff': {
@@ -740,8 +762,26 @@ export function storeItems(state: GameState, store: Store): ShopItem[] {
         ...(rate === 0 ? [{ text: 'Nobody is researching: hire researchers in the Staff store.' }] : []),
       ];
     }
-    case 'script':
-      return [{ id: 'script', text: 'Scenes, acts and plays...', effect: `for ${departmentGenres(state).map((g) => genreNames[g]).join(', ')}` }];
+    case 'script': {
+      const play = at && getPlay(at.play);
+      const sc = play && sceneOf(play, at.line);
+      if (!play || !sc) return [{ text: 'No plays loaded.' }];
+      if (!departmentGenres(state).includes(play.genre)) return [{ text: `Open a ${genreNames[play.genre]} department to buy these.` }];
+      const section = (id: string, text: string, n: number, effect: string): ShopItem =>
+        n === 0 ? { id, text, effect, blocked: 'owned' } : { id, text, effect, star: state.currency >= n, cost: [[n, 'currency']] };
+      const lines = (n: number) => `${count(n)} line${n === 1 ? '' : 's'}`;
+      const actLines = play.lines.filter((l) => l.act === sc.act).length;
+      return play.genre === 'sonnet'
+        ? [
+            section('section:b', 'This sonnet', sectionPrice(state, play, sc.act, sc.key), `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`),
+            section('section:w', 'All the sonnets', sectionPrice(state, play), lines(play.lines.length)),
+          ]
+        : [
+            section('section:b', 'This scene', sectionPrice(state, play, sc.act, sc.key), `${sceneName(sc.act, sc.scene, play.genre)}, ${lines(sc.lines.length)}`),
+            section('section:a', `Act ${sc.act}`, sectionPrice(state, play, sc.act), `${lines(actLines)}, ${Math.round((1 - scriptShop.actDiscount) * 100)}% off`),
+            section('section:w', 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}, ${Math.round((1 - scriptShop.playDiscount) * 100)}% off`),
+          ];
+    }
     case 'hats': {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
@@ -847,19 +887,18 @@ export function furnitureEffect(k: FurnitureKind): string {
   ].join(', ');
 }
 
-/** The numbered (buyable) items of a store, in key order 1-9. */
-export function storeChoices(state: GameState, store: Store, page = 0): ShopItem[] {
-  return storeItems(state, store)
-    .filter((x) => x.id)
-    .slice(page * storePageSize, (page + 1) * storePageSize);
+/** The numbered (buyable) items of a store, in key order 1-9 on `page`, or all of them when `page` is -1. */
+export function storeChoices(state: GameState, store: Store, page = 0, at?: ScriptSpot): ShopItem[] {
+  const all = storeItems(state, store, at).filter((x) => x.id);
+  return page < 0 ? all : all.slice(page * storePageSize, (page + 1) * storePageSize);
 }
 
 /** Numbered items a store shows at once (keys 1-9); a bigger store has pages. */
 export const storePageSize = 9;
 
 /** How many pages a store's numbered items fill. */
-export function storePages(state: GameState, store: Store): number {
-  return Math.max(1, Math.ceil(storeItems(state, store).filter((x) => x.id).length / storePageSize));
+export function storePages(state: GameState, store: Store, at?: ScriptSpot): number {
+  return Math.max(1, Math.ceil(storeItems(state, store, at).filter((x) => x.id).length / storePageSize));
 }
 
 /** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; when `affordable`, numbers bold and each part in its currency's colour. */
@@ -875,15 +914,17 @@ function costText(item: ShopItem, affordable = false): string {
  * on any with something you can afford), then the open store's items in
  * columns with prices on the right. What you can afford has a green price and
  * a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
- * only once the feng shui book is read. `under` leaves out the title bar, for
- * the shop under the home screen.
+ * only once the feng shui book is read. `cursor` is the chosen item (counted
+ * over every page; its page is the one shown), drawn inverse, or -1 for none.
+ * `under` leaves out the title bar, for the shop under another screen.
  */
-export function renderShop(state: GameState, store: Store, page = 0, message = '', columns = 0, under = false): string {
-  const items = storeItems(state, store);
+export function renderShop(state: GameState, store: Store, cursor = -1, message = '', columns = 0, under = false, at?: ScriptSpot): string {
+  const items = storeItems(state, store, at);
   const numbered = items.filter((x) => x.id);
-  const pages = storePages(state, store);
-  const tabs = openStores(state).map((x) => {
-    const star = storeItems(state, x).some((i) => i.star) ? '*' : ' ';
+  const pages = storePages(state, store, at);
+  const page = Math.min(pages - 1, Math.floor(Math.max(0, cursor) / storePageSize));
+  const tabs = openStores(state, store).map((x) => {
+    const star = storeItems(state, x, at).some((i) => i.star) ? '*' : ' ';
     return x === store ? bold(inverse(` ${storeNames[x]}${star}`)) : dim(` ${storeNames[x]}`) + green(star);
   });
 
@@ -911,11 +952,12 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
   let k = 0; // numbered items so far, across pages
   const list = items.slice(Math.max(0, firstItem)).flatMap((x) => {
     if (!x.id) return [`     ${dim(x.text)}`];
-    const n = k++ - page * storePageSize;
+    const at = k++;
+    const n = at - page * storePageSize;
     if (n < 0 || n >= storePageSize) return [];
     const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `${green('*')} ${costText(x, true)}` : costText(x);
     const text = row(`[${n + 1}]`, x.star ? green(x.text) : x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
-    return [x.cost && !x.star ? dim(plainText(text)) : text];
+    return [at === cursor ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
   });
 
   return [
@@ -924,19 +966,14 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
     '',
     ...intro.map((x) => ` ${dim(x.text)}`),
     ...(intro.length > 0 ? [''] : []),
-    dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd()),
+    ...(numbered.length > 0 ? [dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd())] : []),
     ...list,
+    ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
     keyRow(
-      [
-        ['1-9', 'buy'],
-        ['i', 'inspect'],
-        ['left/right', 'store'],
-        ...(pages > 1 ? [['up/down', `page ${page + 1} of ${pages}`] as [string, string]] : []),
-        ['esc', 'back'],
-      ],
+      [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']],
       columns,
     ),
   ].join('\n');
@@ -1229,7 +1266,7 @@ function wrapWords(text: string, width: number): string[] {
  * letters each line still needs. Lines too long for the screen wrap. Under
  * them, prices to buy the scene, act or play under the cursor.
  */
-export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0): string {
+export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0, shop = ''): string {
   const play = getPlay(playId);
   if (!play) return 'No plays loaded.';
   const done = state.completed[play.id] ?? [];
@@ -1291,6 +1328,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     ...rows,
     '',
     dim(` + written   @ pinned (${state.pinned.length}/${maxPinnedLines})   NEEDS: letters you don't own yet`),
+    ...(shop ? [rule(columns), shop] : [
     ...(locked
       ? [` Open a ${genreNames[play.genre]} department to buy these.`]
       : wrapVisible(
@@ -1313,6 +1351,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
         ['left/right', 'scene'],
         ['pgup/pgdn', 'page'],
         ['enter', 'pin'],
+        ['space', 'shop'],
         ['tab', 'contents'],
         ['[/]', 'pinned lines'],
         [',/.', 'scenes you own'],
@@ -1321,6 +1360,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
       ],
       columns,
     ),
+    ]),
   ].join('\n');
 }
 

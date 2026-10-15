@@ -186,6 +186,17 @@ describe('typing', () => {
     }
   });
 
+  it('pets the chosen typing monkey, or the least happy one', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    s.monkeys.push(structuredClone(s.monkeys[0]));
+    expect(poke(s, 1)).toBe(1);
+    expect(s.monkeys[1].petHappiness).toBeGreaterThan(0);
+    expect(poke(s)).toBe(0); // the least happy
+    s.monkeys[1].manager = true;
+    expect(poke(s, 1)).toBe(-1); // managers don't type
+  });
+
   it('keeps statistics on letters, words, chains and pets', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');

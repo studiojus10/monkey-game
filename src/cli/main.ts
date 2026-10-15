@@ -127,8 +127,13 @@ import {
   renderContents,
   openStores,
   storeChoices,
-  storePages,
+  renderShop,
+  storePageSize,
   type Store,
+  type ScriptSpot,
+  homeChosen,
+  homeMonkeys,
+  maxMonkeyLines,
   trainees,
   typingPickPrompt,
   renderDevMenu,
@@ -225,19 +230,20 @@ let showingSlots = false;
 let selectedSlot = 0; // index into state.slots
 let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
-let pickingMonkeyToName = false;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
 let readingBook = false; // the feng shui book, open from the office map
 let readingManagerBook = false; // the manager's book, open from the office map
 let officeHelp = false; // the office map's [?] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding a book (feng shui or the manager's), just inspected: [y] reads it
-let inspecting = false; // choosing a store item to inspect
-let storePage = 0; // the open store's page, for stores with more than 9 items
+let homeCursor = 0; // the chosen monkey's row in the home screen's table
+let shopCursor = 0; // the chosen item in the open store, counted over all its pages
+let officeShop: Store | null = null; // the office map's furniture shop, when open
+let lastOfficeStore: Store = 'department';
+let scriptShop = false; // the script page's shop, when open
 let pickingHat = ''; // choosing a monkey for this hat
 let pickingDye: string | null = null; // choosing a dye colour (null: not dyeing; '' undyed)
 let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
-let pickingMonkeyToMove = false;
 let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
 let pickingManagerUpgrade = false;
 let namingMonkey = -1; // index of the monkey being named, or -1
@@ -384,8 +390,8 @@ function buyItem(id: string): void {
   } else if (id === 'manager') {
     pickingManagerUpgrade = true;
     message = managerUpgradePrompt(state);
-  } else if (id === 'script') {
-    openScript();
+  } else if (id.startsWith('section:')) {
+    buyScriptSection(id.slice('section:'.length));
   } else if (id.startsWith('hat:')) {
     const what = id.slice('hat:'.length);
     if (state.monkeys.length === 1) message = wearHatOn(0, what);
@@ -409,7 +415,7 @@ function buyItem(id: string): void {
     else if (!state.stored.furniture[kind] && state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
     else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
-      if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in. Move it on the office map with [o].`;
+      if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in.${officeShop ? '' : ' Move it on the office map with [o].'}`;
       else {
         // Placing it yourself: the map opens with the new piece in hand.
         openOffice();
@@ -465,9 +471,17 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
   ];
 }
 
+/** The office map's furniture shop: under the map when the screen is tall enough for both, else on its own. */
+function officeShopScreen(columns: number): string {
+  const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true));
+  const rows = process.stdout.rows || 0;
+  return rows > 0 && both.split('\n').length > rows ? renderShop(state, officeShop!, shopCursor, message, columns) : both;
+}
+
 /** Opens the office map with the cursor in the top-left corner of the first room. */
 function openOffice(): void {
   showingOffice = true;
+  officeShop = null;
   heldFurniture = -1;
   officeGrowing = '';
   buyingRoom = false;
@@ -481,12 +495,34 @@ function openOffice(): void {
 /** Opens the script browser on the play you're working on. */
 function openScript(): void {
   showingScript = true;
+  scriptShop = false;
   contents = '';
   const work = currentWork(state);
   if (work) {
     scriptPlay = Math.max(0, availablePlays().findIndex((p) => p.id === work.play));
     scriptCursor = work.index;
   }
+}
+
+/** Where the script page's cursor is, for its shop. */
+function scriptSpot(): ScriptSpot {
+  return { play: availablePlays()[scriptPlay]?.id ?? '', line: scriptCursor };
+}
+
+/** Buys the scene (b), act (a) or whole play (w) under the script page's cursor. */
+function buyScriptSection(which: string): void {
+  const play = availablePlays()[scriptPlay];
+  const sc = play && sceneOf(play, scriptCursor);
+  if (!play || !sc) return;
+  const [act, scene, what] =
+    which === 'b'
+      ? [sc.act, sc.key, `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`]
+      : which === 'a'
+        ? [sc.act, undefined, `${play.title}, Act ${sc.act}`]
+        : [undefined, undefined, play.title];
+  message = buySection(state, play.id, act, scene)
+    ? `You bought ${what}.`
+    : `Can't buy ${what}: it's owned already or you need more ${theme.currency}.`;
 }
 
 /** Buys a skill level or a typewriter for monkey `i`; returns the message to show. */
@@ -498,6 +534,46 @@ function buyTyping(i: number, what: 'skill' | 'typewriter'): string {
   }
   if (m.skill >= skillCap(m)) return `${name}'s ${typewriterName(m.typewriter)} can't keep up. Buy a better typewriter in Typewriters.`;
   return buyFasterTyping(state, i) ? '' : `Not enough ${theme.currency}.`;
+}
+
+/** Whether a key is one of the open store's own (see shopKey); other keys still work as on the home screen. */
+function isShopKey(str: string | undefined, key: { name?: string }): boolean {
+  return ['up', 'down', 'left', 'right', 'return', 'enter', 'escape', 'space'].includes(key.name ?? '') || (!!str && /^[1-9[\]i]$/.test(str));
+}
+
+/**
+ * A key in an open store (the main shop or the office map's): up/down choose,
+ * enter or 1-9 buy, [ ] or left/right switch stores, i inspects, esc (or
+ * space, in the main shop) closes. Returns the store now open, or null once closed.
+ */
+function shopKey(store: Store, str: string | undefined, key: { name?: string }): Store | null {
+  const at = store === 'script' ? scriptSpot() : undefined;
+  const items = storeChoices(state, store, -1, at);
+  const page = Math.floor(shopCursor / storePageSize);
+  if (key.name === 'escape' || (key.name === 'space' && (store === shop || store === 'script'))) return null;
+  if (key.name === 'up' || key.name === 'down') {
+    if (items.length > 0) shopCursor = (shopCursor + (key.name === 'up' ? items.length - 1 : 1)) % items.length;
+  } else if (key.name === 'left' || key.name === 'right' || str === '[' || str === ']') {
+    const open = openStores(state, store);
+    const back = key.name === 'left' || str === '[';
+    shopCursor = 0;
+    return open[(open.indexOf(store) + (back ? open.length - 1 : 1)) % open.length];
+  } else if (key.name === 'return' || key.name === 'enter') {
+    const item = items[shopCursor];
+    if (item?.id) buyItem(item.id);
+  } else if (str && /^[1-9]$/.test(str)) {
+    const at = page * storePageSize + Number(str) - 1;
+    if (items[at]?.id) {
+      shopCursor = at;
+      buyItem(items[at].id!);
+    }
+  } else if (str === 'i') {
+    const item = items[shopCursor];
+    message = item ? inspectItem(item.id) : 'Nothing to inspect.';
+  }
+  // Buying can change what's for sale; keep the cursor on an item.
+  shopCursor = Math.max(0, Math.min(shopCursor, storeChoices(state, store, -1, at).length - 1));
+  return store;
 }
 
 function draw() {
@@ -526,6 +602,8 @@ function draw() {
     ? renderManagerBook(state, columns)
     : showingOffice && officeHelp
     ? renderOfficeHelp(state, columns)
+    : showingOffice && officeShop
+    ? officeShopScreen(columns)
     : showingOffice
     ? renderOffice(state, message, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
@@ -536,7 +614,9 @@ function draw() {
     ? renderStats(state, columns)
     : showingDictionary
       ? renderDictionary(state, dictionaryRow, columns)
-      : showingScript
+      : showingScript && scriptShop
+    ? renderScript(state, scriptSpot().play, scriptCursor, '', columns, renderShop(state, 'script', shopCursor, message, columns, true, scriptSpot()))
+    : showingScript
     ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, message, columns)
     : showingDev
       ? renderDevMenu(state, message, columns)
@@ -546,7 +626,7 @@ function draw() {
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, message, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : renderScreen(state, message, shop, columns, storePage, process.stdout.rows || 0);
+          : renderScreen(state, message, shop, columns, shopCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
   process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
 }
 
@@ -681,16 +761,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingMonkeyToMove) {
-    pickingMonkeyToMove = false;
-    const i = Number(str) - 1;
-    message =
-      str && /^[1-9]$/.test(str) && moveMonkey(state, i)
-        ? `${monkeyName(state, i)} now works in ${genreNames[monkeyGenre(state, state.monkeys[i])!]}.`
-        : 'No monkey moved. Moving needs a second department.';
-    return draw();
-  }
-
   if (pickingHat) {
     const what = pickingHat;
     const i = Number(str) - 1;
@@ -698,13 +768,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       pickingHat = '';
       message = 'Done.';
     } else message = `${wearHatOn(i, what)}  ${hatPickPrompt(state, what)}`;
-    return draw();
-  }
-
-  if (inspecting) {
-    inspecting = false;
-    const item = shop && str && /^[1-9]$/.test(str) ? storeChoices(state, shop, storePage)[Number(str) - 1] : undefined;
-    message = item ? inspectItem(item.id) : 'Nothing inspected.';
     return draw();
   }
 
@@ -741,14 +804,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       pickingTyping = '';
       message = 'Done.';
     } else message = `${buyTyping(i, what) || `${monkeyName(state, i)} types faster.`}  ${typingPickPrompt(state, what)}`;
-    return draw();
-  }
-
-  if (pickingMonkeyToName) {
-    pickingMonkeyToName = false;
-    const i = Number(str) - 1;
-    if (str && /^[1-9]$/.test(str) && i < state.monkeys.length) startNaming(i);
-    else message = 'No monkey renamed.';
     return draw();
   }
 
@@ -814,6 +869,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingScript && scriptShop) {
+    const next = shopKey('script', str, key);
+    if (!next) message = '';
+    scriptShop = !!next;
+    return draw();
+  }
+
   if (showingScript) {
     message = '';
     const play = availablePlays()[scriptPlay];
@@ -841,7 +903,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       let i = scriptCursor;
       while (i < last && sceneKeyAt(i + 1) === sceneKeyAt(i)) i++;
       scriptCursor = Math.min(last, i + 1);
-    } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+    } else if (key.name === 'space') {
+      scriptShop = true;
+      shopCursor = 0;
+    } else if (key.name === 'return' || key.name === 'enter') {
       if (play && !togglePin(state, play.id, scriptCursor)) {
         message = getPlay(play.id) && sceneOf(play, scriptCursor) && state.pinned.length < maxPinnedLines
           ? 'You can only pin lines from scenes you own.'
@@ -867,16 +932,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       contents = 'plays';
       contentsCursor = scriptPlay;
     } else if (play && (str === 'b' || (str === 'a' && play.genre !== 'sonnet') || str === 'w')) {
-      const sc = sceneOf(play, scriptCursor)!;
-      const [act, scene, what] =
-        str === 'b'
-          ? [sc.act, sc.key, `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`]
-          : str === 'a'
-            ? [sc.act, undefined, `${play.title}, Act ${sc.act}`]
-            : [undefined, undefined, play.title];
-      message = buySection(state, play.id, act, scene)
-        ? `You bought ${what}.`
-        : `Can't buy ${what}: it's owned already or you need more ${theme.currency}.`;
+      buyScriptSection(str);
     } else if (key.name === 'f') {
       const reachable = play ? reachableLines(state, play.id) : [];
       if (reachable.length === 0) message = 'No unwritten line is within reach yet. Buy more letters.';
@@ -953,6 +1009,14 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   if (showingOffice && officeHelp) {
     if (key.name === 'escape' || key.name === 'q' || str === '?' || str === 'o') officeHelp = false;
+    return draw();
+  }
+
+  if (showingOffice && officeShop) {
+    const next = shopKey(officeShop, str, key);
+    if (next !== officeShop) message = '';
+    if (showingOffice && officeShop) officeShop = next; // buying with auto-place off closes the shop to place the piece
+    if (next) lastOfficeStore = next;
     return draw();
   }
 
@@ -1041,6 +1105,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       readingManagerBook = true;
     } else if (str === '?' && !holding && !officeGrowing) {
       officeHelp = true;
+    } else if (str === 'f' && !holding && !officeGrowing) {
+      officeShop = lastOfficeStore;
+      shopCursor = 0;
     } else if ((str === 's' || str === '$') && !holding && !officeGrowing) {
       const here = roomAt(state, c.x, c.y);
       const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
@@ -1087,7 +1154,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           // A bigger piece is held by its top left square.
           Object.assign(c, { x: state.furniture[spot].x, y: state.furniture[spot].y });
         } else if (door) heldDoor = { from: door, side: door.side };
-        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. Buy furniture in the Office and Breakroom stores; [d] adds a door.';
+        else message = !here ? 'Nothing to pick up there.' : 'No furniture or door there. [f] buys furniture; [d] adds a door.';
       }
     }
     return draw();
@@ -1205,38 +1272,37 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (key.name === 'tab' && !shop && homeViews(state).length > 1) {
     const views = homeViews(state);
     state.settings.homeDepartment = views[(views.indexOf(homeView(state)!) + 1) % views.length];
+    homeCursor = 0;
+  } else if (shop && isShopKey(str, key)) {
+    const next = shopKey(shop, str, key);
+    if (next !== shop) message = '';
+    if (next) shop = lastStore = next;
+    else shop = null;
+  } else if (key.name === 'up' || key.name === 'down') {
+    const n = Math.min(maxMonkeyLines, homeMonkeys(state).length);
+    if (n > 0) homeCursor = (Math.min(homeCursor, n - 1) + (key.name === 'up' ? n - 1 : 1)) % n;
   } else if (key.name === 'return' || key.name === 'enter') {
-    const i = poke(state);
-    if (i >= 0) message = `You pet ${monkeyName(state, i)}. <3`;
-  } else if (key.name === 'space' || (shop && key.name === 'escape')) {
-    shop = shop ? null : lastStore;
-    storePage = 0;
-  } else if (shop && (key.name === 'right' || key.name === 'left')) {
-    const open = openStores(state);
-    const step = key.name === 'left' ? open.length - 1 : 1;
-    shop = lastStore = open[(open.indexOf(shop) + step) % open.length];
-    storePage = 0;
-  } else if (shop && (key.name === 'up' || key.name === 'down')) {
-    const pages = storePages(state, shop);
-    storePage = (storePage + (key.name === 'up' ? pages - 1 : 1)) % pages;
-  } else if (shop && str === 'i') {
-    inspecting = true;
-    message = 'Inspect which item? Press 1-9.';
-  } else if (shop && str && /^[1-9]$/.test(str)) {
-    const item = storeChoices(state, shop, storePage)[Number(str) - 1];
-    if (item?.id) buyItem(item.id);
+    const i = homeChosen(state, homeCursor);
+    if (i >= 0) {
+      showingRoster = true;
+      rosterCursor = Math.max(0, rosterOrder(state).indexOf(i));
+    }
+  } else if (str === 'h') {
+    const chosen = homeChosen(state, homeCursor);
+    const i = poke(state, chosen);
+    message = i >= 0 ? `You pet ${monkeyName(state, i)}. <3` : `${monkeyName(state, chosen)} is busy. Only typing monkeys want petting.`;
+  } else if (key.name === 'space') {
+    shop = lastStore;
+    shopCursor = 0;
   } else if (str === 'd') {
-    if (state.monkeys.length === 1) message = 'You need more monkeys and departments first.';
-    else {
-      pickingMonkeyToMove = true;
-      message = `Move which monkey to its next department? Press 1-${Math.min(9, state.monkeys.length)}.`;
-    }
+    const i = homeChosen(state, homeCursor);
+    message = moveMonkey(state, i)
+      ? `${monkeyName(state, i)} now works in ${genreNames[monkeyGenre(state, state.monkeys[i])!]}.`
+      : state.monkeys.length === 1
+        ? 'You need more monkeys and departments first.'
+        : 'No monkey moved. Moving needs a second department.';
   } else if (str === 'n') {
-    if (state.monkeys.length === 1) startNaming(0);
-    else {
-      pickingMonkeyToName = true;
-      message = `Name which monkey? Press 1-${Math.min(9, state.monkeys.length)}.`;
-    }
+    startNaming(homeChosen(state, homeCursor));
   } else if (key.name === 'p') {
     openScript();
   } else if (str === '`') {

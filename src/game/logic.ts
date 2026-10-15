@@ -1672,14 +1672,17 @@ function checkMilestones(state: GameState, play: Play, index: number): void {
 }
 
 /**
- * The player pets the least happy typing monkey (the first, on a tie): it
- * gets a little happier (see `petting`). Returns its index, or -1.
+ * The player pets typing monkey `who`, or with none given the least happy
+ * one (the first, on a tie): it gets a little happier (see `petting`).
+ * Returns its index, or -1.
  */
-export function poke(state: GameState): number {
+export function poke(state: GameState, who = -1): number {
   let i = -1;
-  state.monkeys.forEach((m, k) => {
-    if (isTypist(m) && (i < 0 || m.petHappiness < state.monkeys[i].petHappiness)) i = k;
-  });
+  if (who >= 0) i = state.monkeys[who] && isTypist(state.monkeys[who]) ? who : -1;
+  else
+    state.monkeys.forEach((m, k) => {
+      if (isTypist(m) && (i < 0 || m.petHappiness < state.monkeys[i].petHappiness)) i = k;
+    });
   if (i < 0) return -1;
   const m = state.monkeys[i];
   m.petHappiness = Math.min(petting.maxHappiness, m.petHappiness + petting.happinessPerPet);
