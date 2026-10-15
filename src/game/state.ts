@@ -151,7 +151,7 @@ export interface GameState {
   folios: number; // Folios published (prestige resets)
   folioPages: number; // pages banked by every Folio published (Marketing's royalties count them)
   freeLetters: number; // letters you can take for free (letterGifts)
-  letterGifts: string[]; // ids of the letterGifts given this game
+  letterGifts: string[]; // achievements whose free letter (letterGifts) has been given; kept by Folios
   folioBoost: number; // bananas x this for good: every Folio's (1 + its pages x folio.bonusPerPage), multiplied together
   lastSaved: number; // epoch ms
 }

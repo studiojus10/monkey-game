@@ -344,6 +344,8 @@ export function publishFolio(state: GameState): GameState | null {
   next.folioPages = state.folioPages + folioPagesNow(state);
   next.folioBoost = folioMultiplierAfter(state);
   next.achievements = [...state.achievements];
+  next.letterGifts = [...state.letterGifts];
+  next.freeLetters = state.freeLetters;
   next.stats = state.stats;
   next.settings = state.settings;
   checkAchievements(next);
@@ -825,18 +827,18 @@ export function letterWordsCost(owned: number): number {
   return Math.floor(letterShop.wordsCostFactor * owned ** letterShop.wordsCostPower);
 }
 
-/** Whether you have a free letter, or the points and Words for your next letter. */
+/** Whether you have the points and Words for your next letter. */
 export function canAffordLetter(state: GameState): boolean {
-  return state.freeLetters > 0 || (state.currency >= letterCost(state.letters.length) && state.words >= letterWordsCost(state.letters.length));
+  return state.currency >= letterCost(state.letters.length) && state.words >= letterWordsCost(state.letters.length);
 }
 
-/** Buys a letter you don't own yet: a free one if you have one (letterGifts), else for points and Words. */
-export function buyLetter(state: GameState, letter: string): boolean {
+/** Buys a letter you don't own yet for points and Words, or with `free` takes it for one of your free letters (letterGifts). */
+export function buyLetter(state: GameState, letter: string, free = false): boolean {
   const l = letter.toUpperCase();
   const cost = letterCost(state.letters.length);
   if (state.letters.length === 0 || !/^[A-Z]$/.test(l) || state.letters.includes(l)) return false;
-  if (!canAffordLetter(state)) return false;
-  if (state.freeLetters > 0) state.freeLetters--;
+  if (free ? state.freeLetters <= 0 : !canAffordLetter(state)) return false;
+  if (free) state.freeLetters--;
   else {
     state.words -= letterWordsCost(state.letters.length);
     state.currency -= cost;
@@ -850,15 +852,12 @@ export function linesWritten(state: GameState): number {
   return Object.values(state.completed).reduce((n, done) => n + done.length, 0);
 }
 
-/** Gives the free letters (letterGifts) whose milestones you have reached; returns the gifts given. */
-export function checkLetterGifts(state: GameState): typeof letterGifts {
-  const given = letterGifts.filter(
-    (g) => !state.letterGifts.includes(g.id) && (g.what === 'lines' ? linesWritten(state) : state.monkeys.length) >= g.at,
-  );
-  for (const g of given) {
-    state.letterGifts.push(g.id);
-    // A letter only helps while some are left to own.
-    if (state.letters.length + state.freeLetters < 26) state.freeLetters++;
+/** Gives a free letter for each achievement in letterGifts unlocked and not yet rewarded; returns their ids. */
+export function checkLetterGifts(state: GameState): string[] {
+  const given = letterGifts.filter((id) => !state.letterGifts.includes(id) && state.achievements.includes(id));
+  for (const id of given) {
+    state.letterGifts.push(id);
+    state.freeLetters++;
   }
   return given;
 }

@@ -203,7 +203,7 @@ let message = [
 let confirmingReset = false;
 let confirmingFolio = false;
 let confirmingFlip = false;
-let pickingLetter = false;
+let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
 let showingScript = false;
 let scriptCursor = 0;
 let contents: '' | 'plays' | 'scenes' = ''; // the script's table of contents, when open
@@ -332,11 +332,11 @@ function buyItem(id: string): void {
       pickingTyping = what;
       message = typingPickPrompt(state, what);
     }
+  } else if (id === 'free-letter') {
+    pickingLetter = 'free';
+    message = letterPickPrompt(state);
   } else if (id === 'letter') {
-    if (state.freeLetters > 0) {
-      pickingLetter = true;
-      message = letterPickPrompt(state);
-    } else if (state.currency < letterCost(state.letters.length)) {
+    if (state.currency < letterCost(state.letters.length)) {
       message = `Not enough ${theme.currency}.`;
     } else if (state.words < letterWordsCost(state.letters.length)) {
       message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
@@ -869,9 +869,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (!/^[A-Z]$/.test(letter) || state.letters.includes(letter)) {
       pickingLetter = false;
       message = 'Done.';
-    } else if (buyLetter(state, letter)) {
-      pickingLetter = canAffordLetter(state);
-      message = pickingLetter ? `You bought ${letter}.  ${letterPickPrompt(state)}` : `You bought ${letter}.`;
+    } else if (buyLetter(state, letter, pickingLetter === 'free')) {
+      const done = `You ${pickingLetter === 'free' ? 'took' : 'bought'} ${letter}.`;
+      pickingLetter = pickingLetter === 'free' ? (state.freeLetters > 0 ? 'free' : false) : canAffordLetter(state);
+      message = pickingLetter ? `${done}  ${letterPickPrompt(state)}` : done;
     } else {
       pickingLetter = false;
       message = 'Not enough to buy that letter.';

@@ -52,7 +52,6 @@ import {
   typewriterName,
   buyLetter,
   checkLetterGifts,
-  canAffordLetter,
   buyCapRaise,
   availableKeys,
   buyKey,
@@ -300,16 +299,20 @@ describe('typing', () => {
   it('gives a free letter for each milestone reached, once', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.completed = { test: Array.from({ length: 999 }, (_, i) => i) };
     expect(checkLetterGifts(s)).toEqual([]);
-    s.completed.test.push(999);
-    expect(checkLetterGifts(s).map((g) => g.id)).toEqual(['lines1000']);
+    s.achievements.push('first-hire', 'first-word'); // a second monkey; the first word gives no letter
+    expect(checkLetterGifts(s)).toEqual(['first-hire']);
     expect(checkLetterGifts(s)).toEqual([]); // once
     expect(s.freeLetters).toBe(1);
-    expect(canAffordLetter(s)).toBe(true); // with no Bananas or Words
-    expect(buyLetter(s, 'z')).toBe(true);
+    expect(buyLetter(s, 'z')).toBe(false); // no Bananas or Words to buy one
+    expect(buyLetter(s, 'z', true)).toBe(true); // but the free one
     expect(s.freeLetters).toBe(0);
-    expect(canAffordLetter(s)).toBe(false);
+    expect(buyLetter(s, 'q', true)).toBe(false);
+    s.freeLetters = 1;
+    s.completed = { test: [0] };
+    const next = publishFolio(Object.assign(s, { playsDone: ['test'] }))!;
+    expect(next.letterGifts).toEqual(['first-hire']); // Folios keep them: each is given once, ever
+    expect(next.freeLetters).toBe(1);
   });
 });
 

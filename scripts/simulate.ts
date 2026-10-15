@@ -138,6 +138,10 @@ function shop(): void {
     if (canAffordLetter(s)) {
       const l = letterOrder.find((x) => !s.letters.includes(x));
       if (l && buyLetter(s, l)) bought = true;
+    } else if (s.freeLetters > 0) {
+      // Free letters go on the next letter the bot can't afford yet.
+      const l = letterOrder.find((x) => !s.letters.includes(x));
+      if (l && buyLetter(s, l, true)) bought = true;
     }
     // Typing: the cheapest skill level or typewriter across monkeys.
     const typists = s.monkeys.map((m, i) => i).filter((i) => !s.monkeys[i].manager);

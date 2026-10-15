@@ -42,18 +42,13 @@ export const letterShop = {
 };
 
 /**
- * Free letters, given for reaching milestones away from the script itself
- * (Justin, 2026-10-15: "if letters stall things ... a handful of letters
- * awarded as bonuses for completing other tasks"), so the last letters don't
- * all have to be bought. `lines` counts play lines written this game,
- * `monkeys` monkeys you have. The player picks the letter. Placeholders.
+ * Free letters, one for each of these achievements (Justin, 2026-10-15: "if
+ * letters stall things ... a handful of letters awarded as bonuses for
+ * completing other tasks", "at more fun and unique milestones", "8 ways to
+ * earn free letters"). The player picks the letter, and can keep free
+ * letters for later. Each is given once, ever: Folios keep them.
  */
-export const letterGifts: { id: string; what: 'lines' | 'monkeys'; at: number; text: string }[] = [
-  { id: 'lines1000', what: 'lines', at: 1000, text: 'for writing 1,000 lines' },
-  { id: 'monkeys10', what: 'monkeys', at: 10, text: 'for a full office of 10 monkeys' },
-  { id: 'lines2500', what: 'lines', at: 2500, text: 'for writing 2,500 lines' },
-  { id: 'monkeys20', what: 'monkeys', at: 20, text: 'for 20 monkeys' },
-];
+export const letterGifts: string[] = ['first-hire', 'first-typewriter', 'pets-100', 'first-hat', 'chain-10', 'flip-won', 'word-banana', 'full-department'];
 
 /**
  * You start with one monkey. More monkeys are paid in Points. Each
