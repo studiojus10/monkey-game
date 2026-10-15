@@ -26,6 +26,8 @@ import {
   openStores,
   storeChoices,
   storePages,
+  storePageSize,
+  renderShop,
   renderHomeKeys,
 } from '../src/cli/screen';
 import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
@@ -172,13 +174,15 @@ describe('terminal screen', () => {
     expect(closed).toContain('[enter] pet the monkey   [n] name');
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
-    expect(open).toContain('[1-9] buy   [i] inspect   [left/right] store   [esc] back');
+    expect(open).toContain('[up/down] choose   [enter] buy   [1-9] buy   [[/]] store   [i] inspect   [esc] back');
     expect(open).not.toContain('[tab]');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
-    expect(open).toContain('\n Typewriters   Staff   Script   Office   Breakroom   Hats \n');
+    expect(open).toContain('\n Typewriters   Staff   Script   Hats \n'); // furniture is sold on the office map
+    expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[7m \[1\] Faster typing/); // the cursor's item
+    expect(renderScreen(s, '', 'staff')).not.toContain(inverse(' [1]'));
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Office   Breakroom   Hats \n');
+    expect(plain(renderScreen(s, '', 'script'))).toContain('\n Typewriters*  Staff*  Script   Hats \n');
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -596,14 +600,15 @@ describe('furniture', () => {
     const s = started();
     s.currency = 600;
     const text = squash(renderScreen(s, '', 'department'));
-    expect(text).toContain(' Office* Breakroom Hats');
+    expect(text).toContain(' Office* Breakroom \n'); // the office map's own shop
+    expect(openStores(s, 'break')).toEqual(['department', 'break']);
     expect(text).toContain("Furniture for a department's own room: it helps the monkeys who work there.");
     expect(text).toContain(' ITEM EFFECT PRICE\n'); // no elements before the feng shui book
     expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 500 Bananas\n');
     expect(text).toContain('[2] Scented candle I tire 3% slower, +1% pay * 500 Bananas\n'); // same price, same benefit
     expect(text).toContain('[3] Wall clock K tire 3% slower, +1% pay * 500 Bananas\n');
     expect(text).not.toContain('Television'); // break rooms only
-    expect(text).toContain('[up/down] page 1 of 2');
+    expect(text).toContain(' page 1 of 2\n');
     s.fengShuiBook = true;
     const read = squash(renderScreen(s, '', 'department'));
     expect(read).toContain(' ITEM ELEMENT EFFECT PRICE\n');
@@ -615,12 +620,23 @@ describe('furniture', () => {
     expect(lounge).toContain('[1] Potted plant P tire 3% slower, +1% pay 500 Bananas\n'); // fits either room; no * as there's nowhere to put it
     expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
     expect(lounge).not.toMatch(/\* [0-9.]+K? Bananas/); // nowhere to put any of it
-    const last = squash(renderScreen(s, '', 'break', 0, 2));
+    const last = squash(renderScreen(s, '', 'break', 0, 18)); // the cursor on item 19: page 3
     expect(last).toContain('[1] Television T breaks 40% faster, +3% pay 1.00M Bananas\n');
     expect(last).toContain('[2] Hot tub (2x1) U breaks 40% faster, +3% pay 1.00M Bananas\n');
-    expect(last).toContain('[up/down] page 3 of 3');
+    expect(last).toContain(' page 3 of 3\n');
     expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
+  });
+
+  it("opens the office map's furniture shop under the map", () => {
+    const s = started();
+    const map = plain(renderOffice(s));
+    expect(map).toContain('[f] furniture');
+    const shop = plain(renderOffice(s, '', null, -1, false, null, 0, renderShop(s, 'break', 0, '', 0, true)));
+    expect(shop).toContain(' Office   Breakroom \n');
+    expect(shop).toContain('Potted plant');
+    expect(shop).not.toContain('[f] furniture'); // the shop takes the place of the room table and keys
+    expect(shop.split('\n').slice(0, 4).join('\n')).toContain('+'); // the map is still there
   });
 
   it('fits every store on an 80-column screen, elements and all', () => {
@@ -769,7 +785,7 @@ describe('managers and traits on screen', () => {
     const hired = squash(plain(renderOffice(s)));
     expect(hired).toContain('2 Comedies office 4 - - M-6 (manager)');
     expect(hired).not.toMatch(/Comedies room[^\n]*M-6/);
-    const office = Array.from({ length: storePages(s, 'department') }, (_, page) => plain(renderScreen(s, '', 'department', 0, page))).join('\n');
+    const office = Array.from({ length: storePages(s, 'department') }, (_, page) => plain(renderScreen(s, '', 'department', 0, page * storePageSize))).join('\n');
     expect(office).toContain("Manager's desk"); // a spare, in case one's needed
   });
 

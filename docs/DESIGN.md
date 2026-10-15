@@ -250,17 +250,18 @@ Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to pars
 ```
  INFINITE MONKEYS > SHOP     345.44K Bananas   1.11K Words   179 Sentences   3 Lines
 
- Typewriters   Staff   Script   Office*  Breakroom   Hats*
+ Typewriters*  Staff*  Script   Hats*
 
- Furniture for a department's own room: it helps the monkeys who work there.
-
-     ITEM                EFFECT                                PRICE
- [1] Potted plant     P  tire 3% slower, +1% pay        * 500 Bananas
- [8] Armchair         A  breaks 8% faster, +1% pay   * 10.00K Bananas
-     New furniture places itself in a department's room ([c] options).
+     ITEM               EFFECT                                     PRICE
+ [1] Faster typing      +1 skill for a monkey          * from 10 Bananas
+ [2] Hire a monkey      you have 7                     * 300.00K Bananas
+ [3] Raise combo cap    x3 -> x4                           * 1 Sentences
  ------------------------------------------------------------------------------
- [1-9] buy   [i] inspect   [left/right] store   [up/down] page 1 of 2   [esc] back
+ [up/down] choose   [enter] buy   [1-9] buy   [[/]] store   [i] inspect   [esc] back
 ```
+
+- **Controls** (Justin, 2026-10-15: "a consistent cursor on all screens so the player can use the arrow keys and enter to navigate the entire game. I still want to be able to use the number keys to select things and [] to change tabs"): the chosen item is inverse; up/down move it (across pages, which follow it), enter buys it, `i` inspects it, 1-9 still buy on the page shown, `[` `]` (or left/right) change stores, esc closes. Keys that aren't the shop's still work as on the home screen. Other menus get the same cursor next.
+- **Furniture** is not in the main shop (Justin, 2026-10-15: "remove the furniture tabs from the main shop and instead make the shop in the map screen different"): on the office map, `[f]` opens the map's own shop, Office and Breakroom stores, under the map (or alone when the screen is too short), with the same controls; esc goes back to the map.
 
 - Under the home screen when the terminal is tall enough for both (Justin, 2026-10-14), else its own screen; the open store's tab is inverse, the others dim. Items in columns (item, look, element, effect, price on the right); columns keep their width across a store's pages, and close up to one space apart when that's what fits an 80-column screen. Affordable (Justin, 2026-10-14: "make the currency value have no color when it isnt purchasable, and when it is purchasable the currency value changes to the associated color. the name of the upgrade could turn green"): the item's name green, a green `*`, and the price in its currency's colour (Bananas yellow, Sentences magenta, Lines blue); the same everywhere a price shows (script, typewriter keys, word slots, office map, monkey pickers). Not yet: the whole row dim, the price uncoloured. Furniture glyphs are coloured by what the piece looks like, not its element (Justin, 2026-10-14): green plants, brown wood, red fire, blue and cyan water, gray chrome (`color` on each piece in config.ts), on the map and in the store. Notes are dim. Descriptions stay behind `i`.
 - Hire a monkey shows **desk needed** in red where the price goes when its department has no free square for a desk, or **room needed** when it has no room yet (Justin, 2026-10-14).

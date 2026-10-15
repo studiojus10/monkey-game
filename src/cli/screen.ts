@@ -343,7 +343,7 @@ export function renderHomeKeys(state: GameState): string {
     titleBar(state, 'Keys'),
     '',
     ...group('GO TO', [
-      ['space', 'the shop (then [left/right] another store, [1-9] buy, [i] inspect, [up/down] more items)'],
+      ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
       ['p', 'the script: plays, pins and scenes to buy'],
       ['o', 'the office map'],
@@ -372,7 +372,7 @@ export function renderHomeKeys(state: GameState): string {
 }
 
 /** Renders the whole game screen as plain text. */
-export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, page = 0, rows = 0): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0): string {
   if (state.owned.length === 0 && state.departments.length === 0) {
     const genres = departmentChoices(state);
     return openingScreen(
@@ -410,8 +410,8 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
 
   if (shop) {
     // The shop opens under the home screen when the screen is tall enough for both, else on its own.
-    const both = [...homeLines(state, '', columns), rule(columns), ...renderShop(state, shop, page, message, columns, true).split('\n')];
-    return rows > 0 && both.length <= rows ? both.join('\n') : renderShop(state, shop, page, message, columns);
+    const both = [...homeLines(state, '', columns), rule(columns), ...renderShop(state, shop, cursor, message, columns, true).split('\n')];
+    return rows > 0 && both.length <= rows ? both.join('\n') : renderShop(state, shop, cursor, message, columns);
   }
   return [...homeLines(state, message, columns), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
@@ -516,12 +516,15 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
   return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}   (any other key: done)`;
 }
 
-/** The shop's stores, shown as tabs; left and right switch between them. */
-export const stores = ['typewriters', 'staff', 'script', 'department', 'break', 'hats', 'research'] as const;
-export type Store = (typeof stores)[number];
+/** The main shop's stores, shown as tabs; [ ] (or left and right) switch between them. */
+export const stores = ['typewriters', 'staff', 'script', 'hats', 'research'] as const;
+/** The office map's own shop: furniture, by the kind of room it goes in. */
+export const officeStores = ['department', 'break'] as const;
+export type Store = (typeof stores)[number] | (typeof officeStores)[number];
 
-/** The stores you can open now: Research only once the R&D lab is built. */
-export function openStores(state: GameState): Store[] {
+/** The stores you can open now beside `store`: the office map's furniture stores, or the main shop's (Research only once the R&D lab is built). */
+export function openStores(state: GameState, store: Store = 'typewriters'): Store[] {
+  if ((officeStores as readonly Store[]).includes(store)) return [...officeStores];
   return stores.filter((x) => x !== 'research' || !!labRoom(state));
 }
 export const storeNames: Record<Store, string> = {
@@ -847,11 +850,10 @@ export function furnitureEffect(k: FurnitureKind): string {
   ].join(', ');
 }
 
-/** The numbered (buyable) items of a store, in key order 1-9. */
+/** The numbered (buyable) items of a store, in key order 1-9 on `page`, or all of them when `page` is -1. */
 export function storeChoices(state: GameState, store: Store, page = 0): ShopItem[] {
-  return storeItems(state, store)
-    .filter((x) => x.id)
-    .slice(page * storePageSize, (page + 1) * storePageSize);
+  const all = storeItems(state, store).filter((x) => x.id);
+  return page < 0 ? all : all.slice(page * storePageSize, (page + 1) * storePageSize);
 }
 
 /** Numbered items a store shows at once (keys 1-9); a bigger store has pages. */
@@ -875,14 +877,16 @@ function costText(item: ShopItem, affordable = false): string {
  * on any with something you can afford), then the open store's items in
  * columns with prices on the right. What you can afford has a green price and
  * a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
- * only once the feng shui book is read. `under` leaves out the title bar, for
- * the shop under the home screen.
+ * only once the feng shui book is read. `cursor` is the chosen item (counted
+ * over every page; its page is the one shown), drawn inverse, or -1 for none.
+ * `under` leaves out the title bar, for the shop under another screen.
  */
-export function renderShop(state: GameState, store: Store, page = 0, message = '', columns = 0, under = false): string {
+export function renderShop(state: GameState, store: Store, cursor = -1, message = '', columns = 0, under = false): string {
   const items = storeItems(state, store);
   const numbered = items.filter((x) => x.id);
   const pages = storePages(state, store);
-  const tabs = openStores(state).map((x) => {
+  const page = Math.min(pages - 1, Math.floor(Math.max(0, cursor) / storePageSize));
+  const tabs = openStores(state, store).map((x) => {
     const star = storeItems(state, x).some((i) => i.star) ? '*' : ' ';
     return x === store ? bold(inverse(` ${storeNames[x]}${star}`)) : dim(` ${storeNames[x]}`) + green(star);
   });
@@ -911,11 +915,12 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
   let k = 0; // numbered items so far, across pages
   const list = items.slice(Math.max(0, firstItem)).flatMap((x) => {
     if (!x.id) return [`     ${dim(x.text)}`];
-    const n = k++ - page * storePageSize;
+    const at = k++;
+    const n = at - page * storePageSize;
     if (n < 0 || n >= storePageSize) return [];
     const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `${green('*')} ${costText(x, true)}` : costText(x);
     const text = row(`[${n + 1}]`, x.star ? green(x.text) : x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
-    return [x.cost && !x.star ? dim(plainText(text)) : text];
+    return [at === cursor ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
   });
 
   return [
@@ -926,19 +931,11 @@ export function renderShop(state: GameState, store: Store, page = 0, message = '
     ...(intro.length > 0 ? [''] : []),
     dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd()),
     ...list,
+    ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow(
-      [
-        ['1-9', 'buy'],
-        ['i', 'inspect'],
-        ['left/right', 'store'],
-        ...(pages > 1 ? [['up/down', `page ${page + 1} of ${pages}`] as [string, string]] : []),
-        ['esc', 'back'],
-      ],
-      columns,
-    ),
+    keyRow([['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ['[/]', 'store'], ['i', 'inspect'], ['esc', 'back']], columns),
   ].join('\n');
 }
 
