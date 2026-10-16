@@ -959,19 +959,17 @@ export function storePages(state: GameState, store: Store, at?: ScriptSpot): num
   return Math.max(1, Math.ceil(storeItems(state, store, at).filter((x) => x.id).length / storePageSize));
 }
 
-/** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; when `affordable`, numbers bold and each part in its currency's colour. */
+/** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; when `affordable`, numbers bold. */
 function costText(item: ShopItem, affordable = false): string {
-  const parts = (item.cost ?? []).map(([n, c]) =>
-    affordable ? currencyColors[c](`${bold(formatNumber(n))} ${currencyNames[c]}`) : `${formatNumber(n)} ${currencyNames[c]}`,
-  );
+  const parts = (item.cost ?? []).map(([n, c]) => `${affordable ? bold(formatNumber(n)) : formatNumber(n)} ${currencyNames[c]}`);
   return parts.length === 0 ? '' : `${item.costFrom ? 'from ' : ''}${parts.join(' + ')}`;
 }
 
 /**
  * The shop, on its own screen: the stores as tabs (the open one inverse, a *
  * on any with something you can afford), then the open store's items in
- * columns with prices on the right. What you can afford has a green price and
- * a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
+ * columns with prices on the right. What you can afford is green (the whole
+ * row but the glyph) with a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
  * only once the feng shui book is read. `cursor` is the chosen item (counted
  * over every page; its page is the one shown), drawn inverse, or -1 for none.
  * `under` leaves out the title bar, for the shop under another screen.
@@ -1013,8 +1011,9 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     const at = k++;
     const n = at - page * storePageSize;
     if (n < 0 || n >= storePageSize) return [];
-    const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `${green('*')} ${costText(x, true)}` : costText(x);
-    const text = row(`[${n + 1}]`, x.star ? green(x.text) : x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
+    const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
+    const g = (t: string) => (x.star ? green(t) : t);
+    const text = row(`[${n + 1}]`, g(x.text), x.glyph ?? '', g(x.element ?? ''), g(x.effect ?? ''), cost);
     return [at === cursor ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
   });
 
@@ -1112,7 +1111,7 @@ export function renderSlotsMenu(
     ...(managed ? [" This department's manager sets these slots for you.", ''] : []),
     ...(rows.length > 0 ? rows : [dim('   No slots yet.')]),
     ...(canBuy
-      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? `${green('*')} ${currencyColors.lines(`${bold(formatNumber(next))} Lines`)}` : `${formatNumber(next)} Lines`}`]
+      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? green(`* ${bold(formatNumber(next))} Lines`) : `${formatNumber(next)} Lines`}`]
       : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
@@ -1167,7 +1166,7 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
       const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
       if (i === cursor) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
       return state.currency >= cost
-        ? `${row(green(k.padEnd(keyWidth)))}${green('*')} ${currencyColors.currency(`${bold(formatNumber(cost))} ${theme.currency}`)}`
+        ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatNumber(cost))} ${theme.currency}`)
         : dim(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
     }),
     ...(choices.length === 0 ? [dim('   None available yet.')] : []),
@@ -1382,7 +1381,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   const sc = sceneOf(play, at)!;
   const section = (key: string, label: string, n: number) =>
     state.currency >= n && n > 0
-      ? `${bold(`[${key}]`)} ${green(label)} ${green('*')} ${currencyColors.currency(`${bold(formatNumber(n))} ${theme.currency}`)}`
+      ? `${bold(`[${key}]`)} ${green(`${label} * ${bold(formatNumber(n))} ${theme.currency}`)}`
       : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatNumber(n)} ${theme.currency}`}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [

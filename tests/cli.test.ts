@@ -393,7 +393,7 @@ describe('buying scenes in the script browser', () => {
     expect(text).toContain('[b] scene 80 Bananas'); // AYMYLORD is 8 letters
     expect(text).toContain('[a] Act 1 64 Bananas'); // only the unowned scene, less 20%
     s.currency = 100;
-    expect(renderScript(s, 'test', 1)).toContain(`${green('scene')} ${green('*')} ${yellow(`${bold('80')} Bananas`)}`); // affordable: name green, price in Bananas' yellow
+    expect(renderScript(s, 'test', 1)).toContain(green(`scene * ${bold('80')} Bananas`)); // affordable: all green
     s.departments = [];
     s.owned = [];
     expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
@@ -401,11 +401,11 @@ describe('buying scenes in the script browser', () => {
 });
 
 describe('bold prices', () => {
-  it('shows what you can afford with a green name and * and the price in its currency colour, and dims the rest', () => {
+  it('shows what you can afford all in green with a *, and dims the rest', () => {
     const s = started();
     s.currency = 20;
     const staff = renderScreen(s, '', 'staff');
-    expect(staff).toContain(`${green('*')} ${yellow(`${bold('10')} Bananas`)}`); // faster typing: affordable, its number bold
+    expect(staff).toContain(green(`* ${bold('10')} Bananas`)); // faster typing: affordable, its number bold
     expect(staff).toContain(green('Faster typing')); // and its name green
     const hire = staff.split('\n').find((r) => r.includes('Hire a monkey'))!;
     expect(hire.startsWith('\x1b[2m') && plain(hire) === hire.slice(4, -5)).toBe(true); // a monkey: not yet, so the whole row is dim
@@ -432,7 +432,7 @@ describe('typewriter keys menu', () => {
     expect(text).toMatch(/ \[1\] HE   combination    [\d.]+[KMBT]? Bananas/);
     expect(text).toMatch(/ \[2\] THE  word /);
     s.currency = s.sentences = 1e9;
-    expect(renderKeysMenu(s)).toContain(`${green('*')} ${yellow(`${bold('4.00M')} Bananas`)}`); // affordable: * and price in Bananas' yellow
+    expect(renderKeysMenu(s)).toContain(`* ${bold('4.00M')} Bananas`); // affordable: * and price, all green
     expect(plain(renderKeysMenu(s, '', 80)).split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 });
