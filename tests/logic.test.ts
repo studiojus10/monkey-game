@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dyeCost, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dye, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   chainSentences,
@@ -34,6 +34,7 @@ import {
   cellAt,
   furnitureSpot,
   furnitureCost,
+  dyeCost,
   moveFurniture,
   buyRoom,
   expandRoom,
@@ -1690,20 +1691,21 @@ describe('hats', () => {
   it('dyes a worn hat for Sentences, and washes it out for free', () => {
     const s = createInitialState(0);
     const m = s.monkeys[0];
-    s.sentences = 100;
+    s.sentences = 1000;
     expect(dyeHat(s, 0, 'red')).toBe(false); // no hat to dye
     expect(wearHat(s, 0, 'baseball')).toBe(true);
     const left = s.sentences;
     expect(dyeHat(s, 0, 'red')).toBe(true);
     expect(m.hatColor).toBe('red');
-    expect(s.sentences).toBe(left - dyeCost);
+    expect(s.sentences).toBe(left - dye.cost);
     expect(s.stats.dyes).toBe(1);
+    expect(dyeCost(s)).toBe(Math.ceil(dye.cost * dye.costGrowth)); // dearer for every hat already dyed
     expect(dyeHat(s, 0, 'red')).toBe(false); // already red
     expect(dyeHat(s, 0, 'plaid')).toBe(false);
     expect(dyeHat(s, 0, '')).toBe(true);
     expect(m.hatColor).toBe('');
-    expect(s.sentences).toBe(left - dyeCost);
-    s.sentences = dyeCost - 1;
+    expect(s.sentences).toBe(left - dye.cost);
+    s.sentences = dye.cost - 1;
     expect(dyeHat(s, 0, hatColors[1].id)).toBe(false);
   });
 });

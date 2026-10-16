@@ -202,7 +202,8 @@ export const office = {
 };
 
 /**
- * Furniture, bought with points in the office map's Office and Breakroom stores ([f]). Each piece fills one
+ * Furniture, bought with Sentences (Justin, 2026-10-16: cosmetics soak up
+ * Sentences and climb fast) in the office map's Office and Breakroom stores ([f]). Each piece fills one
  * square, placed in the first free square of a break room (else any room); the
  * office map moves it. Each one of a kind costs costGrowth times the last.
  * A department gets the furniture in its own room and in its lounge (the
@@ -262,30 +263,30 @@ export const managerDesk: FurnitureKind = {
 
 export const furnitureKinds: FurnitureKind[] = [
   // Decor: a department's monkeys tire slower (with it in their room or their lounge). Pieces at the same price do as much. `rooms` says where each may stand.
-  { id: 'plant', name: 'Potted plant', glyph: 'P', color: 'green', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], description: 'A leafy friend in a clay pot. Wood, they say, feeds the fire of a busy mind.' },
-  { id: 'candle', name: 'Scented candle', glyph: 'I', color: 'red', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'fire', rooms: ['department', 'break'], description: 'It smells faintly of bananas. A small flame, but Fire all the same.' },
-  { id: 'clock', name: 'Wall clock', glyph: 'K', color: 'yellow', cost: 500, costGrowth: 1.5, drain: 0.03, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department'], description: 'Tick, tock, type. A brass clock keeps the hours, and Metal keeps the mind sharp.' },
-  { id: 'lamp', name: 'Floor lamp', glyph: 'L', color: 'yellow', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department', 'break'], description: 'A brass floor lamp: cold Metal, warm light.' },
-  { id: 'fishtank', name: 'Fish tank', glyph: 'F', color: 'cyan', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'water', rooms: ['department', 'break'], description: 'Three goldfish, unimpressed by the typing. Moving Water calms the mind.' },
-  { id: 'bonsai', name: 'Bonsai tree', glyph: 'Y', color: 'green', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], description: 'A very old, very small tree. Patient Wood, the opposite of a monkey.' },
-  { id: 'sandgarden', name: 'Sand garden', glyph: 'Z', color: 'yellow', cost: 2_000, costGrowth: 1.5, drain: 0.04, rest: 0, happiness: 0.01, element: 'earth', rooms: ['department', 'break'], description: 'Raked sand and three smooth stones. Calm, quiet Earth.' },
-  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', color: 'brown', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood', rooms: ['department'], description: 'Rows of dusty old books. One of them sticks out a little further than the rest.' },
-  { id: 'painting', name: 'Landscape painting', glyph: 'G', color: 'green', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'earth', rooms: ['department', 'break'], description: 'Rolling hills under a wide sky. Pictures of the land bring Earth indoors.' },
-  { id: 'mirror', name: 'Mirror', glyph: 'M', color: 'gray', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department', 'break'], description: 'A silver-framed mirror. The monkeys make faces at it. Polished Metal sends chi back into the room.' },
-  { id: 'gong', name: 'Brass gong', glyph: 'O', color: 'yellow', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department'], description: 'Strictly for emergencies. And lunch. A deep note of Metal.' },
-  { id: 'fountain', name: 'Indoor fountain', glyph: 'Q', color: 'blue', cost: 20_000, costGrowth: 1.5, drain: 0.06, rest: 0, happiness: 0.02, element: 'water', rooms: ['department', 'break'], description: 'Water trickles over smooth stones. Flowing Water carries good fortune in.' },
+  { id: 'plant', name: 'Potted plant', glyph: 'P', color: 'green', cost: 10, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], description: 'A leafy friend in a clay pot. Wood, they say, feeds the fire of a busy mind.' },
+  { id: 'candle', name: 'Scented candle', glyph: 'I', color: 'red', cost: 10, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'fire', rooms: ['department', 'break'], description: 'It smells faintly of bananas. A small flame, but Fire all the same.' },
+  { id: 'clock', name: 'Wall clock', glyph: 'K', color: 'yellow', cost: 10, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department'], description: 'Tick, tock, type. A brass clock keeps the hours, and Metal keeps the mind sharp.' },
+  { id: 'lamp', name: 'Floor lamp', glyph: 'L', color: 'yellow', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department', 'break'], description: 'A brass floor lamp: cold Metal, warm light.' },
+  { id: 'fishtank', name: 'Fish tank', glyph: 'F', color: 'cyan', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'water', rooms: ['department', 'break'], description: 'Three goldfish, unimpressed by the typing. Moving Water calms the mind.' },
+  { id: 'bonsai', name: 'Bonsai tree', glyph: 'Y', color: 'green', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], description: 'A very old, very small tree. Patient Wood, the opposite of a monkey.' },
+  { id: 'sandgarden', name: 'Sand garden', glyph: 'Z', color: 'yellow', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'earth', rooms: ['department', 'break'], description: 'Raked sand and three smooth stones. Calm, quiet Earth.' },
+  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', color: 'brown', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood', rooms: ['department'], description: 'Rows of dusty old books. One of them sticks out a little further than the rest.' },
+  { id: 'painting', name: 'Landscape painting', glyph: 'G', color: 'green', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'earth', rooms: ['department', 'break'], description: 'Rolling hills under a wide sky. Pictures of the land bring Earth indoors.' },
+  { id: 'mirror', name: 'Mirror', glyph: 'M', color: 'gray', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department', 'break'], description: 'A silver-framed mirror. The monkeys make faces at it. Polished Metal sends chi back into the room.' },
+  { id: 'gong', name: 'Brass gong', glyph: 'O', color: 'yellow', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department'], description: 'Strictly for emergencies. And lunch. A deep note of Metal.' },
+  { id: 'fountain', name: 'Indoor fountain', glyph: 'Q', color: 'blue', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'water', rooms: ['department', 'break'], description: 'Water trickles over smooth stones. Flowing Water carries good fortune in.' },
   // Comforts: in a break room, every monkey's breaks go faster. Seats like a wall behind them.
-  { id: 'bench', name: 'Bench', glyph: 'H', color: 'brown', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'A sturdy bench, solid as the Earth. It likes a wall at its back.' },
-  { id: 'armchair', name: 'Armchair', glyph: 'A', color: 'brown', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], seat: true, description: 'Carved wood, worn smooth by many naps. Best with a wall at its back.' },
-  { id: 'beanbag', name: 'Beanbag', glyph: 'N', color: 'magenta', cost: 10_000, costGrowth: 1.5, drain: 0, rest: 0.08, happiness: 0.01, element: 'earth', rooms: ['break'], seat: true, description: 'Shapeless, squashy and close to the Earth. Best against a wall.' },
-  { id: 'cooler', name: 'Water cooler', glyph: 'W', color: 'cyan', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'water', rooms: ['department', 'break'], description: "Glug. The office's only source of Water, and of gossip." },
-  { id: 'espresso', name: 'Espresso machine', glyph: 'E', color: 'gray', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Chrome, hissing, and far too strong. Monkeys love it.' },
-  { id: 'vending', name: 'Vending machine', glyph: 'V', color: 'red', cost: 50_000, costGrowth: 2, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Sells only bananas. A steel box of Metal, humming.' },
-  { id: 'couch', name: 'Couch', glyph: 'C', color: 'blue', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'Deep, soft and low to the Earth. Monkeys nap best with a wall behind it.' },
-  { id: 'fireplace', name: 'Fireplace', glyph: 'R', color: 'red', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, element: 'fire', rooms: ['break'], description: 'Crackling logs. The real thing: warm, bright Fire.' },
-  { id: 'hammock', name: 'Hammock', glyph: 'J', color: 'brown', cost: 200_000, costGrowth: 2, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'wood', rooms: ['break'], seat: true, description: 'Strung between two wooden posts. Swaying Wood, and the best naps.' },
-  { id: 'tv', name: 'Television', glyph: 'T', color: 'gray', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', rooms: ['break'], description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
-  { id: 'hottub', name: 'Hot tub', glyph: 'U', color: 'cyan', cost: 1_000_000, costGrowth: 2, drain: 0, rest: 0.4, happiness: 0.03, size: [2, 1], element: 'water', rooms: ['break'], description: 'Nobody remembers approving this. Nobody is complaining.' },
+  { id: 'bench', name: 'Bench', glyph: 'H', color: 'brown', cost: 200, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'A sturdy bench, solid as the Earth. It likes a wall at its back.' },
+  { id: 'armchair', name: 'Armchair', glyph: 'A', color: 'brown', cost: 200, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, element: 'wood', rooms: ['department', 'break'], seat: true, description: 'Carved wood, worn smooth by many naps. Best with a wall at its back.' },
+  { id: 'beanbag', name: 'Beanbag', glyph: 'N', color: 'magenta', cost: 200, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, element: 'earth', rooms: ['break'], seat: true, description: 'Shapeless, squashy and close to the Earth. Best against a wall.' },
+  { id: 'cooler', name: 'Water cooler', glyph: 'W', color: 'cyan', cost: 1_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'water', rooms: ['department', 'break'], description: "Glug. The office's only source of Water, and of gossip." },
+  { id: 'espresso', name: 'Espresso machine', glyph: 'E', color: 'gray', cost: 1_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Chrome, hissing, and far too strong. Monkeys love it.' },
+  { id: 'vending', name: 'Vending machine', glyph: 'V', color: 'red', cost: 1_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Sells only bananas. A steel box of Metal, humming.' },
+  { id: 'couch', name: 'Couch', glyph: 'C', color: 'blue', cost: 4_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'Deep, soft and low to the Earth. Monkeys nap best with a wall behind it.' },
+  { id: 'fireplace', name: 'Fireplace', glyph: 'R', color: 'red', cost: 4_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, element: 'fire', rooms: ['break'], description: 'Crackling logs. The real thing: warm, bright Fire.' },
+  { id: 'hammock', name: 'Hammock', glyph: 'J', color: 'brown', cost: 4_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'wood', rooms: ['break'], seat: true, description: 'Strung between two wooden posts. Swaying Wood, and the best naps.' },
+  { id: 'tv', name: 'Television', glyph: 'T', color: 'gray', cost: 20_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', rooms: ['break'], description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
+  { id: 'hottub', name: 'Hot tub', glyph: 'U', color: 'cyan', cost: 20_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, size: [2, 1], element: 'water', rooms: ['break'], description: 'Nobody remembers approving this. Nobody is complaining.' },
   managerDesk,
 ];
 
@@ -675,19 +676,20 @@ export interface Hat {
 export const monkeyIcon = '@';
 
 export const hats: Hat[] = [
-  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 25, costGrowth: 1.5, drain: 0.1, description: 'Worn backwards, naturally.' },
-  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 25, costGrowth: 1.5, rest: 0.2, description: 'Warm ears, calm mind.' },
-  { id: 'party', name: 'Party hat', icon: 'A', cost: 25, costGrowth: 1.5, speed: 0.05, description: "It is always someone's birthday somewhere." },
-  { id: 'tophat', name: 'Top hat', icon: '#', cost: 500, costGrowth: 1.5, points: 0.15, description: 'Very distinguished. Possibly borrowed from a magician.' },
-  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 500, costGrowth: 1.5, drain: 0.25, description: 'Yeehaw, but quietly: this is an office.' },
-  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 5_000, costGrowth: 2, combo: 1, description: 'It whirs faintly while its wearer thinks.' },
-  { id: 'crown', name: 'Crown', icon: 'W', cost: 1_000_000, costGrowth: 3, points: 0.25, speed: 0.25, description: 'Heavy is the head that wears it. Heavier is the price.' },
+  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 100, costGrowth: 2.5, drain: 0.1, description: 'Worn backwards, naturally.' },
+  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 100, costGrowth: 2.5, rest: 0.2, description: 'Warm ears, calm mind.' },
+  { id: 'party', name: 'Party hat', icon: 'A', cost: 100, costGrowth: 2.5, speed: 0.05, description: "It is always someone's birthday somewhere." },
+  { id: 'tophat', name: 'Top hat', icon: '#', cost: 2_000, costGrowth: 2.5, points: 0.15, description: 'Very distinguished. Possibly borrowed from a magician.' },
+  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 2_000, costGrowth: 2.5, drain: 0.25, description: 'Yeehaw, but quietly: this is an office.' },
+  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 20_000, costGrowth: 4, combo: 1, description: 'It whirs faintly while its wearer thinks.' },
+  { id: 'crown', name: 'Crown', icon: 'W', cost: 1_000_000, costGrowth: 5, points: 0.25, speed: 0.25, description: 'Heavy is the head that wears it. Heavier is the price.' },
   { id: 'halo', name: 'Halo', icon: 'o', cost: 1_000_000_000, costGrowth: 10, points: 0.5, speed: 0.5, drain: 0.5, description: 'Nobody knows where it came from. It hums.' },
 ];
 
 /**
  * Dyes for hats: any monkey's hat can be dyed one of these colours (ANSI
- * codes, so any terminal shows them), for dyeCost Sentences. Just for looks.
+ * codes, so any terminal shows them), for Sentences: dye.cost x
+ * dye.costGrowth per hat already dyed. Just for looks.
  */
 export const hatColors = [
   { id: 'red', name: 'Red', ansi: 31 },
@@ -697,7 +699,7 @@ export const hatColors = [
   { id: 'magenta', name: 'Magenta', ansi: 35 },
   { id: 'cyan', name: 'Cyan', ansi: 36 },
 ];
-export const dyeCost = 10;
+export const dye = { cost: 100, costGrowth: 1.5 }; // x per hat already dyed
 
 export const departmentRules = {
   monkeysToOpen: [0, 10, 20, 30],

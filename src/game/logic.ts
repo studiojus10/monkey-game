@@ -21,7 +21,7 @@ import {
   energy as energyRules,
   hats,
   hatColors,
-  dyeCost,
+  dye,
   desk,
   furnitureKinds,
   startingLetters,
@@ -525,7 +525,7 @@ export function wearHat(state: GameState, index: number, id: string): boolean {
 }
 
 /**
- * Dyes a monkey's hat a colour (a hatColors id) for dyeCost Sentences; '' washes
+ * Dyes a monkey's hat a colour (a hatColors id) for dyeCost(state) Sentences; '' washes
  * the dye out for free. It needs to be wearing a hat.
  */
 export function dyeHat(state: GameState, index: number, color: string): boolean {
@@ -535,8 +535,8 @@ export function dyeHat(state: GameState, index: number, color: string): boolean 
     m.hatColor = '';
     return true;
   }
-  if (!hatColors.some((c) => c.id === color) || state.sentences < dyeCost) return false;
-  state.sentences -= dyeCost;
+  if (!hatColors.some((c) => c.id === color) || state.sentences < dyeCost(state)) return false;
+  state.sentences -= dyeCost(state);
   m.hatColor = color;
   state.stats.dyes++;
   return true;
@@ -1163,7 +1163,12 @@ export function readManagerBook(state: GameState, index: number): boolean {
   return true;
 }
 
-/** Points for the next piece of a kind of furniture. */
+/** Sentences for the next dye: dearer for every hat already dyed. */
+export function dyeCost(state: GameState): number {
+  return Math.ceil(dye.cost * Math.pow(dye.costGrowth, state.monkeys.filter((m) => m.hatColor).length));
+}
+
+/** Sentences for the next piece of a kind of furniture. */
 export function furnitureCost(state: GameState, kind: string): number {
   const k = furnitureKinds.find((f) => f.id === kind);
   if (!k) return Infinity;
@@ -1176,8 +1181,8 @@ export function buyFurniture(state: GameState, kind: string, roomKind?: Room['ki
   const stored = state.stored.furniture[kind] ?? 0;
   const cost = stored > 0 ? 0 : furnitureCost(state, kind); // one in storage comes out for free
   const spot = furnitureSpot(state, kind, roomKind);
-  if (!spot || state.currency < cost) return false;
-  state.currency -= cost;
+  if (!spot || state.sentences < cost) return false;
+  state.sentences -= cost;
   if (stored > 0) unstore(state.stored.furniture, kind);
   state.furniture.push({ kind, ...spot });
   return true;
@@ -2365,7 +2370,7 @@ export function storeFurniture(state: GameState, index: number): boolean {
 export function sellFurniture(state: GameState, index: number): boolean {
   if (!canRemoveFurniture(state, index)) return false;
   const [f] = state.furniture.splice(index, 1);
-  state.currency += sellValue(furnitureKinds.find((k) => k.id === f.kind)?.cost ?? 0);
+  state.sentences += sellValue(furnitureKinds.find((k) => k.id === f.kind)?.cost ?? 0);
   return true;
 }
 

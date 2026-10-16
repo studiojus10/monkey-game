@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
+import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -45,6 +45,7 @@ import {
   pieceSize,
   furnitureSpot,
   furnitureCost,
+  dyeCost,
   moveFurniture,
   rotateFurniture,
   buyRoom,
@@ -428,7 +429,7 @@ function buyItem(id: string): void {
     if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
     else if (!furnitureSpot(state, kind, where))
       message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
-    else if (!state.stored.furniture[kind] && state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
+    else if (!state.stored.furniture[kind] && state.sentences < furnitureCost(state, kind)) message = 'Not enough Sentences.';
     else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in.${officeShop ? '' : ' Move it on the office map with [o].'}`;
@@ -461,7 +462,7 @@ function dyeHatOn(i: number, color: string): string {
   const name = monkeyName(state, i);
   if (!m.hat) return `${name} isn't wearing a hat.`;
   if (m.hatColor === color) return `${name}'s hat is that colour already.`;
-  if (color && state.sentences < dyeCost) return noSentences;
+  if (color && state.sentences < dyeCost(state)) return noSentences;
   dyeHat(state, i, color);
   return color ? `${name}'s hat is ${hatColors.find((c) => c.id === color)!.name.toLowerCase()} now.` : `${name}'s hat is washed clean.`;
 }
@@ -1187,7 +1188,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         const name = furnitureName(state, spot);
         const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
         if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in storage. Buying another from the store takes it out for free.`;
-        else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} ${theme.currency}.`;
+        else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} Sentences.`;
       }
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';

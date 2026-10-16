@@ -1,4 +1,4 @@
-import { achievements, scriptShop, dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -8,6 +8,7 @@ import {
   furnitureSpot,
   hatCost,
   furnitureCost,
+  dyeCost,
   canSeatMonkey,
   availablePlays,
   departmentPicks,
@@ -777,13 +778,13 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           const where = k.rooms.includes(store) ? store : k.rooms[0];
           return {
             id: `furniture:${k.id}@${where}`,
-            star: !!furnitureSpot(state, k.id, where) && state.currency >= cost,
+            star: !!furnitureSpot(state, k.id, where) && state.sentences >= cost,
             text: k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name,
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
             effect: stored > 0 ? `${furnitureEffect(k)}; ${stored} stored` : furnitureEffect(k),
-            cost: [[cost, 'currency']],
+            cost: [[cost, 'sentences']],
           };
         }),
         {
@@ -845,10 +846,10 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
         }),
         {
           id: 'dye',
-          star: state.monkeys.some((m) => m.hat) && state.sentences >= dyeCost,
+          star: state.monkeys.some((m) => m.hat) && state.sentences >= dyeCost(state),
           text: 'Dye a hat...',
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
-          cost: [[dyeCost, 'sentences']],
+          cost: [[dyeCost(state), 'sentences']],
         },
         { text: 'Monkeys keep every hat they get: wearing one again is free.' },
       ];
@@ -912,7 +913,7 @@ export function dyeColorPrompt(): string {
 export function dyePick(state: GameState, color: string): { title: string; notes: string[] } {
   const name = hatColors.find((c) => c.id === color)?.name ?? 'Undyed';
   return {
-    title: `${paint(color, name)} (${color ? priceNamed(dyeCost, state.sentences, 'sentences') : 'free'}): which monkey's hat?`,
+    title: `${paint(color, name)} (${color ? priceNamed(dyeCost(state), state.sentences, 'sentences') : 'free'}): which monkey's hat?`,
     notes: state.monkeys.map((m) => (!m.hat ? 'no hat' : m.hatColor === color ? 'already' : '')),
   };
 }

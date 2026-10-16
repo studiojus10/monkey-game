@@ -630,31 +630,31 @@ describe('office space on screen', () => {
 describe('furniture', () => {
   it('sells furniture by the kind of room it goes in', () => {
     const s = started();
-    s.currency = 600;
+    s.sentences = 20;
     const text = squash(renderScreen(s, '', 'department'));
     expect(text).toContain(' Office* Breakroom \n'); // the office map's own shop
     expect(openStores(s, 'break')).toEqual(['department', 'break']);
     expect(text).toContain("Furniture for a department's own room: it helps the monkeys who work there.");
     expect(text).toContain(' ITEM EFFECT PRICE\n'); // no elements before the feng shui book
-    expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 500 Bananas\n');
-    expect(text).toContain('[2] Scented candle I tire 3% slower, +1% pay * 500 Bananas\n'); // same price, same benefit
-    expect(text).toContain('[3] Wall clock K tire 3% slower, +1% pay * 500 Bananas\n');
+    expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 10 Sentences\n');
+    expect(text).toContain('[2] Scented candle I tire 3% slower, +1% pay * 10 Sentences\n'); // same price, same benefit
+    expect(text).toContain('[3] Wall clock K tire 3% slower, +1% pay * 10 Sentences\n');
     expect(text).not.toContain('Television'); // break rooms only
     expect(text).toContain(' page 1 of 2\n');
     s.fengShuiBook = true;
     const read = squash(renderScreen(s, '', 'department'));
     expect(read).toContain(' ITEM ELEMENT EFFECT PRICE\n');
-    expect(read).toContain('[1] Potted plant P wood tire 3% slower, +1% pay * 500 Bananas\n');
+    expect(read).toContain('[1] Potted plant P wood tire 3% slower, +1% pay * 10 Sentences\n');
     s.fengShuiBook = false;
     expect(storeChoices(s, 'department', 1).map((x) => x.id)).toContain('furniture:cooler@department'); // fits either room
     const lounge = squash(renderScreen(s, '', 'break'));
     expect(lounge).toContain('Furniture for break rooms: it helps each department whose nearest one it is.');
-    expect(lounge).toContain('[1] Potted plant P tire 3% slower, +1% pay 500 Bananas\n'); // fits either room; no * as there's nowhere to put it
+    expect(lounge).toContain('[1] Potted plant P tire 3% slower, +1% pay 10 Sentences\n'); // fits either room; no * as there's nowhere to put it
     expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
     expect(lounge).not.toMatch(/\* [0-9.]+K? Bananas/); // nowhere to put any of it
     const last = squash(renderScreen(s, '', 'break', 0, 18)); // the cursor on item 19: page 3
-    expect(last).toContain('[1] Television T breaks 40% faster, +3% pay 1.00M Bananas\n');
-    expect(last).toContain('[2] Hot tub (2x1) U breaks 40% faster, +3% pay 1.00M Bananas\n');
+    expect(last).toContain('[1] Television T breaks 40% faster, +3% pay 20.00K Sentences\n');
+    expect(last).toContain('[2] Hot tub (2x1) U breaks 40% faster, +3% pay 20.00K Sentences\n');
     expect(last).toContain(' page 3 of 3\n');
     expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
@@ -864,9 +864,9 @@ describe('managers and traits on screen', () => {
 describe('hats on screen', () => {
   it('sells hats and dye, and shows each monkey in its hat', () => {
     const s = started();
-    s.sentences = 60;
+    s.sentences = 160;
     const store = plain(renderScreen(s, '', 'hats'));
-    expect(squash(store)).toContain('[1] Baseball cap d@ tires 10% slower * 25 Sentences\n');
+    expect(squash(store)).toContain('[1] Baseball cap d@ tires 10% slower * 100 Sentences\n');
     expect(store).toContain('Crown         W@');
     expect(store).toContain('Dye');
     expect(plain(renderScreen(s))).toContain('  @ M-1 ');
@@ -880,7 +880,7 @@ describe('hats on screen', () => {
     expect(renderOffice(s)).toContain('|\x1b[31m#\x1b[39m@]');
     s.monkeys.push(createMonkey());
     const top = hatPick(s, 'tophat');
-    expect(plain(top.title)).toBe('Top hat (750 Sentences): which monkey gets it?');
+    expect(plain(top.title)).toBe('Top hat (5.00K Sentences): which monkey gets it?');
     expect(top.notes).toEqual(['wearing it: takes it off', '']);
     const menu = plain(renderMonkeyPicker(s, top.title, top.notes, 1));
     expect(menu).toContain(' [1]  #@ M-1  wearing it: takes it off');
@@ -891,7 +891,7 @@ describe('hats on screen', () => {
     expect(hatPick(s, 'tophat').notes[0]).toBe('has one: free');
     expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap');
     expect(plain(dyeColorPrompt())).toContain('[1] Red   [2] Green');
-    expect(plain(dyePick(s, 'red').title)).toBe("Red (10 Sentences): which monkey's hat?");
+    expect(plain(dyePick(s, 'red').title)).toBe("Red (150 Sentences): which monkey's hat?");
     expect(dyePick(s, 'red').notes).toEqual(['already', 'no hat']);
     expect(plain(dyePick(s, '').title)).toContain('Undyed (free)');
   });

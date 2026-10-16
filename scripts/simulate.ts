@@ -190,7 +190,7 @@ function shop(): void {
     const key = availableKeys(s).find((k) => s.currency >= keyCost(s, k) * 3);
     if (key && buyKey(s, key)) bought = true;
     // A little furniture with spare points, and better hats with spare Sentences.
-    const f = furnitureKinds.find((k) => s.currency >= furnitureCost(s, k.id) * 10 && furnitureSpot(s, k.id));
+    const f = furnitureKinds.find((k) => s.sentences >= furnitureCost(s, k.id) * 10 && furnitureSpot(s, k.id));
     if (f && s.office.some((r) => r.kind === 'break') && buyFurniture(s, f.id)) bought = true;
     if (!s.office.some((r) => r.kind === 'break') && s.monkeys.length >= 5 && s.sentences >= roomCost(s) * 5 && buyRoom(s, 'break')) bought = true;
     const rank = (id: string) => hats.findIndex((h) => h.id === id);
