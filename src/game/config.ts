@@ -291,15 +291,21 @@ export const furnitureKinds: FurnitureKind[] = [
 ];
 
 /**
- * Feng shui: each room has five rules (see logic's roomChi), and its chi is
+ * Feng shui: each room has seven rules (see fengshui.ts), and its chi is
  * the share it keeps. The office's chi (the average over rooms you can reach)
  * adds up to maxHappiness to happiness once you find the feng shui book,
+ * more than any amount of furniture can give (energy.maxHappiness), so a
+ * crowded room of the best pieces never beats a well-arranged one (Justin,
+ * 2026-10-16). Two rules ask for empty floor and different pieces, so good
+ * chi isn't filling every square.
  * hidden in a bookshelf (inspect one on the office map), which also shows the
  * rules and each room's chi. Fire is the rarest element (the candle and the
  * TV). Placeholders.
  */
 export const fengShui = {
-  maxHappiness: 0.1,
+  maxHappiness: 0.6,
+  openShare: 1 / 3, // Space: at least this share of a room's floor left empty
+  maxSameKind: 2, // Variety: no more than this many of one kind of furniture in a room (desks aside)
   hiddenIn: 'bookshelf', // the furniture kind the book is found in
   found: 'Tucked behind the other books is a slim volume: "The Way of the Typewriter: feng shui for monkeys".',
   window: 'A window. Every room wants light, though sunlight is no substitute for a real flame.',

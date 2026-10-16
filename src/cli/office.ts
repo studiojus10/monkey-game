@@ -421,7 +421,7 @@ export function renderManagerBook(state: GameState, columns = 0): string {
   ].join('\n');
 }
 
-/** The feng shui book: the five rules, the elements, and what each room keeps and lacks. */
+/** The feng shui book: the seven rules, the elements, and what each room keeps and lacks. */
 export function renderFengShuiBook(state: GameState): string {
   const kinds = [desk, ...furnitureKinds];
   const byElement = elements.map((e) => {
@@ -442,7 +442,7 @@ export function renderFengShuiBook(state: GameState): string {
     '"Chi enters by the door, wanders the room, and leaves the way it came.',
     ' A monkey who cannot see the door will never truly rest."',
     '',
-    'General guidelines for placing furniture. The more of the five a room follows, the better',
+    'General guidelines for placing furniture. The more of the seven a room follows, the better',
     `its chi; good chi across the office makes every monkey happier, up to +${pct(fengShui.maxHappiness)}.`,
     '',
     ...chiRules.map((x) =>

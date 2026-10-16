@@ -795,14 +795,14 @@ describe('feng shui on screen', () => {
     s.furniture.pop();
     s.fengShuiBook = true;
     const read = plain(renderOffice(s));
-    expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n 1 Comedies room 4 80% ');
+    expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n 1 Comedies room 4 86% ');
     expect(read).toContain('[b] book');
     const book = plain(renderFengShuiBook(s));
     expect(book).toContain('  Light    a window.');
     expect(book).toContain('  Metal   desk, wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine');
     expect(book).toContain('  Fire    scented candle, fireplace, television');
-    expect(book).toMatch(/1 Comedies room +chi  80% +lacks Balance/);
-    expect(book).toContain('Office chi 80%: +8% happiness.');
+    expect(book).toMatch(/1 Comedies room +chi  86% +lacks Balance/);
+    expect(book).toContain('Office chi 86%: +51% happiness.');
   });
 });
 
