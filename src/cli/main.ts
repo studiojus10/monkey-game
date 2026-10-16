@@ -162,7 +162,7 @@ import { renderCandidates } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
+import { sideName, furnitureName, inspectSquare, libraryBooks, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
 
 const FRAME_MS = 250;
@@ -1160,9 +1160,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (offeredBook >= 0) {
       const piece = offeredBook;
       offeredBook = -1;
+      const shelved = libraryBooks(state)[Number(str) - 1];
       if (str === 'y' && readFengShuiBook(state, piece)) readingBook = true;
       else if (str === 'y' && readManagerBook(state, piece)) readingManagerBook = true;
-      else message = 'You leave the book where it was, for now.';
+      else if (shelved?.id === 'fengshui') readingBook = true;
+      else if (shelved?.id === 'manager') readingManagerBook = true;
+      else if (str === 'y' || !shelved) message = 'You leave the books where they are, for now.';
       return draw();
     }
     if (str === 'i' && !officeGrowing) {

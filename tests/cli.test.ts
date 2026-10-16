@@ -792,8 +792,14 @@ describe('feng shui on screen', () => {
     expect(inspectSquare(s, 1, 0).text).toBe('A window. Every room wants light, though sunlight is no substitute for a real flame.');
     expect(inspectSquare(s, 0, 2)).toEqual({ text: 'Nothing of interest here.', book: -1 });
     expect(inspectSquare(s, 9, 9).text).toBe('Nothing of interest here.');
-    s.furniture.pop();
     s.fengShuiBook = true;
+    s.managerBook = true;
+    const library = inspectSquare(s, 1, 1); // every bookshelf keeps the books found so far
+    expect(library.text).toContain('On the shelf: [1] The Way of the Typewriter: feng shui for monkeys   [2] Understanding Your Employees');
+    expect(library.text).not.toContain('[y] read it');
+    expect(library).toMatchObject({ book: 1, shelf: true });
+    s.managerBook = false;
+    s.furniture.pop();
     const read = plain(renderOffice(s));
     expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n 1 Comedies room 4 86% ');
     expect(read).toContain('[b] book');

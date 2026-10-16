@@ -307,6 +307,7 @@ export const fengShui = {
   openShare: 1 / 3, // Space: at least this share of a room's floor left empty
   maxSameKind: 2, // Variety: no more than this many of one kind of furniture in a room (desks aside)
   hiddenIn: 'bookshelf', // the furniture kind the book is found in
+  title: 'The Way of the Typewriter: feng shui for monkeys',
   found: 'Tucked behind the other books is a slim volume: "The Way of the Typewriter: feng shui for monkeys".',
   window: 'A window. Every room wants light, though sunlight is no substitute for a real flame.',
   nothing: 'Nothing of interest here.',

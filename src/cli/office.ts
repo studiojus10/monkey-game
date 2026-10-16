@@ -370,7 +370,19 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
  * the one there (a desk says who sits at it), else a window in its walls, else
  * nothing of interest. `book` is the piece hiding the feng shui book, or -1.
  */
-export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number } {
+/**
+ * The books found so far (Justin, 2026-10-16: every bookshelf is the home of
+ * the game's lore): inspecting any bookshelf lists them to read again. New
+ * books and texts go here as they're added.
+ */
+export function libraryBooks(state: GameState): { id: 'fengshui' | 'manager'; title: string }[] {
+  return [
+    ...(state.fengShuiBook ? [{ id: 'fengshui' as const, title: fengShui.title }] : []),
+    ...(state.managerBook ? [{ id: 'manager' as const, title: managerBook.title }] : []),
+  ];
+}
+
+export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number; shelf?: boolean } {
   const room = roomAt(state, x, y);
   const spot = held >= 0 ? held : room ? cellAt(state, room.id, x, y) : 'floor';
   if (typeof spot === 'number') {
@@ -380,7 +392,17 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
     if (f.kind === desk.id) return { text: [...(who === undefined ? ['An empty desk.'] : sits), desk.description].join(' '), book: -1 };
     const k = furnitureKinds.find((x) => x.id === f.kind);
     const found = hidesBook(state, spot) ? fengShui.found : hidesManagerBook(state, spot) ? managerBook.found : '';
-    return { text: [...(f.kind === managerDesk.id ? sits : []), k?.description ?? fengShui.nothing, ...(found ? [found, '[y] read it'] : [])].join('  '), book: found ? spot : -1 };
+    const shelf = f.kind === fengShui.hiddenIn ? libraryBooks(state) : [];
+    return {
+      text: [
+        ...(f.kind === managerDesk.id ? sits : []),
+        k?.description ?? fengShui.nothing,
+        ...(found ? [found, '[y] read it'] : []),
+        ...(shelf.length > 0 ? [`On the shelf: ${shelf.map((b, i) => `[${i + 1}] ${b.title}`).join('   ')}`] : []),
+      ].join('  '),
+      book: found || shelf.length > 0 ? spot : -1,
+      ...(shelf.length > 0 ? { shelf: true } : {}),
+    };
   }
   if (room && (['n', 'e', 's', 'w'] as Side[]).some((s) => windowAt(state, x, y, s))) return { text: fengShui.window, book: -1 };
   return { text: fengShui.nothing, book: -1 };
