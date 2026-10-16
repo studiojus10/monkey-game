@@ -223,7 +223,7 @@ export function renderOffice(
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
             [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['s', 'store'], ['$', 'sell'], ['i', 'inspect'], ['x', 'grow']],
-            [['r', 'buy a room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
+            [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
           ];
   const doing = grow
     ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
@@ -346,6 +346,8 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     `   ${research.name} researchers work in the ${research.name} lab.`,
     '   Every room needs a way in from room 1: doors (/) and hallways.',
     '   A room grows one square at a time ([x] on the map).',
+    '   A new room ([r]) goes where you put it: arrows, then [enter].',
+    '   [m] picks up the room under the cursor, with everything in it, to move it.',
     '   Windows (: or ===) go in walls that face outside.',
     '',
     dim(' LOUNGES'),

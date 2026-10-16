@@ -49,7 +49,7 @@ import {
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
-import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, placeRoom, roomCanUse, tidyDoors, touchingRooms } from './layout';
+import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, moveRoom, placeRoom, roomCanUse, roomFits, tidyDoors, touchingRooms, type Square } from './layout';
 import { chiHappiness, roomChi, squareRank } from './fengshui';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -1037,9 +1037,10 @@ export function roomCost(state: GameState): number {
  * office for a department that has a room and no office (it comes with a
  * manager's desk, beside the department's room with a door between).
  */
-export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): boolean {
+export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square): boolean {
   const cost = roomCost(state);
   if (state.sentences < cost) return false;
+  if (at && !roomFitsAt(state, kind, genre ?? '', newRoomCells(kind, at))) return false;
   if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
   if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
   if (kind === 'lab' && !canBuildLab(state)) return false;
@@ -1047,10 +1048,10 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
   if (kind === 'marketing' && !canBuildMarketing(state)) return false;
   state.sentences -= cost;
   if (kind === 'office') {
-    const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height);
+    const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height, at);
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
-  } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight);
+  } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
   if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
   seatWaiting(state);
   return true;
@@ -1061,10 +1062,9 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
  * other kind it touches, and a hallway to the rest of the office if it still
  * needs one. Returns it.
  */
-export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number): Room {
+export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number, at?: Square): Room {
   const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
-  const beside = kind === 'office' ? departmentRoom(state, department as Genre) : undefined;
-  const [x0, y0] = placeRoom(state, width, height, kind, beside);
+  const [x0, y0] = at ?? placeRoom(state, width, height, kind, kind === 'office' ? departmentRoom(state, department as Genre) : undefined);
   const room: Room = { id, kind, department: kind === 'break' ? '' : department, cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
   state.office.push(room);
   doorToTouching(state, room);
@@ -1072,6 +1072,42 @@ export function addRoom(state: GameState, kind: Room['kind'], department: string
   tidyDoors(state); // windows the new hallway now covers
   for (const r of state.office) addWindow(state, r);
   return room;
+}
+
+/** Where a new room of a kind goes if the player doesn't choose: see placeRoom (a manager's office goes beside its department's room). */
+export function suggestRoomSpot(state: GameState, kind: Room['kind'], department: string): Square {
+  const [w, h] = kind === 'office' ? [managerOffice.width, managerOffice.height] : [officeRules.newRoomWidth, officeRules.newRoomHeight];
+  return placeRoom(state, w, h, kind, kind === 'office' ? departmentRoom(state, department as Genre) : undefined);
+}
+
+/** The squares a new room of a kind takes with its top-left corner at a square. */
+export function newRoomCells(kind: Room['kind'], [x0, y0]: Square): Square[] {
+  const [w, h] = kind === 'office' ? [managerOffice.width, managerOffice.height] : [officeRules.newRoomWidth, officeRules.newRoomHeight];
+  return rectangle(w, h).map(([x, y]): Square => [x + x0, y + y0]);
+}
+
+const touches = (a: Square[], b: Square[]) => a.some(([x, y]) => b.some(([bx, by]) => Math.abs(bx - x) + Math.abs(by - y) === 1));
+
+/**
+ * Whether a room (new, or `id` moved) can stand on these squares: free floor
+ * (see roomFits), and a manager's office beside its department's room.
+ */
+export function roomFitsAt(state: GameState, kind: Room['kind'], department: string, cells: Square[], id = ''): boolean {
+  if (!roomFits(state, cells, { id, kind })) return false;
+  if (kind === 'office') {
+    const dept = departmentRoom(state, department as Genre);
+    return !!dept && touches(cells, dept.cells);
+  }
+  const office = kind === 'department' ? officeOf(state, department as Genre) : undefined;
+  return !office || touches(cells, office.cells);
+}
+
+/** Moves a room by dx, dy (with its furniture, windows and doors), if it can stand there (see roomFitsAt). */
+export function moveRoomBy(state: GameState, id: string, dx: number, dy: number): boolean {
+  const room = state.office.find((r) => r.id === id);
+  if (!room || (dx === 0 && dy === 0)) return false;
+  if (!roomFitsAt(state, room.kind, room.department, room.cells.map(([x, y]): Square => [x + dx, y + dy]), id)) return false;
+  return moveRoom(state, room, dx, dy);
 }
 
 /** Points for the next square added to a room. */

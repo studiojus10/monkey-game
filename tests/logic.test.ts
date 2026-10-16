@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dye, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  moveRoomBy,
+  newRoomCells,
+  roomFitsAt,
   chainSentences,
   hatCost,
   addRoom,
@@ -1601,6 +1604,34 @@ describe('furniture effects', () => {
     expect(restBoost(s, undefined)).toBe(energy.maxRestBoost);
     expect(drainCut(s, undefined)).toBe(energy.maxDrainCut);
     expect(happiness(s, undefined)).toBe(energy.maxHappiness);
+  });
+});
+
+describe('placing and moving rooms', () => {
+  it('builds a room where the player puts it, if it fits', () => {
+    const s = createInitialState(0);
+    s.sentences = 1e9;
+    expect(buyRoom(s, 'break', undefined, [0, 0])).toBe(false); // on top of room 1
+    expect(buyRoom(s, 'break', undefined, [10, 10])).toBe(true);
+    const room = s.office[s.office.length - 1];
+    expect(room.cells[0]).toEqual([10, 10]);
+    expect(isConnected(s, room)).toBe(true); // a hallway leads to it
+  });
+
+  it('moves a room with its furniture and windows, and keeps a manager beside its department', () => {
+    const s = createInitialState(0);
+    s.sentences = 1e9;
+    expect(buyRoom(s, 'break', undefined, [10, 0])).toBe(true);
+    const lounge = s.office[1];
+    s.furniture.push({ kind: 'plant', room: lounge.id, x: 10, y: 0 });
+    s.windows.push({ x: 12, y: 0, side: 'n' });
+    expect(moveRoomBy(s, lounge.id, 0, 5)).toBe(true);
+    expect(lounge.cells[0]).toEqual([10, 5]);
+    expect(s.furniture[s.furniture.length - 1]).toMatchObject({ x: 10, y: 5 });
+    expect(s.windows).toContainEqual({ x: 12, y: 5, side: 'n' });
+    expect(isConnected(s, lounge)).toBe(true);
+    expect(moveRoomBy(s, lounge.id, -10, -5)).toBe(false); // onto room 1
+    expect(roomFitsAt(s, 'office', 'comedy', newRoomCells('office', [20, 20]))).toBe(false); // nowhere near its department
   });
 });
 

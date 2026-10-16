@@ -107,9 +107,13 @@ import {
   tick,
   togglePin,
   toggleSlot,
+  moveRoomBy,
+  newRoomCells,
+  roomFitsAt,
+  suggestRoomSpot,
 } from '../game/logic';
 import { load, save } from '../game/save';
-import { createInitialState, type Door, type Side } from '../game/state';
+import { createInitialState, type Door, type GameState, type Room, type Side } from '../game/state';
 import { formatMultiplier, formatNumber, setScientific } from '../format';
 import { fileStorage } from './fileStorage';
 import {
@@ -225,6 +229,8 @@ let showingOffice = false;
 let officeCursor: Cell | null = null; // the selected cell on the office map
 let officeGrowing = ''; // id of the room whose new square is being chosen
 let buyingRoom = false; // choosing what room to buy on the office map
+let placingRoom: { kind: RoomKind; genre?: Genre; at: [number, number] } | null = null; // a new room being put in place with the arrows
+let movingRoom: { id: string; dx: number; dy: number } | null = null; // a room picked up to move
 let showingOptions = false;
 let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
 let heldTurned = false; // whether it was turned when picked up, for esc
@@ -488,6 +494,61 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
   ];
 }
 
+/** The office as the map shows it: with the room being placed or moved where it would go. */
+function officeView(): GameState {
+  if (!placingRoom && !movingRoom) return state;
+  const view = structuredClone(state);
+  if (placingRoom) view.office.push({ id: 'new', kind: placingRoom.kind, department: placingRoom.genre ?? '', cells: newRoomCells(placingRoom.kind, placingRoom.at) });
+  else if (movingRoom) {
+    const { id, dx, dy } = movingRoom;
+    const room = view.office.find((r) => r.id === id)!;
+    const inRoom = (x: number, y: number) => room.cells.some(([cx, cy]) => cx === x && cy === y);
+    view.windows = view.windows.map((w) => (inRoom(w.x, w.y) ? { ...w, x: w.x + dx, y: w.y + dy } : w));
+    view.doors = view.doors.filter((d) => !inRoom(d.x, d.y));
+    room.cells = room.cells.map(([x, y]) => [x + dx, y + dy]);
+    for (const f of view.furniture) if (f.room === id) Object.assign(f, { x: f.x + dx, y: f.y + dy });
+  }
+  return view;
+}
+
+/** The map's cursor: on the top-left square of a room being placed or moved. */
+function roomCursor(): { x: number; y: number } | null {
+  if (placingRoom) return { x: placingRoom.at[0], y: placingRoom.at[1] };
+  if (movingRoom && officeCursor) return { x: officeCursor.x + movingRoom.dx, y: officeCursor.y + movingRoom.dy };
+  return officeCursor;
+}
+
+/** Whether the room being placed or moved can stand where it is now. */
+function roomSpotOk(): boolean {
+  if (placingRoom) return roomFitsAt(state, placingRoom.kind, placingRoom.genre ?? '', newRoomCells(placingRoom.kind, placingRoom.at));
+  const room = movingRoom && state.office.find((r) => r.id === movingRoom!.id);
+  return !!room && roomFitsAt(state, room.kind, room.department, room.cells.map(([x, y]) => [x + movingRoom!.dx, y + movingRoom!.dy]), room.id);
+}
+
+/** The message line while placing or moving a room: whether it fits, and the keys. */
+function roomSpotPrompt(): string {
+  const what = placingRoom ? 'Placing the new room' : `Moving the ${roomName(state, state.office.find((r) => r.id === movingRoom?.id)!)}`;
+  const kind = placingRoom?.kind ?? state.office.find((r) => r.id === movingRoom?.id)?.kind;
+  const why = kind === 'office' ? "a manager's office must touch its department's room" : 'rooms need empty floor, and two rooms of one kind keep a hallway apart';
+  return `${what}: arrows move it, ${roomSpotOk() ? `[enter] ${placingRoom ? 'builds' : 'puts'} it here` : `it can't go here (${why})`}, [esc] cancels.`;
+}
+
+/** What the message line says about a newly built room. */
+function newRoomMessage(room: Room): string {
+  const next = touchingRooms(state, room).filter((r) => doorBetween(state, room, r)).map((r) => `the ${roomName(state, r)}`);
+  const served = room.kind === 'break' ? servedBy(state, room).map((r) => `the ${roomName(state, r)}`) : [];
+  const lounge = room.kind === 'department' ? loungeOf(state, room) : undefined;
+  return [
+    `You have a new room, the ${roomName(state, room)}, ${next.length > 0 ? `with a door straight into ${next.join(' and ')}` : 'with a hallway to the rest of the office'}.`,
+    ...(served.length > 0 ? [`It's the lounge of ${served.join(' and ')}.`] : []),
+    ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
+    ...(room.kind === 'office' ? ["It comes with a manager's desk. Hire a manager in the Staff store."] : []),
+    ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
+    ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
+    ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
+  ].join(' ');
+}
+
 /** The office map's furniture shop: under the map when the screen is tall enough for both, else on its own. */
 function officeShopScreen(columns: number): string {
   const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true));
@@ -502,6 +563,7 @@ function openOffice(): void {
   heldFurniture = -1;
   officeGrowing = '';
   buyingRoom = false;
+  placingRoom = movingRoom = null;
   message = '';
   if (!officeCursor) {
     const [x, y] = state.office[0].cells[0];
@@ -635,7 +697,7 @@ function draw() {
     : showingOffice && officeShop
     ? officeShopScreen(columns)
     : showingOffice
-    ? renderOffice(state, shown, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
+    ? renderOffice(officeView(), shown, roomCursor(), heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
     ? renderAchievements(state, achievementRow, columns)
     : showingRoster
@@ -1109,26 +1171,56 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       offeredBook = seen.book;
       return draw();
     }
+    if (placingRoom || movingRoom) {
+      const step: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+      const move = step[key.name ?? ''];
+      if (move) {
+        if (placingRoom) placingRoom.at = [placingRoom.at[0] + move[0], placingRoom.at[1] + move[1]];
+        else if (movingRoom) Object.assign(movingRoom, { dx: movingRoom.dx + move[0], dy: movingRoom.dy + move[1] });
+        message = roomSpotPrompt();
+      } else if (key.name === 'escape' || key.name === 'q') {
+        message = placingRoom ? 'No room bought.' : 'The room stays where it was.';
+        placingRoom = movingRoom = null;
+      } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+        if (placingRoom) {
+          const { kind, genre, at } = placingRoom;
+          if (!roomSpotOk()) message = roomSpotPrompt();
+          else if (state.sentences < roomCost(state)) {
+            placingRoom = null;
+            message = noSentences;
+          } else if (buyRoom(state, kind, genre, at)) {
+            placingRoom = null;
+            const room = state.office[state.office.length - 1];
+            Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
+            message = newRoomMessage(room);
+          } else {
+            placingRoom = null;
+            message = 'No room bought.';
+          }
+        } else if (movingRoom) {
+          const { id, dx, dy } = movingRoom;
+          if (dx === 0 && dy === 0) {
+            movingRoom = null;
+            message = 'The room stays where it was.';
+          } else if (moveRoomBy(state, id, dx, dy)) {
+            movingRoom = null;
+            const room = state.office.find((r) => r.id === id)!;
+            Object.assign(c, { x: c.x + dx, y: c.y + dy });
+            message = `The ${roomName(state, room)} moved, with everything in it.`;
+          } else message = roomSpotPrompt();
+        }
+      } else message = roomSpotPrompt();
+      return draw();
+    }
     if (buyingRoom) {
       buyingRoom = false;
       const choice = roomChoices()[Number(str) - 1];
       if (str !== 'b' && !choice) message = 'No room bought.';
       else if (state.sentences < roomCost(state)) message = noSentences;
-      else if (choice ? buyRoom(state, choice.kind, choice.genre) : buyRoom(state, 'break')) {
-        const room = state.office[state.office.length - 1];
-        Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
-        const next = touchingRooms(state, room).filter((r) => doorBetween(state, room, r)).map((r) => `the ${roomName(state, r)}`);
-        const served = room.kind === 'break' ? servedBy(state, room).map((r) => `the ${roomName(state, r)}`) : [];
-        const lounge = room.kind === 'department' ? loungeOf(state, room) : undefined;
-        message = [
-          `You have a new room, the ${roomName(state, room)}, ${next.length > 0 ? `with a door straight into ${next.join(' and ')}` : 'with a hallway to the rest of the office'}.`,
-          ...(served.length > 0 ? [`It's the lounge of ${served.join(' and ')}.`] : []),
-          ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
-          ...(room.kind === 'office' ? ["It comes with a manager's desk. Hire a manager in the Staff store."] : []),
-          ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
-          ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
-          ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
-        ].join(' ');
+      else {
+        const kind = choice?.kind ?? 'break';
+        placingRoom = { kind, genre: choice?.genre, at: suggestRoomSpot(state, kind, choice?.genre ?? '') };
+        message = roomSpotPrompt();
       }
       return draw();
     }
@@ -1189,6 +1281,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
         if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in storage. Buying another from the store takes it out for free.`;
         else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} Sentences.`;
+      }
+    } else if (str === 'm' && !holding && !officeGrowing) {
+      if (!here) message = 'Move the cursor onto a room to move it.';
+      else {
+        movingRoom = { id: here.id, dx: 0, dy: 0 };
+        message = roomSpotPrompt();
       }
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';

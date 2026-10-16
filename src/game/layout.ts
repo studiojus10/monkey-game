@@ -505,7 +505,35 @@ export function toggleHall(state: GameState, x: number, y: number): boolean {
   return true;
 }
 
-/** Moves a room (with its furniture and doors) so its top-left corner is at x, y. */
+/** Whether squares are free floor for a room: no other room, no hallway, and no room of its own kind beside them. */
+export function roomFits(state: GameState, cells: Square[], room: Pick<Room, 'id' | 'kind'>): boolean {
+  const others = { ...state, office: state.office.filter((r) => r.id !== room.id) };
+  return cells.length > 0 && cells.every(([x, y]) => roomCanUse(others, x, y, room));
+}
+
+/**
+ * Moves a room by dx, dy with its furniture, windows and its own doors, if it
+ * fits there (see roomFits). Doors from other rooms into it are dropped; then
+ * it gets a door into each room it now touches and a hallway if it needs one.
+ */
+export function moveRoom(state: GameState, room: Room, dx: number, dy: number): boolean {
+  const cells = room.cells.map(([x, y]): Square => [x + dx, y + dy]);
+  if (!roomFits(state, cells, room)) return false;
+  const inRoom = (x: number, y: number) => room.cells.some(([cx, cy]) => cx === x && cy === y);
+  state.doors = state.doors
+    .filter((d) => inRoom(d.x, d.y) || !inRoom(...beyond(d)))
+    .map((d) => (inRoom(d.x, d.y) ? { ...d, x: d.x + dx, y: d.y + dy } : d));
+  state.windows = state.windows.map((w) => (inRoom(w.x, w.y) ? { ...w, x: w.x + dx, y: w.y + dy } : w));
+  shiftRoom(state, room, dx, dy);
+  tidyDoors(state);
+  doorToTouching(state, room);
+  autoConnect(state);
+  tidyDoors(state);
+  for (const r of state.office) addWindow(state, r);
+  return true;
+}
+
+/** Moves a room (with its furniture) by dx, dy. */
 function shiftRoom(state: GameState, room: Room, dx: number, dy: number): void {
   room.cells = room.cells.map(([x, y]) => [x + dx, y + dy]);
   for (const f of state.furniture) if (f.room === room.id) Object.assign(f, { x: f.x + dx, y: f.y + dy });
