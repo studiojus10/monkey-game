@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { energy, fengShui, furnitureKinds } from '../src/game/config';
-import { chiHappiness, officeChi, roomChi, roomRules, squareRank } from '../src/game/fengshui';
+import { chiHappiness, emptySquares, officeChi, roomChi, roomRules, spaceFactor, squareRank, varietyBonus } from '../src/game/fengshui';
 import { addWindow, cycleWindow, doorPaths, toggleHall, windowSides } from '../src/game/layout';
 import { buyRoom, hidesBook, readFengShuiBook, checkAchievements, expandRoom, furnitureHappiness, furnitureSpot, happiness } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
@@ -53,7 +53,7 @@ describe('feng shui', () => {
   it('checks light, commanding desks, flow and a clear entrance', () => {
     const s = createInitialState(0);
     const room = s.office[0];
-    expect(roomRules(s, room)).toEqual({ light: true, command: true, flow: true, entrance: true, balance: false, space: true, variety: true });
+    expect(roomRules(s, room)).toEqual({ light: true, command: true, flow: true, entrance: true, balance: false });
     s.doors = [{ x: 0, y: 0, side: 'w' }];
     // The desk sits just inside the door, in its path.
     expect(roomRules(s, room)).toMatchObject({ command: false, entrance: false, flow: true });
@@ -101,21 +101,27 @@ describe('feng shui', () => {
     expect(roomRules(s, s.office[0]).balance).toBe(true);
     s.windows = [];
     expect(roomRules(s, s.office[0]).balance).toBe(true);
-    expect(roomChi(s, s.office[0])).toBeCloseTo(6 / 7); // no light
+    expect(roomChi(s, s.office[0])).toBeCloseTo(0.8); // no light
   });
 
-  it('wants empty floor and different pieces, and pays more than any furniture can', () => {
+  it('rewards empty floor and different pieces on a sliding scale, once the book is read', () => {
     const s = createInitialState(0);
     const room = s.office[0];
-    const free = room.cells.filter(([x, y]) => !s.furniture.some((f) => f.x === x && f.y === y));
-    const fill = Math.floor(room.cells.length * (1 - fengShui.openShare)) - (room.cells.length - free.length);
-    for (const [x, y] of free.slice(0, fill + 1)) s.furniture.push({ kind: 'plant', room: room.id, x, y });
-    expect(roomRules(s, room).space).toBe(false); // less than a third of the floor empty
-    s.furniture.pop();
-    expect(roomRules(s, room)).toMatchObject({ space: true, variety: true });
-    const [x, y] = room.cells[0];
-    for (let i = 0; i <= fengShui.maxSameKind; i++) s.furniture.push({ kind: 'candle', room: room.id, x, y });
-    expect(roomRules(s, room).variety).toBe(false); // too many plants
+    s.furniture.push({ kind: 'plant', room: room.id, x: 1, y: 1 });
+    const empty = emptySquares(s, room);
+    expect(empty).toBe(room.cells.length - 2); // the desk and the plant
+    const raw = furnitureHappiness(s, undefined);
+    expect(spaceFactor(s, [room])).toBe(1); // nothing before the book
+    expect(varietyBonus(s, [room])).toBe(0);
+    s.fengShuiBook = true;
+    expect(spaceFactor(s, [room])).toBeCloseTo(1 + fengShui.perEmptySquare * empty);
+    expect(varietyBonus(s, [room])).toBeCloseTo(fengShui.perKind); // one kind, desks aside
+    expect(furnitureHappiness(s, undefined)).toBeCloseTo(raw * (1 + fengShui.perEmptySquare * empty) + fengShui.perKind);
+    s.furniture.push({ kind: 'plant', room: room.id, x: 0, y: 1 });
+    expect(varietyBonus(s, [room])).toBeCloseTo(fengShui.perKind); // the same kind again adds nothing, and costs nothing
+    s.furniture.push({ kind: 'candle', room: room.id, x: 1, y: 0 });
+    expect(varietyBonus(s, [room])).toBeCloseTo(2 * fengShui.perKind);
+    expect(emptySquares(s, room)).toBe(0);
     expect(fengShui.maxHappiness).toBeGreaterThan(energy.maxHappiness); // good chi beats a room full of the best pieces
   });
 
@@ -133,7 +139,7 @@ describe('feng shui', () => {
 
   it('hides the book in a bookshelf, and makes monkeys happier only once it is read', () => {
     const s = createInitialState(0);
-    expect(officeChi(s)).toBeCloseTo(6 / 7); // all but balance
+    expect(officeChi(s)).toBeCloseTo(0.8); // all but balance
     expect(chiHappiness(s)).toBe(0);
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 1 }, { kind: 'bookshelf', room: 'r1', x: 0, y: 1 });
     expect(hidesBook(s, 1)).toBe(false);

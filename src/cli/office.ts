@@ -24,7 +24,7 @@ import {
   marketers,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
-import { chiHappiness, chiRules, elementOf, officeChi, roomChi, roomRules } from '../game/fengshui';
+import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { dyed, genreNames, hatOf, monkeyIconLegend, priceNamed, traitNow } from './screen';
 import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
@@ -445,7 +445,7 @@ export function renderManagerBook(state: GameState, columns = 0): string {
   ].join('\n');
 }
 
-/** The feng shui book: the seven rules, the elements, and what each room keeps and lacks. */
+/** The feng shui book: the five rules, space and variety, the elements, and what each room keeps and lacks. */
 export function renderFengShuiBook(state: GameState): string {
   const kinds = [desk, ...furnitureKinds];
   const byElement = elements.map((e) => {
@@ -458,7 +458,7 @@ export function renderFengShuiBook(state: GameState): string {
     const kept = roomRules(state, r);
     const lacks = chiRules.filter((x) => !kept[x.id]).map((x) => x.name);
     const state_ = open.has(r.id) ? (lacks.length === 0 ? 'perfect' : `lacks ${lacks.join(', ')}`) : 'no way in: it counts for nothing';
-    return `  ${String(i + 1).padStart(2)} ${roomName(state, r).padEnd(18)} chi ${pct(roomChi(state, r)).padStart(4)}   ${state_}`;
+    return `  ${String(i + 1).padStart(2)} ${roomName(state, r).padEnd(18)} chi ${pct(roomChi(state, r)).padStart(4)}   ${String(emptySquares(state, r)).padStart(3)} empty   ${state_}`;
   });
   return [
     '=== The Way of the Typewriter: feng shui for monkeys ===',
@@ -466,7 +466,7 @@ export function renderFengShuiBook(state: GameState): string {
     '"Chi enters by the door, wanders the room, and leaves the way it came.',
     ' A monkey who cannot see the door will never truly rest."',
     '',
-    'General guidelines for placing furniture. The more of the seven a room follows, the better',
+    'General guidelines for placing furniture. The more of the five a room follows, the better',
     `its chi; good chi across the office makes every monkey happier, up to +${pct(fengShui.maxHappiness)}.`,
     '',
     ...chiRules.map((x) =>
@@ -474,6 +474,11 @@ export function renderFengShuiBook(state: GameState): string {
         ? `  ${x.name.padEnd(8)} ${x.department}.`
         : `  ${x.name.padEnd(8)} ${x.department}; in a break room, ${x.break}.`,
     ),
+    '',
+    '"An empty square is not wasted: it is where chi gathers its strength."',
+    `  Space    every empty square in a department's room and lounge makes their furniture`,
+    `           x${fengShui.perEmptySquare} stronger, up to x${fengShui.maxSpaceFactor} in all.`,
+    `  Variety  every different piece in them adds +${pct(fengShui.perKind)} pay and break speed. Repeats cost nothing.`,
     '',
     'The elements:',
     ...byElement,
