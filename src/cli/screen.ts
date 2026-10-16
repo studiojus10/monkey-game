@@ -1061,8 +1061,13 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1): strin
     ]),
     ...option('2', 'Light background', state.settings.lightBackground, ["On: darker colours that are easy to read when your terminal's theme is light."]),
     ...option('3', 'Scientific numbers', state.settings.scientific, ['On: big numbers as 1.23e45. Off: short names (1.23M, 4.56Qa, 7.89Vg).']),
+    ...option('4', 'Screen at the top', state.settings.screenAtTop, ['On: the game starts at the top of the terminal. Off: it sits at the bottom.']),
+    ...option('5', 'Mouse', state.settings.mouse, [
+      'On: click a [key] to press it, left click elsewhere = enter, right click = back,',
+      'the wheel moves up and down. Off: your terminal can select text again.',
+    ]),
     rule(columns),
-    keyRow([['up/down', 'choose'], ['enter', 'switch'], ['1-3', 'switch'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose'], ['enter', 'switch'], ['1-5', 'switch'], ['esc', 'back']], columns),
   ].join('\n');
 }
 

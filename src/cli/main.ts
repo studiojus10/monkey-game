@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
+import { PassThrough } from 'node:stream';
 import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -158,7 +159,8 @@ import {
   hatPick,
   inspectItem,
 } from './screen';
-import { forLightBackground } from './style';
+import { forLightBackground, placeScreen, screenTop } from './style';
+import { mouseOff, mouseOn, mousePress, parseMouse } from './mouse';
 import { devTools } from '../game/dev';
 import { renderCandidates } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
@@ -721,13 +723,22 @@ function draw() {
         : showingHelp
           ? renderHomeKeys(state)
           : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
-  process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
+  const rows = process.stdout.rows || 0;
+  drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
+  process.stdout.write(
+    (state.settings.mouse ? mouseOn : mouseOff) +
+      '\x1b[2J\x1b[H' +
+      placeScreen(state.settings.lightBackground ? forLightBackground(screen) : screen, rows, state.settings.screenAtTop),
+  );
 }
+
+/** The screen last drawn and the terminal row its first line is on, for mouse clicks. */
+let drawn: { lines: string[]; top: number } = { lines: [], top: 1 };
 
 function quit() {
   save(state, storage);
   process.stdin.setRawMode?.(false);
-  process.stdout.write('\x1b[?25h');
+  process.stdout.write(mouseOff + '\x1b[?25h');
   console.log(`\nSaved to ${savePath}. Bye!`);
   process.exit(0);
 }
@@ -1123,12 +1134,14 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingOptions) {
-    const row = menuKey(key, 3);
+    const row = menuKey(key, 5);
     if (row >= 0) str = String(row + 1);
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
     else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
     else if (str === '3') setScientific((state.settings.scientific = !state.settings.scientific));
+    else if (str === '4') state.settings.screenAtTop = !state.settings.screenAtTop;
+    else if (str === '5') state.settings.mouse = !state.settings.mouse;
     return draw();
   }
 
@@ -1580,9 +1593,21 @@ if (!process.stdin.isTTY) {
   process.exit(1);
 }
 
-emitKeypressEvents(process.stdin);
+// Keys reach handleKey through a stream with the mouse's escape sequences taken out;
+// each click or wheel turn becomes the key press it stands for.
+const keys = new PassThrough();
+emitKeypressEvents(keys);
+keys.on('keypress', handleKey);
 process.stdin.setRawMode(true);
-process.stdin.on('keypress', handleKey);
+process.stdin.on('data', (chunk: Buffer) => {
+  const { events, rest } = parseMouse(chunk.toString('utf8'));
+  if (rest) keys.write(rest);
+  if (!state.settings.mouse) return;
+  for (const e of events) {
+    const press = mousePress(e, drawn.lines, drawn.top, !!pickingLetter);
+    if (press) handleKey(press.str, { name: press.name });
+  }
+});
 process.stdout.write('\x1b[?25l'); // hide cursor
 
 let last = Date.now();
