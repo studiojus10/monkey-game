@@ -1,4 +1,4 @@
-import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -21,8 +21,9 @@ import {
   managerUpgradeCost,
   nextDepartmentAt,
   getPlay,
-  capRaiseCost,
   comboCap,
+  comboStart,
+  comboStartCost,
   comboMultiplier,
   keyCost,
   wordKeySpellsNeeded,
@@ -648,7 +649,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
   const typingShop = typingItems(state);
   switch (store) {
     case 'staff': {
-      const nextCap = capRaiseCost(state.comboCapLevel);
+      const nextStart = comboStartCost(state.comboStartLevel);
       const open = departmentGenres(state);
       // With several departments each has its own price, so each gets its own line.
       // A department with no free square for a desk (or no room yet) says so where the price goes.
@@ -731,7 +732,15 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 : { text: `${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? ' is' : 's are'} waiting for a free square for a desk.` },
             ]
           : []),
-        { id: 'combo', star: state.sentences >= nextCap, text: 'Raise combo cap', effect: `x${comboCap(state)} -> x${comboCap(state) + 1}`, cost: [[nextCap, 'sentences']] },
+        comboStart(state) >= comboCap(state)
+          ? { id: 'combo', text: 'Starting combo', effect: `x${comboStart(state).toFixed(1)}`, blocked: 'at the cap' }
+          : {
+              id: 'combo',
+              star: state.sentences >= nextStart,
+              text: 'Starting combo',
+              effect: `x${comboStart(state).toFixed(1)} -> x${(comboStart(state) + combo.step).toFixed(1)}`,
+              cost: [[nextStart, 'sentences']],
+            },
         ...(managerChoices(state).length > 0
           ? [
               {

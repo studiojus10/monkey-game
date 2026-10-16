@@ -102,7 +102,7 @@ Example: `CAT` (15) makes it ×1.1 and pays 16.5. `QUIZ` (88) makes it ×1.2, so
 ## Currencies
 
 - **Points** (shown as **Bananas** since 2026-10-14) come from every word. They buy letters, typing speed and typewriter keys.
-- **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy hats for your monkeys and repeatable upgrades such as raising the combo cap.
+- **Sentences** come from typing any line of the play with **3+ words** word for word, every time, including lines already completed (shorter lines would be farmed). They buy hats for your monkeys and repeatable upgrades such as the starting combo.
 - **Sentences also come from long chains (balance pass, 2026-10-13)**, so they are a slow but renewable currency: when a chain breaks, it pays 1 Sentence if it held 3+ words of 4+ letters, plus 1 for every 3 more (`sentenceRules` in config.ts). Measured with `scripts/simulate.ts`: about 40 in the first hour, about 100 an hour by hour 5. Looser rules gave far too many (any 3 words: 3K in the first hour); stricter ones (4 long words) almost none.
 - **Words** (2026-10-13) come from each **different** word your monkeys spell: one per new entry in the dictionary, so the supply is limited by the word list and your letters. An early-game limited currency. Words are spent on **letters** **(decided)**: each new letter costs points plus floor(¼ × letters owned²) Words (0, 1, 2, 4, 6, 9, ... 156 for the 26th; placeholder). The early steps stay small so a poor early letter like Q or J, which adds few new words, can't lock you out.
 - **Lines** come from completing a line of the play for the **first** time: one per line, so the supply is limited by the play's length. They're the rarest currency and buy the biggest, permanent upgrades: word slots and manager upgrades.
@@ -255,7 +255,7 @@ Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to pars
      ITEM               EFFECT                                     PRICE
  [1] Faster typing      +1 skill for a monkey          * from 10 Bananas
  [2] Hire a monkey      you have 7                     * 300.00K Bananas
- [3] Raise combo cap    x3 -> x4                           * 1 Sentences
+ [3] Starting combo     x1.0 -> x1.1                       * 1 Sentences
  ------------------------------------------------------------------------------
  [up/down] choose   [enter] buy   [1-9] buy   [[/]] store   [i] inspect   [esc] back
 ```
@@ -343,3 +343,6 @@ Built 2026-10-14. Justin liked a prestige reset but worried how it would work wi
 - **Monkey price in Lines.** Starting guess: 10 Lines, ×2 each. For the balance pass.
 - **Department thresholds and script prices.** 10 and 30 monkeys, 10 points per letter, 20%/40% discounts are placeholders for the balance pass.
 - **Price curves and speeds.** All numbers above are first guesses for the balance pass.
+
+**Starting combo and big balances** (Justin, 2026-10-16: "the way combos work now it seems like having the combo cap upgrade isnt very relevant. maybe that upgrade can be a minimum combo upgrade where each upgrade increases the starting value of each combo by .1"; "to enhance the "big number better" feeling ... make the currency values display 10 digits before switching"). The Staff store's combo cap raise became **Starting combo**: each one starts every chain 0.1 higher (x1.0 -> x1.1 -> ...), up to the combo cap (x3, raised only by the Typing rhythm research and the thinking cap now); it costs 1 Sentence, doubling each time (placeholders), and says "at the cap" once combos start there. Old saves turn their cap raises into starting-combo upgrades. Balances in the title bar show in full with commas up to 10 digits (1,234,567,890), then short form (12.35B) or exponents; when the bar can't fit an 80-column screen, the biggest totals go short first.
+

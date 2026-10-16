@@ -18,7 +18,7 @@ import { hats, monkeyShop, sentenceRules, departmentRules, furnitureKinds, typew
 import {
   availableKeys,
   availablePlays,
-  buyCapRaise,
+  buyComboStart,
   buyFasterTyping,
   buyFurniture,
   buyKey,
@@ -31,7 +31,7 @@ import {
   managerBlocker,
   hireManager,
   canSeatMonkey,
-  capRaiseCost,
+  comboStartCost,
   chooseFirstLetter,
   chooseStarterScene,
   departmentChoices,
@@ -169,7 +169,7 @@ function shop(): void {
     }
     while (s.unassignedMonkeys > 0 && assignMonkey(s, departmentsWithRoom(s)[0])) bought = true;
     // Combo cap with Sentences.
-    if (s.sentences >= capRaiseCost(s.comboCapLevel) && buyCapRaise(s)) bought = true;
+    if (s.sentences >= comboStartCost(s.comboStartLevel) && buyComboStart(s)) bought = true;
     // The cheapest unowned scene, if it costs under a quarter of the points in hand.
     const scenes = availablePlays()
       .filter((p) => departmentGenres(s).includes(p.genre))

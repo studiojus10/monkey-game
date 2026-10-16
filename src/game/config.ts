@@ -66,15 +66,17 @@ export const monkeyShop = {
 /**
  * Combos: each word at least minWordLength long in a chain (repeats too) adds
  * step to the multiplier (Justin, 2026-10-15: small steps, so the meter moves),
- * and it stops at maxMultiplier plus one per cap raise. The n-th cap raise
- * costs capRaiseBaseCost x capRaiseCostGrowth^n Sentences.
+ * and it stops at maxMultiplier (raised by research and the thinking cap).
+ * Every chain starts at 1 plus step per starting-combo upgrade (Justin,
+ * 2026-10-16: the cap raise mattered little, so it became this), up to the
+ * cap. The n-th upgrade costs startBaseCost x startCostGrowth^n Sentences.
  */
 export const combo = {
   minWordLength: 2,
   step: 0.1,
   maxMultiplier: 3,
-  capRaiseBaseCost: 1,
-  capRaiseCostGrowth: 2,
+  startBaseCost: 1,
+  startCostGrowth: 2,
 };
 
 /**

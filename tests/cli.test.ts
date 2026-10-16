@@ -32,7 +32,7 @@ import {
   renderShop,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, cyan, forLightBackground, green, inverse, plainText, red, yellow } from '../src/cli/style';
+import { bold, cyan, forLightBackground, green, inverse, plainText, red, titleBar, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
@@ -42,6 +42,7 @@ import { achievements, lately, monkeyNames } from '../src/game/config';
 import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
+import { formatAmount } from '../src/format';
 
 describe('file storage', () => {
   it('saves and loads through a file, and clears it', () => {
@@ -141,7 +142,7 @@ describe('terminal screen', () => {
     const tools = squash(renderScreen(s, '', 'typewriters'));
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
-      '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1.23K Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
+      '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
         '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
@@ -161,7 +162,7 @@ describe('terminal screen', () => {
     s.letters.push('A');
     expect(squash(renderScreen(s, '', 'typewriters'))).toContain('[1] Buy a letter key you choose it (24 left) 75 Bananas + 1 Words\n');
     expect(shop).toContain('[2] Hire a monkey you have 1 300.00K Bananas\n');
-    expect(shop).toContain('[3] Raise combo cap x3 -> x4 1 Sentences\n');
+    expect(shop).toContain('[3] Starting combo x1.0 -> x1.1 1 Sentences\n');
   });
 
   it('colours each typist energy: green when fresh, yellow when tiring, red when nearly spent, blue Resting on a break', () => {
@@ -1037,5 +1038,21 @@ describe('hiring screen', () => {
     s.managerBook = true;
     expect(plain(renderCandidates(s, 'typing', 'x', 1000))).toContain('Loner');
     expect(text.split('\n').every((r) => r.length <= 80)).toBe(true);
+  });
+});
+
+describe('balances in full', () => {
+  it('shows up to 10 digits with commas, then short form, and shortens the biggest when the title bar is too wide', () => {
+    expect(formatAmount(1234567890)).toBe('1,234,567,890');
+    expect(formatAmount(12345678901)).toBe('12.35B');
+    expect(formatAmount(12.7)).toBe('12');
+    const s = createInitialState(0);
+    s.currency = 1234567890;
+    expect(plain(titleBar(s))).toContain('1,234,567,890 Bananas');
+    s.sentences = 9876543210;
+    s.words = s.lines = 1111111111;
+    const bar = plain(titleBar(s, 'Shop', 80));
+    expect(bar.length).toBeLessThan(80);
+    expect(bar).toContain('9.88B Sentences'); // the biggest went short first
   });
 });

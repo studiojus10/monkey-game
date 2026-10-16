@@ -1358,20 +1358,26 @@ export function renameMonkey(state: GameState, index: number, name: string): boo
   return true;
 }
 
-/** Cost in Sentences of the next combo cap raise. */
-export function capRaiseCost(level: number): number {
-  return Math.ceil(combo.capRaiseBaseCost * Math.pow(combo.capRaiseCostGrowth, level));
+/** Cost in Sentences of the next starting-combo upgrade. */
+export function comboStartCost(level: number): number {
+  return Math.ceil(combo.startBaseCost * Math.pow(combo.startCostGrowth, level));
 }
 
 export function comboCap(state: GameState): number {
-  return combo.maxMultiplier + state.comboCapLevel + researchBonus(state, 'combo');
+  return combo.maxMultiplier + researchBonus(state, 'combo');
 }
 
-export function buyCapRaise(state: GameState): boolean {
-  const cost = capRaiseCost(state.comboCapLevel);
-  if (state.letters.length === 0 || state.sentences < cost) return false;
+/** Where every chain's combo starts: x1 plus a step per upgrade bought. */
+export function comboStart(state: GameState): number {
+  return Math.round((1 + combo.step * state.comboStartLevel) * 10) / 10;
+}
+
+/** Raises every chain's starting combo by one step, until it reaches the combo cap. */
+export function buyComboStart(state: GameState): boolean {
+  const cost = comboStartCost(state.comboStartLevel);
+  if (state.letters.length === 0 || state.sentences < cost || comboStart(state) >= comboCap(state)) return false;
   state.sentences -= cost;
-  state.comboCapLevel++;
+  state.comboStartLevel++;
   return true;
 }
 
@@ -1635,9 +1641,9 @@ function countWord(state: GameState, m: MonkeyState, word: string, paid: number,
   if (word.length >= sentenceRules.wordMinLength) m.chainCounted++;
 }
 
-/** The combo multiplier: how many different long words are in the chain, up to the cap. */
+/** The combo multiplier: the starting combo plus a step per word in the chain, up to the cap. */
 export function comboMultiplier(state: GameState, m: MonkeyState): number {
-  return Math.min(comboCap(state) + wearing(m, 'combo'), Math.round((1 + combo.step * m.chainWords.length) * 10) / 10);
+  return Math.min(comboCap(state) + wearing(m, 'combo'), Math.round((comboStart(state) + combo.step * m.chainWords.length) * 10) / 10);
 }
 
 /**

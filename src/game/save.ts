@@ -205,7 +205,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       speedBonus: Math.max(0, num(s.speedBonus, 0)),
       pinned,
       lastLine,
-      comboCapLevel: Math.max(0, Math.floor(num(s.comboCapLevel, 0))),
+      comboStartLevel: Math.max(0, Math.floor(num(s.comboStartLevel, num((s as { comboCapLevel?: unknown }).comboCapLevel, 0)))), // old saves: cap raises become starting-combo upgrades
       keys: strings(s.keys).filter((k) => /^[A-Z]+$/.test(k)),
       slots: Array.isArray(s.slots)
         ? s.slots

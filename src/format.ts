@@ -17,6 +17,15 @@ export function formatNumber(n: number): string {
   return (n / Math.pow(1000, tier)).toFixed(2) + suffixes[tier];
 }
 
+/** Digits a balance shows in full (1,234,567,890) before it switches to short names or exponents (Justin, 2026-10-16: "big number better"). */
+export const fullDigits = 10;
+
+/** A balance (Bananas, Words, Sentences, Lines): whole, with commas, up to fullDigits digits; bigger ones as formatNumber. */
+export function formatAmount(n: number): string {
+  if (!Number.isFinite(n) || Math.abs(n) >= Math.pow(10, fullDigits)) return formatNumber(n);
+  return Math.floor(n).toLocaleString('en-US');
+}
+
 /** A multiplier: x1.25 below a thousand, then like any big number (x4.56M). */
 export function formatMultiplier(n: number): string {
   return `x${n < 1000 ? n.toFixed(2) : formatNumber(n)}`;

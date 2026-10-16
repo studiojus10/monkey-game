@@ -148,7 +148,7 @@ export interface GameState {
   speedBonus: number; // from finished acts: typing speed x (1 + speedBonus)
   pinned: Pin[]; // lines pinned to the home screen
   lastLine: LastLine | null;
-  comboCapLevel: number; // combo cap raises bought
+  comboStartLevel: number; // starting-combo upgrades bought
   keys: string[]; // combination and word keys bought
   slots: WordSlot[];
   letters: string[]; // owned letters; empty until the player picks one
@@ -309,7 +309,7 @@ export function createInitialState(now = Date.now()): GameState {
     speedBonus: 0,
     pinned: [],
     lastLine: null,
-    comboCapLevel: 0,
+    comboStartLevel: 0,
     keys: [],
     slots: [],
     letters: [],
