@@ -42,7 +42,10 @@ export function renderStats(state: GameState, columns = 0): string {
   const sonnet = (k: string) => getPlay(k.split(':')[0])?.genre === 'sonnet';
   const labelWidth = 18;
   const stat = (label: string, value: string, note = '') => `   ${label.padEnd(labelWidth)} ${value}${note ? `   ${dim(note)}` : ''}`;
-  const section = (title: string, rows: string[]) => ['', dim(` ${title}`), ...rows];
+  /** A stat only once it has happened: nothing at all before it's unlocked (Justin, 2026-10-16). */
+  const shown = (when: unknown, label: string, value: string, note = '') => (when ? [stat(label, value, note)] : []);
+  /** A section only once it has a row. */
+  const section = (title: string, rows: string[]) => (rows.length > 0 ? ['', dim(` ${title}`), ...rows] : []);
   // The longest sentence's words wrap under its count, lined up with the values.
   const sentenceRows = wrapWords(st.longestSentence, Math.max(20, (columns > 0 ? Math.min(columns, 100) : 80) - 4 - labelWidth - 2)).map((r) => ' '.repeat(4 + labelWidth) + r);
   const letterCells = letters.map(([l, c]) => `${l} ${formatNumber(c)}`.padEnd(12));
@@ -52,51 +55,50 @@ export function renderStats(state: GameState, columns = 0): string {
     const [w, c] = top[k];
     return `${String(k + 1).padStart(2)}. ${w.padEnd(wordWidth)}  ${formatNumber(c).padStart(7)}`;
   };
-  return [
-    titleBar(state, 'Stats', columns),
+  const scenes = state.scenesDone.filter((k) => !sonnet(k)).length;
+  const sonnets = state.scenesDone.filter(sonnet).length;
+  const played = st.secondsOpen + st.secondsAway;
+  const body = [
     ...section('TIME', [
-      stat('Time played', duration(st.secondsOpen + st.secondsAway)),
-      stat('Game open', duration(st.secondsOpen)),
-      stat('In the background', duration(st.secondsAway), 'closed, monkeys typing'),
+      ...shown(played >= 1, 'Time played', duration(played)),
+      ...shown(played >= 1, 'Game open', duration(st.secondsOpen)),
+      ...shown(st.secondsAway >= 1, 'In the background', duration(st.secondsAway), 'closed, monkeys typing'),
     ]),
     ...section('TYPING', [
-      stat('Time typing', duration(st.secondsTyping)),
-      stat('Letters typed', formatNumber(lettersTyped)),
-      stat('Words spelled', formatNumber(spelled), `${formatNumber(words.length)} different`),
-      stat('Longest word', st.longestWord || '-', st.longestWord ? plural(st.longestWord.length, 'letter') : ''),
-      stat('Best-paying word', st.bestWord || '-', st.bestWord ? `+${formatNumber(st.bestWordPoints)} ${theme.currency}` : ''),
-      stat('Longest chain', `${plural(st.longestChain, 'word')} in a row`),
-      stat('Sentences written', formatNumber(st.sentencesWritten), `${plural(st.chainSentences, 'Sentence')} earned`),
-      stat('Longest sentence', st.longestSentence.length > 0 ? plural(st.longestSentence.length, 'word') : '-'),
-      ...sentenceRows,
+      ...shown(st.secondsTyping >= 1, 'Time typing', duration(st.secondsTyping)),
+      ...shown(lettersTyped, 'Letters typed', formatNumber(lettersTyped)),
+      ...shown(spelled, 'Words spelled', formatNumber(spelled), `${formatNumber(words.length)} different`),
+      ...shown(st.longestWord, 'Longest word', st.longestWord, plural(st.longestWord.length, 'letter')),
+      ...shown(st.bestWord, 'Best-paying word', st.bestWord, `+${formatNumber(st.bestWordPoints)} ${theme.currency}`),
+      ...shown(st.longestChain, 'Longest chain', `${plural(st.longestChain, 'word')} in a row`),
+      ...shown(st.sentencesWritten, 'Sentences written', formatNumber(st.sentencesWritten), `${plural(st.chainSentences, 'Sentence')} earned`),
+      ...(st.longestSentence.length > 0 ? [stat('Longest sentence', plural(st.longestSentence.length, 'word')), ...sentenceRows] : []),
     ]),
     ...section('PLAYS', [
-      stat('Lines typed', formatNumber(st.linesTyped), 'repeats included'),
-      stat('Longest line', line ? `"${line.text}"` : '-', line && play ? `${play.title} ${lineLocation(line, play.genre)}, ${plural(line.letters.length, 'letter')}` : ''),
-      stat('Best line payout', st.bestLinePoints > 0 ? `+${formatNumber(st.bestLinePoints)} ${theme.currency}` : '-'),
-      stat('Scenes finished', formatNumber(state.scenesDone.filter((k) => !sonnet(k)).length), `bananas +${Math.round(state.pointsBonus * 1000) / 10}% for good`),
-      stat('Acts finished', formatNumber(state.actsDone.length), `typing +${Math.round(state.speedBonus * 1000) / 10}% for good`),
-      stat('Plays finished', formatNumber(state.playsDone.length)),
-      stat('Sonnets finished', formatNumber(state.scenesDone.filter(sonnet).length)),
+      ...shown(st.linesTyped, 'Lines typed', formatNumber(st.linesTyped), 'repeats included'),
+      ...shown(line, 'Longest line', line ? `"${line.text}"` : '', line && play ? `${play.title} ${lineLocation(line, play.genre)}, ${plural(line.letters.length, 'letter')}` : ''),
+      ...shown(st.bestLinePoints > 0, 'Best line payout', `+${formatNumber(st.bestLinePoints)} ${theme.currency}`),
+      ...shown(scenes, 'Scenes finished', formatNumber(scenes), `bananas +${Math.round(state.pointsBonus * 1000) / 10}% for good`),
+      ...shown(state.actsDone.length, 'Acts finished', formatNumber(state.actsDone.length), `typing +${Math.round(state.speedBonus * 1000) / 10}% for good`),
+      ...shown(state.playsDone.length, 'Plays finished', formatNumber(state.playsDone.length)),
+      ...shown(sonnets, 'Sonnets finished', formatNumber(sonnets)),
     ]),
-    ...section('MONKEYS', [stat('Petted', plural(st.pets, 'time')), ...(st.flipsWon + st.flipsLost > 0 ? [stat('Coin flips', `${formatNumber(st.flipsWon)} won, ${formatNumber(st.flipsLost)} lost`)] : [])]),
-    // Folios only once there is one.
+    ...section('MONKEYS', [
+      ...shown(st.pets, 'Petted', plural(st.pets, 'time')),
+      ...shown(st.flipsWon + st.flipsLost > 0, 'Coin flips', `${formatNumber(st.flipsWon)} won, ${formatNumber(st.flipsLost)} lost`),
+    ]),
     ...(state.folios > 0
       ? section('FOLIOS', [
           stat('Published', formatNumber(state.folios)),
           stat('Pages', formatNumber(state.folioPages), `bananas ${formatMultiplier(folioMultiplier(state))} for good`),
         ])
       : []),
-    ...section('LETTERS TYPED', [
-      ...(letterCells.length > 0
-        ? Array.from({ length: Math.ceil(letterCells.length / 6) }, (_, r) => '   ' + letterCells.slice(r * 6, r * 6 + 6).join('').trimEnd())
-        : ['   none yet']),
-    ]),
-    ...section('MOST SPELLED', [
-      ...(top.length > 0
-        ? Array.from({ length: half }, (_, r) => `   ${topCell(r)}${r + half < top.length ? `      ${topCell(r + half)}` : ''}`)
-        : ['   none yet']),
-    ]),
+    ...section('LETTERS TYPED', Array.from({ length: Math.ceil(letterCells.length / 6) }, (_, r) => '   ' + letterCells.slice(r * 6, r * 6 + 6).join('').trimEnd())),
+    ...section('MOST SPELLED', Array.from({ length: top.length > 0 ? half : 0 }, (_, r) => `   ${topCell(r)}${r + half < top.length ? `      ${topCell(r + half)}` : ''}`)),
+  ];
+  return [
+    titleBar(state, 'Stats', columns),
+    ...(body.length > 0 ? body : ['', dim('   Nothing yet: the monkeys have only just sat down.')]),
     '',
     rule(columns),
     keyRow([['w', 'dictionary'], ['a', 'achievements'], ['esc', 'back']], columns),
