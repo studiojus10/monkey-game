@@ -28,6 +28,7 @@ src/
     dev.ts         development tools (devTools list) shown on the ` menu; add new test tools here
     save.ts        versioned JSON (de)serialization; SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
+    mouse.ts       mouse support: parseMouse() (SGR mouse sequences out of the input), clickPress()/mousePress() turn a click, right click or wheel into the key press it stands for
     inventory.ts   renderMonkeyPicker() (the menu of monkeys to give a hat or dye), inventoryRows() and renderInventory() (the [i] screen: hats and typewriters to move)
     main.ts        entry: loads data/words.txt and data/plays/*.json into the logic, loads save, applies offline progress, raw-mode keypress loop, redraw every 250ms, autosave
     screen.ts      renderScreen() (the home screen: monkey table with fixed columns, alphabet, LATELY feed, key rows) and renderScript() return screens as text (ANSI bold for the live part of a monkey line); renderHomeKeys() (the [?] page); the shop's stores (storeItems, storePages, inspectItem) and renderShop() (the shop's own screen: tabs, items in columns)

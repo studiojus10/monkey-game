@@ -91,6 +91,14 @@ export function placeScreen(screen: string, rows: number, atTop: boolean): strin
   return '\n'.repeat(rows - lines) + screen;
 }
 
+/** The terminal row (1-based) that placeScreen's first line lands on; below 1 when the top has scrolled away. */
+export function screenTop(screen: string, rows: number, atTop: boolean): number {
+  const lines = screen.split('\n').length;
+  if (rows <= 0) return 1;
+  if (rows <= lines) return rows - lines;
+  return atTop ? 1 : rows - lines + 1;
+}
+
 /**
  * A row of keys and what they do: [key] in bold, then its words. On a screen
  * `columns` wide it breaks between keys rather than letting the terminal cut one.

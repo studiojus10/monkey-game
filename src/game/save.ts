@@ -234,6 +234,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         homeDepartment: typeof s.settings?.homeDepartment === 'string' ? s.settings.homeDepartment : '',
         scientific: s.settings?.scientific === true,
         screenAtTop: s.settings?.screenAtTop === true,
+        mouse: s.settings?.mouse !== false,
       },
       stats,
       achievements: strings(s.achievements),
