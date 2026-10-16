@@ -12,6 +12,8 @@ export interface MonkeyState {
   manager: boolean; // a manager doesn't type; it picks its department's target line, pins it and fills word slots
   target: Pin | null; // a manager's current target line
   managerLevel: number; // manager upgrades bought; each raises its department's points
+  managerSpeedLevel: number; // "Quicker manager" upgrades bought; each makes it change slots sooner
+  slotWait: number; // a manager's seconds until it can change its next word slot (0: ready)
   pending: string; // letters that might still become a word
   line: Segment[]; // what's on the current typewriter line, for display
   progress: number; // fraction of the next letter typed so far
@@ -221,7 +223,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, managerSpeedLevel: 0, slotWait: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
 }
 
 /** A name with the sounds before each word's first vowel swapped for `onset` (King Kong -> Bing Bong); words without a vowel stay. */

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dye, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, managerOffice, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dye, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   moveRoomBy,
@@ -95,6 +95,10 @@ import {
   departmentChoices,
   manage,
   managerLine,
+  managerSpeed,
+  managerSpeedCost,
+  buyManagerSpeed,
+  slotDelay,
   departmentMonkeys,
   departmentsWithRoom,
   departmentTypists,
@@ -1128,13 +1132,30 @@ describe('manager monkeys', () => {
         { department: '', position: 4, word: 'NO', on: true },
       ];
       expect(toggleManager(s, 0)).toBe(true);
-      expect(s.monkeys[0].target).toEqual({ play: 'm', index: 1 }); // line 0 needs Z, U, S
+      // Start over with a known pick: lines 1 and 2 are in reach (line 0 needs Z, U, S), and rng 0 takes the first.
+      s.monkeys[0].target = null;
+      s.pinned = [];
+      s.slots = [
+        { department: '', position: 1, word: '', on: false },
+        { department: '', position: 2, word: '', on: true },
+        { department: '', position: 4, word: 'NO', on: true },
+      ];
+      s.monkeys[0].slotWait = 0;
+      manage(s, 0, () => 0);
+      expect(s.monkeys[0].target).toEqual({ play: 'm', index: 1 });
       expect(s.pinned).toEqual([{ play: 'm', index: 1 }]);
-      expect(s.slots).toEqual([
-        { department: '', position: 1, word: 'AY', on: true },
-        { department: '', position: 2, word: 'MY', on: true },
-        { department: '', position: 4, word: 'NO', on: false }, // the line has only 3 words
-      ]);
+      // One slot at a time: the first at once, then one every slotDelay seconds.
+      expect(s.slots.map((x) => [x.word, x.on])).toEqual([['AY', true], ['', true], ['NO', true]]);
+      const delay = slotDelay(s, s.monkeys[0]);
+      expect(delay).toBe(managers.secondsPerSlot);
+      manage(s, delay - 1);
+      expect(s.slots[1].word).toBe('');
+      manage(s, 1);
+      expect(s.slots.map((x) => [x.word, x.on])).toEqual([['AY', true], ['MY', true], ['NO', true]]);
+      manage(s, delay);
+      expect(s.slots[2].on).toBe(false); // the line has only 3 words
+      manage(s, 1000); // nothing left to change: ready for the next line at once
+      expect(s.monkeys[0].slotWait).toBe(0);
 
       tick(s, 1, () => 0.99);
       expect(s.monkeys[0].line).toEqual([]); // managers don't type
@@ -1148,14 +1169,17 @@ describe('manager monkeys', () => {
       expect(s.monkeys[0].target).toEqual({ play: 'm', index: 2 });
       expect(s.pinned).toEqual([{ play: 'm', index: 2 }]);
       expect(s.slots[0].word).toBe('NO');
+      expect(s.slots[1].word).toBe('MY'); // still the old line's, until the next change
+      manage(s, delay);
+      expect(s.slots[2]).toMatchObject({ on: false });
     } finally {
       setPlays([]);
     }
   });
 });
 
-describe('manager monkeys, reconsidering', () => {
-  it('switch to a shorter line when a new letter brings one within reach', () => {
+describe('manager monkeys, keeping their line', () => {
+  it('keeps its line until it is written, even when a new letter brings a shorter one within reach', () => {
     setWordList([]);
     setPlays([{ id: 'g', title: 'G', genre: 'comedy', lines: [[1, 1, 'A', 'Ay, my lord.'], [1, 1, 'B', 'Go.']] }]);
     try {
@@ -1168,7 +1192,7 @@ describe('manager monkeys, reconsidering', () => {
       expect(s.monkeys[0].target).toEqual({ play: 'g', index: 0 }); // GO needs a G
       s.letters.push('G');
       manage(s);
-      expect(s.monkeys[0].target).toEqual({ play: 'g', index: 1 });
+      expect(s.monkeys[0].target).toEqual({ play: 'g', index: 0 });
     } finally {
       setPlays([]);
     }
@@ -1327,7 +1351,7 @@ describe('finding your place in the script', () => {
 });
 
 describe('manager line choice', () => {
-  it('switches from an out-of-reach line once a line comes within reach', () => {
+  it('pins nothing until a line is within reach', () => {
     try {
       setPlays([{ id: 'q', title: 'Q', genre: 'comedy', lines: [[1, 1, 'A', 'Zounds.'], [1, 1, 'B', 'Ay, my lord.']] }]);
       const s = createInitialState(0);
@@ -1336,10 +1360,8 @@ describe('manager line choice', () => {
       s.letters = ['A', 'Y', 'M', 'L', 'O', 'R'];
       s.monkeys = Array.from({ length: managers.minDepartmentMonkeys + 1 }, createMonkey);
       expect(toggleManager(s, 0)).toBe(true);
-      expect(s.monkeys[0].target).toEqual({ play: 'q', index: 0 }); // nothing in reach yet
-      expect(s.pinned).toEqual([{ play: 'q', index: 0 }]);
-      manage(s);
-      expect(s.monkeys[0].target).toEqual({ play: 'q', index: 0 });
+      expect(s.monkeys[0].target).toBeNull(); // nothing in reach yet
+      expect(s.pinned).toEqual([]);
       s.letters.push('D');
       manage(s);
       expect(s.monkeys[0].target).toEqual({ play: 'q', index: 1 });
@@ -1349,7 +1371,7 @@ describe('manager line choice', () => {
     }
   });
 
-  it('picks a line within reach, then the fewest words, then the earliest in the play', () => {
+  it('picks a line within reach at random, among those its slots can hold', () => {
     try {
       setPlays([
         {
@@ -1369,15 +1391,17 @@ describe('manager line choice', () => {
       s.departments = ['comedy'];
       s.owned = ['p'];
       s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N'];
-      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 3 }); // 2 words, before line 4
-      s.completed.p = [3];
-      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 4 });
+      // No slots: any line in reach (never Zounds, out of reach), at random.
+      expect(managerLine(s, 'comedy', () => 0)).toEqual({ play: 'p', index: 1 });
+      expect(managerLine(s, 'comedy', () => 0.99)).toEqual({ play: 'p', index: 4 });
+      // Two slots: only lines of up to two words.
+      s.slots = [1, 2].map((position) => ({ department: '', position, word: '', on: false }));
+      expect(managerLine(s, 'comedy', () => 0)).toEqual({ play: 'p', index: 3 });
+      expect(managerLine(s, 'comedy', () => 0.99)).toEqual({ play: 'p', index: 4 });
       s.completed.p = [3, 4];
-      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 1 }); // 3 words each: play order
+      expect(managerLine(s, 'comedy', () => 0)).toEqual({ play: 'p', index: 1 }); // none fit: any in reach
       s.completed.p = [1, 2, 3, 4];
-      expect(managerLine(s, 'comedy')).toEqual({ play: 'p', index: 0 }); // nothing in reach: shortest out of reach
-      s.completed.p = [0, 1, 2, 3, 4];
-      expect(managerLine(s, 'comedy')).toBeNull();
+      expect(managerLine(s, 'comedy')).toBeNull(); // only Zounds left, out of reach
     } finally {
       setPlays([]);
     }
@@ -2078,5 +2102,30 @@ describe('coin flip', () => {
     expect(flipChance(s)).toBeCloseTo(0.01 + 0.001 * (s.achievements.length + 2 + 1)); // + the flip won
     s.achievements = Array(9999).fill('x');
     expect(flipChance(s)).toBe(0.5);
+  });
+});
+
+describe('manager speed', () => {
+  it('changes slots quicker with upgrades, office furniture and (with the book) chi', () => {
+    const s = createInitialState(0);
+    s.departments = ['comedy'];
+    s.monkeys = Array.from({ length: managers.minDepartmentMonkeys + 1 }, createMonkey);
+    s.sentences = 1e9;
+    expect(buyRoom(s, 'office', 'comedy')).toBe(true);
+    expect(toggleManager(s, 0)).toBe(true);
+    const boss = s.monkeys[0];
+    expect(managerSpeed(s, boss)).toBe(1);
+    s.currency = managerSpeedCost(boss) - 1;
+    expect(buyManagerSpeed(s, 0)).toBe(false);
+    s.currency++;
+    expect(buyManagerSpeed(s, 0)).toBe(true);
+    expect(managerSpeedCost(boss)).toBe(managers.speedBaseCost * managers.speedCostGrowth);
+    expect(managerSpeed(s, boss)).toBeCloseTo(1 + managers.speedPerLevel);
+    // A plant goes in the manager's office (the Manager store places it there); a couch can't.
+    expect(buyFurniture(s, 'plant', 'office')).toBe(true);
+    expect(s.office.find((r) => r.id === s.furniture.at(-1)!.room)!.kind).toBe('office');
+    expect(buyFurniture(s, 'couch', 'office')).toBe(false);
+    expect(managerSpeed(s, boss)).toBeCloseTo(1 + managers.speedPerLevel + 0.01 * managerOffice.speedPerHappiness);
+    expect(slotDelay(s, boss)).toBeCloseTo(managers.secondsPerSlot / managerSpeed(s, boss));
   });
 });

@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing, combo } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -86,6 +86,9 @@ import {
   researchRate,
   researchSecondsLeft,
   researchShare,
+  managerSpeed,
+  managerSpeedCost,
+  slotDelay,
 } from '../game/logic';
 import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
@@ -598,7 +601,7 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
 /** The main shop's stores, shown as tabs; [ ] (or left and right) switch between them. */
 export const stores = ['typewriters', 'staff', 'hats', 'research'] as const;
 /** The office map's own shop: furniture, by the kind of room it goes in. */
-export const officeStores = ['department', 'break'] as const;
+export const officeStores = ['department', 'break', 'office'] as const;
 /** The script page's own shop: the scene, act and play under the cursor. */
 export type Store = (typeof stores)[number] | (typeof officeStores)[number] | 'script';
 
@@ -621,6 +624,7 @@ export const storeNames: Record<Store, string> = {
   research: 'Research',
   department: 'Office',
   break: 'Breakroom',
+  office: 'Manager',
   hats: 'Hats',
 };
 
@@ -756,6 +760,14 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 costFrom: managerChoices(state).length > 1,
                 star: managerChoices(state).some((i) => state.lines >= managerUpgradeCost(state, state.monkeys[i])),
               },
+              {
+                id: 'managerspeed',
+                text: 'Quicker manager',
+                effect: `changes slots +${pct(managers.speedPerLevel)} faster`,
+                cost: [[Math.min(...managerChoices(state).map((i) => managerSpeedCost(state.monkeys[i]))), 'currency']] as [number, Currency][],
+                costFrom: managerChoices(state).length > 1,
+                star: managerChoices(state).some((i) => state.currency >= managerSpeedCost(state.monkeys[i])),
+              },
             ]
           : []),
       ];
@@ -785,16 +797,19 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       ];
     }
     case 'department':
-    case 'break': {
+    case 'break':
+    case 'office': {
       const have = state.office.some((r) => r.kind === store);
-      // The Office store also sells manager's desks, for managers' offices.
-      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store) || (store === 'department' && k.id === managerDesk.id)).sort((a, b) => a.cost - b.cost);
+      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store)).sort((a, b) => a.cost - b.cost);
+      const roomName = store === 'break' ? 'break room' : store === 'office' ? "manager's office" : "department's room";
       return [
         {
           text:
             store === 'department'
               ? "Furniture for a department's own room: it helps the monkeys who work there."
-              : 'Furniture for break rooms: it helps each department whose nearest one it is.',
+              : store === 'office'
+                ? "Furniture for a manager's office: it makes its manager quicker at changing slots."
+                : 'Furniture for break rooms: it helps each department whose nearest one it is.',
         },
         ...kinds.map((k): ShopItem => {
           const cost = furnitureCost(state, k.id);
@@ -807,15 +822,15 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
-            effect: furnitureEffect(k),
+            effect: store === 'office' && k.happiness > 0 ? `manager ${pct(k.happiness * managerOffice.speedPerHappiness)} quicker` : furnitureEffect(k),
             cost: [[cost, 'sentences']],
           };
         }),
         {
           text: !have
-            ? `You have no ${store === 'break' ? 'break room' : "department's room"} yet: buy one on the office map ([o], then [r]).`
+            ? `You have no ${roomName} yet: buy one on the office map ([o], then [r]).`
             : state.settings.autoPlaceFurniture
-              ? `New furniture places itself in a ${store === 'break' ? 'break room' : "department's room"} ([c] options).`
+              ? `New furniture places itself in a ${roomName} ([c] options).`
               : 'New furniture opens the office map so you can place it.',
         },
       ];
@@ -1227,6 +1242,16 @@ function managerLine(m: MonkeyState): string {
   return play && line
     ? `${title}, aiming at ${play.title} ${lineLocation(line, play.genre)}`
     : `${title}, waiting for a line your letters can spell`;
+}
+
+/** The prompt for making a manager quicker at changing slots, with each one's seconds per slot and price. */
+export function managerSpeedPrompt(state: GameState): string {
+  const choices = managerChoices(state).map((i, k) => {
+    const m = state.monkeys[i];
+    const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
+    return `[${k + 1}] ${monkeyName(state, i)} ${slotDelay(state, m).toFixed(1)}s -> ${next.toFixed(1)}s a slot ` + priceNamed(managerSpeedCost(m), state.currency, 'currency');
+  });
+  return `Make which manager quicker? ${choices.join('   ')}   (any other key: done)`;
 }
 
 /** Managers by monkey index, for the upgrade menu (keys 1-9 in this order). */

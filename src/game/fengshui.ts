@@ -5,7 +5,7 @@
  * little happiness. Optional depth: auto-placed offices do fine,
  * and arranging them well earns a small extra. Pure: no prices, no I/O.
  */
-import { desk, elements, fengShui, furnitureKinds, type Element } from './config';
+import { desk, elements, managerDesk, fengShui, furnitureKinds, type Element } from './config';
 import { connectedRooms, doorAt, doorPaths, windowAt, type Square } from './layout';
 import type { Furniture, GameState, Room } from './state';
 
@@ -14,7 +14,7 @@ export type ChiRule = 'light' | 'command' | 'flow' | 'entrance' | 'balance';
 /** The rules, in the order they're shown, with what each asks of a room (department rooms and break rooms differ on command). */
 export const chiRules: { id: ChiRule; name: string; department: string; break: string }[] = [
   { id: 'light', name: 'Light', department: 'a window', break: 'a window' },
-  { id: 'command', name: 'Command', department: 'every desk against a wall and out of the path of a door', break: 'every seat (bench, armchair or couch) backed by a wall' },
+  { id: 'command', name: 'Command', department: "every desk (a manager's too) against a wall and out of the path of a door", break: 'every seat (bench, armchair or couch) backed by a wall' },
   { id: 'flow', name: 'Flow', department: 'no door looks straight at a window or another door across the room, unless something stands in between', break: 'no door looks straight at a window or another door across the room, unless something stands in between' },
   { id: 'entrance', name: 'Welcome', department: 'nothing on the square just inside a door', break: 'nothing on the square just inside a door' },
   { id: 'balance', name: 'Balance', department: 'all five elements: wood, fire, earth, metal and water', break: 'all five elements: wood, fire, earth, metal and water' },
@@ -47,7 +47,11 @@ export function roomRules(state: GameState, room: Room): Record<ChiRule, boolean
   const light = room.cells.some(([x, y]) => state.windows.some((w) => w.x === x && w.y === y));
 
   let command: boolean;
-  if (room.kind === 'department') {
+  if (room.kind === 'office') {
+    // A manager's desk with a wall behind it, out of the way of the door.
+    const desks = pieces.filter((f) => f.kind === managerDesk.id);
+    command = desks.length > 0 && desks.every((f) => squaresOf(f).every(([x, y]) => !onPath.has(`${x},${y}`)) && [[0, -1], [1, 0], [0, 1], [-1, 0]].some(([dx, dy]) => squaresOf(f).some(([x, y]) => wallOn(x, y, dx, dy))));
+  } else if (room.kind === 'department') {
     const desks = pieces.filter((f) => f.kind === desk.id);
     command =
       desks.length > 0 &&

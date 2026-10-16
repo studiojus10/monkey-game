@@ -81,6 +81,7 @@ import {
   departmentSlots,
   slotGenre,
   upgradeManager,
+  buyManagerSpeed,
   openDepartment,
   buyComboStart,
   comboCap,
@@ -156,6 +157,7 @@ import {
   scriptPageSize,
   renderOptions,
   renderCoinFlip,
+  managerSpeedPrompt,
   dyeColorPrompt,
   dyePick,
   hatPick,
@@ -281,6 +283,7 @@ let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
 let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
 let pickingManagerUpgrade = false;
+let pickingManagerSpeed = false;
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
 
@@ -428,6 +431,9 @@ function buyItem(id: string): void {
   } else if (id === 'manager') {
     pickingManagerUpgrade = true;
     message = managerUpgradePrompt(state);
+  } else if (id === 'managerspeed') {
+    pickingManagerSpeed = true;
+    message = managerSpeedPrompt(state);
   } else if (id.startsWith('section:')) {
     buyScriptSection(id.slice('section:'.length));
   } else if (id.startsWith('hat:')) {
@@ -825,7 +831,7 @@ function startNaming(index: number) {
 
 /** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
 function pickerOpen(): boolean {
-  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
+  return !!(pickingDeptFor || pickingManagerUpgrade || pickingManagerSpeed || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
 }
 
 /** Opens the coin flip screen (with nothing to bet it only says so). */
@@ -990,6 +996,18 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else {
       const result = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Lines.';
       message = `${result}  ${managerUpgradePrompt(state)}`;
+    }
+    return draw();
+  }
+
+  if (pickingManagerSpeed) {
+    const i = managerChoices(state)[Number(str) - 1];
+    if (i === undefined) {
+      pickingManagerSpeed = false;
+      message = 'Done.';
+    } else {
+      const result = buyManagerSpeed(state, i) ? `${monkeyName(state, i)} changes slots quicker.` : `Not enough ${theme.currency}.`;
+      message = `${result}  ${managerSpeedPrompt(state)}`;
     }
     return draw();
   }
@@ -1395,7 +1413,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         else if (!here) message = 'Furniture goes inside a room.';
         else if (f.kind === desk.id && f.room !== here.id) message = "Desks stay in their department's room.";
         else if (!allowedIn(state, f.kind, here.id))
-          message = `The ${furnitureName(state, heldFurniture)} only goes in ${furnitureKinds.find((k) => k.id === f.kind)?.rooms.includes('break') ? 'break rooms' : "departments' rooms"}.`;
+          message = `The ${furnitureName(state, heldFurniture)} only goes in ${(furnitureKinds.find((k) => k.id === f.kind)?.rooms ?? []).map((r) => ({ department: "departments' rooms", break: 'break rooms', office: "managers' offices" })[r as string] ?? r).join(' or ')}.`;
         else message = `It doesn't fit there: every square it takes must be free floor in one room.${pieceSize(f.kind).join() === '1,1' ? '' : ' [r] turns it.'}`;
       } else if (heldDoor) {
         if (placeDoor(state, c.x, c.y, heldDoor.side)) heldDoor = null;
