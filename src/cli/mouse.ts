@@ -67,7 +67,8 @@ export interface Target {
 
 /**
  * What is under the mouse: a key label such as [b] (it presses that key), or
- * anywhere on a line whose only label is a key (a menu row: the whole line),
+ * anywhere on a line whose only label is a key (a menu row: the whole line;
+ * not the title bar on top, whose one key is its [$] button),
  * or with `letters` (the letter picker) a lone capital letter. `lines` are
  * the screen's lines as drawn, `top` the terminal row its first line is on.
  */
@@ -80,7 +81,7 @@ export function targetAt(lines: string[], top: number, row: number, col: number,
   const hit = labels.find((l) => at >= l.from && at < l.to);
   if (hit) return hit.press ? { press: hit.press, line, from: hit.from, to: hit.to } : undefined;
   const keys = labels.filter((l) => l.press);
-  if (keys.length === 1 && at < text.trimEnd().length) return { press: keys[0].press!, line, from: 0, to: text.trimEnd().length };
+  if (keys.length === 1 && line > 0 && at < text.trimEnd().length) return { press: keys[0].press!, line, from: 0, to: text.trimEnd().length };
   if (letters && /[A-Z]/.test(text[at] ?? '') && !/[A-Za-z]/.test(text[at - 1] ?? '') && !/[A-Za-z]/.test(text[at + 1] ?? '')) {
     return { press: labelPress(text[at])!, line, from: at, to: at + 1 };
   }

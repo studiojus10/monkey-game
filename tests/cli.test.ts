@@ -17,6 +17,7 @@ import {
   renderContents,
   renderSlotsMenu,
   renderOptions,
+  renderCoinFlip,
   promptChoices,
   highlightChoice,
   hatPick,
@@ -143,7 +144,7 @@ describe('terminal screen', () => {
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
       '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
-        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m',
+        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[$] flip\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
     expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
@@ -918,7 +919,7 @@ describe('hats on screen', () => {
     expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap (into your inventory)');
     s.stored.hats = { tophat: 1 };
     expect(plain(hatPick(s, 'tophat').title)).toMatch(/^Top hat \(\d.* Sentences\): which monkey gets a new one\?$/); // the store sells new ones at full price
-    expect(squash(renderShop(s, 'hats'))).toContain('Top hat (1 owned)');
+    expect(squash(renderShop(s, 'hats'))).toContain('Top hat (1)');
     expect(plain(dyeColorPrompt())).toContain('[1] Red   [2] Green');
     expect(plain(dyePick(s, 'red').title)).toBe("Red (150 Sentences): which monkey's hat?");
     expect(dyePick(s, 'red').notes).toEqual(['already', 'no hat']);
@@ -1064,5 +1065,21 @@ describe('screen position', () => {
     expect(placeScreen('a\nb\nc', 2, false)).toBe('a\nb\nc\n');
     expect(createInitialState(0).settings.screenAtTop).toBe(false);
     expect(squash(renderOptions(createInitialState(0)))).toContain('[4] Screen at the top off');
+  });
+});
+
+describe('coin flip any time', () => {
+  it('has a [$] button on every title bar while it fits, and its own screen', () => {
+    const s = started();
+    s.currency = 500;
+    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\$\] flip$/);
+    expect(plain(titleBar(s, 'Shop', 80)).length).toBeLessThan(80);
+    s.currency = s.sentences = 1e9;
+    expect(plain(titleBar(s, 'Typewriter keys', 80))).not.toContain('[$]'); // too tight: totals stay in full instead
+    const ask = plain(renderCoinFlip(s, true, '', 80));
+    expect(ask).toContain('COIN FLIP');
+    expect(ask).toContain('1,000,000,000 Bananas on a coin flip?');
+    expect(ask).toContain('[y] flip');
+    expect(plain(renderCoinFlip(s, false, 'Heads!', 80))).toContain('[$] flip again');
   });
 });

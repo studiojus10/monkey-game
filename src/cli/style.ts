@@ -107,15 +107,19 @@ export function titleBar(state: GameState, screen = '', columns = 0): string {
   const render = () => amounts.map(([n, c, label], i) => bold(currencyColors[c](`${short.has(i) ? n.toExponential(2).replace('e+', 'e') : formatAmount(n)} ${label}`))).join('   ');
   let totals = render();
   let name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
-  const fits = () => name.length + 4 + plainText(totals).length < columns;
+  // The coin flip, on every screen's title bar: a button the mouse can click any time ([$] works on every screen too).
+  let flip = '[$] flip';
+  const fits = () => name.length + 4 + plainText(totals).length + (flip ? 3 + flip.length : 0) < columns;
+  if (columns > 0 && !fits()) flip = '[$]';
   if (screen && columns > 0 && !fits()) name = ` ${screen.toUpperCase()} `;
+  if (columns > 0 && !fits()) flip = ''; // too narrow: the button goes before the totals turn scientific
   const biggestFirst = amounts.map((_, i) => i).sort((a, b) => amounts[b][0] - amounts[a][0]);
   for (const i of biggestFirst) {
     if (columns <= 0 || fits()) break;
     short.add(i);
     totals = render();
   }
-  return `${bold(inverse(name))}    ${totals}`;
+  return `${bold(inverse(name))}    ${totals}${flip ? `   ${bold(flip)}` : ''}`;
 }
 
 /**

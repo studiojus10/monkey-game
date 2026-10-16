@@ -2,6 +2,7 @@ import { GAME_VERSION } from '../version';
 import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
+  flipChance,
   canPublishFolio,
   folioMultiplier,
   folioMultiplierAfter,
@@ -90,7 +91,7 @@ import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
-import { formatDuration, formatMultiplier, formatNumber } from '../format';
+import { formatAmount, formatDuration, formatMultiplier, formatNumber } from '../format';
 import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
@@ -432,9 +433,9 @@ export function renderHomeKeys(state: GameState): string {
       ['n', 'name the chosen monkey'],
       ['d', 'move the chosen monkey to another department'],
     ]),
+    ...group('ANY TIME', [['$', `flip a coin: double all your ${theme.currency} or lose them all`]]),
     ...group('GAME', [
       ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
-      ['$', `flip a coin: double all your ${theme.currency} or lose them all`],
       ['s', 'save now (the game also saves on its own)'],
       ['r', 'reset: start a new game'],
       ['`', 'dev tools'],
@@ -505,7 +506,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
   const view = homeView(state);
   const viewName = view === research.id ? research.name : view ? genreNames[view as Genre] : '';
   const lines = [
-    titleBar(state),
+    titleBar(state, '', columns),
     '',
     // With several departments, one at a time: its name, then which of how many.
     ...(views.length > 1 && view ? [` ${bold(viewName.toUpperCase())}${dim(`   department ${views.indexOf(view) + 1} of ${views.length}`)}`] : []),
@@ -802,7 +803,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           return {
             id: `furniture:${k.id}@${where}`,
             star: !!furnitureSpot(state, k.id, where) && state.sentences >= cost,
-            text: `${k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name}${owned > 0 ? ` (${owned} owned)` : ''}`,
+            text: `${k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name}${owned > 0 ? ` (${owned})` : ''}`,
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
@@ -865,7 +866,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           const owned = hatsOwned(state, h.id);
           const someone = team.some((i) => state.monkeys[i].hat !== h.id);
           const effect = hatEffect(h);
-          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name}${owned > 0 ? ` (${owned} owned)` : ''}`, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
+          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name}${owned > 0 ? ` (${owned})` : ''}`, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
         }),
         {
           id: 'dye',
@@ -1050,6 +1051,23 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
 }
 
 /** The options menu. */
+/** The coin flip screen, opened with [$] from any screen: the bet and its odds, then how it went. */
+export function renderCoinFlip(state: GameState, asking: boolean, message: string, columns = 0): string {
+  return [
+    titleBar(state, 'Coin flip', columns),
+    '',
+    ...(asking
+      ? [
+          ` Bet all ${bold(formatAmount(state.currency))} ${theme.currency} on a coin flip?`,
+          ` Heads (a ${(flipChance(state) * 100).toFixed(1)}% chance) doubles them; tails loses them all.`,
+        ]
+      : [` ${bold(message)}`]),
+    '',
+    rule(columns),
+    keyRow(asking ? [['y', 'flip'], ['esc', 'no']] : [['$', 'flip again'], ['esc', 'back']], columns),
+  ].join('\n');
+}
+
 export function renderOptions(state: GameState, columns = 0, cursor = -1): string {
   const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
   const option = (key: string, label: string, on: boolean, notes: string[]) => {

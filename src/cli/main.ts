@@ -106,7 +106,6 @@ import {
   flipCoin,
   moveHat,
   swapTypewriters,
-  flipChance,
   folioMultiplier,
   tick,
   togglePin,
@@ -156,6 +155,7 @@ import {
   renderSlotsMenu,
   scriptPageSize,
   renderOptions,
+  renderCoinFlip,
   dyeColorPrompt,
   dyePick,
   hatPick,
@@ -223,7 +223,8 @@ let message = [
   .join(' ');
 let confirmingReset = false;
 let confirmingFolio = false;
-let confirmingFlip = false;
+let flipping: '' | 'ask' | 'done' = ''; // the coin flip screen ([$] from anywhere): asking, or showing how it went
+let flipMessage = '';
 let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
 let showingScript = false;
 let scriptCursor = 0;
@@ -691,7 +692,9 @@ function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
-  const screen = pickingLetter
+  const screen = flipping
+    ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
+    : pickingLetter
     ? renderLetterPicker(state, pickingLetter === 'free', letterCursor, message, columns)
     : pick
     ? renderMonkeyPicker(state, pick.title, pick.notes, menuCursor, shown, columns)
@@ -825,6 +828,12 @@ function pickerOpen(): boolean {
   return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
 }
 
+/** Opens the coin flip screen (with nothing to bet it only says so). */
+function openFlip() {
+  flipping = state.currency > 0 ? 'ask' : 'done';
+  flipMessage = state.currency > 0 ? '' : `You have no ${theme.currency} to bet.`;
+}
+
 /** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */
 function menuKey(key: { name?: string }, n: number): number {
   if (n <= 0) return -1;
@@ -893,16 +902,21 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (confirmingFlip) {
-    confirmingFlip = false;
-    const bet = state.currency;
-    const won = key.name === 'y' ? flipCoin(state, Math.random) : null;
-    message =
-      won === null
-        ? 'You keep your bananas.'
-        : won
-          ? `Heads! Your ${formatNumber(bet)} ${theme.currency} became ${formatNumber(state.currency)}.`
-          : `Tails. ${formatNumber(bet)} ${theme.currency} gone. The monkeys keep typing.`;
+  // The coin flip: [$] opens its screen from anywhere (Justin: "a dedicated button that is available at any time").
+  if (flipping) {
+    if (flipping === 'ask' && key.name === 'y') {
+      const bet = state.currency;
+      const won = flipCoin(state, Math.random);
+      flipMessage = won
+        ? `Heads! Your ${formatNumber(bet)} ${theme.currency} became ${formatNumber(state.currency)}.`
+        : `Tails. ${formatNumber(bet)} ${theme.currency} gone. The monkeys keep typing.`;
+      flipping = 'done';
+    } else if (flipping === 'done' && str === '$') openFlip();
+    else flipping = '';
+    return draw();
+  }
+  if (str === '$' && namingMonkey < 0 && slotWordDraft === null && !confirmingFolio && !confirmingReset && !confirmingFire) {
+    openFlip();
     return draw();
   }
 
@@ -1343,7 +1357,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'f' && !holding && !officeGrowing) {
       officeShop = lastOfficeStore;
       shopCursor = 0;
-    } else if ((str === 's' || str === '$') && !holding && !officeGrowing) {
+    } else if ((str === 's' || str === 'v') && !holding && !officeGrowing) {
       const here = roomAt(state, c.x, c.y);
       const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
       if (typeof spot !== 'number') message = 'No furniture there.';
@@ -1351,8 +1365,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else {
         const name = furnitureName(state, spot);
         const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
-        if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in storage. Buying another from the store takes it out for free.`;
-        else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} Sentences.`;
+        if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in your inventory ([i]).`;
+        else if (str === 'v' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} Sentences.`;
       }
     } else if (str === 'm' && !holding && !officeGrowing) {
       if (!here) message = 'Move the cursor onto a room to move it.';
@@ -1478,7 +1492,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat.`;
       else if (wearHat(state, i, hat.id)) message = `${monkeyName(state, i)} took off the ${hat.name.toLowerCase()}; it's in your inventory ([i]).`;
-    } else if (str === '$' && i !== undefined) {
+    } else if (str === 'v' && i !== undefined) {
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat to sell.`;
       else if (sellHat(state, i)) message = `Sold the ${hat.name.toLowerCase()} for ${formatNumber(sellValue(hat.cost))} Sentences.`;
@@ -1632,12 +1646,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === 'w') {
     showingDictionary = true;
     dictionaryRow = 0;
-  } else if (str === '$') {
-    if (state.currency <= 0) message = `You have no ${theme.currency} to bet.`;
-    else {
-      confirmingFlip = true;
-      message = `Flip a coin for all ${formatNumber(state.currency)} ${theme.currency}? Heads (a ${(flipChance(state) * 100).toFixed(1)}% chance) doubles them; tails loses them all. [y] flip   (any other key: no)`;
-    }
   } else if (str === 'f' && canPublishFolio(state)) {
     confirmingFolio = true;
     message = folioPrompt(state);

@@ -131,6 +131,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([['up/down', 'choose a monkey'], ['n', 'rename it'], ['h', 'hat off'], ['$', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose a monkey'], ['n', 'rename it'], ['h', 'hat off'], ['v', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
   ].join('\n');
 }
