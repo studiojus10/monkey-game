@@ -13,6 +13,45 @@ import { formatAmount } from '../format';
 export const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 export const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
 export const inverse = (s: string) => `\x1b[7m${s}\x1b[27m`;
+
+let cursorsShown = true;
+
+/**
+ * Whether menus draw their cursor (inverse). The game hides it until the
+ * arrow keys or the wheel are used (Justin, 2026-10-16); renderers draw it by
+ * default, so tests see it.
+ */
+export function showCursors(on: boolean): void {
+  cursorsShown = on;
+}
+
+/** Whether the cursor is on this row (`at` is the row, `cursor` the menu's cursor) and drawn. */
+export function isCursor<T>(at: T, cursor: T): boolean {
+  return cursorsShown && at === cursor;
+}
+
+/** Whether menu cursors are drawn at all. */
+export const cursorsOn = () => cursorsShown;
+
+/** `line` with its visible columns from..to (ANSI codes not counted) drawn inverse: what the mouse is over. */
+export function inverseSpan(line: string, from: number, to: number): string {
+  let out = '';
+  let col = 0;
+  for (let i = 0; i < line.length; ) {
+    const code = /^\x1b\[[0-9;]*m/.exec(line.slice(i));
+    if (code) {
+      out += code[0];
+      i += code[0].length;
+      continue;
+    }
+    if (col === from) out += '\x1b[7m';
+    out += line[i];
+    i++;
+    col++;
+    if (col === to) out += '\x1b[27m';
+  }
+  return out;
+}
 const color = (code: number) => (s: string) => `\x1b[${code}m${s}\x1b[39m`;
 export const red = color(31);
 export const green = color(32);

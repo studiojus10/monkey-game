@@ -22,7 +22,7 @@ import type { GameState } from '../game/state';
 import { dyed, genreNames, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
 import { formatDuration } from '../format';
-import { bold, dim, green, inverse, keyRow, red, rule, titleBar } from './style';
+import { bold, dim, green, inverse, isCursor, keyRow, red, rule, titleBar } from './style';
 
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
 export const rosterPageRows = 12;
@@ -79,7 +79,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
     // The cursor's row is inverse; the others show the hat in its dye.
     const row = `${iconOf(m)} ${monkeyName(state, i)}${role ? `  (${role})` : ''}`;
-    list.push(k === at ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
+    list.push(isCursor(k, at) ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
   });
 
   const i = order[at];

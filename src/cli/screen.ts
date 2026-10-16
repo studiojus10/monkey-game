@@ -88,7 +88,7 @@ import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
 import { formatDuration, formatMultiplier, formatNumber } from '../format';
-import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
+import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -155,7 +155,7 @@ export function promptChoices(prompt: string): { key: string; start: number; end
 /** A picker prompt with its `k`th choice inverse: the picker's cursor. */
 export function highlightChoice(prompt: string, k: number): string {
   const c = promptChoices(prompt)[k];
-  return c ? prompt.slice(0, c.start) + inverse(prompt.slice(c.start, c.end)) + prompt.slice(c.end) : prompt;
+  return c && cursorsOn() ? prompt.slice(0, c.start) + inverse(prompt.slice(c.start, c.end)) + prompt.slice(c.end) : prompt;
 }
 
 /**
@@ -168,7 +168,7 @@ export function renderLetterPicker(state: GameState, free: boolean, cursor: numb
   const chosen = open[Math.min(cursor, open.length - 1)];
   const letters = Object.keys(letterValues)
     .sort()
-    .map((l) => (state.letters.includes(l) ? dim(l) : l === chosen ? inverse(l) : bold(l)))
+    .map((l) => (state.letters.includes(l) ? dim(l) : isCursor(l, chosen) ? inverse(l) : bold(l)))
     .join(' ');
   const gift = achievements.find((a) => a.id === state.letterGifts[state.letterGifts.length - 1])?.name ?? '';
   const title = free
@@ -214,7 +214,7 @@ function openingScreen(intro: string, explain: string[], choices: [string, strin
     ...(intro ? [` ${intro}`] : []),
     ...explain.map((r) => dim(` ${r}`)),
     '',
-    ...choices.map((c, k) => (k === cursor ? inverse(plainText(row(c))) : row(c))),
+    ...choices.map((c, k) => (isCursor(k, cursor) ? inverse(plainText(row(c))) : row(c))),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
@@ -334,7 +334,7 @@ function monkeyRow(state: GameState, i: number, room: number, chosen = false): s
   const m = state.monkeys[i];
   const dept = hasDeptColumn(state) ? `${isResearcher(m) ? 'R' : genreNames[monkeyGenre(state, m)!][0]} ` : '';
   // The home cursor: the chosen monkey's name inverse.
-  const name = `${chosen ? inverse(monkeyName(state, i).padEnd(col.name)) : monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
+  const name = `${chosen && cursorsOn() ? inverse(monkeyName(state, i).padEnd(col.name)) : monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
   const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m).toFixed(1)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
@@ -1023,7 +1023,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
     const g = (t: string) => (x.star ? green(t) : t);
     const text = row(`[${n + 1}]`, g(x.text), x.glyph ?? '', g(x.element ?? ''), g(x.effect ?? ''), cost);
-    return [at === cursor ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
+    return [isCursor(at, cursor) ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
   });
 
   return [
@@ -1050,7 +1050,7 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1): strin
   const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
   const option = (key: string, label: string, on: boolean, notes: string[]) => {
     const row = ` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`;
-    return [Number(key) - 1 === cursor ? inverse(plainText(row)) : row, ...notes.map((n) => dim(`     ${n}`)), ''];
+    return [isCursor(Number(key) - 1, cursor) ? inverse(plainText(row)) : row, ...notes.map((n) => dim(`     ${n}`)), ''];
   };
   return [
     titleBar(state, 'Options', columns),
@@ -1078,7 +1078,7 @@ export function renderDevMenu(state: GameState, message = '', columns = 0, curso
     '',
     dim(' For testing: these change your save.'),
     '',
-    ...devTools.map((t, i) => (i === cursor ? inverse(` [${i + 1}] ${t.label}`) : ` ${bold(`[${i + 1}]`)} ${t.label}`)),
+    ...devTools.map((t, i) => (isCursor(i, cursor) ? inverse(` [${i + 1}] ${t.label}`) : ` ${bold(`[${i + 1}]`)} ${t.label}`)),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
@@ -1111,7 +1111,7 @@ export function renderSlotsMenu(
     const x = state.slots[i];
     const word = i === selected && typing !== null ? `${typing}_` : x.word || dim('(no word)');
     const row = `${i === selected ? '>' : ' '} [${k + 1}] ${ordinal(x.position).padEnd(4)} word  ${padVisible(word, 16)} ${x.on ? green('ON') : dim('off')}`;
-    return i === selected ? inverse(plainText(row) + ' ') : row;
+    return isCursor(i, selected) ? inverse(plainText(row) + ' ') : row;
   });
   const managed = !!managerOf(state, genre);
   const many = departmentGenres(state).length > 1;
@@ -1178,7 +1178,7 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
     '',
     ...choices.map(({ k, kind, cost }, i) => {
       const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
-      if (i === cursor) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
+      if (isCursor(i, cursor)) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
       return state.currency >= cost
         ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatNumber(cost))} ${theme.currency}`)
         : dim(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
@@ -1385,7 +1385,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     });
     rows.push(
       ...lines.map((r) => {
-        if (i === at) return inverse(padVisible(plainText(r), rowWidth));
+        if (isCursor(i, at)) return inverse(padVisible(plainText(r), rowWidth));
         if (written) return green(plainText(r).trimEnd());
         return owned ? r.trimEnd() : dim(plainText(r).trimEnd());
       }),
@@ -1485,7 +1485,7 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     const text = line(first + k === at ? '>' : ' ', item.cols) + (item.finished ? '   finished' : '');
     return [
       ...(item.header ? [dim(` ${item.header}`)] : []),
-      first + k === at ? inverse(text + ' ') : item.faded ? dim(text.trimEnd()) : item.finished ? text.replace(/finished$/, green('finished')) : text.trimEnd(),
+      isCursor(first + k, at) ? inverse(text + ' ') : item.faded ? dim(text.trimEnd()) : item.finished ? text.replace(/finished$/, green('finished')) : text.trimEnd(),
     ];
   });
   return [

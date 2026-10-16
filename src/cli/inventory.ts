@@ -2,7 +2,7 @@ import { hats } from '../game/config';
 import { isTemp, monkeyName, typewriterName } from '../game/logic';
 import type { GameState } from '../game/state';
 import { dyed, iconOf, paint } from './screen';
-import { bold, dim, green, inverse, keyRow, padVisible, plainText, rule, titleBar } from './style';
+import { bold, dim, green, inverse, isCursor, keyRow, padVisible, plainText, rule, titleBar } from './style';
 
 /**
  * A menu of monkeys to give something to (a hat, a dye): `notes` says what
@@ -12,7 +12,7 @@ export function renderMonkeyPicker(state: GameState, title: string, notes: strin
   const width = Math.max(...state.monkeys.map((_, i) => monkeyName(state, i).length));
   const rows = state.monkeys.map((m, i) => {
     const row = ` ${(i < 9 ? `[${i + 1}]` : '').padEnd(4)} ${dyed(m, iconOf(m))} ${monkeyName(state, i).padEnd(width)}  ${dim(notes[i] ?? '')}`;
-    return i === cursor ? inverse(plainText(row)) : row;
+    return isCursor(i, cursor) ? inverse(plainText(row)) : row;
   });
   return [
     titleBar(state, 'Give to', columns),
@@ -78,12 +78,12 @@ export function renderInventory(
       const m = typeof r.who === 'number' ? state.monkeys[r.who] : undefined;
       const worn = item.kind === 'hat' && m?.hat === item.id;
       const text = item.kind === 'hat' ? `${hats.find((h) => h.id === item.id)?.icon ?? ''} ${name}${worn ? ' (on)' : ''}` : name;
-      if (k === row && c === col) return inverse(text);
+      if (isCursor(k, row) && c === col) return inverse(text);
       return worn ? green(m!.hatColor ? paint(m!.hatColor, text) : text) : text;
     };
     const items = r.items.map((item, c) => cell(item, c));
     if (r.who === 'storage') {
-      const empty = k === row ? inverse('(empty)') : dim('(empty)');
+      const empty = isCursor(k, row) ? inverse('(empty)') : dim('(empty)');
       return ` ${'   '}${'Storage'.padEnd(width)}  ${' '.repeat(twWidth)}  ${items.length > 0 ? items.join('   ') : empty}`;
     }
     const m = state.monkeys[r.who];

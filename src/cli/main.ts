@@ -159,8 +159,8 @@ import {
   hatPick,
   inspectItem,
 } from './screen';
-import { forLightBackground, placeScreen, screenTop } from './style';
-import { mouseOff, mouseOn, mousePress, parseMouse } from './mouse';
+import { forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
+import { mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { renderCandidates } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
@@ -725,11 +725,54 @@ function draw() {
           : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
+  // Whatever the mouse is over is highlighted, as the menus' cursor is.
+  const lines = [...drawn.lines];
+  const over = hoverTarget();
+  if (over) lines[over.line] = inverseSpan(lines[over.line], over.from, over.to);
+  const shownScreen = lines.join('\n');
   process.stdout.write(
     (state.settings.mouse ? mouseOn : mouseOff) +
       '\x1b[2J\x1b[H' +
-      placeScreen(state.settings.lightBackground ? forLightBackground(screen) : screen, rows, state.settings.screenAtTop),
+      placeScreen(state.settings.lightBackground ? forLightBackground(shownScreen) : shownScreen, rows, state.settings.screenAtTop),
   );
+}
+
+/** Where the mouse is (null: not over the game, or the keys moved since), and whether the arrow keys or wheel moved a cursor last. */
+let hover: { row: number; col: number } | null = null;
+let navigated = false;
+
+function hoverTarget() {
+  return state.settings.mouse && hover ? targetAt(drawn.lines, drawn.top, hover.row, hover.col, !!pickingLetter) : undefined;
+}
+
+/**
+ * Menus hide their cursor until the arrow keys or the wheel move it (Justin,
+ * 2026-10-16); enter keeps it, any other key hides it again. Moving the mouse
+ * hides it too, since then what's under the mouse is highlighted.
+ */
+function noteKey(name: string | undefined) {
+  if (['up', 'down', 'left', 'right'].includes(name ?? '')) {
+    navigated = true;
+    hover = null;
+  } else if (name !== 'return' && name !== 'enter') navigated = false;
+  showCursors(navigated);
+}
+
+function onMouse(e: MouseEvent) {
+  if (e.kind === 'move') {
+    const before = hoverTarget();
+    hover = { row: e.row, col: e.col };
+    const after = hoverTarget();
+    const moved = navigated || before?.line !== after?.line || before?.from !== after?.from;
+    navigated = false;
+    showCursors(false);
+    if (moved) draw();
+    return;
+  }
+  const press = mousePress(e, drawn.lines, drawn.top, !!pickingLetter, navigated);
+  if (!press) return;
+  noteKey(press.name);
+  handleKey(press.str, { name: press.name });
 }
 
 /** The screen last drawn and the terminal row its first line is on, for mouse clicks. */
@@ -1597,18 +1640,19 @@ if (!process.stdin.isTTY) {
 // each click or wheel turn becomes the key press it stands for.
 const keys = new PassThrough();
 emitKeypressEvents(keys);
-keys.on('keypress', handleKey);
+keys.on('keypress', (str: string | undefined, key: { name?: string; ctrl?: boolean }) => {
+  noteKey(key.name);
+  handleKey(str, key);
+});
 process.stdin.setRawMode(true);
 process.stdin.on('data', (chunk: Buffer) => {
   const { events, rest } = parseMouse(chunk.toString('utf8'));
   if (rest) keys.write(rest);
   if (!state.settings.mouse) return;
-  for (const e of events) {
-    const press = mousePress(e, drawn.lines, drawn.top, !!pickingLetter);
-    if (press) handleKey(press.str, { name: press.name });
-  }
+  for (const e of events) onMouse(e);
 });
 process.stdout.write('\x1b[?25l'); // hide cursor
+showCursors(false);
 
 let last = Date.now();
 setInterval(() => {
