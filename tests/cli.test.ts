@@ -481,7 +481,10 @@ describe('statistics and dictionary', () => {
 
   it('counts sentences and shows the longest one, wrapped under the values', () => {
     const s = started();
-    expect(plain(renderStats(s))).toContain('   Longest sentence   -');
+    const fresh = plain(renderStats(s));
+    expect(fresh).not.toContain('Longest sentence'); // stats stay hidden until they happen
+    expect(fresh).not.toContain('PLAYS');
+    expect(fresh).toContain('Nothing yet');
     s.stats.sentencesWritten = 4;
     s.stats.chainSentences = 1;
     s.stats.longestSentence = Array.from({ length: 30 }, () => 'MONKEY');
