@@ -16,7 +16,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck and tests on every PR. Run both b
 
 ```
 src/
-  format.ts        number formatting (1.23K, 4.56M, ... up to Vg, then 1.23e70; setScientific for the option; formatAmount shows balances in full up to 10 digits; formatMultiplier), shared by any front end
+  format.ts        number formatting (1.23K, 4.56M, ... up to Vg, then 1.23e70; setScientific for the option; formatAmount shows balances in full up to 10 digits, then 1.23e10; formatMultiplier), shared by any front end
   game/            pure game logic: no terminal, DOM, file system or timers
     config.ts      theme strings + balance data (letters, letter values, letter and typing costs, office (room and square costs), furniture (each with a feng shui element and a colour from its looks; managerDesk), fengShui, managerOffice, managerBook, traits and traitRules, research (R&D projects), hr (HR staff and effects, temps), marketing (royalties), monkeyStats (hidden stats and job feelings), monkeyNames and parodyNames, energy, hats (and hatColors, dyeCost), lately (the LATELY feed's window), petting, achievements, folio, milestones, sentenceRules (Sentences from long chains), offline cap, per-second simulation cap)
     state.ts       GameState, MonkeyState and Stats shapes, createInitialState(), monkeyNameFor (famous names and parodyOf them)

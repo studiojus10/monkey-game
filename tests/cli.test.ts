@@ -1042,9 +1042,9 @@ describe('hiring screen', () => {
 });
 
 describe('balances in full', () => {
-  it('shows up to 10 digits with commas, then short form, and shortens the biggest when the title bar is too wide', () => {
+  it('shows up to 10 digits with commas, then scientific notation, and shortens the biggest when the title bar is too wide', () => {
     expect(formatAmount(1234567890)).toBe('1,234,567,890');
-    expect(formatAmount(12345678901)).toBe('12.35B');
+    expect(formatAmount(12345678901)).toBe('1.23e10');
     expect(formatAmount(12.7)).toBe('12');
     const s = createInitialState(0);
     s.currency = 1234567890;
@@ -1053,6 +1053,6 @@ describe('balances in full', () => {
     s.words = s.lines = 1111111111;
     const bar = plain(titleBar(s, 'Shop', 80));
     expect(bar.length).toBeLessThan(80);
-    expect(bar).toContain('9.88B Sentences'); // the biggest went short first
+    expect(bar).toContain('9.88e9 Sentences'); // the biggest went short first
   });
 });
