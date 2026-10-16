@@ -56,7 +56,7 @@ import {
   typewriterName,
   buyLetter,
   checkLetterGifts,
-  buyCapRaise,
+  buyComboStart,
   availableKeys,
   buyKey,
   buyMonkey,
@@ -74,7 +74,8 @@ import {
   toggleSlot,
   reachableLines,
   togglePin,
-  capRaiseCost,
+  comboStartCost,
+  comboStart,
   comboCap,
   comboMultiplier,
   monkeyCost,
@@ -513,17 +514,24 @@ describe('combos', () => {
   });
 });
 
-describe('combo cap', () => {
-  it('is raised with Sentences', () => {
+describe('starting combo', () => {
+  it('starts every chain a step higher per upgrade, bought with Sentences, up to the cap', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    expect(comboCap(s)).toBe(combo.maxMultiplier);
-    expect(buyCapRaise(s)).toBe(false);
-    s.sentences = capRaiseCost(0);
-    expect(buyCapRaise(s)).toBe(true);
+    expect(comboStart(s)).toBe(1);
+    expect(comboMultiplier(s, s.monkeys[0])).toBe(1);
+    expect(buyComboStart(s)).toBe(false);
+    s.sentences = comboStartCost(0);
+    expect(buyComboStart(s)).toBe(true);
     expect(s.sentences).toBe(0);
-    expect(comboCap(s)).toBe(combo.maxMultiplier + 1);
-    expect(capRaiseCost(1)).toBeGreaterThan(capRaiseCost(0));
+    expect(comboStart(s)).toBe(1 + combo.step);
+    expect(comboMultiplier(s, s.monkeys[0])).toBe(1.1); // an empty chain
+    expect(comboMultiplier(s, { ...s.monkeys[0], chainWords: ['AT', 'IT'] })).toBe(1.3);
+    expect(comboStartCost(1)).toBeGreaterThan(comboStartCost(0));
+    expect(comboCap(s)).toBe(combo.maxMultiplier); // the cap stays put
+    s.comboStartLevel = 20; // x3: at the cap
+    s.sentences = 1e12;
+    expect(buyComboStart(s)).toBe(false);
   });
 });
 

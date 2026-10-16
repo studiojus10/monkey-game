@@ -32,16 +32,17 @@ import {
   renderShop,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, cyan, forLightBackground, green, inverse, plainText, red, yellow } from '../src/cli/style';
+import { bold, cyan, forLightBackground, green, inverse, plainText, red, titleBar, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
-import { achievements, monkeyNames } from '../src/game/config';
-import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
-import { load, save } from '../src/game/save';
+import { achievements, lately, monkeyNames } from '../src/game/config';
+import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
+import { deserialize, load, save, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
+import { formatAmount } from '../src/format';
 
 describe('file storage', () => {
   it('saves and loads through a file, and clears it', () => {
@@ -111,6 +112,24 @@ describe('terminal screen', () => {
     expect(highlightChoice('Values: B(3) C(3)', 1)).toBe(`Values: B(3) ${inverse('C(3)')}`);
   });
 
+  it('shows the longest word, the last sentence and the longest sentence lately', () => {
+    const s = started();
+    noteLately(s, 'word', ['BANANA']);
+    noteLately(s, 'word', ['AT']); // shorter: BANANA stays
+    noteLately(s, 'sentence', ['THE', 'CAT', 'SAT', 'ON', 'THE', 'MAT']);
+    noteLately(s, 'sentence', ['A', 'BIG', 'DOG']);
+    const text = plain(renderScreen(s, '', null, 80));
+    expect(text).toContain('Longest word lately: BANANA (6 letters)');
+    expect(text).toContain('Last sentence: A BIG DOG');
+    expect(text).toContain('Longest sentence lately (6 words): THE CAT SAT ON THE MAT');
+    s.stats.secondsTyping += lately.windowSeconds + 1; // an hour on, anything replaces them
+    noteLately(s, 'word', ['AT']);
+    expect(s.lately.longWord).toBe('AT');
+    noteLately(s, 'sentence', Array.from({ length: 30 }, () => 'BANANA'));
+    expect(plain(renderScreen(s, '', null, 60))).toMatch(/Longest sentence lately \(30 words\): BANANA .*\.\.\./); // cut to fit
+    expect(deserialize(serialize(s)).lately).toEqual(s.lately);
+  });
+
   it('shows the currencies, letters, the monkey table and controls', () => {
     const s = started();
     s.currency = 1234;
@@ -123,7 +142,7 @@ describe('terminal screen', () => {
     const tools = squash(renderScreen(s, '', 'typewriters'));
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
-      '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1.23K Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
+      '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
         '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
@@ -143,7 +162,7 @@ describe('terminal screen', () => {
     s.letters.push('A');
     expect(squash(renderScreen(s, '', 'typewriters'))).toContain('[1] Buy a letter key you choose it (24 left) 75 Bananas + 1 Words\n');
     expect(shop).toContain('[2] Hire a monkey you have 1 300.00K Bananas\n');
-    expect(shop).toContain('[3] Raise combo cap x3 -> x4 1 Sentences\n');
+    expect(shop).toContain('[3] Starting combo x1.0 -> x1.1 1 Sentences\n');
   });
 
   it('colours each typist energy: green when fresh, yellow when tiring, red when nearly spent, blue Resting on a break', () => {
@@ -375,7 +394,7 @@ describe('buying scenes in the script browser', () => {
     expect(text).toContain('[b] scene 80 Bananas'); // AYMYLORD is 8 letters
     expect(text).toContain('[a] Act 1 64 Bananas'); // only the unowned scene, less 20%
     s.currency = 100;
-    expect(renderScript(s, 'test', 1)).toContain(`${green('scene')} ${green('*')} ${yellow(`${bold('80')} Bananas`)}`); // affordable: name green, price in Bananas' yellow
+    expect(renderScript(s, 'test', 1)).toContain(green(`scene * ${bold('80')} Bananas`)); // affordable: all green
     s.departments = [];
     s.owned = [];
     expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
@@ -383,11 +402,11 @@ describe('buying scenes in the script browser', () => {
 });
 
 describe('bold prices', () => {
-  it('shows what you can afford with a green name and * and the price in its currency colour, and dims the rest', () => {
+  it('shows what you can afford all in green with a *, and dims the rest', () => {
     const s = started();
     s.currency = 20;
     const staff = renderScreen(s, '', 'staff');
-    expect(staff).toContain(`${green('*')} ${yellow(`${bold('10')} Bananas`)}`); // faster typing: affordable, its number bold
+    expect(staff).toContain(green(`* ${bold('10')} Bananas`)); // faster typing: affordable, its number bold
     expect(staff).toContain(green('Faster typing')); // and its name green
     const hire = staff.split('\n').find((r) => r.includes('Hire a monkey'))!;
     expect(hire.startsWith('\x1b[2m') && plain(hire) === hire.slice(4, -5)).toBe(true); // a monkey: not yet, so the whole row is dim
@@ -414,7 +433,7 @@ describe('typewriter keys menu', () => {
     expect(text).toMatch(/ \[1\] HE   combination    [\d.]+[KMBT]? Bananas/);
     expect(text).toMatch(/ \[2\] THE  word /);
     s.currency = s.sentences = 1e9;
-    expect(renderKeysMenu(s)).toContain(`${green('*')} ${yellow(`${bold('4.00M')} Bananas`)}`); // affordable: * and price in Bananas' yellow
+    expect(renderKeysMenu(s)).toContain(`* ${bold('4.00M')} Bananas`); // affordable: * and price, all green
     expect(plain(renderKeysMenu(s, '', 80)).split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 });
@@ -1019,5 +1038,21 @@ describe('hiring screen', () => {
     s.managerBook = true;
     expect(plain(renderCandidates(s, 'typing', 'x', 1000))).toContain('Loner');
     expect(text.split('\n').every((r) => r.length <= 80)).toBe(true);
+  });
+});
+
+describe('balances in full', () => {
+  it('shows up to 10 digits with commas, then scientific notation, and shortens the biggest when the title bar is too wide', () => {
+    expect(formatAmount(1234567890)).toBe('1,234,567,890');
+    expect(formatAmount(12345678901)).toBe('1.23e10');
+    expect(formatAmount(12.7)).toBe('12');
+    const s = createInitialState(0);
+    s.currency = 1234567890;
+    expect(plain(titleBar(s))).toContain('1,234,567,890 Bananas');
+    s.sentences = 9876543210;
+    s.words = s.lines = 1111111111;
+    const bar = plain(titleBar(s, 'Shop', 80));
+    expect(bar.length).toBeLessThan(80);
+    expect(bar).toContain('9.88e9 Sentences'); // the biggest went short first
   });
 });

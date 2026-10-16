@@ -80,7 +80,9 @@ import {
   slotGenre,
   upgradeManager,
   openDepartment,
-  buyCapRaise,
+  buyComboStart,
+  comboCap,
+  comboStart,
   buyKey,
   buyMonkey,
   monkeyName,
@@ -398,7 +400,7 @@ function buyItem(id: string): void {
     else if (state.currency < p.cost) message = `Not enough ${theme.currency}.`;
     else if (startResearch(state, p.id)) message = `${research.name} is researching ${p.name}.`;
   } else if (id === 'combo') {
-    if (!buyCapRaise(state)) message = noSentences;
+    if (!buyComboStart(state)) message = comboStart(state) >= comboCap(state) ? 'Combos already start at the cap.' : noSentences;
   } else if (id === 'keys') {
     showingKeys = true;
     menuCursor = 0;

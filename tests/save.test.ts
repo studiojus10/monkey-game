@@ -132,3 +132,12 @@ describe('office space in saves', () => {
     expect(connectedRooms(loaded).has(loaded.office[1].id)).toBe(true);
   });
 });
+
+describe('combo upgrades in old saves', () => {
+  it("turns an old save's combo cap raises into starting-combo upgrades", () => {
+    const old = JSON.parse(serialize(createInitialState(0)));
+    delete old.state.comboStartLevel;
+    old.state.comboCapLevel = 3;
+    expect(deserialize(JSON.stringify(old)).comboStartLevel).toBe(3);
+  });
+});

@@ -205,7 +205,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       speedBonus: Math.max(0, num(s.speedBonus, 0)),
       pinned,
       lastLine,
-      comboCapLevel: Math.max(0, Math.floor(num(s.comboCapLevel, 0))),
+      comboStartLevel: Math.max(0, Math.floor(num(s.comboStartLevel, num((s as { comboCapLevel?: unknown }).comboCapLevel, 0)))), // old saves: cap raises become starting-combo upgrades
       keys: strings(s.keys).filter((k) => /^[A-Z]+$/.test(k)),
       slots: Array.isArray(s.slots)
         ? s.slots
@@ -223,6 +223,13 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastWordPoints: num(s.lastWordPoints, 0),
+      lately: {
+        longWord: str(s.lately?.longWord),
+        longWordAt: num(s.lately?.longWordAt, 0),
+        lastSentence: strings(s.lately?.lastSentence),
+        longSentence: strings(s.lately?.longSentence),
+        longSentenceAt: num(s.lately?.longSentenceAt, 0),
+      },
       settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false, lightBackground: s.settings?.lightBackground === true,
         homeDepartment: typeof s.settings?.homeDepartment === 'string' ? s.settings.homeDepartment : '',
         scientific: s.settings?.scientific === true,

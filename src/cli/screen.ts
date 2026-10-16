@@ -1,4 +1,4 @@
-import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -21,8 +21,9 @@ import {
   managerUpgradeCost,
   nextDepartmentAt,
   getPlay,
-  capRaiseCost,
   comboCap,
+  comboStart,
+  comboStartCost,
   comboMultiplier,
   keyCost,
   wordKeySpellsNeeded,
@@ -358,9 +359,19 @@ function letterRow(state: GameState): string {
 }
 
 /** What happened lately: the last word, line and milestone (dim), anything waiting for you, then the newest message in bold. */
-function latelyLines(state: GameState, message: string): string[] {
+function latelyLines(state: GameState, message: string, columns = 0): string[] {
+  const l = state.lately;
+  const room = (columns > 0 ? columns : 80) - 4;
+  /** A sentence's words after its label, cut short with ... to fit the line. */
+  const sentence = (label: string, words: string[]) => {
+    const text = `${label}: ${words.join(' ')}`;
+    return dim(text.length <= room ? text : `${text.slice(0, room - 3).replace(/ \S*$/, '')} ...`);
+  };
   const rows = [
     ...(state.lastWord ? [dim(`Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}`)] : []),
+    ...(l.longWord ? [dim(`Longest word lately: ${l.longWord} (${l.longWord.length} letters)`)] : []),
+    ...(l.lastSentence.length > 0 ? [sentence('Last sentence', l.lastSentence)] : []),
+    ...(l.longSentence.length > 0 ? [sentence(`Longest sentence lately (${l.longSentence.length} words)`, l.longSentence)] : []),
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
     ...folioOffer(state),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
@@ -501,7 +512,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
     `${label('Letters')} ${letterRow(state)}`,
     `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
-    ...latelyLines(state, message),
+    ...latelyLines(state, message, columns),
     ...pinnedText(state),
   ];
   return lines;
@@ -638,7 +649,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
   const typingShop = typingItems(state);
   switch (store) {
     case 'staff': {
-      const nextCap = capRaiseCost(state.comboCapLevel);
+      const nextStart = comboStartCost(state.comboStartLevel);
       const open = departmentGenres(state);
       // With several departments each has its own price, so each gets its own line.
       // A department with no free square for a desk (or no room yet) says so where the price goes.
@@ -721,7 +732,15 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 : { text: `${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? ' is' : 's are'} waiting for a free square for a desk.` },
             ]
           : []),
-        { id: 'combo', star: state.sentences >= nextCap, text: 'Raise combo cap', effect: `x${comboCap(state)} -> x${comboCap(state) + 1}`, cost: [[nextCap, 'sentences']] },
+        comboStart(state) >= comboCap(state)
+          ? { id: 'combo', text: 'Starting combo', effect: `x${comboStart(state).toFixed(1)}`, blocked: 'at the cap' }
+          : {
+              id: 'combo',
+              star: state.sentences >= nextStart,
+              text: 'Starting combo',
+              effect: `x${comboStart(state).toFixed(1)} -> x${(comboStart(state) + combo.step).toFixed(1)}`,
+              cost: [[nextStart, 'sentences']],
+            },
         ...(managerChoices(state).length > 0
           ? [
               {
@@ -949,19 +968,17 @@ export function storePages(state: GameState, store: Store, at?: ScriptSpot): num
   return Math.max(1, Math.ceil(storeItems(state, store, at).filter((x) => x.id).length / storePageSize));
 }
 
-/** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; when `affordable`, numbers bold and each part in its currency's colour. */
+/** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; when `affordable`, numbers bold. */
 function costText(item: ShopItem, affordable = false): string {
-  const parts = (item.cost ?? []).map(([n, c]) =>
-    affordable ? currencyColors[c](`${bold(formatNumber(n))} ${currencyNames[c]}`) : `${formatNumber(n)} ${currencyNames[c]}`,
-  );
+  const parts = (item.cost ?? []).map(([n, c]) => `${affordable ? bold(formatNumber(n)) : formatNumber(n)} ${currencyNames[c]}`);
   return parts.length === 0 ? '' : `${item.costFrom ? 'from ' : ''}${parts.join(' + ')}`;
 }
 
 /**
  * The shop, on its own screen: the stores as tabs (the open one inverse, a *
  * on any with something you can afford), then the open store's items in
- * columns with prices on the right. What you can afford has a green price and
- * a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
+ * columns with prices on the right. What you can afford is green (the whole
+ * row but the glyph) with a *; what you can't yet is dim. Notes are dim too. Feng shui elements show
  * only once the feng shui book is read. `cursor` is the chosen item (counted
  * over every page; its page is the one shown), drawn inverse, or -1 for none.
  * `under` leaves out the title bar, for the shop under another screen.
@@ -1003,8 +1020,9 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     const at = k++;
     const n = at - page * storePageSize;
     if (n < 0 || n >= storePageSize) return [];
-    const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `${green('*')} ${costText(x, true)}` : costText(x);
-    const text = row(`[${n + 1}]`, x.star ? green(x.text) : x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
+    const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
+    const g = (t: string) => (x.star ? green(t) : t);
+    const text = row(`[${n + 1}]`, g(x.text), x.glyph ?? '', g(x.element ?? ''), g(x.effect ?? ''), cost);
     return [at === cursor ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
   });
 
@@ -1102,7 +1120,7 @@ export function renderSlotsMenu(
     ...(managed ? [" This department's manager sets these slots for you.", ''] : []),
     ...(rows.length > 0 ? rows : [dim('   No slots yet.')]),
     ...(canBuy
-      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? `${green('*')} ${currencyColors.lines(`${bold(formatNumber(next))} Lines`)}` : `${formatNumber(next)} Lines`}`]
+      ? ['', ` ${bold('[b]')} buy a slot   ${state.lines >= next ? green(`* ${bold(formatNumber(next))} Lines`) : `${formatNumber(next)} Lines`}`]
       : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
@@ -1157,7 +1175,7 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
       const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
       if (i === cursor) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
       return state.currency >= cost
-        ? `${row(green(k.padEnd(keyWidth)))}${green('*')} ${currencyColors.currency(`${bold(formatNumber(cost))} ${theme.currency}`)}`
+        ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatNumber(cost))} ${theme.currency}`)
         : dim(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
     }),
     ...(choices.length === 0 ? [dim('   None available yet.')] : []),
@@ -1372,7 +1390,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   const sc = sceneOf(play, at)!;
   const section = (key: string, label: string, n: number) =>
     state.currency >= n && n > 0
-      ? `${bold(`[${key}]`)} ${green(label)} ${green('*')} ${currencyColors.currency(`${bold(formatNumber(n))} ${theme.currency}`)}`
+      ? `${bold(`[${key}]`)} ${green(`${label} * ${bold(formatNumber(n))} ${theme.currency}`)}`
       : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatNumber(n)} ${theme.currency}`}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [

@@ -8,7 +8,7 @@
  */
 import { theme, type FurnitureColor } from '../game/config';
 import type { GameState } from '../game/state';
-import { formatNumber } from '../format';
+import { formatAmount } from '../format';
 
 export const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 export const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
@@ -52,18 +52,30 @@ export const currencyColors = { currency: yellow, words: cyan, sentences: magent
 
 /**
  * The bar across the top of a screen: the game's name (and the screen's), then
- * every currency in its colour. On a screen `columns` wide that can't fit it
- * all, a screen other than home shows just its own name.
+ * every currency in its colour, in full up to 10 digits (1,234,567,890). On
+ * a screen `columns` wide that can't fit it all, a screen other than home
+ * shows just its own name, then the biggest totals switch to scientific
+ * notation (1.23e9) until it fits.
  */
 export function titleBar(state: GameState, screen = '', columns = 0): string {
-  const totals = [
-    currencyColors.currency(`${formatNumber(state.currency)} ${theme.currency}`),
-    currencyColors.words(`${formatNumber(state.words)} Words`),
-    currencyColors.sentences(`${formatNumber(state.sentences)} Sentences`),
-    currencyColors.lines(`${formatNumber(state.lines)} Lines`),
-  ].map(bold).join('   ');
+  const amounts: [number, keyof typeof currencyColors, string][] = [
+    [state.currency, 'currency', theme.currency],
+    [state.words, 'words', 'Words'],
+    [state.sentences, 'sentences', 'Sentences'],
+    [state.lines, 'lines', 'Lines'],
+  ];
+  const short = new Set<number>(); // indexes of totals shown short
+  const render = () => amounts.map(([n, c, label], i) => bold(currencyColors[c](`${short.has(i) ? n.toExponential(2).replace('e+', 'e') : formatAmount(n)} ${label}`))).join('   ');
+  let totals = render();
   let name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
-  if (screen && columns > 0 && name.length + 4 + plainText(totals).length >= columns) name = ` ${screen.toUpperCase()} `;
+  const fits = () => name.length + 4 + plainText(totals).length < columns;
+  if (screen && columns > 0 && !fits()) name = ` ${screen.toUpperCase()} `;
+  const biggestFirst = amounts.map((_, i) => i).sort((a, b) => amounts[b][0] - amounts[a][0]);
+  for (const i of biggestFirst) {
+    if (columns <= 0 || fits()) break;
+    short.add(i);
+    totals = render();
+  }
   return `${bold(inverse(name))}    ${totals}`;
 }
 

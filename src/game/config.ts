@@ -66,15 +66,17 @@ export const monkeyShop = {
 /**
  * Combos: each word at least minWordLength long in a chain (repeats too) adds
  * step to the multiplier (Justin, 2026-10-15: small steps, so the meter moves),
- * and it stops at maxMultiplier plus one per cap raise. The n-th cap raise
- * costs capRaiseBaseCost x capRaiseCostGrowth^n Sentences.
+ * and it stops at maxMultiplier (raised by research and the thinking cap).
+ * Every chain starts at 1 plus step per starting-combo upgrade (Justin,
+ * 2026-10-16: the cap raise mattered little, so it became this), up to the
+ * cap. The n-th upgrade costs startBaseCost x startCostGrowth^n Sentences.
  */
 export const combo = {
   minWordLength: 2,
   step: 0.1,
   maxMultiplier: 3,
-  capRaiseBaseCost: 1,
-  capRaiseCostGrowth: 2,
+  startBaseCost: 1,
+  startCostGrowth: 2,
 };
 
 /**
@@ -555,6 +557,15 @@ export const energy = {
  * monkey a little happier; it's mostly for fun (Justin: "petting should have
  * very little effect on the gameplay"), so it adds little and wears off.
  */
+/**
+ * The home screen's LATELY feed (Justin, 2026-10-16: "longest recent word,
+ * most recent sentence, and longest recent sentence"). "Lately" is the last
+ * windowSeconds of typing time: a longer word or sentence replaces the one
+ * shown, and so does any once it is older than that. Sentences keep at most
+ * maxSentenceWords words, to keep saves small.
+ */
+export const lately = { windowSeconds: 3600, maxSentenceWords: 100 };
+
 export const petting = {
   happinessPerPet: 0.005,
   maxHappiness: 0.05, // petting adds at most +5% to a monkey's happiness

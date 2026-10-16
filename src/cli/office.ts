@@ -26,8 +26,9 @@ import {
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
-import { dyed, genreNames, hatOf, monkeyIconLegend, priceNamed, traitNow } from './screen';
+import { dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
 import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
+import { formatNumber } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -245,7 +246,7 @@ export function renderOffice(
     ...roomTable(state, columns),
     ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
     '',
-    ` ${label('New room', roomCost(state), state.sentences)} ${priceNamed(roomCost(state), state.sentences, 'sentences')}   ${label('One more square', squareCost(state), state.sentences)} ${priceNamed(squareCost(state), state.sentences, 'sentences')}`,
+    ` ${label(`New room ${bold(formatNumber(roomCost(state)))} Sentences`, roomCost(state), state.sentences)}   ${label(`One more square ${bold(formatNumber(squareCost(state)))} Sentences`, squareCost(state), state.sentences)}`,
     '',
     ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
     ...(message ? [` ${bold(message)}`] : []),
