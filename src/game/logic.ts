@@ -50,7 +50,7 @@ import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, ty
 import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, moveRoom, placeRoom, roomCanUse, roomFits, tidyDoors, touchingRooms, type Square } from './layout';
-import { chiHappiness, roomChi, squareRank } from './fengshui';
+import { chiHappiness, roomChi, spaceFactor, squareRank, varietyBonus } from './fengshui';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
@@ -577,19 +577,21 @@ function furnitureSum(state: GameState, genre: Genre | undefined, effect: 'drain
   return state.furniture.reduce((n, f) => n + (ids.has(f.room) ? (kindOf(f.kind)?.[effect] ?? 0) : 0), 0);
 }
 
-/** How much slower a department's monkeys tire, from the decor in its room and its lounge (0.1 = 10%). */
+/** How much slower a department's monkeys tire, from the decor in its room and its lounge (0.1 = 10%), times feng shui's space factor. */
 export function drainCut(state: GameState, genre: Genre | undefined): number {
-  return Math.min(energyRules.maxDrainCut, furnitureSum(state, genre, 'drain'));
+  return Math.min(0.9, Math.min(energyRules.maxDrainCut, furnitureSum(state, genre, 'drain')) * spaceFactor(state, enjoyedRooms(state, genre)));
 }
 
-/** How much faster a department's breaks go, from the comforts in its room and its lounge (0.5 = 50%). */
+/** How much faster a department's breaks go, from the comforts in its room and its lounge (0.5 = 50%), with feng shui's space and variety. */
 export function restBoost(state: GameState, genre: Genre | undefined): number {
-  return Math.min(energyRules.maxRestBoost, furnitureSum(state, genre, 'rest'));
+  const rooms = enjoyedRooms(state, genre);
+  return Math.min(energyRules.maxRestBoost, furnitureSum(state, genre, 'rest')) * spaceFactor(state, rooms) + varietyBonus(state, rooms);
 }
 
-/** A department's happiness from the furniture in its room and its lounge (capped): points x (1 + happiness), and its monkeys tire slower and rest faster. */
+/** A department's happiness from the furniture in its room and its lounge (capped, then with feng shui's space and variety): points x (1 + happiness), and its monkeys tire slower and rest faster. */
 export function furnitureHappiness(state: GameState, genre: Genre | undefined): number {
-  return Math.min(energyRules.maxHappiness, furnitureSum(state, genre, 'happiness'));
+  const rooms = enjoyedRooms(state, genre);
+  return Math.min(energyRules.maxHappiness, furnitureSum(state, genre, 'happiness')) * spaceFactor(state, rooms) + varietyBonus(state, rooms);
 }
 
 /** A department's happiness: its furniture's, plus the whole office's feng shui (see fengshui.ts) and HR's. */
