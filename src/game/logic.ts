@@ -1,5 +1,6 @@
 import {
   combo,
+  letterGifts,
   extraWords,
   lineRewards,
   sentenceRules,
@@ -20,7 +21,7 @@ import {
   energy as energyRules,
   hats,
   hatColors,
-  dyeCost,
+  dye,
   desk,
   furnitureKinds,
   startingLetters,
@@ -48,7 +49,7 @@ import {
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
-import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, placeRoom, roomCanUse, tidyDoors, touchingRooms } from './layout';
+import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, moveRoom, placeRoom, roomCanUse, roomFits, tidyDoors, touchingRooms, type Square } from './layout';
 import { chiHappiness, roomChi, squareRank } from './fengshui';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
@@ -343,6 +344,8 @@ export function publishFolio(state: GameState): GameState | null {
   next.folioPages = state.folioPages + folioPagesNow(state);
   next.folioBoost = folioMultiplierAfter(state);
   next.achievements = [...state.achievements];
+  next.letterGifts = [...state.letterGifts];
+  next.freeLetters = state.freeLetters;
   next.stats = state.stats;
   next.settings = state.settings;
   checkAchievements(next);
@@ -522,7 +525,7 @@ export function wearHat(state: GameState, index: number, id: string): boolean {
 }
 
 /**
- * Dyes a monkey's hat a colour (a hatColors id) for dyeCost Sentences; '' washes
+ * Dyes a monkey's hat a colour (a hatColors id) for dyeCost(state) Sentences; '' washes
  * the dye out for free. It needs to be wearing a hat.
  */
 export function dyeHat(state: GameState, index: number, color: string): boolean {
@@ -532,8 +535,8 @@ export function dyeHat(state: GameState, index: number, color: string): boolean 
     m.hatColor = '';
     return true;
   }
-  if (!hatColors.some((c) => c.id === color) || state.sentences < dyeCost) return false;
-  state.sentences -= dyeCost;
+  if (!hatColors.some((c) => c.id === color) || state.sentences < dyeCost(state)) return false;
+  state.sentences -= dyeCost(state);
   m.hatColor = color;
   state.stats.dyes++;
   return true;
@@ -829,16 +832,34 @@ export function canAffordLetter(state: GameState): boolean {
   return state.currency >= letterCost(state.letters.length) && state.words >= letterWordsCost(state.letters.length);
 }
 
-/** Buys a letter you don't own yet, for points and Words. */
-export function buyLetter(state: GameState, letter: string): boolean {
+/** Buys a letter you don't own yet for points and Words, or with `free` takes it for one of your free letters (letterGifts). */
+export function buyLetter(state: GameState, letter: string, free = false): boolean {
   const l = letter.toUpperCase();
   const cost = letterCost(state.letters.length);
   if (state.letters.length === 0 || !/^[A-Z]$/.test(l) || state.letters.includes(l)) return false;
-  if (!canAffordLetter(state)) return false;
-  state.words -= letterWordsCost(state.letters.length);
-  state.currency -= cost;
+  if (free ? state.freeLetters <= 0 : !canAffordLetter(state)) return false;
+  if (free) state.freeLetters--;
+  else {
+    state.words -= letterWordsCost(state.letters.length);
+    state.currency -= cost;
+  }
   state.letters.push(l);
   return true;
+}
+
+/** Play lines written this game, in every play. */
+export function linesWritten(state: GameState): number {
+  return Object.values(state.completed).reduce((n, done) => n + done.length, 0);
+}
+
+/** Gives a free letter for each achievement in letterGifts unlocked and not yet rewarded; returns their ids. */
+export function checkLetterGifts(state: GameState): string[] {
+  const given = letterGifts.filter((id) => !state.letterGifts.includes(id) && state.achievements.includes(id));
+  for (const id of given) {
+    state.letterGifts.push(id);
+    state.freeLetters++;
+  }
+  return given;
 }
 
 /** Cost in points of a monkey for the department-th department opened (from 0) that has already bought `bought`. */
@@ -1016,20 +1037,21 @@ export function roomCost(state: GameState): number {
  * office for a department that has a room and no office (it comes with a
  * manager's desk, beside the department's room with a door between).
  */
-export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): boolean {
+export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square): boolean {
   const cost = roomCost(state);
-  if (state.currency < cost) return false;
+  if (state.sentences < cost) return false;
+  if (at && !roomFitsAt(state, kind, genre ?? '', newRoomCells(kind, at))) return false;
   if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
   if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
   if (kind === 'lab' && !canBuildLab(state)) return false;
   if (kind === 'hr' && !canBuildHR(state)) return false;
   if (kind === 'marketing' && !canBuildMarketing(state)) return false;
-  state.currency -= cost;
+  state.sentences -= cost;
   if (kind === 'office') {
-    const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height);
+    const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height, at);
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
-  } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight);
+  } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
   if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
   seatWaiting(state);
   return true;
@@ -1040,10 +1062,9 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre): bo
  * other kind it touches, and a hallway to the rest of the office if it still
  * needs one. Returns it.
  */
-export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number): Room {
+export function addRoom(state: GameState, kind: Room['kind'], department: string, width: number, height: number, at?: Square): Room {
   const id = `r${Math.max(0, ...state.office.map((r) => Number(r.id.slice(1)) || 0)) + 1}`;
-  const beside = kind === 'office' ? departmentRoom(state, department as Genre) : undefined;
-  const [x0, y0] = placeRoom(state, width, height, kind, beside);
+  const [x0, y0] = at ?? placeRoom(state, width, height, kind, kind === 'office' ? departmentRoom(state, department as Genre) : undefined);
   const room: Room = { id, kind, department: kind === 'break' ? '' : department, cells: rectangle(width, height).map(([x, y]) => [x + x0, y + y0]) };
   state.office.push(room);
   doorToTouching(state, room);
@@ -1051,6 +1072,42 @@ export function addRoom(state: GameState, kind: Room['kind'], department: string
   tidyDoors(state); // windows the new hallway now covers
   for (const r of state.office) addWindow(state, r);
   return room;
+}
+
+/** Where a new room of a kind goes if the player doesn't choose: see placeRoom (a manager's office goes beside its department's room). */
+export function suggestRoomSpot(state: GameState, kind: Room['kind'], department: string): Square {
+  const [w, h] = kind === 'office' ? [managerOffice.width, managerOffice.height] : [officeRules.newRoomWidth, officeRules.newRoomHeight];
+  return placeRoom(state, w, h, kind, kind === 'office' ? departmentRoom(state, department as Genre) : undefined);
+}
+
+/** The squares a new room of a kind takes with its top-left corner at a square. */
+export function newRoomCells(kind: Room['kind'], [x0, y0]: Square): Square[] {
+  const [w, h] = kind === 'office' ? [managerOffice.width, managerOffice.height] : [officeRules.newRoomWidth, officeRules.newRoomHeight];
+  return rectangle(w, h).map(([x, y]): Square => [x + x0, y + y0]);
+}
+
+const touches = (a: Square[], b: Square[]) => a.some(([x, y]) => b.some(([bx, by]) => Math.abs(bx - x) + Math.abs(by - y) === 1));
+
+/**
+ * Whether a room (new, or `id` moved) can stand on these squares: free floor
+ * (see roomFits), and a manager's office beside its department's room.
+ */
+export function roomFitsAt(state: GameState, kind: Room['kind'], department: string, cells: Square[], id = ''): boolean {
+  if (!roomFits(state, cells, { id, kind })) return false;
+  if (kind === 'office') {
+    const dept = departmentRoom(state, department as Genre);
+    return !!dept && touches(cells, dept.cells);
+  }
+  const office = kind === 'department' ? officeOf(state, department as Genre) : undefined;
+  return !office || touches(cells, office.cells);
+}
+
+/** Moves a room by dx, dy (with its furniture, windows and doors), if it can stand there (see roomFitsAt). */
+export function moveRoomBy(state: GameState, id: string, dx: number, dy: number): boolean {
+  const room = state.office.find((r) => r.id === id);
+  if (!room || (dx === 0 && dy === 0)) return false;
+  if (!roomFitsAt(state, room.kind, room.department, room.cells.map(([x, y]): Square => [x + dx, y + dy]), id)) return false;
+  return moveRoom(state, room, dx, dy);
 }
 
 /** Points for the next square added to a room. */
@@ -1087,12 +1144,12 @@ export function bestExpansion(state: GameState, room: Room): [number, number] | 
 export function expandRoom(state: GameState, roomId: string, square?: [number, number]): boolean {
   const room = state.office.find((r) => r.id === roomId);
   const cost = squareCost(state);
-  if (!room || state.currency < cost) return false;
+  if (!room || state.sentences < cost) return false;
   const target = square ?? bestExpansion(state, room);
   if (!target) return false;
   const [x, y] = target;
   if (!expansionSquares(state, room).some(([ex, ey]) => ex === x && ey === y)) return false;
-  state.currency -= cost;
+  state.sentences -= cost;
   const touched = touchingRooms(state, room);
   room.cells.push([x, y]);
   state.squaresBought++;
@@ -1142,7 +1199,12 @@ export function readManagerBook(state: GameState, index: number): boolean {
   return true;
 }
 
-/** Points for the next piece of a kind of furniture. */
+/** Sentences for the next dye: dearer for every hat already dyed. */
+export function dyeCost(state: GameState): number {
+  return Math.ceil(dye.cost * Math.pow(dye.costGrowth, state.monkeys.filter((m) => m.hatColor).length));
+}
+
+/** Sentences for the next piece of a kind of furniture. */
 export function furnitureCost(state: GameState, kind: string): number {
   const k = furnitureKinds.find((f) => f.id === kind);
   if (!k) return Infinity;
@@ -1155,8 +1217,8 @@ export function buyFurniture(state: GameState, kind: string, roomKind?: Room['ki
   const stored = state.stored.furniture[kind] ?? 0;
   const cost = stored > 0 ? 0 : furnitureCost(state, kind); // one in storage comes out for free
   const spot = furnitureSpot(state, kind, roomKind);
-  if (!spot || state.currency < cost) return false;
-  state.currency -= cost;
+  if (!spot || state.sentences < cost) return false;
+  state.sentences -= cost;
   if (stored > 0) unstore(state.stored.furniture, kind);
   state.furniture.push({ kind, ...spot });
   return true;
@@ -1904,6 +1966,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state);
   advanceResearch(state, seconds);
+  checkLetterGifts(state);
   earn(state, royalties(state) * seconds);
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
@@ -2001,6 +2064,7 @@ export function checkAchievements(state: GameState): string[] {
  */
 export function applyOfflineProgress(state: GameState, now: number, rng: Rng = Math.random): number {
   const away = Math.max(0, (now - state.lastSaved) / 1000);
+  if (state.letters.length > 0) state.stats.secondsAway += away;
   const seconds = Math.min(away, maxOfflineSeconds);
   const letters = seconds * state.monkeys.reduce((n, m) => n + (isTypist(m) ? monkeySpeed(state, m) : 0), 0);
   const simulated = Math.min(1, maxOfflineLetters / Math.max(letters, 1));
@@ -2342,7 +2406,7 @@ export function storeFurniture(state: GameState, index: number): boolean {
 export function sellFurniture(state: GameState, index: number): boolean {
   if (!canRemoveFurniture(state, index)) return false;
   const [f] = state.furniture.splice(index, 1);
-  state.currency += sellValue(furnitureKinds.find((k) => k.id === f.kind)?.cost ?? 0);
+  state.sentences += sellValue(furnitureKinds.find((k) => k.id === f.kind)?.cost ?? 0);
   return true;
 }
 

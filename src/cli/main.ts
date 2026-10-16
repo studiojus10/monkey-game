@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
-import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, dyeCost, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
+import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -45,6 +45,7 @@ import {
   pieceSize,
   furnitureSpot,
   furnitureCost,
+  dyeCost,
   moveFurniture,
   rotateFurniture,
   buyRoom,
@@ -106,14 +107,19 @@ import {
   tick,
   togglePin,
   toggleSlot,
+  moveRoomBy,
+  newRoomCells,
+  roomFitsAt,
+  suggestRoomSpot,
 } from '../game/logic';
 import { load, save } from '../game/save';
-import { createInitialState, type Door, type Side } from '../game/state';
+import { createInitialState, type Door, type GameState, type Room, type Side } from '../game/state';
 import { formatMultiplier, formatNumber, setScientific } from '../format';
 import { fileStorage } from './fileStorage';
 import {
   keyChoices,
-  letterPickPrompt,
+  renderLetterPicker,
+  unownedLetters,
   genreNames,
   departmentPrompt,
   managerChoices,
@@ -156,7 +162,7 @@ import { renderCandidates } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { sideName, furnitureName, inspectSquare, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
+import { sideName, furnitureName, inspectSquare, libraryBooks, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
 
 const FRAME_MS = 250;
@@ -203,7 +209,7 @@ let message = [
 let confirmingReset = false;
 let confirmingFolio = false;
 let confirmingFlip = false;
-let pickingLetter = false;
+let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
 let showingScript = false;
 let scriptCursor = 0;
 let contents: '' | 'plays' | 'scenes' = ''; // the script's table of contents, when open
@@ -223,6 +229,8 @@ let showingOffice = false;
 let officeCursor: Cell | null = null; // the selected cell on the office map
 let officeGrowing = ''; // id of the room whose new square is being chosen
 let buyingRoom = false; // choosing what room to buy on the office map
+let placingRoom: { kind: RoomKind; genre?: Genre; at: [number, number] } | null = null; // a new room being put in place with the arrows
+let movingRoom: { id: string; dx: number; dy: number } | null = null; // a room picked up to move
 let showingOptions = false;
 let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
 let heldTurned = false; // whether it was turned when picked up, for esc
@@ -241,6 +249,7 @@ let readingManagerBook = false; // the manager's book, open from the office map
 let officeHelp = false; // the office map's [?] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding a book (feng shui or the manager's), just inspected: [y] reads it
 let menuCursor = 0; // the chosen row of the open menu (opening screens, options, dev tools, keys, hiring)
+let letterCursor = 0; // the chosen letter in the letter picker, among the letters not owned
 let pickCursor = 0; // the chosen choice of a picker on the message line
 let homeCursor = 0; // the chosen monkey's row in the home screen's table
 let shopCursor = 0; // the chosen item in the open store, counted over all its pages
@@ -339,7 +348,8 @@ function buyItem(id: string): void {
       message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
     } else {
       pickingLetter = true;
-      message = letterPickPrompt(state);
+      letterCursor = 0;
+      message = '';
     }
   } else if (id.startsWith('hire:')) {
     const g = id.slice('hire:'.length) as Genre;
@@ -425,7 +435,7 @@ function buyItem(id: string): void {
     if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
     else if (!furnitureSpot(state, kind, where))
       message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
-    else if (!state.stored.furniture[kind] && state.currency < furnitureCost(state, kind)) message = `Not enough ${theme.currency}.`;
+    else if (!state.stored.furniture[kind] && state.sentences < furnitureCost(state, kind)) message = 'Not enough Sentences.';
     else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in.${officeShop ? '' : ' Move it on the office map with [o].'}`;
@@ -458,7 +468,7 @@ function dyeHatOn(i: number, color: string): string {
   const name = monkeyName(state, i);
   if (!m.hat) return `${name} isn't wearing a hat.`;
   if (m.hatColor === color) return `${name}'s hat is that colour already.`;
-  if (color && state.sentences < dyeCost) return noSentences;
+  if (color && state.sentences < dyeCost(state)) return noSentences;
   dyeHat(state, i, color);
   return color ? `${name}'s hat is ${hatColors.find((c) => c.id === color)!.name.toLowerCase()} now.` : `${name}'s hat is washed clean.`;
 }
@@ -484,6 +494,61 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
   ];
 }
 
+/** The office as the map shows it: with the room being placed or moved where it would go. */
+function officeView(): GameState {
+  if (!placingRoom && !movingRoom) return state;
+  const view = structuredClone(state);
+  if (placingRoom) view.office.push({ id: 'new', kind: placingRoom.kind, department: placingRoom.genre ?? '', cells: newRoomCells(placingRoom.kind, placingRoom.at) });
+  else if (movingRoom) {
+    const { id, dx, dy } = movingRoom;
+    const room = view.office.find((r) => r.id === id)!;
+    const inRoom = (x: number, y: number) => room.cells.some(([cx, cy]) => cx === x && cy === y);
+    view.windows = view.windows.map((w) => (inRoom(w.x, w.y) ? { ...w, x: w.x + dx, y: w.y + dy } : w));
+    view.doors = view.doors.filter((d) => !inRoom(d.x, d.y));
+    room.cells = room.cells.map(([x, y]) => [x + dx, y + dy]);
+    for (const f of view.furniture) if (f.room === id) Object.assign(f, { x: f.x + dx, y: f.y + dy });
+  }
+  return view;
+}
+
+/** The map's cursor: on the top-left square of a room being placed or moved. */
+function roomCursor(): { x: number; y: number } | null {
+  if (placingRoom) return { x: placingRoom.at[0], y: placingRoom.at[1] };
+  if (movingRoom && officeCursor) return { x: officeCursor.x + movingRoom.dx, y: officeCursor.y + movingRoom.dy };
+  return officeCursor;
+}
+
+/** Whether the room being placed or moved can stand where it is now. */
+function roomSpotOk(): boolean {
+  if (placingRoom) return roomFitsAt(state, placingRoom.kind, placingRoom.genre ?? '', newRoomCells(placingRoom.kind, placingRoom.at));
+  const room = movingRoom && state.office.find((r) => r.id === movingRoom!.id);
+  return !!room && roomFitsAt(state, room.kind, room.department, room.cells.map(([x, y]) => [x + movingRoom!.dx, y + movingRoom!.dy]), room.id);
+}
+
+/** The message line while placing or moving a room: whether it fits, and the keys. */
+function roomSpotPrompt(): string {
+  const what = placingRoom ? 'Placing the new room' : `Moving the ${roomName(state, state.office.find((r) => r.id === movingRoom?.id)!)}`;
+  const kind = placingRoom?.kind ?? state.office.find((r) => r.id === movingRoom?.id)?.kind;
+  const why = kind === 'office' ? "a manager's office must touch its department's room" : 'rooms need empty floor, and two rooms of one kind keep a hallway apart';
+  return `${what}: arrows move it, ${roomSpotOk() ? `[enter] ${placingRoom ? 'builds' : 'puts'} it here` : `it can't go here (${why})`}, [esc] cancels.`;
+}
+
+/** What the message line says about a newly built room. */
+function newRoomMessage(room: Room): string {
+  const next = touchingRooms(state, room).filter((r) => doorBetween(state, room, r)).map((r) => `the ${roomName(state, r)}`);
+  const served = room.kind === 'break' ? servedBy(state, room).map((r) => `the ${roomName(state, r)}`) : [];
+  const lounge = room.kind === 'department' ? loungeOf(state, room) : undefined;
+  return [
+    `You have a new room, the ${roomName(state, room)}, ${next.length > 0 ? `with a door straight into ${next.join(' and ')}` : 'with a hallway to the rest of the office'}.`,
+    ...(served.length > 0 ? [`It's the lounge of ${served.join(' and ')}.`] : []),
+    ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
+    ...(room.kind === 'office' ? ["It comes with a manager's desk. Hire a manager in the Staff store."] : []),
+    ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
+    ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
+    ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
+  ].join(' ');
+}
+
 /** The office map's furniture shop: under the map when the screen is tall enough for both, else on its own. */
 function officeShopScreen(columns: number): string {
   const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true));
@@ -498,6 +563,7 @@ function openOffice(): void {
   heldFurniture = -1;
   officeGrowing = '';
   buyingRoom = false;
+  placingRoom = movingRoom = null;
   message = '';
   if (!officeCursor) {
     const [x, y] = state.office[0].cells[0];
@@ -591,6 +657,11 @@ function shopKey(store: Store, str: string | undefined, key: { name?: string }):
 
 function draw() {
   const columns = fitLines();
+  // A free letter pops up the letter picker, once nothing else is waiting on an answer.
+  if (!pickingLetter && state.freeLetters > 0 && unownedLetters(state).length > 0 && !pickerOpen() && !giving && namingMonkey < 0 && !confirmingFolio) {
+    pickingLetter = 'free';
+    letterCursor = 0;
+  }
   // New achievements get a message (offline ones too, on the first draw).
   const fresh = state.achievements.slice(achievementsSeen);
   if (fresh.length > 0) {
@@ -605,7 +676,9 @@ function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
-  const screen = pick
+  const screen = pickingLetter
+    ? renderLetterPicker(state, pickingLetter === 'free', letterCursor, message, columns)
+    : pick
     ? renderMonkeyPicker(state, pick.title, pick.notes, menuCursor, shown, columns)
     : showingInventory
     ? renderInventory(state, invRow, invCol, invHeld, shown, columns)
@@ -624,7 +697,7 @@ function draw() {
     : showingOffice && officeShop
     ? officeShopScreen(columns)
     : showingOffice
-    ? renderOffice(state, shown, officeCursor, heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
+    ? renderOffice(officeView(), shown, roomCursor(), heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
     : showingAchievements
     ? renderAchievements(state, achievementRow, columns)
     : showingRoster
@@ -682,7 +755,7 @@ function startNaming(index: number) {
 
 /** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
 function pickerOpen(): boolean {
-  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || pickingLetter || buyingRoom);
+  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
 }
 
 /** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */
@@ -697,6 +770,34 @@ function menuKey(key: { name?: string }, n: number): number {
 
 function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
   if (key.ctrl && key.name === 'c') return quit();
+
+  // The letter picker: a popup until a letter is chosen (free letters can't be put off).
+  if (pickingLetter) {
+    const open = unownedLetters(state);
+    const free = pickingLetter === 'free';
+    if (['left', 'right', 'up', 'down'].includes(key.name ?? '')) {
+      const back = key.name === 'left' || key.name === 'up';
+      letterCursor = (Math.min(letterCursor, open.length - 1) + (back ? open.length - 1 : 1)) % open.length;
+      return draw();
+    }
+    const letter = key.name === 'return' || key.name === 'enter' ? open[Math.min(letterCursor, open.length - 1)] : (str ?? '').toUpperCase();
+    if (!open.includes(letter)) {
+      if (free) message = /^[A-Z]$/.test(letter) ? `You have ${letter} already. Choose another letter.` : 'Choose a letter first.';
+      else {
+        pickingLetter = false;
+        message = '';
+      }
+    } else if (buyLetter(state, letter, free)) {
+      const done = `You ${free ? 'took' : 'bought'} ${letter}.`;
+      pickingLetter = unownedLetters(state).length === 0 ? false : free ? (state.freeLetters > 0 ? 'free' : false) : canAffordLetter(state);
+      letterCursor = 0;
+      message = pickingLetter && free ? `${done} Another free letter!` : done;
+    } else {
+      pickingLetter = false;
+      message = 'Not enough to buy that letter.';
+    }
+    return draw();
+  }
 
   // A picker on the message line: arrows move its cursor and enter picks, as if its key were pressed.
   if (!pickerOpen()) pickCursor = 0;
@@ -861,20 +962,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingLetter) {
-    const letter = str?.toUpperCase() ?? '';
-    if (!/^[A-Z]$/.test(letter) || state.letters.includes(letter)) {
-      pickingLetter = false;
-      message = 'Done.';
-    } else if (buyLetter(state, letter)) {
-      pickingLetter = canAffordLetter(state);
-      message = pickingLetter ? `You bought ${letter}.  ${letterPickPrompt(state)}` : `You bought ${letter}.`;
-    } else {
-      pickingLetter = false;
-      message = 'Not enough to buy that letter.';
-    }
-    return draw();
-  }
 
   if (showingScript && contents) {
     message = '';
@@ -1073,9 +1160,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (offeredBook >= 0) {
       const piece = offeredBook;
       offeredBook = -1;
+      const shelved = libraryBooks(state)[Number(str) - 1];
       if (str === 'y' && readFengShuiBook(state, piece)) readingBook = true;
       else if (str === 'y' && readManagerBook(state, piece)) readingManagerBook = true;
-      else message = 'You leave the book where it was, for now.';
+      else if (shelved?.id === 'fengshui') readingBook = true;
+      else if (shelved?.id === 'manager') readingManagerBook = true;
+      else if (str === 'y' || !shelved) message = 'You leave the books where they are, for now.';
       return draw();
     }
     if (str === 'i' && !officeGrowing) {
@@ -1084,26 +1174,56 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       offeredBook = seen.book;
       return draw();
     }
+    if (placingRoom || movingRoom) {
+      const step: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+      const move = step[key.name ?? ''];
+      if (move) {
+        if (placingRoom) placingRoom.at = [placingRoom.at[0] + move[0], placingRoom.at[1] + move[1]];
+        else if (movingRoom) Object.assign(movingRoom, { dx: movingRoom.dx + move[0], dy: movingRoom.dy + move[1] });
+        message = roomSpotPrompt();
+      } else if (key.name === 'escape' || key.name === 'q') {
+        message = placingRoom ? 'No room bought.' : 'The room stays where it was.';
+        placingRoom = movingRoom = null;
+      } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
+        if (placingRoom) {
+          const { kind, genre, at } = placingRoom;
+          if (!roomSpotOk()) message = roomSpotPrompt();
+          else if (state.sentences < roomCost(state)) {
+            placingRoom = null;
+            message = noSentences;
+          } else if (buyRoom(state, kind, genre, at)) {
+            placingRoom = null;
+            const room = state.office[state.office.length - 1];
+            Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
+            message = newRoomMessage(room);
+          } else {
+            placingRoom = null;
+            message = 'No room bought.';
+          }
+        } else if (movingRoom) {
+          const { id, dx, dy } = movingRoom;
+          if (dx === 0 && dy === 0) {
+            movingRoom = null;
+            message = 'The room stays where it was.';
+          } else if (moveRoomBy(state, id, dx, dy)) {
+            movingRoom = null;
+            const room = state.office.find((r) => r.id === id)!;
+            Object.assign(c, { x: c.x + dx, y: c.y + dy });
+            message = `The ${roomName(state, room)} moved, with everything in it.`;
+          } else message = roomSpotPrompt();
+        }
+      } else message = roomSpotPrompt();
+      return draw();
+    }
     if (buyingRoom) {
       buyingRoom = false;
       const choice = roomChoices()[Number(str) - 1];
       if (str !== 'b' && !choice) message = 'No room bought.';
-      else if (state.currency < roomCost(state)) message = `Not enough ${theme.currency}.`;
-      else if (choice ? buyRoom(state, choice.kind, choice.genre) : buyRoom(state, 'break')) {
-        const room = state.office[state.office.length - 1];
-        Object.assign(c, { x: room.cells[0][0], y: room.cells[0][1] });
-        const next = touchingRooms(state, room).filter((r) => doorBetween(state, room, r)).map((r) => `the ${roomName(state, r)}`);
-        const served = room.kind === 'break' ? servedBy(state, room).map((r) => `the ${roomName(state, r)}`) : [];
-        const lounge = room.kind === 'department' ? loungeOf(state, room) : undefined;
-        message = [
-          `You have a new room, the ${roomName(state, room)}, ${next.length > 0 ? `with a door straight into ${next.join(' and ')}` : 'with a hallway to the rest of the office'}.`,
-          ...(served.length > 0 ? [`It's the lounge of ${served.join(' and ')}.`] : []),
-          ...(lounge ? [`Its lounge is the ${roomName(state, lounge)}.`] : []),
-          ...(room.kind === 'office' ? ["It comes with a manager's desk. Hire a manager in the Staff store."] : []),
-          ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
-          ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
-          ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
-        ].join(' ');
+      else if (state.sentences < roomCost(state)) message = noSentences;
+      else {
+        const kind = choice?.kind ?? 'break';
+        placingRoom = { kind, genre: choice?.genre, at: suggestRoomSpot(state, kind, choice?.genre ?? '') };
+        message = roomSpotPrompt();
       }
       return draw();
     }
@@ -1163,7 +1283,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         const name = furnitureName(state, spot);
         const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
         if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in storage. Buying another from the store takes it out for free.`;
-        else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} ${theme.currency}.`;
+        else if (str === '$' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} Sentences.`;
+      }
+    } else if (str === 'm' && !holding && !officeGrowing) {
+      if (!here) message = 'Move the cursor onto a room to move it.';
+      else {
+        movingRoom = { id: here.id, dx: 0, dy: 0 };
+        message = roomSpotPrompt();
       }
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
@@ -1172,13 +1298,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const choices = roomChoices().map(
         (c, i) => `[${i + 1}] ${c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
       );
-      message = `Buy a room (${formatNumber(roomCost(state))} ${theme.currency}): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
+      message = `Buy a room (${formatNumber(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
       if (officeGrowing) {
         const room = state.office.find((r) => r.id === officeGrowing);
         if (here) message = 'That square is already part of a room. Choose a +.';
-        else if (state.currency < squareCost(state)) message = `Not enough ${theme.currency}.`;
+        else if (state.sentences < squareCost(state)) message = noSentences;
         else if (!room || !expandRoom(state, room.id, [c.x, c.y])) message = 'Rooms grow onto empty squares next to them, not touching another room. Choose a +.';
       } else if (heldFurniture >= 0) {
         const f = state.furniture[heldFurniture];
@@ -1462,6 +1588,7 @@ setInterval(() => {
   const now = Date.now();
   setHour(new Date().getHours());
   const temps = tempsNow();
+  state.stats.secondsOpen += (now - last) / 1000;
   tick(state, (now - last) / 1000);
   message = tempsGone(temps) || message;
   last = now;

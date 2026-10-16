@@ -1,5 +1,5 @@
 /**
- * Feng shui: how well each room is arranged. A room keeps five simple rules,
+ * Feng shui: how well each room is arranged. A room keeps seven simple rules,
  * and its chi is the share it keeps. Once you've read the feng shui book (found
  * in a bookshelf), the office's chi (over the rooms you can reach) adds a
  * little happiness. Optional depth: auto-placed offices do fine,
@@ -9,7 +9,7 @@ import { desk, elements, fengShui, furnitureKinds, type Element } from './config
 import { connectedRooms, doorAt, doorPaths, windowAt, type Square } from './layout';
 import type { Furniture, GameState, Room } from './state';
 
-export type ChiRule = 'light' | 'command' | 'flow' | 'entrance' | 'balance';
+export type ChiRule = 'light' | 'command' | 'flow' | 'entrance' | 'balance' | 'space' | 'variety';
 
 /** The rules, in the order they're shown, with what each asks of a room (department rooms and break rooms differ on command). */
 export const chiRules: { id: ChiRule; name: string; department: string; break: string }[] = [
@@ -18,6 +18,8 @@ export const chiRules: { id: ChiRule; name: string; department: string; break: s
   { id: 'flow', name: 'Flow', department: 'no door looks straight at a window or another door across the room, unless something stands in between', break: 'no door looks straight at a window or another door across the room, unless something stands in between' },
   { id: 'entrance', name: 'Welcome', department: 'nothing on the square just inside a door', break: 'nothing on the square just inside a door' },
   { id: 'balance', name: 'Balance', department: 'all five elements: wood, fire, earth, metal and water', break: 'all five elements: wood, fire, earth, metal and water' },
+  { id: 'space', name: 'Space', department: `at least ${Math.round(fengShui.openShare * 100)}% of the floor left empty, for chi to wander`, break: `at least ${Math.round(fengShui.openShare * 100)}% of the floor left empty, for chi to wander` },
+  { id: 'variety', name: 'Variety', department: `no more than ${fengShui.maxSameKind} of any one piece (desks aside)`, break: `no more than ${fengShui.maxSameKind} of any one piece` },
 ];
 
 /** A kind of furniture's element. */
@@ -35,7 +37,7 @@ function squaresOf(f: Furniture): Square[] {
 }
 const kindOf = (id: string) => (id === desk.id ? desk : furnitureKinds.find((k) => k.id === id));
 
-/** Which of the five rules a room keeps. */
+/** Which of the seven rules a room keeps. */
 export function roomRules(state: GameState, room: Room): Record<ChiRule, boolean> {
   const inRoom = (x: number, y: number) => room.cells.some(([cx, cy]) => cx === x && cy === y);
   const pieces = state.furniture.filter((f) => f.room === room.id);
@@ -78,7 +80,13 @@ export function roomRules(state: GameState, room: Room): Record<ChiRule, boolean
   const have = new Set<Element>(pieces.map((f) => elementOf(f.kind)).filter((e): e is Element => !!e));
   const balance = elements.every((e) => have.has(e));
 
-  return { light, command, flow, entrance, balance };
+  const space = room.cells.length - taken.size >= fengShui.openShare * room.cells.length;
+
+  const kinds = new Map<string, number>();
+  for (const f of pieces) if (f.kind !== desk.id) kinds.set(f.kind, (kinds.get(f.kind) ?? 0) + 1);
+  const variety = [...kinds.values()].every((n) => n <= fengShui.maxSameKind);
+
+  return { light, command, flow, entrance, balance, space, variety };
 }
 
 /** A room's chi: the share of the rules it keeps, 0 to 1. */

@@ -223,7 +223,7 @@ export function renderOffice(
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
             [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['s', 'store'], ['$', 'sell'], ['i', 'inspect'], ['x', 'grow']],
-            [['r', 'buy a room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
+            [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
           ];
   const doing = grow
     ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
@@ -245,7 +245,7 @@ export function renderOffice(
     ...roomTable(state, columns),
     ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
     '',
-    ` ${label('New room', roomCost(state), state.currency)} ${priceNamed(roomCost(state), state.currency)}   ${label('One more square', squareCost(state), state.currency)} ${priceNamed(squareCost(state), state.currency)}`,
+    ` ${label('New room', roomCost(state), state.sentences)} ${priceNamed(roomCost(state), state.sentences, 'sentences')}   ${label('One more square', squareCost(state), state.sentences)} ${priceNamed(squareCost(state), state.sentences, 'sentences')}`,
     '',
     ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
     ...(message ? [` ${bold(message)}`] : []),
@@ -346,6 +346,8 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     `   ${research.name} researchers work in the ${research.name} lab.`,
     '   Every room needs a way in from room 1: doors (/) and hallways.',
     '   A room grows one square at a time ([x] on the map).',
+    '   A new room ([r]) goes where you put it: arrows, then [enter].',
+    '   [m] picks up the room under the cursor, with everything in it, to move it.',
     '   Windows (: or ===) go in walls that face outside.',
     '',
     dim(' LOUNGES'),
@@ -368,7 +370,19 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
  * the one there (a desk says who sits at it), else a window in its walls, else
  * nothing of interest. `book` is the piece hiding the feng shui book, or -1.
  */
-export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number } {
+/**
+ * The books found so far (Justin, 2026-10-16: every bookshelf is the home of
+ * the game's lore): inspecting any bookshelf lists them to read again. New
+ * books and texts go here as they're added.
+ */
+export function libraryBooks(state: GameState): { id: 'fengshui' | 'manager'; title: string }[] {
+  return [
+    ...(state.fengShuiBook ? [{ id: 'fengshui' as const, title: fengShui.title }] : []),
+    ...(state.managerBook ? [{ id: 'manager' as const, title: managerBook.title }] : []),
+  ];
+}
+
+export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number; shelf?: boolean } {
   const room = roomAt(state, x, y);
   const spot = held >= 0 ? held : room ? cellAt(state, room.id, x, y) : 'floor';
   if (typeof spot === 'number') {
@@ -378,7 +392,17 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
     if (f.kind === desk.id) return { text: [...(who === undefined ? ['An empty desk.'] : sits), desk.description].join(' '), book: -1 };
     const k = furnitureKinds.find((x) => x.id === f.kind);
     const found = hidesBook(state, spot) ? fengShui.found : hidesManagerBook(state, spot) ? managerBook.found : '';
-    return { text: [...(f.kind === managerDesk.id ? sits : []), k?.description ?? fengShui.nothing, ...(found ? [found, '[y] read it'] : [])].join('  '), book: found ? spot : -1 };
+    const shelf = f.kind === fengShui.hiddenIn ? libraryBooks(state) : [];
+    return {
+      text: [
+        ...(f.kind === managerDesk.id ? sits : []),
+        k?.description ?? fengShui.nothing,
+        ...(found ? [found, '[y] read it'] : []),
+        ...(shelf.length > 0 ? [`On the shelf: ${shelf.map((b, i) => `[${i + 1}] ${b.title}`).join('   ')}`] : []),
+      ].join('  '),
+      book: found || shelf.length > 0 ? spot : -1,
+      ...(shelf.length > 0 ? { shelf: true } : {}),
+    };
   }
   if (room && (['n', 'e', 's', 'w'] as Side[]).some((s) => windowAt(state, x, y, s))) return { text: fengShui.window, book: -1 };
   return { text: fengShui.nothing, book: -1 };
@@ -421,7 +445,7 @@ export function renderManagerBook(state: GameState, columns = 0): string {
   ].join('\n');
 }
 
-/** The feng shui book: the five rules, the elements, and what each room keeps and lacks. */
+/** The feng shui book: the seven rules, the elements, and what each room keeps and lacks. */
 export function renderFengShuiBook(state: GameState): string {
   const kinds = [desk, ...furnitureKinds];
   const byElement = elements.map((e) => {
@@ -442,7 +466,7 @@ export function renderFengShuiBook(state: GameState): string {
     '"Chi enters by the door, wanders the room, and leaves the way it came.',
     ' A monkey who cannot see the door will never truly rest."',
     '',
-    'General guidelines for placing furniture. The more of the five a room follows, the better',
+    'General guidelines for placing furniture. The more of the seven a room follows, the better',
     `its chi; good chi across the office makes every monkey happier, up to +${pct(fengShui.maxHappiness)}.`,
     '',
     ...chiRules.map((x) =>

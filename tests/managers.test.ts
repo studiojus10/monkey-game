@@ -39,7 +39,7 @@ function department(typists: number): GameState {
     const [x, y] = room.cells.find(([cx, cy]) => !s.furniture.some((f) => f.room === room.id && f.x === cx && f.y === cy))!;
     s.furniture.push({ kind: 'desk', room: room.id, x, y });
   }
-  s.currency = 1e15;
+  s.currency = s.sentences = 1e15;
   return s;
 }
 
@@ -375,12 +375,12 @@ describe('storing, selling and firing', () => {
     expect(L.storeFurniture(s, at)).toBe(true);
     expect(s.stored.furniture).toEqual({ plant: 1 });
     expect(L.furnitureCost(s, 'plant')).toBe(price); // storing doesn't make the next one cheaper
-    const money = s.currency;
+    const money = s.sentences;
     expect(buyFurniture(s, 'plant')).toBe(true); // out of storage, free
-    expect(s.currency).toBe(money);
+    expect(s.sentences).toBe(money);
     expect(s.stored.furniture).toEqual({});
     expect(L.sellFurniture(s, s.furniture.length - 1)).toBe(true);
-    expect(s.currency).toBe(money + Math.floor(plant.cost * sellBack));
+    expect(s.sentences).toBe(money + Math.floor(plant.cost * sellBack));
     expect(deserialize(serialize({ ...s, stored: { furniture: { plant: 2, nonsense: 1 }, hats: { crown: 1 } } })).stored).toEqual({ furniture: { plant: 2 }, hats: { crown: 1 } });
   });
 
@@ -473,7 +473,7 @@ describe('temps', () => {
   it('come in HR lists with better stats, cost less, cannot be upgraded, and leave when their time is up', async () => {
     const L = await import('../src/game/logic');
     const s = department(6);
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     s.lines = 1e9;
     buyRoom(s, 'office', 'comedy');
     hireManager(s, 'comedy');

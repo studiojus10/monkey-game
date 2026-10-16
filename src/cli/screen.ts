@@ -1,4 +1,4 @@
-import { scriptShop, dyeCost, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing } from '../game/config';
 import {
   availableKeys,
   canPublishFolio,
@@ -8,6 +8,7 @@ import {
   furnitureSpot,
   hatCost,
   furnitureCost,
+  dyeCost,
   canSeatMonkey,
   availablePlays,
   departmentPicks,
@@ -156,10 +157,35 @@ export function highlightChoice(prompt: string, k: number): string {
   return c ? prompt.slice(0, c.start) + inverse(prompt.slice(c.start, c.end)) + prompt.slice(c.end) : prompt;
 }
 
-/** The prompt shown while picking which letter to buy, with each letter's value. */
-export function letterPickPrompt(state: GameState): string {
-  const choices = unownedLetters(state).map((l) => `${l}(${letterValues[l]})`);
-  return `Press letters to buy (any other key: done). Values: ${choices.join(' ')}`;
+/**
+ * The letter picker, for bought and free letters alike: A to Z with the
+ * letters already owned dimmed, and the cursor on one of the letters still
+ * to get (`cursor` counts those).
+ */
+export function renderLetterPicker(state: GameState, free: boolean, cursor: number, message = '', columns = 0): string {
+  const open = unownedLetters(state);
+  const chosen = open[Math.min(cursor, open.length - 1)];
+  const letters = Object.keys(letterValues)
+    .sort()
+    .map((l) => (state.letters.includes(l) ? dim(l) : l === chosen ? inverse(l) : bold(l)))
+    .join(' ');
+  const gift = achievements.find((a) => a.id === state.letterGifts[state.letterGifts.length - 1])?.name ?? '';
+  const title = free
+    ? `A free letter${gift ? ` for "${gift}"` : ''}! Choose one.${state.freeLetters > 1 ? `  (${state.freeLetters} free letters)` : ''}`
+    : `Buy a letter for ${priceNamed(letterCost(state.letters.length), state.currency)}${letterWordsCost(state.letters.length) > 0 ? ` and ${priceNamed(letterWordsCost(state.letters.length), state.words, 'words')}` : ''}.`;
+  return [
+    titleBar(state, 'Letters', columns),
+    '',
+    ` ${title}`,
+    '',
+    `   ${letters}`,
+    '',
+    ` ${dim('Dimmed letters are yours already.')}`,
+    ...(message ? ['', ` ${bold(message)}`] : []),
+    '',
+    rule(columns),
+    keyRow([['left/right', 'choose'], ['enter', free ? 'take' : 'buy'], ['A-Z', free ? 'take' : 'buy'], ...(free ? [] : [['esc', 'done'] as [string, string]])], columns),
+  ].join('\n');
 }
 
 /** Exact counts with thousands separators, e.g. 4,011. */
@@ -752,13 +778,13 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           const where = k.rooms.includes(store) ? store : k.rooms[0];
           return {
             id: `furniture:${k.id}@${where}`,
-            star: !!furnitureSpot(state, k.id, where) && state.currency >= cost,
+            star: !!furnitureSpot(state, k.id, where) && state.sentences >= cost,
             text: k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name,
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
             effect: stored > 0 ? `${furnitureEffect(k)}; ${stored} stored` : furnitureEffect(k),
-            cost: [[cost, 'currency']],
+            cost: [[cost, 'sentences']],
           };
         }),
         {
@@ -820,10 +846,10 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
         }),
         {
           id: 'dye',
-          star: state.monkeys.some((m) => m.hat) && state.sentences >= dyeCost,
+          star: state.monkeys.some((m) => m.hat) && state.sentences >= dyeCost(state),
           text: 'Dye a hat...',
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
-          cost: [[dyeCost, 'sentences']],
+          cost: [[dyeCost(state), 'sentences']],
         },
         { text: 'Monkeys keep every hat they get: wearing one again is free.' },
       ];
@@ -887,7 +913,7 @@ export function dyeColorPrompt(): string {
 export function dyePick(state: GameState, color: string): { title: string; notes: string[] } {
   const name = hatColors.find((c) => c.id === color)?.name ?? 'Undyed';
   return {
-    title: `${paint(color, name)} (${color ? priceNamed(dyeCost, state.sentences, 'sentences') : 'free'}): which monkey's hat?`,
+    title: `${paint(color, name)} (${color ? priceNamed(dyeCost(state), state.sentences, 'sentences') : 'free'}): which monkey's hat?`,
     notes: state.monkeys.map((m) => (!m.hat ? 'no hat' : m.hatColor === color ? 'already' : '')),
   };
 }

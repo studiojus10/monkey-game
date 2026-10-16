@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dyeCost, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dye, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
+  moveRoomBy,
+  newRoomCells,
+  roomFitsAt,
   chainSentences,
   hatCost,
   addRoom,
@@ -34,6 +37,7 @@ import {
   cellAt,
   furnitureSpot,
   furnitureCost,
+  dyeCost,
   moveFurniture,
   buyRoom,
   expandRoom,
@@ -51,6 +55,7 @@ import {
   typewriterCost,
   typewriterName,
   buyLetter,
+  checkLetterGifts,
   buyCapRaise,
   availableKeys,
   buyKey,
@@ -292,6 +297,26 @@ describe('typing', () => {
     Object.assign(s.monkeys[0], plainMonkey);
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
     expect(earned).toBe(maxOfflineSeconds * typing.baseLettersPerSecond);
+    expect(s.stats.secondsAway).toBe(maxOfflineSeconds + 1000); // the whole time away counts on the timer
+  });
+
+  it('gives a free letter for each milestone reached, once', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'i');
+    expect(checkLetterGifts(s)).toEqual([]);
+    s.achievements.push('first-hire', 'first-word'); // a second monkey; the first word gives no letter
+    expect(checkLetterGifts(s)).toEqual(['first-hire']);
+    expect(checkLetterGifts(s)).toEqual([]); // once
+    expect(s.freeLetters).toBe(1);
+    expect(buyLetter(s, 'z')).toBe(false); // no Bananas or Words to buy one
+    expect(buyLetter(s, 'z', true)).toBe(true); // but the free one
+    expect(s.freeLetters).toBe(0);
+    expect(buyLetter(s, 'q', true)).toBe(false);
+    s.freeLetters = 1;
+    s.completed = { test: [0] };
+    const next = publishFolio(Object.assign(s, { playsDone: ['test'] }))!;
+    expect(next.letterGifts).toEqual(['first-hire']); // Folios keep them: each is given once, ever
+    expect(next.freeLetters).toBe(1);
   });
 });
 
@@ -316,7 +341,7 @@ describe('faster typing', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     expect(buyFasterTyping(s, 1)).toBe(true);
     expect(s.monkeys.map((m) => m.skill)).toEqual([0, 1]);
     expect(monkeySpeed(s, s.monkeys[1])).toBeGreaterThan(monkeySpeed(s, s.monkeys[0]));
@@ -401,7 +426,7 @@ describe('monkeys', () => {
     const s = createInitialState(0);
     s.letters = ['A'];
     s.departments = ['comedy', 'tragedy'];
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     roomFor(s, 'comedy');
     roomFor(s, 'tragedy');
     expect(nextMonkeyCost(s, 'comedy')).toBe(monkeyCost(0, 0));
@@ -595,7 +620,7 @@ describe('typewriter keys', () => {
 
   it('unlock once you own enough letters', () => {
     const s = fresh(thirteen.slice(0, typewriterKeys.unlockLetters - 1));
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     expect(keysUnlocked(s)).toBe(false);
     expect(availableKeys(s)).toEqual([]);
     s.letters.push(thirteen[typewriterKeys.unlockLetters - 1]);
@@ -604,7 +629,7 @@ describe('typewriter keys', () => {
 
   it('offers combination keys spelled with your letters, once each', () => {
     const s = fresh(thirteen);
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     expect(availableKeys(s)).toContain('QU');
     expect(availableKeys(s)).not.toContain('THE'); // words must be spelled first
     expect(buyKey(s, 'QU')).toBe(true);
@@ -615,7 +640,7 @@ describe('typewriter keys', () => {
 
   it('unlocks a word key once it is spelled often enough, needing more spells for each word key owned', () => {
     const s = fresh(thirteen);
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     const first = typewriterKeys.wordSpellsToUnlock;
     expect(wordKeySpellsNeeded(s)).toBe(first);
     s.stats.words = { THE: first, AND: first + 5, LORD: first - 1, AT: 500 };
@@ -1063,7 +1088,7 @@ describe('manager monkeys', () => {
       toggleManager(s, 0);
       const cost = managerUpgradeCost(s, s.monkeys[0]);
       expect(cost).toBe(managers.linesPerMonkey * s.monkeys.length);
-      s.currency = 1e12;
+      s.currency = s.sentences = 1e12;
       expect(upgradeManager(s, 0)).toBe(false); // points don't buy it
       s.lines = cost;
       expect(managerMultiplier(s, s.monkeys[1])).toBe(1);
@@ -1152,7 +1177,7 @@ describe('department limits and slots', () => {
       s.departments = ['comedy'];
       s.letters = ['A'];
       s.lines = 1e9;
-      s.currency = 1e30;
+      s.currency = s.sentences = 1e30;
       for (let i = 0; i < 40; i++) s.office[0].cells.push(bestExpansion(s, s.office[0])!);
       while (s.monkeys.length < departmentRules.maxTypists) expect(buyMonkey(s)).toBe(true); // one department: automatic
       expect(buyMonkey(s)).toBe(false); // full of typists
@@ -1354,7 +1379,7 @@ describe('office space', () => {
   const comedy = { id: 'c', title: 'C', genre: 'comedy' as const, lines: [[1, 1, 'A', 'No.']] as [number, number, string, string][] };
   const tragedy = { id: 't', title: 'T', genre: 'tragedy' as const, lines: [[1, 1, 'A', 'Lo.']] as [number, number, string, string][] };
   const genreRoom = (s: ReturnType<typeof createInitialState>, g: string) => {
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'department', g as never)).toBe(true);
     return s.office[s.office.length - 1];
   };
@@ -1363,7 +1388,7 @@ describe('office space', () => {
     const s = createInitialState(0);
     s.letters = ['A'];
     s.lines = 1e9;
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     expect(s.office).toHaveLength(1);
     expect(s.office[0].cells).toHaveLength(office.starterWidth * office.starterHeight);
     expect(roomDesks(s, s.office[0])).toHaveLength(1);
@@ -1376,7 +1401,7 @@ describe('office space', () => {
   it('grows a room one square at a time, compact unless you choose the square', () => {
     const s = createInitialState(0);
     const room = s.office[0];
-    s.currency = squareCost(s) * 10;
+    s.sentences = squareCost(s) * 10; // squares cost Sentences
     const first = squareCost(s);
     expect(expandRoom(s, room.id)).toBe(true);
     expect(room.cells).toHaveLength(5);
@@ -1384,7 +1409,7 @@ describe('office space', () => {
     expect(expandRoom(s, room.id, [5, 5])).toBe(false); // not next to the room
     expect(expandRoom(s, room.id, [-1, 0])).toBe(true); // a square you choose
     expect(expansionSquares(s, room).some(([x, y]) => x === -2 && y === 0)).toBe(true);
-    s.currency = 0;
+    s.sentences = 0;
     expect(expandRoom(s, room.id)).toBe(false);
   });
 
@@ -1394,7 +1419,7 @@ describe('office space', () => {
       const s = createInitialState(0);
       s.letters = ['A'];
       s.lines = 1e9;
-      s.currency = 1e30;
+      s.currency = s.sentences = 1e30;
       expect(openDepartment(s, 'comedy')).toBe(true);
       expect(departmentRoom(s, 'comedy')).toBe(s.office[0]); // the first department takes the starter room
       s.departments.push('tragedy');
@@ -1418,7 +1443,7 @@ describe('office space', () => {
     s.office[0].cells = [[0, 0]];
     s.unassignedMonkeys = 1;
     expect(assignMonkey(s)).toBe(false);
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     expect(expandRoom(s, s.office[0].id)).toBe(true);
     expect(s.unassignedMonkeys).toBe(0);
     expect(s.monkeys).toHaveLength(2);
@@ -1440,7 +1465,7 @@ describe('furniture', () => {
   it('buys furniture into a free square where it works, each costing more than the last; some pieces fit only one kind of room', () => {
     const s = createInitialState(0);
     const plant = furnitureKinds[0];
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     expect(furnitureCost(s, plant.id)).toBe(plant.cost);
     expect(buyFurniture(s, plant.id)).toBe(true);
     expect(s.furniture[1]).toEqual({ kind: plant.id, room: 'r1', x: 1, y: 0 }); // next to the desk
@@ -1461,14 +1486,14 @@ describe('furniture', () => {
 
   it('stops when every room is full', () => {
     const s = createInitialState(0);
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     while (furnitureSpot(s)) expect(buyFurniture(s, 'plant')).toBe(true);
     expect(buyFurniture(s, 'plant')).toBe(false);
   });
 
   it('moves furniture onto free squares; desks stay in their room', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
     expect(cellAt(s, 'r1', 0, 0)).toBe(0); // the desk
@@ -1522,7 +1547,7 @@ describe('energy', () => {
 describe('furniture effects', () => {
   it('gives a department the furniture in its own room and in its lounge, all of it adding happiness (points and energy)', () => {
     const s = createInitialState(0);
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     s.office[0].cells.push([2, 0], [2, 1]);
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'armchair', room: 'r1', x: 2, y: 0 });
     expect(drainCut(s, undefined)).toBeCloseTo(0.03);
@@ -1579,6 +1604,34 @@ describe('furniture effects', () => {
     expect(restBoost(s, undefined)).toBe(energy.maxRestBoost);
     expect(drainCut(s, undefined)).toBe(energy.maxDrainCut);
     expect(happiness(s, undefined)).toBe(energy.maxHappiness);
+  });
+});
+
+describe('placing and moving rooms', () => {
+  it('builds a room where the player puts it, if it fits', () => {
+    const s = createInitialState(0);
+    s.sentences = 1e9;
+    expect(buyRoom(s, 'break', undefined, [0, 0])).toBe(false); // on top of room 1
+    expect(buyRoom(s, 'break', undefined, [10, 10])).toBe(true);
+    const room = s.office[s.office.length - 1];
+    expect(room.cells[0]).toEqual([10, 10]);
+    expect(isConnected(s, room)).toBe(true); // a hallway leads to it
+  });
+
+  it('moves a room with its furniture and windows, and keeps a manager beside its department', () => {
+    const s = createInitialState(0);
+    s.sentences = 1e9;
+    expect(buyRoom(s, 'break', undefined, [10, 0])).toBe(true);
+    const lounge = s.office[1];
+    s.furniture.push({ kind: 'plant', room: lounge.id, x: 10, y: 0 });
+    s.windows.push({ x: 12, y: 0, side: 'n' });
+    expect(moveRoomBy(s, lounge.id, 0, 5)).toBe(true);
+    expect(lounge.cells[0]).toEqual([10, 5]);
+    expect(s.furniture[s.furniture.length - 1]).toMatchObject({ x: 10, y: 5 });
+    expect(s.windows).toContainEqual({ x: 12, y: 5, side: 'n' });
+    expect(isConnected(s, lounge)).toBe(true);
+    expect(moveRoomBy(s, lounge.id, -10, -5)).toBe(false); // onto room 1
+    expect(roomFitsAt(s, 'office', 'comedy', newRoomCells('office', [20, 20]))).toBe(false); // nowhere near its department
   });
 });
 
@@ -1669,20 +1722,21 @@ describe('hats', () => {
   it('dyes a worn hat for Sentences, and washes it out for free', () => {
     const s = createInitialState(0);
     const m = s.monkeys[0];
-    s.sentences = 100;
+    s.sentences = 1000;
     expect(dyeHat(s, 0, 'red')).toBe(false); // no hat to dye
     expect(wearHat(s, 0, 'baseball')).toBe(true);
     const left = s.sentences;
     expect(dyeHat(s, 0, 'red')).toBe(true);
     expect(m.hatColor).toBe('red');
-    expect(s.sentences).toBe(left - dyeCost);
+    expect(s.sentences).toBe(left - dye.cost);
     expect(s.stats.dyes).toBe(1);
+    expect(dyeCost(s)).toBe(Math.ceil(dye.cost * dye.costGrowth)); // dearer for every hat already dyed
     expect(dyeHat(s, 0, 'red')).toBe(false); // already red
     expect(dyeHat(s, 0, 'plaid')).toBe(false);
     expect(dyeHat(s, 0, '')).toBe(true);
     expect(m.hatColor).toBe('');
-    expect(s.sentences).toBe(left - dyeCost);
-    s.sentences = dyeCost - 1;
+    expect(s.sentences).toBe(left - dye.cost);
+    s.sentences = dye.cost - 1;
     expect(dyeHat(s, 0, hatColors[1].id)).toBe(false);
   });
 });
@@ -1737,7 +1791,7 @@ describe('bigger furniture', () => {
 
   it('stands a new couch on two free squares, and both squares hold it', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     const room = s.office[1];
     expect(buyFurniture(s, 'couch')).toBe(true);
@@ -1752,7 +1806,7 @@ describe('bigger furniture', () => {
 
   it('only puts a piece down where all its squares are free floor', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     const room = s.office[1];
     const [x, y] = [...room.cells].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
@@ -1767,7 +1821,7 @@ describe('bigger furniture', () => {
 
   it('turns only bigger pieces, and a piece can move onto its own old squares', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     buyFurniture(s, 'plant');
     expect(rotateFurniture(s, s.furniture.length - 1)).toBe(false);
@@ -1791,7 +1845,7 @@ describe('bigger furniture', () => {
 describe('doors and hallways', () => {
   it('places each new room apart from rooms of its kind, with a hallway or a door straight in back to the first room', () => {
     const s = createInitialState(0);
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     s.departments = ['comedy', 'tragedy', 'history'];
     for (let i = 0; i < 4; i++) expect(buyRoom(s, 'break')).toBe(true);
     expect(buyRoom(s, 'department', 'tragedy')).toBe(true);
@@ -1817,7 +1871,7 @@ describe('doors and hallways', () => {
 
   it('puts a door in when a room grows against a room of the other kind', () => {
     const s = createInitialState(0); // room 1: 2x2 at 0,0
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     s.office.push({ id: 'r2', kind: 'break', department: '', cells: [[3, 0]] });
     expect(doorBetween(s, s.office[0], s.office[1])).toBe(false);
     expect(expandRoom(s, 'r1', [2, 0])).toBe(true);
@@ -1826,7 +1880,7 @@ describe('doors and hallways', () => {
 
   it("stops a room's monkeys and furniture working when nothing leads to it", () => {
     const s = createInitialState(0);
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     s.letters = ['A'];
     const lounge = addRoom(s, 'break', '', 3, 3);
     s.furniture.push({ kind: 'tv', room: lounge.id, x: lounge.cells[0][0], y: lounge.cells[0][1] });
@@ -1960,7 +2014,7 @@ describe('publishing a Folio', () => {
     setPlays([play]);
     const s = createInitialState(0);
     chooseFirstLetter(s, 'i');
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     s.monkeys.push(createMonkey());
     s.completed = { 'folio-test': [0, 1, 2] };
     s.playsDone = ['folio-test'];

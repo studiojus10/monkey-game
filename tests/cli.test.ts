@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
 import {
   keyChoices,
-  letterPickPrompt,
+  renderLetterPicker,
   maxMonkeyLines,
   renderKeysMenu,
   renderLine,
@@ -32,7 +32,7 @@ import {
   renderShop,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, cyan, forLightBackground, green, inverse, red, yellow } from '../src/cli/style';
+import { bold, cyan, forLightBackground, green, inverse, plainText, red, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
@@ -257,10 +257,10 @@ describe('the Research store', () => {
     const s = started();
     expect(openStores(s)).not.toContain('research');
     s.monkeys.push(...Array.from({ length: 7 }, createMonkey));
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab')).toBe(true);
     expect(openStores(s)[openStores(s).length - 1]).toBe('research');
-    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Hats\s+Research/);
+    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Hats\*?\s+Research/);
   });
 });
 
@@ -302,13 +302,26 @@ describe('shop under the home screen', () => {
 });
 
 describe('letter picking', () => {
-  it('lists the letters you can still buy with their values', () => {
+  it('shows A to Z with owned letters dimmed and no values', () => {
     const s = createInitialState(0);
     chooseFirstLetter(s, 'a');
-    const prompt = letterPickPrompt(s);
-    expect(prompt).not.toContain('A(1)');
-    expect(prompt).toContain('B(3)');
-    expect(prompt).toContain('Z(10)');
+    const text = renderLetterPicker(s, false, 0);
+    expect(text).toContain('\x1b[2mA\x1b[');
+    expect(text).toContain('Z');
+    expect(text).not.toContain('B(3)');
+    expect(text).toContain('Buy a letter');
+    expect(text).toContain('esc');
+  });
+
+  it('offers a free letter with no way out', () => {
+    const s = createInitialState(0);
+    chooseFirstLetter(s, 'a');
+    s.freeLetters = 2;
+    s.letterGifts = ['first-hire'];
+    const text = plainText(renderLetterPicker(s, true, 0));
+    expect(text).toContain('A free letter for');
+    expect(text).toContain('2 free letters');
+    expect(text).not.toContain('esc');
   });
 });
 
@@ -400,7 +413,7 @@ describe('typewriter keys menu', () => {
     expect(keyChoices(s)).toContain('HE');
     expect(text).toMatch(/ \[1\] HE   combination    [\d.]+[KMBT]? Bananas/);
     expect(text).toMatch(/ \[2\] THE  word /);
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     expect(renderKeysMenu(s)).toContain(`${green('*')} ${yellow(`${bold('4.00M')} Bananas`)}`); // affordable: * and price in Bananas' yellow
     expect(plain(renderKeysMenu(s, '', 80)).split('\n').every((r) => r.length <= 80)).toBe(true);
   });
@@ -445,6 +458,11 @@ describe('statistics and dictionary', () => {
     expect(text).toContain('\n LETTERS TYPED\n   I 3\n');
     expect(text).toContain('    1. I           3');
     expect(renderStats(s)).toContain('\x1b[2m TYPING\x1b[22m'); // headings are dim
+    s.stats.secondsOpen = 3600;
+    s.stats.secondsAway = 7200;
+    expect(plain(renderStats(s))).toMatch(/Time played +3h/);
+    expect(plain(renderStats(s))).toMatch(/Game open +1h/);
+    expect(plain(renderStats(s))).toMatch(/In the background +2h/);
   });
 
   it('shows Folios only once one is published', () => {
@@ -504,7 +522,7 @@ describe('office space on screen', () => {
     const s = started();
     s.monkeys.push(createMonkey(), createMonkey(), createMonkey());
     s.furniture.push({ kind: 'desk', room: 'r1', x: 1, y: 0 }, { kind: 'desk', room: 'r1', x: 0, y: 1 }, { kind: 'desk', room: 'r1', x: 1, y: 1 });
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     const staff = renderScreen(s, '', 'staff');
     expect(squash(staff)).toContain('[2] Hire a monkey you have 4 desk needed\n'); // no price: a desk is what it needs
     expect(staff).toContain(red('desk needed'));
@@ -533,7 +551,7 @@ describe('office space on screen', () => {
 
   it('lists a hire line for each department, each with its own price', () => {
     const s = started();
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
     const staff = squash(renderScreen(s, '', 'staff'));
@@ -565,7 +583,7 @@ describe('office space on screen', () => {
 
   it('draws hallways and doors between rooms, and warns about a room with no way in', () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
     const text = plain(renderOffice(s));
@@ -578,7 +596,7 @@ describe('office space on screen', () => {
 
   it("shows each department's lounge, and the departments each break room is the lounge of", () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
     buyRoom(s, 'break'); // against both, with a door into each
@@ -597,7 +615,7 @@ describe('office space on screen', () => {
 
   it('places rooms to keep the map narrow enough for the terminal', () => {
     const s = started();
-    s.currency = 1e30;
+    s.currency = s.sentences = 1e30;
     for (let i = 0; i < 6; i++) buyRoom(s, 'break');
     s.monkeys[0].manager = true;
     const text = plain(renderOffice(s));
@@ -612,31 +630,31 @@ describe('office space on screen', () => {
 describe('furniture', () => {
   it('sells furniture by the kind of room it goes in', () => {
     const s = started();
-    s.currency = 600;
+    s.sentences = 20;
     const text = squash(renderScreen(s, '', 'department'));
     expect(text).toContain(' Office* Breakroom \n'); // the office map's own shop
     expect(openStores(s, 'break')).toEqual(['department', 'break']);
     expect(text).toContain("Furniture for a department's own room: it helps the monkeys who work there.");
     expect(text).toContain(' ITEM EFFECT PRICE\n'); // no elements before the feng shui book
-    expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 500 Bananas\n');
-    expect(text).toContain('[2] Scented candle I tire 3% slower, +1% pay * 500 Bananas\n'); // same price, same benefit
-    expect(text).toContain('[3] Wall clock K tire 3% slower, +1% pay * 500 Bananas\n');
+    expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 10 Sentences\n');
+    expect(text).toContain('[2] Scented candle I tire 3% slower, +1% pay * 10 Sentences\n'); // same price, same benefit
+    expect(text).toContain('[3] Wall clock K tire 3% slower, +1% pay * 10 Sentences\n');
     expect(text).not.toContain('Television'); // break rooms only
     expect(text).toContain(' page 1 of 2\n');
     s.fengShuiBook = true;
     const read = squash(renderScreen(s, '', 'department'));
     expect(read).toContain(' ITEM ELEMENT EFFECT PRICE\n');
-    expect(read).toContain('[1] Potted plant P wood tire 3% slower, +1% pay * 500 Bananas\n');
+    expect(read).toContain('[1] Potted plant P wood tire 3% slower, +1% pay * 10 Sentences\n');
     s.fengShuiBook = false;
     expect(storeChoices(s, 'department', 1).map((x) => x.id)).toContain('furniture:cooler@department'); // fits either room
     const lounge = squash(renderScreen(s, '', 'break'));
     expect(lounge).toContain('Furniture for break rooms: it helps each department whose nearest one it is.');
-    expect(lounge).toContain('[1] Potted plant P tire 3% slower, +1% pay 500 Bananas\n'); // fits either room; no * as there's nowhere to put it
+    expect(lounge).toContain('[1] Potted plant P tire 3% slower, +1% pay 10 Sentences\n'); // fits either room; no * as there's nowhere to put it
     expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
     expect(lounge).not.toMatch(/\* [0-9.]+K? Bananas/); // nowhere to put any of it
     const last = squash(renderScreen(s, '', 'break', 0, 18)); // the cursor on item 19: page 3
-    expect(last).toContain('[1] Television T breaks 40% faster, +3% pay 1.00M Bananas\n');
-    expect(last).toContain('[2] Hot tub (2x1) U breaks 40% faster, +3% pay 1.00M Bananas\n');
+    expect(last).toContain('[1] Television T breaks 40% faster, +3% pay 20.00K Sentences\n');
+    expect(last).toContain('[2] Hot tub (2x1) U breaks 40% faster, +3% pay 20.00K Sentences\n');
     expect(last).toContain(' page 3 of 3\n');
     expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
@@ -644,7 +662,7 @@ describe('furniture', () => {
 
   it('sells the scene, act and play under the cursor in the script page\'s shop', () => {
     const s = started();
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     const at = { play: 'test', line: 0 };
     expect(openStores(s, 'script')).toEqual(['script']);
     expect(storeChoices(s, 'script', 0, at).map((x) => x.id)).toEqual(['section:b', 'section:a', 'section:w']);
@@ -670,7 +688,7 @@ describe('furniture', () => {
   it('fits every store on an 80-column screen, elements and all', () => {
     const s = started();
     s.fengShuiBook = true;
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.sentences = 1e12;
     for (const store of stores)
       for (let page = 0; page < storePages(s, store); page++)
@@ -733,7 +751,7 @@ describe('energy on screen', () => {
 describe('moving doors on the map', () => {
   it('shows a door being moved in the wall it would go in', () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     buyRoom(s, 'break'); // a hallway square west of room 1, with a door into it at 0,0
     s.doors = s.doors.filter((d) => !(d.x === 0 && d.y === 0));
     const text = plain(renderOffice(s, '', { x: 0, y: 0 }, -1, false, 'w'));
@@ -774,17 +792,23 @@ describe('feng shui on screen', () => {
     expect(inspectSquare(s, 1, 0).text).toBe('A window. Every room wants light, though sunlight is no substitute for a real flame.');
     expect(inspectSquare(s, 0, 2)).toEqual({ text: 'Nothing of interest here.', book: -1 });
     expect(inspectSquare(s, 9, 9).text).toBe('Nothing of interest here.');
-    s.furniture.pop();
     s.fengShuiBook = true;
+    s.managerBook = true;
+    const library = inspectSquare(s, 1, 1); // every bookshelf keeps the books found so far
+    expect(library.text).toContain('On the shelf: [1] The Way of the Typewriter: feng shui for monkeys   [2] Understanding Your Employees');
+    expect(library.text).not.toContain('[y] read it');
+    expect(library).toMatchObject({ book: 1, shelf: true });
+    s.managerBook = false;
+    s.furniture.pop();
     const read = plain(renderOffice(s));
-    expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n 1 Comedies room 4 80% ');
+    expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n 1 Comedies room 4 86% ');
     expect(read).toContain('[b] book');
     const book = plain(renderFengShuiBook(s));
     expect(book).toContain('  Light    a window.');
     expect(book).toContain('  Metal   desk, wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine');
     expect(book).toContain('  Fire    scented candle, fireplace, television');
-    expect(book).toMatch(/1 Comedies room +chi  80% +lacks Balance/);
-    expect(book).toContain('Office chi 80%: +8% happiness.');
+    expect(book).toMatch(/1 Comedies room +chi  86% +lacks Balance/);
+    expect(book).toContain('Office chi 86%: +51% happiness.');
   });
 });
 
@@ -792,7 +816,7 @@ describe('managers and traits on screen', () => {
   /** A department of five typists with an office next door, before any manager. */
   const staffed = () => {
     const s = started();
-    s.currency = 1e15;
+    s.currency = s.sentences = 1e15;
     s.office[0].cells.push([0, 2], [1, 2], [0, 3], [1, 3]);
     for (let k = 1; k < 5; k++) {
       s.monkeys.push({ ...createMonkey(), department: 'comedy' });
@@ -846,9 +870,9 @@ describe('managers and traits on screen', () => {
 describe('hats on screen', () => {
   it('sells hats and dye, and shows each monkey in its hat', () => {
     const s = started();
-    s.sentences = 60;
+    s.sentences = 160;
     const store = plain(renderScreen(s, '', 'hats'));
-    expect(squash(store)).toContain('[1] Baseball cap d@ tires 10% slower * 25 Sentences\n');
+    expect(squash(store)).toContain('[1] Baseball cap d@ tires 10% slower * 100 Sentences\n');
     expect(store).toContain('Crown         W@');
     expect(store).toContain('Dye');
     expect(plain(renderScreen(s))).toContain('  @ M-1 ');
@@ -862,7 +886,7 @@ describe('hats on screen', () => {
     expect(renderOffice(s)).toContain('|\x1b[31m#\x1b[39m@]');
     s.monkeys.push(createMonkey());
     const top = hatPick(s, 'tophat');
-    expect(plain(top.title)).toBe('Top hat (750 Sentences): which monkey gets it?');
+    expect(plain(top.title)).toBe('Top hat (5.00K Sentences): which monkey gets it?');
     expect(top.notes).toEqual(['wearing it: takes it off', '']);
     const menu = plain(renderMonkeyPicker(s, top.title, top.notes, 1));
     expect(menu).toContain(' [1]  #@ M-1  wearing it: takes it off');
@@ -873,7 +897,7 @@ describe('hats on screen', () => {
     expect(hatPick(s, 'tophat').notes[0]).toBe('has one: free');
     expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap');
     expect(plain(dyeColorPrompt())).toContain('[1] Red   [2] Green');
-    expect(plain(dyePick(s, 'red').title)).toBe("Red (10 Sentences): which monkey's hat?");
+    expect(plain(dyePick(s, 'red').title)).toBe("Red (150 Sentences): which monkey's hat?");
     expect(dyePick(s, 'red').notes).toEqual(['already', 'no hat']);
     expect(plain(dyePick(s, '').title)).toContain('Undyed (free)');
   });
@@ -945,7 +969,7 @@ const allowedUnicode = '';
 describe('plain ASCII', () => {
   it('prints only ASCII (plus ANSI codes and the allowed Unicode), so the game runs in any terminal', () => {
     const s = started();
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     s.monkeys[0].hats = ['tophat'];
     s.monkeys[0].hat = 'tophat';
     s.monkeys[0].hatColor = 'blue';

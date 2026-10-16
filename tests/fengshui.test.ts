@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fengShui, furnitureKinds } from '../src/game/config';
+import { energy, fengShui, furnitureKinds } from '../src/game/config';
 import { chiHappiness, officeChi, roomChi, roomRules, squareRank } from '../src/game/fengshui';
 import { addWindow, cycleWindow, doorPaths, toggleHall, windowSides } from '../src/game/layout';
 import { buyRoom, hidesBook, readFengShuiBook, checkAchievements, expandRoom, furnitureHappiness, furnitureSpot, happiness } from '../src/game/logic';
@@ -27,7 +27,7 @@ describe('windows', () => {
     expect(windowSides(s, 1, 0)).toEqual(['n']);
     toggleHall(s, 2, 0);
     s.windows = [{ x: 1, y: 0, side: 'e' }];
-    s.currency = 1e9;
+    s.currency = s.sentences = 1e9;
     expect(expandRoom(s, 'r1', [2, 0])).toBe(true);
     expect(s.windows).toHaveLength(1);
     const [w] = s.windows;
@@ -53,7 +53,7 @@ describe('feng shui', () => {
   it('checks light, commanding desks, flow and a clear entrance', () => {
     const s = createInitialState(0);
     const room = s.office[0];
-    expect(roomRules(s, room)).toEqual({ light: true, command: true, flow: true, entrance: true, balance: false });
+    expect(roomRules(s, room)).toEqual({ light: true, command: true, flow: true, entrance: true, balance: false, space: true, variety: true });
     s.doors = [{ x: 0, y: 0, side: 'w' }];
     // The desk sits just inside the door, in its path.
     expect(roomRules(s, room)).toMatchObject({ command: false, entrance: false, flow: true });
@@ -101,7 +101,22 @@ describe('feng shui', () => {
     expect(roomRules(s, s.office[0]).balance).toBe(true);
     s.windows = [];
     expect(roomRules(s, s.office[0]).balance).toBe(true);
-    expect(roomChi(s, s.office[0])).toBeCloseTo(0.8); // no light
+    expect(roomChi(s, s.office[0])).toBeCloseTo(6 / 7); // no light
+  });
+
+  it('wants empty floor and different pieces, and pays more than any furniture can', () => {
+    const s = createInitialState(0);
+    const room = s.office[0];
+    const free = room.cells.filter(([x, y]) => !s.furniture.some((f) => f.x === x && f.y === y));
+    const fill = Math.floor(room.cells.length * (1 - fengShui.openShare)) - (room.cells.length - free.length);
+    for (const [x, y] of free.slice(0, fill + 1)) s.furniture.push({ kind: 'plant', room: room.id, x, y });
+    expect(roomRules(s, room).space).toBe(false); // less than a third of the floor empty
+    s.furniture.pop();
+    expect(roomRules(s, room)).toMatchObject({ space: true, variety: true });
+    const [x, y] = room.cells[0];
+    for (let i = 0; i <= fengShui.maxSameKind; i++) s.furniture.push({ kind: 'candle', room: room.id, x, y });
+    expect(roomRules(s, room).variety).toBe(false); // too many plants
+    expect(fengShui.maxHappiness).toBeGreaterThan(energy.maxHappiness); // good chi beats a room full of the best pieces
   });
 
   it('makes fire the rarest element, and every store has all five', () => {
@@ -118,7 +133,7 @@ describe('feng shui', () => {
 
   it('hides the book in a bookshelf, and makes monkeys happier only once it is read', () => {
     const s = createInitialState(0);
-    expect(officeChi(s)).toBeCloseTo(0.8);
+    expect(officeChi(s)).toBeCloseTo(6 / 7); // all but balance
     expect(chiHappiness(s)).toBe(0);
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 1 }, { kind: 'bookshelf', room: 'r1', x: 0, y: 1 });
     expect(hidesBook(s, 1)).toBe(false);
@@ -171,7 +186,7 @@ describe('feng shui', () => {
 describe('windows and new rooms', () => {
   it('keeps every window facing outside when a new room and its hallway arrive', () => {
     const s = createInitialState(0);
-    s.currency = 1e12;
+    s.currency = s.sentences = 1e12;
     for (let i = 0; i < 4; i++) expect(buyRoom(s, 'break')).toBe(true);
     for (const r of s.office) expect(s.windows.filter((w) => r.cells.some(([x, y]) => x === w.x && y === w.y)).length, r.id).toBeGreaterThan(0);
     for (const w of s.windows) expect(windowSides(s, w.x, w.y)).toContain(w.side);
