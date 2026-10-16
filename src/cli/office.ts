@@ -17,6 +17,7 @@ import {
   hidesManagerBook,
   deskOf,
   managerOf,
+  slotDelay,
   officeOf,
   traitOf,
   researchers,
@@ -269,7 +270,11 @@ function roomTable(state: GameState, columns = 0): string[] {
     const lounge = r.kind === 'department' ? loungeOf(state, r) : undefined;
     const boss = r.kind === 'office' ? managerOf(state, r.department as never) : undefined;
     const effects =
-      r.kind !== 'department'
+      r.kind === 'office'
+        ? boss
+          ? `a slot every ${slotDelay(state, boss).toFixed(1)}s`
+          : '-'
+        : r.kind !== 'department'
         ? '-'
         : [
             ...(drainCut(state, g) > 0 ? [`tire ${pct(drainCut(state, g))} slower`] : []),
@@ -282,7 +287,7 @@ function roomTable(state: GameState, columns = 0): string[] {
         String(i + 1),
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' ? '-' : pct(roomChi(state, r))] : []),
+        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' ? '-' : pct(roomChi(state, r))] : []),
         r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],

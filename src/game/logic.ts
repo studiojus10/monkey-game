@@ -1203,7 +1203,8 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
 /** Where a new piece goes: the first spot it fits in a room of the kind it suits, else in any room it may stand in (turned if only that fits). */
 export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room['kind']): Omit<Furniture, 'kind'> | null {
   // Only rooms of roomKind when given; else rooms of the kind it suits first (decor in departments' rooms, comforts in break rooms).
-  const first: Room['kind'] = roomKind ?? kindOf(kind)?.rooms.find((r) => r === 'office') ?? ((kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
+  const suits = kindOf(kind)?.rooms ?? [];
+  const first: Room['kind'] = roomKind ?? (suits.length === 1 ? suits[0] : (kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
   const rooms = [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
   const [w, h] = pieceSize(kind);
   for (const room of rooms) {
@@ -1936,59 +1937,103 @@ function unpin(state: GameState, pin: Pin): void {
 
 /**
  * The line a manager targets among a genre's unwritten owned lines: one
- * within reach (your letters can spell it) if any, then the fewest words,
- * then the earliest in play order. Null when every owned line is written.
+ * within reach (your letters can spell it), picked at random (Justin,
+ * 2026-10-16: "pick the next line at random"), among those with no more
+ * words than the department has slots when there are any. Null when nothing
+ * is in reach.
  */
-export function managerLine(state: GameState, genre: Genre | undefined): Pin | null {
-  let best: Pin | null = null;
-  let bestRank: [number, number] = [2, Infinity]; // [0 if within reach else 1, words]
+export function managerLine(state: GameState, genre: Genre | undefined, rng: Rng = Math.random): Pin | null {
+  const lines: { pin: Pin; words: number }[] = [];
   for (const play of plays.values()) {
     if (play.genre !== genre) continue;
     const done = new Set(state.completed[play.id] ?? []);
     play.lines.forEach((line, index) => {
-      if (done.has(index) || !ownsLine(state, play, index)) return;
-      const rank: [number, number] = [inReach(state, line.letters) ? 0 : 1, line.words.length];
-      if (rank[0] < bestRank[0] || (rank[0] === bestRank[0] && rank[1] < bestRank[1])) {
-        best = { play: play.id, index };
-        bestRank = rank;
-      }
+      if (!done.has(index) && ownsLine(state, play, index) && inReach(state, line.letters)) lines.push({ pin: { play: play.id, index }, words: line.words.length });
     });
   }
-  return best;
+  const slots = departmentSlots(state, genre).length;
+  const fit = lines.filter((l) => l.words <= slots);
+  const pool = fit.length > 0 ? fit : lines;
+  return pool.length > 0 ? pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))].pin : null;
 }
 
-/** Letters, script and slots owned when each department's manager last chose a line. */
-const managerChecked = new Map<string, string>();
+/** Whether a manager's line still stands: owned, unwritten and within reach. */
+function lineStands(state: GameState, t: Pin): boolean {
+  const play = plays.get(t.play);
+  return !!play?.lines[t.index] && !(state.completed[t.play] ?? []).includes(t.index) && ownsLine(state, play, t.index) && inReach(state, play.lines[t.index].letters);
+}
+
+/** How much quicker than usual a manager changes slots: upgrades, its office's furniture and (with the book) its chi. */
+export function managerSpeed(state: GameState, m: MonkeyState): number {
+  const office = officeOf(state, monkeyGenre(state, m));
+  const pieces = office ? state.furniture.filter((f) => f.room === office.id) : [];
+  const furniture = Math.min(managerOffice.maxFurnitureSpeed, pieces.reduce((n, f) => n + (kindOf(f.kind)?.happiness ?? 0) * managerOffice.speedPerHappiness, 0));
+  const chi = office && state.fengShuiBook ? roomChi(state, office) * managerOffice.chiSpeed : 0;
+  return 1 + managers.speedPerLevel * m.managerSpeedLevel + furniture + chi;
+}
+
+/** Seconds between a manager's slot changes. */
+export function slotDelay(state: GameState, m: MonkeyState): number {
+  return managers.secondsPerSlot / managerSpeed(state, m);
+}
+
+/** Bananas price of a manager's next "Quicker manager" upgrade. */
+export function managerSpeedCost(m: MonkeyState): number {
+  return Math.ceil(managers.speedBaseCost * Math.pow(managers.speedCostGrowth, m.managerSpeedLevel));
+}
+
+/** Makes a manager quicker at changing slots, for Bananas. */
+export function buyManagerSpeed(state: GameState, index: number): boolean {
+  const m = state.monkeys[index];
+  if (!m?.manager || isTemp(m)) return false;
+  const cost = managerSpeedCost(m);
+  if (state.currency < cost) return false;
+  state.currency -= cost;
+  m.managerSpeedLevel++;
+  return true;
+}
+
+/** The slot a manager changes next (in position order), and to what: a word, or '' to switch it off. */
+export function nextSlotChange(state: GameState, genre: Genre | undefined, boss: MonkeyState): { slot: number; word: string } | null {
+  const words = boss.target ? plays.get(boss.target.play)!.lines[boss.target.index].words : [];
+  for (const i of departmentSlots(state, genre)) {
+    const slot = state.slots[i];
+    const word = words[slot.position - 1] ?? '';
+    if (word ? !slot.on || slot.word !== word : slot.on) return { slot: i, word };
+  }
+  return null;
+}
 
 /**
- * Runs the managers: each keeps its department's target on an unwritten
- * line (see managerLine), pins it, and fills its department's word slots
- * with the line's words, by position.
+ * Runs the managers for `seconds`: each keeps its department's target on an
+ * unwritten line within reach (see managerLine) until it is written, pins
+ * it, and fills its department's word slots with the line's words, one slot
+ * at a time, slotDelay apart (slots past the line's end switch off, one at a
+ * time too). A manager with nothing to change is ready to change one at once.
  */
-export function manage(state: GameState): void {
+export function manage(state: GameState, seconds = 0, rng: Rng = Math.random): void {
   for (const genre of departmentGenres(state)) {
     const boss = managerOf(state, genre);
     if (!boss) continue;
     const t = boss.target;
-    const done = t && (state.completed[t.play] ?? []).includes(t.index);
-    // The target is reconsidered when letters, script or slots change, in case a better line came within reach.
-    const key = `${state.letters.join('')}|${state.owned.join('|')}|${departmentSlots(state, genre).length}`;
-    const stale = managerChecked.get(genre) !== key;
-    if (!t || done || stale) {
+    if (!t || !lineStands(state, t)) {
       if (t) unpin(state, t);
-      boss.target = managerLine(state, genre);
-      managerChecked.set(genre, key);
+      boss.target = managerLine(state, genre, rng);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
         state.pinned.push(boss.target);
       }
     }
-    // Slots past the line's end switch off; with no line left they all do, so typing is random again.
-    const words = boss.target ? plays.get(boss.target.play)!.lines[boss.target.index].words : [];
-    for (const i of departmentSlots(state, genre)) {
-      const slot = state.slots[i];
-      const word = words[slot.position - 1];
-      slot.word = word ?? slot.word;
-      slot.on = !!word;
+    boss.slotWait -= seconds;
+    while (boss.slotWait <= 0) {
+      const change = nextSlotChange(state, genre, boss);
+      if (!change) {
+        boss.slotWait = 0;
+        break;
+      }
+      const slot = state.slots[change.slot];
+      slot.word = change.word || slot.word;
+      slot.on = !!change.word;
+      boss.slotWait += slotDelay(state, boss);
     }
   }
 }
@@ -2046,7 +2091,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   drawCandidates(state, seconds, rng);
   endTemps(state, seconds);
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
-  manage(state);
+  manage(state, seconds, rng);
   advanceResearch(state, seconds);
   checkLetterGifts(state);
   earn(state, royalties(state) * seconds);

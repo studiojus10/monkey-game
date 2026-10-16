@@ -655,8 +655,8 @@ describe('furniture', () => {
     const s = started();
     s.sentences = 20;
     const text = squash(renderScreen(s, '', 'department'));
-    expect(text).toContain(' Office* Breakroom \n'); // the office map's own shop
-    expect(openStores(s, 'break')).toEqual(['department', 'break']);
+    expect(text).toContain(' Office* Breakroom Manager \n'); // the office map's own shop
+    expect(openStores(s, 'break')).toEqual(['department', 'break', 'office']);
     expect(text).toContain("Furniture for a department's own room: it helps the monkeys who work there.");
     expect(text).toContain(' ITEM EFFECT PRICE\n'); // no elements before the feng shui book
     expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 10 Sentences\n');
@@ -702,7 +702,7 @@ describe('furniture', () => {
     const map = plain(renderOffice(s));
     expect(map).toContain('[f] furniture');
     const shop = plain(renderOffice(s, '', null, -1, false, null, 0, renderShop(s, 'break', 0, '', 0, true)));
-    expect(shop).toContain(' Office   Breakroom \n');
+    expect(shop).toContain(' Office   Breakroom   Manager \n');
     expect(shop).toContain('Potted plant');
     expect(shop).not.toContain('[f] furniture'); // the shop takes the place of the room table and keys
     expect(shop.split('\n').slice(0, 4).join('\n')).toContain('+'); // the map is still there
@@ -860,10 +860,12 @@ describe('managers and traits on screen', () => {
     expect(squash(map)).toContain('2 Comedies office 4 - - no manager yet');
     expect(hireManager(s, 'comedy')).toBe(true);
     const hired = squash(plain(renderOffice(s)));
-    expect(hired).toContain('2 Comedies office 4 - - M-6 (manager)');
+    expect(hired).toContain('2 Comedies office 4 - a slot every 30.0s M-6 (manager)');
     expect(hired).not.toMatch(/Comedies room[^\n]*M-6/);
-    const office = Array.from({ length: storePages(s, 'department') }, (_, page) => plain(renderScreen(s, '', 'department', 0, page * storePageSize))).join('\n');
+    const office = Array.from({ length: storePages(s, 'office') }, (_, page) => plain(renderScreen(s, '', 'office', 0, page * storePageSize))).join('\n');
     expect(office).toContain("Manager's desk"); // a spare, in case one's needed
+    expect(squash(office)).toContain('Potted plant'); // decor for the office: it makes the manager quicker
+    expect(office).not.toContain('Couch');
   });
 
   it("hides the manager's book in the manager's desk; once read, traits show on the home screen, on desks and in the book", () => {

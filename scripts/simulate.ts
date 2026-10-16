@@ -99,6 +99,8 @@ for (const pair of (process.env.SIM_SET ?? '').split(',').filter(Boolean)) {
   target[keys[keys.length - 1]] = Number(value);
 }
 let seed = Number(process.argv[3] ?? 1);
+/** The line the bot aims each department's word slots at, kept until written. */
+const aims = new Map<string, { play: string; index: number }>();
 const rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
 const root = new URL('../', import.meta.url);
@@ -200,10 +202,13 @@ function shop(): void {
     }
     if (!bought) break;
   }
-  // Like a player (or a manager), aim word slots at the best line in reach.
+  // Like a player (or a manager), aim word slots at a line in reach.
   for (const g of departmentGenres(s)) {
     if (managerOf(s, g)) continue;
-    const target = managerLine(s, g);
+    // Keep the line until it's written, as managers do.
+    const kept = aims.get(g);
+    const target = kept && !(s.completed[kept.play] ?? []).includes(kept.index) ? kept : managerLine(s, g, rng);
+    if (target) aims.set(g, target);
     const words = target ? getPlay(target.play)!.lines[target.index].words : [];
     for (const i of departmentSlots(s, g)) {
       const slot = s.slots[i];
