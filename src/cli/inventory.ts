@@ -1,8 +1,8 @@
-import { hats } from '../game/config';
-import { isTemp, monkeyName, typewriterName } from '../game/logic';
+import { furnitureKinds, hatColors, hats } from '../game/config';
+import { hatKey, isTemp, monkeyName, splitHatKey, typewriterName } from '../game/logic';
 import type { GameState } from '../game/state';
 import { dyed, iconOf, paint } from './screen';
-import { bold, dim, green, inverse, keyRow, padVisible, plainText, rule, titleBar } from './style';
+import { bold, dim, inverse, isCursor, keyRow, padVisible, plainText, rule, titleBar } from './style';
 
 /**
  * A menu of monkeys to give something to (a hat, a dye): `notes` says what
@@ -12,7 +12,7 @@ export function renderMonkeyPicker(state: GameState, title: string, notes: strin
   const width = Math.max(...state.monkeys.map((_, i) => monkeyName(state, i).length));
   const rows = state.monkeys.map((m, i) => {
     const row = ` ${(i < 9 ? `[${i + 1}]` : '').padEnd(4)} ${dyed(m, iconOf(m))} ${monkeyName(state, i).padEnd(width)}  ${dim(notes[i] ?? '')}`;
-    return i === cursor ? inverse(plainText(row)) : row;
+    return isCursor(i, cursor) ? inverse(plainText(row)) : row;
   });
   return [
     titleBar(state, 'Give to', columns),
@@ -27,25 +27,34 @@ export function renderMonkeyPicker(state: GameState, title: string, notes: strin
   ].join('\n');
 }
 
-/** Something in the inventory: a monkey's typewriter or a hat. */
-export type Item = { kind: 'typewriter' } | { kind: 'hat'; id: string };
+/** Something on the inventory screen: a monkey's typewriter, a hat (by hatKey), a monkey's empty head, or furniture put away. */
+export type Item = { kind: 'typewriter' } | { kind: 'hat'; key: string } | { kind: 'nohat' } | { kind: 'furniture'; id: string };
 
-/** Where items are: a monkey (by index) or storage. */
-export type Holder = number | 'storage';
+/** Where items are: a monkey (by index), or the player's inventory (hats, furniture). */
+export type Holder = number | 'storage' | 'furniture';
 
-/** The inventory's rows: each monkey's typewriter and hats, then storage's hats. */
+const hatRank = (key: string) => hats.findIndex((h) => h.id === splitHatKey(key).id);
+
+/**
+ * The inventory screen's rows: each monkey with its typewriter and the hat it
+ * wears, then the player's inventory (Justin, 2026-10-16: one inventory for
+ * furniture and cosmetics): hats nobody wears, then furniture put away.
+ */
 export function inventoryRows(state: GameState): { who: Holder; items: Item[] }[] {
-  const hatOrder = (a: string, b: string) => hats.findIndex((h) => h.id === a) - hats.findIndex((h) => h.id === b);
   return [
     ...state.monkeys.map((m, i) => ({
       who: i as Holder,
-      items: [{ kind: 'typewriter' } as Item, ...[...m.hats].sort(hatOrder).map((id): Item => ({ kind: 'hat', id }))],
+      items: [{ kind: 'typewriter' } as Item, m.hat ? ({ kind: 'hat', key: hatKey(m.hat, m.hatColor) } as Item) : ({ kind: 'nohat' } as Item)],
     })),
     {
       who: 'storage' as Holder,
       items: Object.keys(state.stored.hats)
-        .sort(hatOrder)
-        .flatMap((id) => Array.from({ length: state.stored.hats[id] }, (): Item => ({ kind: 'hat', id }))),
+        .sort((a, b) => hatRank(a) - hatRank(b) || a.localeCompare(b))
+        .flatMap((key) => Array.from({ length: state.stored.hats[key] }, (): Item => ({ kind: 'hat', key }))),
+    },
+    {
+      who: 'furniture' as Holder,
+      items: furnitureKinds.filter((k) => state.stored.furniture[k.id]).map((k): Item => ({ kind: 'furniture', id: k.id })),
     },
   ];
 }
@@ -53,13 +62,18 @@ export function inventoryRows(state: GameState): { who: Holder; items: Item[] }[
 /** An item's name as the inventory shows it. */
 export function itemName(state: GameState, who: Holder, item: Item): string {
   if (item.kind === 'typewriter') return typeof who === 'number' ? typewriterName(state.monkeys[who].typewriter) : 'typewriter';
-  return hats.find((h) => h.id === item.id)?.name ?? item.id;
+  if (item.kind === 'nohat') return 'no hat';
+  if (item.kind === 'furniture') return furnitureKinds.find((k) => k.id === item.id)?.name ?? item.id;
+  const { id, color } = splitHatKey(item.key);
+  const name = hats.find((h) => h.id === id)?.name ?? id;
+  return color ? `${hatColors.find((c) => c.id === color)?.name.toLowerCase() ?? color} ${name.toLowerCase()}` : name;
 }
 
 /**
- * The inventory: every monkey with its typewriter and the hats it has (the
- * one it wears green, in its dye), then hats in storage. The cursor's item
- * is inverse; `held` is the item being moved, shown above the keys.
+ * The inventory: every monkey with its typewriter and the hat it wears (in
+ * its dye), then your inventory: hats nobody wears and furniture put away.
+ * The cursor's item is inverse; `held` is the item being moved, shown above
+ * the keys.
  */
 export function renderInventory(
   state: GameState,
@@ -70,41 +84,55 @@ export function renderInventory(
   columns = 0,
 ): string {
   const rows = inventoryRows(state);
-  const width = Math.max('Storage'.length, ...state.monkeys.map((_, i) => monkeyName(state, i).length));
+  const width = Math.max('Furniture'.length, ...state.monkeys.map((_, i) => monkeyName(state, i).length));
   const twWidth = Math.max('TYPEWRITER'.length, ...state.monkeys.map((m) => typewriterName(m.typewriter).length));
   const lines = rows.map((r, k) => {
     const cell = (item: Item, c: number) => {
       const name = itemName(state, r.who, item);
-      const m = typeof r.who === 'number' ? state.monkeys[r.who] : undefined;
-      const worn = item.kind === 'hat' && m?.hat === item.id;
-      const text = item.kind === 'hat' ? `${hats.find((h) => h.id === item.id)?.icon ?? ''} ${name}${worn ? ' (on)' : ''}` : name;
-      if (k === row && c === col) return inverse(text);
-      return worn ? green(m!.hatColor ? paint(m!.hatColor, text) : text) : text;
+      const count = item.kind === 'furniture' ? state.stored.furniture[item.id] ?? 0 : 1;
+      const icon = item.kind === 'hat' ? `${hats.find((h) => h.id === splitHatKey(item.key).id)?.icon ?? ''} ` : '';
+      const text = `${icon}${name}${count > 1 ? ` x${count}` : ''}`;
+      if (isCursor(k, row) && c === col) return inverse(text);
+      if (item.kind === 'nohat') return dim(text);
+      const color = item.kind === 'hat' ? splitHatKey(item.key).color : '';
+      return color ? paint(color, text) : text;
     };
     const items = r.items.map((item, c) => cell(item, c));
-    if (r.who === 'storage') {
-      const empty = k === row ? inverse('(empty)') : dim('(empty)');
-      return ` ${'   '}${'Storage'.padEnd(width)}  ${' '.repeat(twWidth)}  ${items.length > 0 ? items.join('   ') : empty}`;
+    if (typeof r.who !== 'number') {
+      const label = r.who === 'storage' ? 'Hats' : 'Furniture';
+      const empty = isCursor(k, row) ? inverse('(none)') : dim('(none)');
+      return ` ${'   '}${label.padEnd(width)}  ${items.length > 0 ? items.join('   ') : empty}`;
     }
     const m = state.monkeys[r.who];
-    const [tw, ...hatCells] = items;
-    return ` ${dyed(m, iconOf(m))} ${monkeyName(state, r.who).padEnd(width)}  ${padVisible(isTemp(m) ? dim(plainText(tw)) : tw, twWidth)}  ${hatCells.length > 0 ? hatCells.join('   ') : dim('no hats')}`;
+    const [tw, hat] = items;
+    return ` ${dyed(m, iconOf(m))} ${monkeyName(state, r.who).padEnd(width)}  ${padVisible(isTemp(m) ? dim(plainText(tw)) : tw, twWidth)}  ${hat}`;
   });
+  const monkeyRows = lines.slice(0, state.monkeys.length);
+  const mine = lines.slice(state.monkeys.length);
+  const heldText = held
+    ? held.item.kind === 'hat'
+      ? `Moving: ${bold(itemName(state, held.who, held.item))}${typeof held.who === 'number' ? ` from ${monkeyName(state, held.who)}` : ' from your inventory'}. Put it on a monkey or in your hats.`
+      : `Moving: ${bold(itemName(state, held.who, held.item))} from ${monkeyName(state, held.who as number)}. Put it on another monkey to swap.`
+    : '';
   return [
     titleBar(state, 'Inventory', columns),
     '',
-    dim(' Move hats between monkeys and storage, and swap typewriters. Skill stays with the monkey.'),
+    dim(' Your monkeys, then everything you own that is put away. Move hats, swap typewriters (skill stays'),
+    dim(' with the monkey), and put furniture back in the office.'),
     '',
-    dim(` ${'   '}${'MONKEY'.padEnd(width)}  ${'TYPEWRITER'.padEnd(twWidth)}  HATS`),
-    ...lines,
+    dim(` ${'   '}${'MONKEY'.padEnd(width)}  ${'TYPEWRITER'.padEnd(twWidth)}  HAT`),
+    ...monkeyRows,
     '',
-    ...(held ? [` Moving: ${bold(itemName(state, held.who, held.item))}${held.who === 'storage' ? ' from storage' : ` from ${monkeyName(state, held.who)}`}. Put it on a monkey${held.item.kind === 'hat' ? ' or in storage' : ''}.`] : []),
+    dim(` ${'   '}YOUR INVENTORY`),
+    ...mine,
+    '',
+    ...(heldText ? [` ${heldText}`] : []),
     ...(message ? [` ${bold(message)}`] : []),
     rule(columns),
     keyRow(
       held
-        ? [['arrows', 'move'], ['enter', held.item.kind === 'hat' ? 'give it here' : 'swap here'], ['esc', 'cancel']]
-        : [['arrows', 'move'], ['enter', 'pick up'], ['w', 'wear / take off'], ['esc', 'back']],
+        ? [['arrows', 'move'], ['enter', held.item.kind === 'hat' ? 'put it here' : 'swap here'], ['esc', 'cancel']]
+        : [['arrows', 'move'], ['enter', 'pick up / place'], ['esc', 'back']],
       columns,
     ),
   ].join('\n');

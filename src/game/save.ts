@@ -3,19 +3,63 @@ import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
 
-// Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
-// Version 2 had one chosen play (`play`) and pins as line numbers in it; it
-// loads as owning that whole play.
-const SAVE_VERSION = 3;
+import { GAME_VERSION } from '../version';
+
+/**
+ * The save format's version. Bump it when a field's meaning changes, and add
+ * a migration below that turns a save of the old version into the new one.
+ * (A new field only needs a fallback in deserialize.)
+ * Version 1 was the placeholder game before Infinite Monkeys; those saves start fresh.
+ * Version 2 had one chosen play (`play`) and pins as line numbers in it; it
+ * loads as owning that whole play.
+ */
+export const SAVE_VERSION = 4;
 
 interface SaveFile {
-  version: number;
+  version: number; // the save format (SAVE_VERSION)
+  gameVersion: string; // the game that wrote it (GAME_VERSION)
   state: GameState;
 }
 
 export function serialize(state: GameState): string {
-  const file: SaveFile = { version: SAVE_VERSION, state };
+  const file: SaveFile = { version: SAVE_VERSION, gameVersion: GAME_VERSION, state };
   return JSON.stringify(file);
+}
+
+type RawState = Record<string, unknown> & { monkeys?: unknown; stored?: { hats?: Record<string, number> } };
+
+/**
+ * Migrations, by the save version they upgrade from: each turns a save's
+ * state of that version into the next version's, in place. deserialize runs
+ * every one from the save's version up to SAVE_VERSION, in order.
+ */
+export const migrations: Record<number, (s: RawState) => void> = {
+  // 3 -> 4 (game 0.2.0): combo cap raises became starting-combo upgrades, and
+  // monkeys' wardrobes became the player's inventory (hats not worn go there).
+  3: (s) => {
+    if (s.comboStartLevel === undefined) s.comboStartLevel = s.comboCapLevel;
+    delete s.comboCapLevel;
+    if (!Array.isArray(s.monkeys)) return;
+    const stored = (s.stored ??= {}).hats ?? {};
+    for (const m of s.monkeys as { hat?: unknown; hats?: unknown }[]) {
+      for (const id of Array.isArray(m?.hats) ? m.hats : []) {
+        if (typeof id === 'string' && id !== m.hat) stored[id] = (typeof stored[id] === 'number' ? stored[id] : 0) + 1;
+      }
+      if (m) delete m.hats;
+    }
+    s.stored.hats = stored;
+  },
+};
+
+/** A save's versions (format and game), or null if it isn't a save. Saves from before game versions say ''. */
+export function saveVersions(raw: string | null): { version: number; gameVersion: string } | null {
+  try {
+    const file = raw ? JSON.parse(raw) : null;
+    if (!file || typeof file.version !== 'number') return null;
+    return { version: file.version, gameVersion: typeof file.gameVersion === 'string' ? file.gameVersion : '' };
+  } catch {
+    return null;
+  }
 }
 
 /** Parses a save, falling back to defaults for missing or corrupt fields. */
@@ -34,8 +78,11 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
   if (!raw) return fresh;
   try {
     const file = JSON.parse(raw) as { version?: number; state?: Partial<GameState> & { play?: unknown } };
-    if (file.version !== SAVE_VERSION && file.version !== 2) return fresh;
-    const s: Partial<GameState> & { play?: unknown } = file.state ?? {};
+    if (typeof file.version !== 'number' || file.version < 2) return fresh;
+    // Older saves are brought up to date one version at a time; newer ones load as well as they can.
+    const old = (file.state ?? {}) as RawState;
+    for (let v = file.version; v < SAVE_VERSION; v++) migrations[v]?.(old);
+    const s = old as Partial<GameState> & { play?: unknown };
     const num = (v: unknown, fallback: number) =>
       typeof v === 'number' && Number.isFinite(v) ? v : fallback;
     const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -73,7 +120,6 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       energy: Math.min(1, Math.max(0, num(m?.energy, 1))),
       resting: !!m?.resting,
       // Saves from before hats kept their hats in accessories.
-      hats: [...new Set([...strings(m?.hats), ...strings((m as { accessories?: unknown })?.accessories)])].filter((id) => hats.some((h) => h.id === id)),
       hat: [str(m?.hat), ...strings((m as { accessories?: unknown })?.accessories)].find((id) => hats.some((h) => h.id === id)) ?? '',
       hatColor: hatColors.some((c) => c.id === m?.hatColor) ? str(m?.hatColor) : '',
       petHappiness: Math.min(petting.maxHappiness, Math.max(0, num(m?.petHappiness, 0))),
@@ -186,7 +232,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
       stored: {
         furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),
-        hats: storedCounts((s.stored as { hats?: unknown } | undefined)?.hats, (id) => hats.some((h) => h.id === id)),
+        hats: storedCounts((s.stored as { hats?: unknown } | undefined)?.hats, (key) => {
+          const [id, color = ''] = key.split(':');
+          return hats.some((h) => h.id === id) && (!color || hatColors.some((c) => c.id === color));
+        }),
       },
       researched: strings(s.researched).filter((id) => research.projects.some((p) => p.id === id)),
       researchersHired: Math.max(0, Math.floor(num(s.researchersHired, 0))),
@@ -205,7 +254,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       speedBonus: Math.max(0, num(s.speedBonus, 0)),
       pinned,
       lastLine,
-      comboStartLevel: Math.max(0, Math.floor(num(s.comboStartLevel, num((s as { comboCapLevel?: unknown }).comboCapLevel, 0)))), // old saves: cap raises become starting-combo upgrades
+      comboStartLevel: Math.max(0, Math.floor(num(s.comboStartLevel, 0))),
       keys: strings(s.keys).filter((k) => /^[A-Z]+$/.test(k)),
       slots: Array.isArray(s.slots)
         ? s.slots

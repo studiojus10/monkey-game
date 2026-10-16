@@ -1,3 +1,4 @@
+import { GAME_VERSION } from '../version';
 import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
@@ -7,6 +8,8 @@ import {
   folioPagesNow,
   furnitureSpot,
   hatCost,
+  splitHatKey,
+  storedHat,
   furnitureCost,
   dyeCost,
   canSeatMonkey,
@@ -88,7 +91,7 @@ import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
 import { formatDuration, formatMultiplier, formatNumber } from '../format';
-import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
+import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -155,7 +158,7 @@ export function promptChoices(prompt: string): { key: string; start: number; end
 /** A picker prompt with its `k`th choice inverse: the picker's cursor. */
 export function highlightChoice(prompt: string, k: number): string {
   const c = promptChoices(prompt)[k];
-  return c ? prompt.slice(0, c.start) + inverse(prompt.slice(c.start, c.end)) + prompt.slice(c.end) : prompt;
+  return c && cursorsOn() ? prompt.slice(0, c.start) + inverse(prompt.slice(c.start, c.end)) + prompt.slice(c.end) : prompt;
 }
 
 /**
@@ -168,7 +171,7 @@ export function renderLetterPicker(state: GameState, free: boolean, cursor: numb
   const chosen = open[Math.min(cursor, open.length - 1)];
   const letters = Object.keys(letterValues)
     .sort()
-    .map((l) => (state.letters.includes(l) ? dim(l) : l === chosen ? inverse(l) : bold(l)))
+    .map((l) => (state.letters.includes(l) ? dim(l) : isCursor(l, chosen) ? inverse(l) : bold(l)))
     .join(' ');
   const gift = achievements.find((a) => a.id === state.letterGifts[state.letterGifts.length - 1])?.name ?? '';
   const title = free
@@ -214,7 +217,7 @@ function openingScreen(intro: string, explain: string[], choices: [string, strin
     ...(intro ? [` ${intro}`] : []),
     ...explain.map((r) => dim(` ${r}`)),
     '',
-    ...choices.map((c, k) => (k === cursor ? inverse(plainText(row(c))) : row(c))),
+    ...choices.map((c, k) => (isCursor(k, cursor) ? inverse(plainText(row(c))) : row(c))),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
@@ -334,7 +337,7 @@ function monkeyRow(state: GameState, i: number, room: number, chosen = false): s
   const m = state.monkeys[i];
   const dept = hasDeptColumn(state) ? `${isResearcher(m) ? 'R' : genreNames[monkeyGenre(state, m)!][0]} ` : '';
   // The home cursor: the chosen monkey's name inverse.
-  const name = `${chosen ? inverse(monkeyName(state, i).padEnd(col.name)) : monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
+  const name = `${chosen && cursorsOn() ? inverse(monkeyName(state, i).padEnd(col.name)) : monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
   const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m).toFixed(1)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
@@ -413,7 +416,7 @@ export function renderHomeKeys(state: GameState): string {
     ...group('GO TO', [
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
-      ['i', 'the inventory: move hats between monkeys and storage, swap typewriters'],
+      ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters'],
       ['p', 'the script: plays, pins and scenes to buy'],
       ['o', 'the office map'],
       ['t', 'statistics'],
@@ -437,6 +440,7 @@ export function renderHomeKeys(state: GameState): string {
       ['`', 'dev tools'],
       ['q', 'quit'],
     ]),
+    dim(` ${theme.title} v${GAME_VERSION}`),
     rule(),
     keyRow([['esc', 'back']]),
   ].join('\n');
@@ -857,10 +861,10 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
         ...hats.map((h): ShopItem => {
-          const stored = state.stored.hats[h.id] ?? 0;
+          const stored = Object.entries(state.stored.hats).reduce((n, [key, k]) => n + (splitHatKey(key).id === h.id ? k : 0), 0);
           const cost = stored > 0 ? 0 : hatCost(state, h.id);
-          const someone = team.some((i) => !state.monkeys[i].hats.includes(h.id));
-          const effect = stored > 0 ? `${hatEffect(h)}; ${stored} stored` : hatEffect(h);
+          const someone = team.some((i) => state.monkeys[i].hat !== h.id);
+          const effect = stored > 0 ? `${hatEffect(h)}; ${stored} in inventory` : hatEffect(h);
           return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: h.name, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
         }),
         {
@@ -870,7 +874,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
           cost: [[dyeCost(state), 'sentences']],
         },
-        { text: 'Monkeys keep every hat they get: wearing one again is free.' },
+        { text: 'A hat taken off goes into your inventory ([i]); wearing it again is free.' },
       ];
     }
   }
@@ -916,9 +920,9 @@ export function hatEffect(h: Hat): string {
 export function hatPick(state: GameState, id: string): { title: string; notes: string[] } {
   const h = hats.find((x) => x.id === id)!;
   return {
-    title: `${h.name} (${priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets it?`,
+    title: `${h.name} (${storedHat(state, id) ? 'free from your inventory' : priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets it?`,
     notes: state.monkeys.map((m) =>
-      m.hat === id ? 'wearing it: takes it off' : m.hats.includes(id) ? 'has one: free' : hatOf(m) ? `swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()}` : '',
+      m.hat === id ? 'wearing it: takes it off' : hatOf(m) ? `swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()} (into your inventory)` : '',
     ),
   };
 }
@@ -1023,7 +1027,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? green(`* ${costText(x, true)}`) : costText(x);
     const g = (t: string) => (x.star ? green(t) : t);
     const text = row(`[${n + 1}]`, g(x.text), x.glyph ?? '', g(x.element ?? ''), g(x.effect ?? ''), cost);
-    return [at === cursor ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
+    return [isCursor(at, cursor) ? inverse(plainText(text)) : x.cost && !x.star ? dim(plainText(text)) : text];
   });
 
   return [
@@ -1050,7 +1054,7 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1): strin
   const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
   const option = (key: string, label: string, on: boolean, notes: string[]) => {
     const row = ` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`;
-    return [Number(key) - 1 === cursor ? inverse(plainText(row)) : row, ...notes.map((n) => dim(`     ${n}`)), ''];
+    return [isCursor(Number(key) - 1, cursor) ? inverse(plainText(row)) : row, ...notes.map((n) => dim(`     ${n}`)), ''];
   };
   return [
     titleBar(state, 'Options', columns),
@@ -1066,6 +1070,7 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1): strin
       'On: click a [key] to press it, left click elsewhere = enter, right click = back,',
       'the wheel moves up and down. Off: your terminal can select text again.',
     ]),
+    dim(` ${theme.title} v${GAME_VERSION}`),
     rule(columns),
     keyRow([['up/down', 'choose'], ['enter', 'switch'], ['1-5', 'switch'], ['esc', 'back']], columns),
   ].join('\n');
@@ -1078,7 +1083,7 @@ export function renderDevMenu(state: GameState, message = '', columns = 0, curso
     '',
     dim(' For testing: these change your save.'),
     '',
-    ...devTools.map((t, i) => (i === cursor ? inverse(` [${i + 1}] ${t.label}`) : ` ${bold(`[${i + 1}]`)} ${t.label}`)),
+    ...devTools.map((t, i) => (isCursor(i, cursor) ? inverse(` [${i + 1}] ${t.label}`) : ` ${bold(`[${i + 1}]`)} ${t.label}`)),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
@@ -1111,7 +1116,7 @@ export function renderSlotsMenu(
     const x = state.slots[i];
     const word = i === selected && typing !== null ? `${typing}_` : x.word || dim('(no word)');
     const row = `${i === selected ? '>' : ' '} [${k + 1}] ${ordinal(x.position).padEnd(4)} word  ${padVisible(word, 16)} ${x.on ? green('ON') : dim('off')}`;
-    return i === selected ? inverse(plainText(row) + ' ') : row;
+    return isCursor(i, selected) ? inverse(plainText(row) + ' ') : row;
   });
   const managed = !!managerOf(state, genre);
   const many = departmentGenres(state).length > 1;
@@ -1178,7 +1183,7 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
     '',
     ...choices.map(({ k, kind, cost }, i) => {
       const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
-      if (i === cursor) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
+      if (isCursor(i, cursor)) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
       return state.currency >= cost
         ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatNumber(cost))} ${theme.currency}`)
         : dim(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
@@ -1385,7 +1390,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     });
     rows.push(
       ...lines.map((r) => {
-        if (i === at) return inverse(padVisible(plainText(r), rowWidth));
+        if (isCursor(i, at)) return inverse(padVisible(plainText(r), rowWidth));
         if (written) return green(plainText(r).trimEnd());
         return owned ? r.trimEnd() : dim(plainText(r).trimEnd());
       }),
@@ -1485,7 +1490,7 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     const text = line(first + k === at ? '>' : ' ', item.cols) + (item.finished ? '   finished' : '');
     return [
       ...(item.header ? [dim(` ${item.header}`)] : []),
-      first + k === at ? inverse(text + ' ') : item.faded ? dim(text.trimEnd()) : item.finished ? text.replace(/finished$/, green('finished')) : text.trimEnd(),
+      isCursor(first + k, at) ? inverse(text + ' ') : item.faded ? dim(text.trimEnd()) : item.finished ? text.replace(/finished$/, green('finished')) : text.trimEnd(),
     ];
   });
   return [

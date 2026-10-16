@@ -384,7 +384,7 @@ describe('storing, selling and firing', () => {
     expect(deserialize(serialize({ ...s, stored: { furniture: { plant: 2, nonsense: 1 }, hats: { crown: 1 } } })).stored).toEqual({ furniture: { plant: 2 }, hats: { crown: 1 } });
   });
 
-  it("sells a monkey's hat, and fires monkeys (never the last typist), keeping their hats in storage", async () => {
+  it("sells a monkey's hat, and fires monkeys (never the last typist), keeping their hats in the inventory", async () => {
     const L = await import('../src/game/logic');
     const { hats, sellBack } = await import('../src/game/config');
     const s = department(2);
@@ -393,7 +393,7 @@ describe('storing, selling and firing', () => {
     expect(L.wearHat(s, 1, cap.id)).toBe(true);
     const sentences = s.sentences;
     expect(L.sellHat(s, 1)).toBe(true);
-    expect(s.monkeys[1]).toMatchObject({ hat: '', hats: [] });
+    expect(s.monkeys[1]).toMatchObject({ hat: '', hatColor: '' });
     expect(s.sentences).toBe(sentences + Math.floor(cap.cost * sellBack));
     L.wearHat(s, 1, cap.id);
     expect(L.fireMonkey(s, 1)).toBe(true);
@@ -492,7 +492,7 @@ describe('temps', () => {
     expect(L.isTemp(temp)).toBe(true);
     expect(L.buyFasterTyping(s, i)).toBe(false);
     expect(L.buyTypewriter(s, i)).toBe(false);
-    temp.hats = [hats[0].id];
+    temp.hat = hats[0].id;
     const count = s.monkeys.length;
     expect(L.endTemps(s, hr.tempHours * 3600 - 1)).toEqual([]);
     expect(L.endTemps(s, 1)).toEqual([temp.name]);

@@ -3,7 +3,7 @@ import { hirePrice, jobFeeling, traitOf } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration } from '../format';
 import { priceNamed } from './screen';
-import { bold, dim, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar } from './style';
+import { bold, dim, green, inverse, isCursor, keyRow, padVisible, plainText, red, rule, titleBar } from './style';
 
 /** A stat as a percent: green above average, red below. */
 function percent(stat: number): string {
@@ -33,7 +33,7 @@ export function renderCandidates(state: GameState, job: string, title: string, b
       padVisible(c.tempLeft > 0 ? `temp ${formatDuration(c.tempLeft)}` : 'for good', 11),
       priceNamed(price, state.currency),
     ].join('  ');
-  }).map((r, i) => (i === cursor ? inverse(plainText(r)) : r));
+  }).map((r, i) => (isCursor(i, cursor) ? inverse(plainText(r)) : r));
   const unseen = ` [0]  someone unseen  ${priceNamed(base, state.currency)}`;
   return [
     titleBar(state, `Hiring: ${title}`, columns),
@@ -43,7 +43,7 @@ export function renderCandidates(state: GameState, job: string, title: string, b
     dim(['    ', 'SPEED  ', 'STAMINA ', jobName.toUpperCase().padEnd(9), 'TRAIT         ', 'STAYS      ', 'PRICE'].join('  ')),
     ...(rows.length > 0 ? rows : [dim('     Nobody right now.')]),
     '',
-    cursor === state.candidates.length ? inverse(plainText(unseen)) : unseen,
+    isCursor(cursor, state.candidates.length) ? inverse(plainText(unseen)) : unseen,
     ...(state.candidates.some((c) => c.tempLeft > 0)
       ? ['', dim(` Temps cost less and work better, but leave in time and can't be upgraded.`)]
       : []),

@@ -25,7 +25,6 @@ export interface MonkeyState {
   typewriter: number; // typewriter tier, 0 = the first; caps skill at (tier + 1) x levelsPerTypewriter
   energy: number; // 1 = rested, 0 = worn out; a tired monkey types slower
   resting: boolean; // on a break until its energy is back to full
-  hats: string[]; // ids of the hats it was given (it keeps them all)
   hat: string; // the hat it wears, '' for none
   hatColor: string; // its hat's dye (a hatColors id), '' for undyed
   petHappiness: number; // happiness from petting (0.01 = 1%), wearing off
@@ -133,7 +132,7 @@ export interface GameState {
   researched: string[]; // finished projects
   researchersHired: number; // researchers hired, for their price
   candidates: Candidate[]; // monkeys HR could hire now (see hr in config.ts)
-  stored: { furniture: Record<string, number>; hats: Record<string, number> }; // put away: furniture off the map, hats of fired monkeys; used again for free
+  stored: { furniture: Record<string, number>; hats: Record<string, number> }; // the player's inventory: furniture off the map, hats nobody wears (hatKey: kind and dye); used again for free
   candidatesIn: number; // seconds until HR draws a new list of candidates (0: at the next tick)
   squaresBought: number; // squares added to rooms, which raises the price of the next
   furniture: Furniture[]; // pieces bought, where they stand
@@ -222,7 +221,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hats: [], hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
 }
 
 /** A name with the sounds before each word's first vowel swapped for `onset` (King Kong -> Bing Bong); words without a vowel stay. */

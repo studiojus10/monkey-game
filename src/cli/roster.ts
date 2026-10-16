@@ -22,7 +22,7 @@ import type { GameState } from '../game/state';
 import { dyed, genreNames, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
 import { formatDuration } from '../format';
-import { bold, dim, green, inverse, keyRow, red, rule, titleBar } from './style';
+import { bold, dim, green, inverse, isCursor, keyRow, red, rule, titleBar } from './style';
 
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
 export const rosterPageRows = 12;
@@ -79,7 +79,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
     // The cursor's row is inverse; the others show the hat in its dye.
     const row = `${iconOf(m)} ${monkeyName(state, i)}${role ? `  (${role})` : ''}`;
-    list.push(k === at ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
+    list.push(isCursor(k, at) ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
   });
 
   const i = order[at];
@@ -88,7 +88,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
   const desk = i === undefined ? undefined : deskOf(state, i);
   const room = desk === undefined ? undefined : state.office.find((r) => r.id === state.furniture[desk].room);
   const hat = hats.find((h) => h.id === m?.hat);
-  const owned = m ? hats.filter((h) => m.hats.includes(h.id)).map((h) => h.name.toLowerCase()) : [];
   const trait = m && traitOf(m);
   const details = !m
     ? []
@@ -104,7 +103,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
           : []),
         `${label('Happiness')} ${monkeyHappiness(state, m) < 0 ? '' : '+'}${Math.round(monkeyHappiness(state, m) * 100)}%${m.petHappiness > 0 ? dim(`  (petted lately: +${(m.petHappiness * 100).toFixed(1)}%)`) : ''}`,
         `${label('Hat')} ${hat ? `${hat.name}${m.hatColor ? `, dyed ${hatColors.find((c) => c.id === m.hatColor)?.id}` : ''}: ${hatEffect(hat)}` : 'none'}`,
-        ...(owned.length > 1 ? [`${label('Wardrobe')} ${owned.join(', ')}`] : []),
         `${label('Trait')} ${state.managerBook ? (trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?') : dim('unknown (perhaps a book somewhere explains monkeys)')}`,
         ...(statsShown(state)
           ? [

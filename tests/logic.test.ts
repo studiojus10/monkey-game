@@ -1644,21 +1644,22 @@ describe('placing and moving rooms', () => {
 });
 
 describe('hats', () => {
-  it('moves hats between monkeys and storage, and swaps typewriters', () => {
+  it('moves hats between monkeys and the inventory, and swaps typewriters', () => {
     const s = createInitialState(0);
     s.monkeys.push(createMonkey());
-    s.monkeys[0].hats = ['tophat'];
     s.monkeys[0].hat = 'tophat';
-    expect(moveHat(s, 0, 'tophat', 1)).toBe(true);
-    expect(s.monkeys[0].hat).toBe(''); // taken off
-    expect(s.monkeys[1].hats).toEqual(['tophat']);
-    expect(moveHat(s, 0, 'tophat', 1)).toBe(false); // M-1 has none left
-    expect(moveHat(s, 1, 'tophat', 'storage')).toBe(true);
-    expect(s.stored.hats).toEqual({ tophat: 1 });
-    s.monkeys[1].hats = ['tophat'];
-    expect(moveHat(s, 'storage', 'tophat', 1)).toBe(false); // one of each kind
-    expect(moveHat(s, 'storage', 'tophat', 0)).toBe(true);
-    expect(s.stored.hats).toEqual({});
+    s.monkeys[0].hatColor = 'red';
+    expect(moveHat(s, 0, 'tophat', 1)).toBe(false); // the key names the dye too
+    expect(moveHat(s, 0, 'tophat:red', 1)).toBe(true);
+    expect(s.monkeys[0].hat).toBe('');
+    expect([s.monkeys[1].hat, s.monkeys[1].hatColor]).toEqual(['tophat', 'red']);
+    expect(moveHat(s, 0, 'tophat:red', 1)).toBe(false); // M-1 wears none
+    expect(moveHat(s, 1, 'tophat:red', 'storage')).toBe(true);
+    expect(s.stored.hats).toEqual({ 'tophat:red': 1 });
+    s.monkeys[0].hat = 'cowboy';
+    expect(moveHat(s, 'storage', 'tophat:red', 0)).toBe(true); // its cowboy hat goes into the inventory
+    expect(s.stored.hats).toEqual({ cowboy: 1 });
+    expect(s.monkeys[0].hatColor).toBe('red');
     s.monkeys[0].typewriter = 3;
     expect(swapTypewriters(s, 0, 1)).toBe(true);
     expect([s.monkeys[0].typewriter, s.monkeys[1].typewriter]).toEqual([0, 3]);
@@ -1684,20 +1685,21 @@ describe('hats', () => {
     expect(wearHat(s, 1, 'cap')).toBe(true); // managers can dress up too
   });
 
-  it('keeps the hats a monkey owns: swapping back is free, picking the one it wears takes it off', () => {
+  it('puts a hat taken off in the inventory: wearing it again is free, picking the one worn takes it off', () => {
     const s = createInitialState(0);
     s.sentences = 1e12;
     const m = s.monkeys[0];
     expect(wearHat(s, 0, 'tophat')).toBe(true);
     expect(wearHat(s, 0, 'cowboy')).toBe(true);
-    expect(m.hats).toEqual(['tophat', 'cowboy']);
+    expect(s.stored.hats).toEqual({ tophat: 1 }); // swapped off into the inventory
     const left = s.sentences;
     expect(wearHat(s, 0, 'tophat')).toBe(true);
-    expect(s.sentences).toBe(left);
+    expect(s.sentences).toBe(left); // out of the inventory, free
     expect(m.hat).toBe('tophat');
+    expect(s.stored.hats).toEqual({ cowboy: 1 });
     expect(wearHat(s, 0, 'tophat')).toBe(true);
     expect(m.hat).toBe('');
-    expect(m.hats).toEqual(['tophat', 'cowboy']);
+    expect(s.stored.hats).toEqual({ cowboy: 1, tophat: 1 });
   });
 
   it('has hats that share a price, and some very dear ones', () => {
@@ -1978,7 +1980,6 @@ describe('achievements', () => {
   it('measures each stat, including secret words and worn hats', () => {
     const s = createInitialState(0);
     s.stats.words = { MONKEY: 2, CAT: 1 };
-    s.monkeys[0].hats = ['crown'];
     s.monkeys[0].hat = 'crown';
     expect(achievementValue(s, 'word:MONKEY')).toBe(2);
     expect(achievementValue(s, 'dictionary')).toBe(2);

@@ -2,13 +2,14 @@ import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   dyeHat,
   hatCost,
+  storedHat,
   wearHat,
   buyFurniture,
   allowedIn,
@@ -115,7 +116,8 @@ import {
   roomFitsAt,
   suggestRoomSpot,
 } from '../game/logic';
-import { load, save } from '../game/save';
+import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
+import { GAME_VERSION } from '../version';
 import { createInitialState, type Door, type GameState, type Room, type Side } from '../game/state';
 import { formatMultiplier, formatNumber, setScientific } from '../format';
 import { fileStorage } from './fileStorage';
@@ -159,8 +161,8 @@ import {
   hatPick,
   inspectItem,
 } from './screen';
-import { forLightBackground, placeScreen, screenTop } from './style';
-import { mouseOff, mouseOn, mousePress, parseMouse } from './mouse';
+import { forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
+import { mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { renderCandidates } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
@@ -178,7 +180,13 @@ setPlays(loadPlays());
 const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
 const storage = fileStorage(savePath);
 
-let state = load(storage);
+// A save from another version of the game is copied aside before it's updated, so it's never lost.
+const savedRaw = storage.read();
+const saved = saveVersions(savedRaw);
+const fromVersion = saved && saved.gameVersion !== GAME_VERSION ? saved.gameVersion || 'an older version' : '';
+const backupPath = fromVersion ? savePath.replace(/(\.json)?$/, `-${saved!.gameVersion ? `v${saved!.gameVersion}` : 'old'}.json`) : '';
+if (backupPath && savedRaw && !existsSync(backupPath)) writeFileSync(backupPath, savedRaw);
+let state = deserialize(savedRaw);
 setScientific(state.settings.scientific);
 /** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
 function fitLines(): number {
@@ -205,6 +213,9 @@ function tempsGone(before: Map<number, string>): string {
 const tempsBefore = tempsNow();
 const offline = applyOfflineProgress(state, Date.now());
 let message = [
+  fromVersion
+    ? `Your save was updated from ${/^\d/.test(fromVersion) ? `v${fromVersion}` : fromVersion} to v${GAME_VERSION}${saved!.version > SAVE_VERSION ? ' (it came from a newer game; some things may not carry over)' : ''}. The old save is kept in ${backupPath}.`
+    : '',
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '',
   tempsGone(tempsBefore),
 ]
@@ -461,9 +472,12 @@ function wearHatOn(i: number, id: string): string {
   const name = monkeyName(state, i);
   const hatName = hats.find((h) => h.id === id)!.name.toLowerCase();
   if (m.hat === id) return wearHat(state, i, id) ? `${name} takes off its ${hatName}.` : '';
-  const free = m.hats.includes(id);
+  const free = !!storedHat(state, id);
   if (!free && state.sentences < hatCost(state, id)) return noSentences;
-  return wearHat(state, i, id) ? `${name} puts on ${free ? 'its' : 'a new'} ${hatName}.` : noSentences;
+  const old = m.hat ? hats.find((h) => h.id === m.hat)!.name.toLowerCase() : '';
+  return wearHat(state, i, id)
+    ? `${name} puts on ${free ? 'the' : 'a new'} ${hatName}${free ? ' from your inventory' : ''}.${old ? ` Its ${old} goes into your inventory.` : ''}`
+    : noSentences;
 }
 
 /** Dyes monkey `i`'s hat `color` ('' washes it out); returns the message to show. */
@@ -725,11 +739,54 @@ function draw() {
           : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
+  // Whatever the mouse is over is highlighted, as the menus' cursor is.
+  const lines = [...drawn.lines];
+  const over = hoverTarget();
+  if (over) lines[over.line] = inverseSpan(lines[over.line], over.from, over.to);
+  const shownScreen = lines.join('\n');
   process.stdout.write(
     (state.settings.mouse ? mouseOn : mouseOff) +
       '\x1b[2J\x1b[H' +
-      placeScreen(state.settings.lightBackground ? forLightBackground(screen) : screen, rows, state.settings.screenAtTop),
+      placeScreen(state.settings.lightBackground ? forLightBackground(shownScreen) : shownScreen, rows, state.settings.screenAtTop),
   );
+}
+
+/** Where the mouse is (null: not over the game, or the keys moved since), and whether the arrow keys or wheel moved a cursor last. */
+let hover: { row: number; col: number } | null = null;
+let navigated = false;
+
+function hoverTarget() {
+  return state.settings.mouse && hover ? targetAt(drawn.lines, drawn.top, hover.row, hover.col, !!pickingLetter) : undefined;
+}
+
+/**
+ * Menus hide their cursor until the arrow keys or the wheel move it (Justin,
+ * 2026-10-16); enter keeps it, any other key hides it again. Moving the mouse
+ * hides it too, since then what's under the mouse is highlighted.
+ */
+function noteKey(name: string | undefined) {
+  if (['up', 'down', 'left', 'right'].includes(name ?? '')) {
+    navigated = true;
+    hover = null;
+  } else if (name !== 'return' && name !== 'enter') navigated = false;
+  showCursors(navigated);
+}
+
+function onMouse(e: MouseEvent) {
+  if (e.kind === 'move') {
+    const before = hoverTarget();
+    hover = { row: e.row, col: e.col };
+    const after = hoverTarget();
+    const moved = navigated || before?.line !== after?.line || before?.from !== after?.from;
+    navigated = false;
+    showCursors(false);
+    if (moved) draw();
+    return;
+  }
+  const press = mousePress(e, drawn.lines, drawn.top, !!pickingLetter, navigated);
+  if (!press) return;
+  noteKey(press.name);
+  handleKey(press.str, { name: press.name });
 }
 
 /** The screen last drawn and the terminal row its first line is on, for mouse clicks. */
@@ -1352,7 +1409,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const rows = inventoryRows(state);
     invRow = Math.max(0, Math.min(invRow, rows.length - 1));
     const here = rows[invRow];
-    const name = (who: Holder) => (who === 'storage' ? 'storage' : monkeyName(state, who));
+    const name = (who: Holder) => (typeof who === 'number' ? monkeyName(state, who) : 'your inventory');
     if (key.name === 'escape' || key.name === 'q' || (str === 'i' && !invHeld)) {
       if (invHeld) invHeld = null;
       else showingInventory = false;
@@ -1364,27 +1421,36 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       const item = here.items[invCol];
       if (!invHeld) {
-        if (!item) message = 'Nothing there to pick up.';
-        else if (item.kind === 'typewriter' && isTemp(state.monkeys[here.who as number])) message = 'Temps keep their own typewriter.';
+        if (!item || item.kind === 'nohat') message = 'Nothing there to pick up.';
+        else if (item.kind === 'furniture') {
+          // Furniture goes back in the office: the map opens with it in hand.
+          const kind = item.id;
+          if (!furnitureSpot(state, kind)) message = `No room for it: it needs ${pieceSize(kind).join(' x ')} free squares in a room it fits. Make space or grow a room on the office map.`;
+          else if (buyFurniture(state, kind)) {
+            showingInventory = false;
+            openOffice();
+            const i = state.furniture.length - 1;
+            const f = state.furniture[i];
+            officeCursor = { x: f.x, y: f.y };
+            heldFurniture = i;
+            message = `Where should the ${furnitureName(state, i)} go? [esc] leaves it here.`;
+          }
+        } else if (item.kind === 'typewriter' && isTemp(state.monkeys[here.who as number])) message = 'Temps keep their own typewriter.';
         else invHeld = { who: here.who, item };
       } else if (invHeld.who === here.who) invHeld = null; // put back where it was
       else if (invHeld.item.kind === 'hat') {
         const what = itemName(state, invHeld.who, invHeld.item).toLowerCase();
-        if (moveHat(state, invHeld.who, invHeld.item.id, here.who)) {
-          message = here.who === 'storage' ? `The ${what} is in storage.` : `${name(here.who)} has the ${what} now. [w] puts it on.`;
+        const to = here.who === 'furniture' ? 'storage' : here.who;
+        if (moveHat(state, invHeld.who as number | 'storage', invHeld.item.key, to)) {
+          message = to === 'storage' ? `The ${what} is in your inventory.` : `${name(to)} wears the ${what} now.`;
           invHeld = null;
           invCol = Math.max(0, Math.min(invCol, inventoryRows(state)[invRow].items.length - 1));
-        } else message = `${name(here.who)} has a ${what} already.`;
-      } else if (here.who === 'storage') message = 'Typewriters stay with monkeys: put it on another monkey to swap.';
+        } else message = `That hat can't go there.`;
+      } else if (typeof here.who !== 'number') message = 'Typewriters stay with monkeys: put it on another monkey to swap.';
       else if (swapTypewriters(state, invHeld.who as number, here.who)) {
         message = `${name(invHeld.who)} and ${name(here.who)} swapped typewriters.`;
         invHeld = null;
       } else message = 'Temps keep their own typewriter.';
-    } else if (str === 'w' && !invHeld) {
-      const item = here.items[invCol];
-      if (here.who === 'storage') message = 'Give it to a monkey first: pick it up and put it on one.';
-      else if (item?.kind !== 'hat') message = 'Choose a hat to wear.';
-      else message = wearHatOn(here.who, item.id);
     }
     return draw();
   }
@@ -1409,12 +1475,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (blocked) message = `You can't fire ${monkeyName(state, i)}: ${blocked}.`;
       else {
         confirmingFire = true;
-        message = `Fire ${monkeyName(state, i)}? It leaves for good; its hats go into storage. [y] fire   (any other key: no)`;
+        message = `Fire ${monkeyName(state, i)}? It leaves for good; its hat goes into your inventory. [y] fire   (any other key: no)`;
       }
     } else if (str === 'h' && i !== undefined) {
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat.`;
-      else if (wearHat(state, i, hat.id)) message = `${monkeyName(state, i)} took off the ${hat.name.toLowerCase()}; it stays in its wardrobe.`;
+      else if (wearHat(state, i, hat.id)) message = `${monkeyName(state, i)} took off the ${hat.name.toLowerCase()}; it's in your inventory ([i]).`;
     } else if (str === '$' && i !== undefined) {
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat to sell.`;
@@ -1597,18 +1663,19 @@ if (!process.stdin.isTTY) {
 // each click or wheel turn becomes the key press it stands for.
 const keys = new PassThrough();
 emitKeypressEvents(keys);
-keys.on('keypress', handleKey);
+keys.on('keypress', (str: string | undefined, key: { name?: string; ctrl?: boolean }) => {
+  noteKey(key.name);
+  handleKey(str, key);
+});
 process.stdin.setRawMode(true);
 process.stdin.on('data', (chunk: Buffer) => {
   const { events, rest } = parseMouse(chunk.toString('utf8'));
   if (rest) keys.write(rest);
   if (!state.settings.mouse) return;
-  for (const e of events) {
-    const press = mousePress(e, drawn.lines, drawn.top, !!pickingLetter);
-    if (press) handleKey(press.str, { name: press.name });
-  }
+  for (const e of events) onMouse(e);
 });
 process.stdout.write('\x1b[?25l'); // hide cursor
+showCursors(false);
 
 let last = Date.now();
 setInterval(() => {
