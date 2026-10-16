@@ -23,7 +23,8 @@ describe('save/load', () => {
     expect(deserialize(serialize(s))).toEqual(s);
     const raw = JSON.parse(serialize(s));
     raw.state.stored.hats['cap:plaid'] = 1; // no such dye
-    raw.state.monkeys[0] = { ...raw.state.monkeys[0], hats: ['tophat', 'crown', 'halo'] }; // a wardrobe, from before the inventory
+    raw.version = 3; // a save from before the inventory: monkeys kept wardrobes
+    raw.state.monkeys[0] = { ...raw.state.monkeys[0], hats: ['tophat', 'crown', 'halo'] };
     const back = deserialize(JSON.stringify(raw));
     expect(back.stored.hats).toEqual({ tophat: 2, 'cap:red': 2, halo: 1 });
     raw.state.monkeys[0] = { ...raw.state.monkeys[0], hats: undefined, hat: undefined, hatColor: 'plaid', accessories: ['glasses', 'cap'] };
@@ -139,8 +140,29 @@ describe('office space in saves', () => {
 describe('combo upgrades in old saves', () => {
   it("turns an old save's combo cap raises into starting-combo upgrades", () => {
     const old = JSON.parse(serialize(createInitialState(0)));
+    old.version = 3;
     delete old.state.comboStartLevel;
     old.state.comboCapLevel = 3;
     expect(deserialize(JSON.stringify(old)).comboStartLevel).toBe(3);
   });
 });
+
+describe('versions', () => {
+  it('writes the game version into saves, and migrates saves one version at a time', async () => {
+    const { GAME_VERSION } = await import('../src/version');
+    const { SAVE_VERSION, migrations, saveVersions } = await import('../src/game/save');
+    const pkg = JSON.parse((await import('node:fs')).readFileSync('package.json', 'utf8'));
+    expect(pkg.version).toBe(GAME_VERSION);
+    const raw = serialize(createInitialState(0));
+    expect(saveVersions(raw)).toEqual({ version: SAVE_VERSION, gameVersion: GAME_VERSION });
+    expect(saveVersions('{"version":3,"state":{}}')).toEqual({ version: 3, gameVersion: '' }); // from before game versions
+    expect(saveVersions('nonsense')).toBeNull();
+    // Every format since 2 has a way up to now.
+    for (let v = 3; v < SAVE_VERSION; v++) expect(migrations[v]).toBeTypeOf('function');
+    const newer = JSON.parse(raw);
+    newer.version = SAVE_VERSION + 1;
+    newer.state.currency = 42;
+    expect(deserialize(JSON.stringify(newer)).currency).toBe(42); // a newer save still loads as well as it can
+  });
+});
+

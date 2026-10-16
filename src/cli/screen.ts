@@ -1,3 +1,4 @@
+import { GAME_VERSION } from '../version';
 import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
@@ -415,7 +416,7 @@ export function renderHomeKeys(state: GameState): string {
     ...group('GO TO', [
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
-      ['i', 'the inventory: move hats between monkeys and storage, swap typewriters'],
+      ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters'],
       ['p', 'the script: plays, pins and scenes to buy'],
       ['o', 'the office map'],
       ['t', 'statistics'],
@@ -439,6 +440,7 @@ export function renderHomeKeys(state: GameState): string {
       ['`', 'dev tools'],
       ['q', 'quit'],
     ]),
+    dim(` ${theme.title} v${GAME_VERSION}`),
     rule(),
     keyRow([['esc', 'back']]),
   ].join('\n');
@@ -1068,6 +1070,7 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1): strin
       'On: click a [key] to press it, left click elsewhere = enter, right click = back,',
       'the wheel moves up and down. Off: your terminal can select text again.',
     ]),
+    dim(` ${theme.title} v${GAME_VERSION}`),
     rule(columns),
     keyRow([['up/down', 'choose'], ['enter', 'switch'], ['1-5', 'switch'], ['esc', 'back']], columns),
   ].join('\n');

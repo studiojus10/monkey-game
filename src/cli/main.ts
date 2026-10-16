@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
 import {
@@ -116,7 +116,8 @@ import {
   roomFitsAt,
   suggestRoomSpot,
 } from '../game/logic';
-import { load, save } from '../game/save';
+import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
+import { GAME_VERSION } from '../version';
 import { createInitialState, type Door, type GameState, type Room, type Side } from '../game/state';
 import { formatMultiplier, formatNumber, setScientific } from '../format';
 import { fileStorage } from './fileStorage';
@@ -179,7 +180,13 @@ setPlays(loadPlays());
 const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
 const storage = fileStorage(savePath);
 
-let state = load(storage);
+// A save from another version of the game is copied aside before it's updated, so it's never lost.
+const savedRaw = storage.read();
+const saved = saveVersions(savedRaw);
+const fromVersion = saved && saved.gameVersion !== GAME_VERSION ? saved.gameVersion || 'an older version' : '';
+const backupPath = fromVersion ? savePath.replace(/(\.json)?$/, `-${saved!.gameVersion ? `v${saved!.gameVersion}` : 'old'}.json`) : '';
+if (backupPath && savedRaw && !existsSync(backupPath)) writeFileSync(backupPath, savedRaw);
+let state = deserialize(savedRaw);
 setScientific(state.settings.scientific);
 /** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
 function fitLines(): number {
@@ -206,6 +213,9 @@ function tempsGone(before: Map<number, string>): string {
 const tempsBefore = tempsNow();
 const offline = applyOfflineProgress(state, Date.now());
 let message = [
+  fromVersion
+    ? `Your save was updated from ${/^\d/.test(fromVersion) ? `v${fromVersion}` : fromVersion} to v${GAME_VERSION}${saved!.version > SAVE_VERSION ? ' (it came from a newer game; some things may not carry over)' : ''}. The old save is kept in ${backupPath}.`
+    : '',
   offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '',
   tempsGone(tempsBefore),
 ]
