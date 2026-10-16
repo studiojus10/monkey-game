@@ -40,6 +40,9 @@ describe('hover and hidden cursors', () => {
     expect(targetAt(lines, 1, 3, 10)).toMatchObject({ line: 2, from: 0, to: 31 });
     expect(targetAt(lines, 1, 4, 2)).toBeUndefined();
     expect(targetAt(lines, 1, 3, 40)).toBeUndefined(); // past the end of the row
+    const bar = [' SHOP    10 Bananas   [?] flip'];
+    expect(targetAt(bar, 1, 1, 3)).toBeUndefined(); // the title bar is no menu row: only its [?] button
+    expect(targetAt(bar, 1, 1, 23)?.press.str).toBe('?');
     const lit = inverseSpan(lines[1], 1, 4);
     expect(plainText(lit)).toBe(plainText(lines[1]));
     expect(lit).toContain('\x1b[1m\x1b[7m[b]\x1b[27m');

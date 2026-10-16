@@ -2,14 +2,15 @@ import { GAME_VERSION } from '../version';
 import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerDesk, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
+  flipChance,
   canPublishFolio,
   folioMultiplier,
   folioMultiplierAfter,
   folioPagesNow,
   furnitureSpot,
   hatCost,
-  splitHatKey,
-  storedHat,
+  hatsOwned,
+  furnitureOwned,
   furnitureCost,
   dyeCost,
   canSeatMonkey,
@@ -90,7 +91,7 @@ import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
-import { formatDuration, formatMultiplier, formatNumber } from '../format';
+import { formatAmount, formatDuration, formatMultiplier, formatNumber } from '../format';
 import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
@@ -243,7 +244,7 @@ const hasTraitColumn = (state: GameState) => state.managerBook;
 export function traitNow(state: GameState, m: MonkeyState): string {
   const parts = (['speed', 'pay', 'rest'] as const).flatMap((e) => {
     const b = traitBonus(state, m, e);
-    return b === 0 ? [] : [`${b > 0 ? '+' : ''}${Math.round(b * 100)}% ${e === 'rest' ? 'faster breaks' : e}`];
+    return b === 0 ? [] : [`${b > 0 ? '+' : ''}${Math.round(b * 100)}% ${e === 'rest' ? 'faster recovery' : e}`];
   });
   const room = traitOf(m)?.room;
   const mates = room ? roomMates(state, m).length : 0;
@@ -388,7 +389,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
   return rows.length === 0 ? [] : ['', dim(' LATELY'), ...rows.map((r) => `   ${r}`)];
 }
 
-/** The keys shown under the home screen: where to go, then what to do. Every key is on the [?] page. */
+/** The keys shown under the home screen: where to go, then what to do. Every key is on the [/] page. */
 function homeKeys(state: GameState, columns: number): string[] {
   return [
     keyRow([['space', 'shop'], ['m', 'monkeys'], ['i', 'inventory'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
@@ -401,13 +402,13 @@ function homeKeys(state: GameState, columns: number): string[] {
       ['d', 'move'],
       ['c', 'options'],
       ...(canPublishFolio(state) ? [['f', 'publish a Folio'] as [string, string]] : []),
-      ['?', 'all keys'],
+      ['/', 'all keys'],
       ['q', 'quit'],
     ], columns),
   ];
 }
 
-/** Every key on the home screen, for the [?] page. */
+/** Every key on the home screen, for the [/] page. */
 export function renderHomeKeys(state: GameState): string {
   const group = (title: string, keys: [string, string][]) => [dim(` ${title}`), ...keys.map(([k, what]) => `   ${bold(`[${k}]`.padEnd(9))} ${what}`), ''];
   return [
@@ -432,9 +433,9 @@ export function renderHomeKeys(state: GameState): string {
       ['n', 'name the chosen monkey'],
       ['d', 'move the chosen monkey to another department'],
     ]),
+    ...group('ANY TIME', [['?', `flip a coin: double all your ${theme.currency} or lose them all`]]),
     ...group('GAME', [
       ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
-      ['$', `flip a coin: double all your ${theme.currency} or lose them all`],
       ['s', 'save now (the game also saves on its own)'],
       ['r', 'reset: start a new game'],
       ['`', 'dev tools'],
@@ -505,7 +506,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
   const view = homeView(state);
   const viewName = view === research.id ? research.name : view ? genreNames[view as Genre] : '';
   const lines = [
-    titleBar(state),
+    titleBar(state, '', columns),
     '',
     // With several departments, one at a time: its name, then which of how many.
     ...(views.length > 1 && view ? [` ${bold(viewName.toUpperCase())}${dim(`   department ${views.indexOf(view) + 1} of ${views.length}`)}`] : []),
@@ -796,17 +797,17 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               : 'Furniture for break rooms: it helps each department whose nearest one it is.',
         },
         ...kinds.map((k): ShopItem => {
-          const stored = state.stored.furniture[k.id] ?? 0;
-          const cost = stored > 0 ? 0 : furnitureCost(state, k.id);
+          const cost = furnitureCost(state, k.id);
+          const owned = furnitureOwned(state, k.id);
           const where = k.rooms.includes(store) ? store : k.rooms[0];
           return {
             id: `furniture:${k.id}@${where}`,
             star: !!furnitureSpot(state, k.id, where) && state.sentences >= cost,
-            text: k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name,
+            text: `${k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name}${owned > 0 ? ` (${owned})` : ''}`,
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
-            effect: stored > 0 ? `${furnitureEffect(k)}; ${stored} stored` : furnitureEffect(k),
+            effect: furnitureEffect(k),
             cost: [[cost, 'sentences']],
           };
         }),
@@ -861,11 +862,11 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
         ...hats.map((h): ShopItem => {
-          const stored = Object.entries(state.stored.hats).reduce((n, [key, k]) => n + (splitHatKey(key).id === h.id ? k : 0), 0);
-          const cost = stored > 0 ? 0 : hatCost(state, h.id);
+          const cost = hatCost(state, h.id);
+          const owned = hatsOwned(state, h.id);
           const someone = team.some((i) => state.monkeys[i].hat !== h.id);
-          const effect = stored > 0 ? `${hatEffect(h)}; ${stored} in inventory` : hatEffect(h);
-          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: h.name, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
+          const effect = hatEffect(h);
+          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name}${owned > 0 ? ` (${owned})` : ''}`, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
         }),
         {
           id: 'dye',
@@ -874,7 +875,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
           cost: [[dyeCost(state), 'sentences']],
         },
-        { text: 'A hat taken off goes into your inventory ([i]); wearing it again is free.' },
+        { text: 'Hats taken off go into your inventory: [i] puts one back on for free.' },
       ];
     }
   }
@@ -911,7 +912,7 @@ export function hatEffect(h: Hat): string {
     ...(h.points ? [`+${pct(h.points)} pay`] : []),
     ...(h.speed ? [`+${pct(h.speed)} speed`] : []),
     ...(h.drain ? [`tires ${pct(h.drain)} slower`] : []),
-    ...(h.rest ? [`breaks ${pct(h.rest)} faster`] : []),
+    ...(h.rest ? [`recovers ${pct(h.rest)} faster`] : []),
     ...(h.combo ? [`combo cap +${h.combo}`] : []),
   ].join(', ');
 }
@@ -920,7 +921,7 @@ export function hatEffect(h: Hat): string {
 export function hatPick(state: GameState, id: string): { title: string; notes: string[] } {
   const h = hats.find((x) => x.id === id)!;
   return {
-    title: `${h.name} (${storedHat(state, id) ? 'free from your inventory' : priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets it?`,
+    title: `${h.name} (${priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets a new one?`,
     notes: state.monkeys.map((m) =>
       m.hat === id ? 'wearing it: takes it off' : hatOf(m) ? `swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()} (into your inventory)` : '',
     ),
@@ -953,7 +954,7 @@ export function furnitureEffect(k: FurnitureKind): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return [
     ...(k.drain ? [`tire ${pct(k.drain)} slower`] : []),
-    ...(k.rest ? [`breaks ${pct(k.rest)} faster`] : []),
+    ...(k.rest ? [`recovers ${pct(k.rest)} faster`] : []),
     ...(k.happiness ? [`+${pct(k.happiness)} pay`] : []),
   ].join(', ');
 }
@@ -1050,6 +1051,23 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
 }
 
 /** The options menu. */
+/** The coin flip screen, opened with [?] from any screen: the bet and its odds, then how it went. */
+export function renderCoinFlip(state: GameState, asking: boolean, message: string, columns = 0): string {
+  return [
+    titleBar(state, 'Coin flip', columns),
+    '',
+    ...(asking
+      ? [
+          ` Bet all ${bold(formatAmount(state.currency))} ${theme.currency} on a coin flip?`,
+          ` Heads (a ${(flipChance(state) * 100).toFixed(1)}% chance) doubles them; tails loses them all.`,
+        ]
+      : [` ${bold(message)}`]),
+    '',
+    rule(columns),
+    keyRow(asking ? [['y', 'flip'], ['esc', 'no']] : [['?', 'flip again'], ['esc', 'back']], columns),
+  ].join('\n');
+}
+
 export function renderOptions(state: GameState, columns = 0, cursor = -1): string {
   const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
   const option = (key: string, label: string, on: boolean, notes: string[]) => {

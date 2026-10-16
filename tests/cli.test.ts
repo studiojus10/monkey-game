@@ -17,6 +17,7 @@ import {
   renderContents,
   renderSlotsMenu,
   renderOptions,
+  renderCoinFlip,
   promptChoices,
   highlightChoice,
   hatPick,
@@ -143,7 +144,7 @@ describe('terminal screen', () => {
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
       '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
-        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m',
+        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[?] flip\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
     expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
@@ -191,7 +192,7 @@ describe('terminal screen', () => {
     }
   });
 
-  it('lists every key on the [?] page', () => {
+  it('lists every key on the [/] page', () => {
     const s = started();
     const keys = plain(renderHomeKeys(s));
     for (const k of ['[space]', '[p]', '[o]', '[t]', '[a]', '[w]', '[c]', '[enter]', '[n]', '[d]', '[s]', '[r]', '[`]', '[q]']) expect(keys).toContain(k);
@@ -589,7 +590,7 @@ describe('office space on screen', () => {
     expect(text).toContain('\n\n+-1-----+\n|[@]  . :\n|       |\n| .   . |\n+-------+');
     expect(squash(text)).toContain('\n 1 Comedies room 4 none - Bobo\n');
     expect(text).toContain('[r] buy a room');
-    expect(text).not.toContain('Each monkey gets a desk'); // how rooms work is on the [?] page
+    expect(text).not.toContain('Each monkey gets a desk'); // how rooms work is on the [/] page
     expect(plain(renderOfficeHelp(s))).toContain("Each monkey gets a desk in its department's room.");
   });
 
@@ -625,8 +626,8 @@ describe('office space on screen', () => {
     s.furniture.push({ kind: 'tv', room: 'r3', x: s.office[2].cells[0][0], y: s.office[2].cells[0][1] });
     const text = squash(renderOffice(s));
     expect(text).toContain('\n # ROOM SIZE LOUNGE EFFECTS WHO\n');
-    expect(text).toContain('\n 1 Comedies room 4 Break room breaks 40% faster, +3% happy M-1\n');
-    expect(text).toContain('\n 2 Tragedies room 9 Break room breaks 40% faster, +3% happy\n');
+    expect(text).toContain('\n 1 Comedies room 4 Break room recovers 40% faster, +3% happy M-1\n');
+    expect(text).toContain('\n 2 Tragedies room 9 Break room recovers 40% faster, +3% happy\n');
     expect(text).toContain('\n 3 Break room 9 - - lounge of Comedies room, Tragedies room\n');
     // On a narrow screen who works in each room goes under it.
     const narrow = plain(renderOffice(s, '', null, -1, false, null, 80));
@@ -675,8 +676,8 @@ describe('furniture', () => {
     expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
     expect(lounge).not.toMatch(/\* [0-9.]+K? Bananas/); // nowhere to put any of it
     const last = squash(renderScreen(s, '', 'break', 0, 18)); // the cursor on item 19: page 3
-    expect(last).toContain('[1] Television T breaks 40% faster, +3% pay 20.00K Sentences\n');
-    expect(last).toContain('[2] Hot tub (2x1) U breaks 40% faster, +3% pay 20.00K Sentences\n');
+    expect(last).toContain('[1] Television T recovers 40% faster, +3% pay 20.00K Sentences\n');
+    expect(last).toContain('[2] Hot tub (2x1) U recovers 40% faster, +3% pay 20.00K Sentences\n');
     expect(last).toContain(' page 3 of 3\n');
     expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
@@ -908,7 +909,7 @@ describe('hats on screen', () => {
     expect(renderOffice(s)).toContain('|\x1b[31m#\x1b[39m@]');
     s.monkeys.push(createMonkey());
     const top = hatPick(s, 'tophat');
-    expect(plain(top.title)).toBe('Top hat (5.00K Sentences): which monkey gets it?');
+    expect(plain(top.title)).toBe('Top hat (5.00K Sentences): which monkey gets a new one?');
     expect(top.notes).toEqual(['wearing it: takes it off', '']);
     const menu = plain(renderMonkeyPicker(s, top.title, top.notes, 1));
     expect(menu).toContain(' [1]  #@ M-1  wearing it: takes it off');
@@ -917,7 +918,8 @@ describe('hats on screen', () => {
     s.monkeys[0].hat = 'cap';
     expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap (into your inventory)');
     s.stored.hats = { tophat: 1 };
-    expect(plain(hatPick(s, 'tophat').title)).toBe('Top hat (free from your inventory): which monkey gets it?');
+    expect(plain(hatPick(s, 'tophat').title)).toMatch(/^Top hat \(\d.* Sentences\): which monkey gets a new one\?$/); // the store sells new ones at full price
+    expect(squash(renderShop(s, 'hats'))).toContain('Top hat (1)');
     expect(plain(dyeColorPrompt())).toContain('[1] Red   [2] Green');
     expect(plain(dyePick(s, 'red').title)).toBe("Red (150 Sentences): which monkey's hat?");
     expect(dyePick(s, 'red').notes).toEqual(['already', 'no hat']);
@@ -1063,5 +1065,21 @@ describe('screen position', () => {
     expect(placeScreen('a\nb\nc', 2, false)).toBe('a\nb\nc\n');
     expect(createInitialState(0).settings.screenAtTop).toBe(false);
     expect(squash(renderOptions(createInitialState(0)))).toContain('[4] Screen at the top off');
+  });
+});
+
+describe('coin flip any time', () => {
+  it('has a [?] button on every title bar while it fits, and its own screen', () => {
+    const s = started();
+    s.currency = 500;
+    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\?\] flip$/);
+    expect(plain(titleBar(s, 'Shop', 80)).length).toBeLessThan(80);
+    s.currency = s.sentences = 1e9;
+    expect(plain(titleBar(s, 'Typewriter keys', 80))).not.toContain('[?]'); // too tight: totals stay in full instead
+    const ask = plain(renderCoinFlip(s, true, '', 80));
+    expect(ask).toContain('COIN FLIP');
+    expect(ask).toContain('1,000,000,000 Bananas on a coin flip?');
+    expect(ask).toContain('[y] flip');
+    expect(plain(renderCoinFlip(s, false, 'Heads!', 80))).toContain('[?] flip again');
   });
 });

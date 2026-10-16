@@ -223,8 +223,8 @@ export function renderOffice(
       : heldDoor
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
-            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['s', 'store'], ['$', 'sell'], ['i', 'inspect'], ['x', 'grow']],
-            [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
+            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow']],
+            [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['/', 'help'], ['esc', 'back']],
           ];
   const doing = grow
     ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
@@ -273,7 +273,7 @@ function roomTable(state: GameState, columns = 0): string[] {
         ? '-'
         : [
             ...(drainCut(state, g) > 0 ? [`tire ${pct(drainCut(state, g))} slower`] : []),
-            ...(restBoost(state, g) > 0 ? [`breaks ${pct(restBoost(state, g))} faster`] : []),
+            ...(restBoost(state, g) > 0 ? [`recovers ${pct(restBoost(state, g))} faster`] : []),
             ...(happiness(state, g) > 0 ? [`+${pct(happiness(state, g))} happy`] : []),
           ].join(', ') || '-';
     return {
@@ -335,7 +335,7 @@ function wrapItems(items: string[], columns = 0): string[] {
   return rows;
 }
 
-/** How rooms, lounges and feng shui work: the office map's [?] page. */
+/** How rooms, lounges and feng shui work: the office map's [/] page. */
 export function renderOfficeHelp(state: GameState, columns = 0): string {
   return [
     titleBar(state, 'Office help', columns),
@@ -355,7 +355,7 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     '   A department enjoys the furniture in its own room and in its lounge:',
     '   the nearest break room by a door or hallway. When two are as near,',
     '   the bigger one wins, then the more furnished.',
-    '   Furniture makes monkeys happy: more bananas, slower tiring, faster breaks.',
+    '   Furniture makes monkeys happy: more bananas, slower tiring, faster recovery.',
     '   Buy it here with [f].',
     ...(state.fengShuiBook
       ? ['', dim(' FENG SHUI'), `   Office chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} happiness everywhere.`, '   [b] on the map opens the book: what each room needs for good chi.']

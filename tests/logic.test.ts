@@ -7,6 +7,7 @@ import {
   roomFitsAt,
   chainSentences,
   hatCost,
+  hatsOwned,
   addRoom,
   rotateFurniture,
   allowedIn,
@@ -1693,13 +1694,18 @@ describe('hats', () => {
     expect(wearHat(s, 0, 'cowboy')).toBe(true);
     expect(s.stored.hats).toEqual({ tophat: 1 }); // swapped off into the inventory
     const left = s.sentences;
-    expect(wearHat(s, 0, 'tophat')).toBe(true);
+    expect(wearHat(s, 0, 'tophat', 'tophat')).toBe(true);
     expect(s.sentences).toBe(left); // out of the inventory, free
     expect(m.hat).toBe('tophat');
     expect(s.stored.hats).toEqual({ cowboy: 1 });
     expect(wearHat(s, 0, 'tophat')).toBe(true);
     expect(m.hat).toBe('');
     expect(s.stored.hats).toEqual({ cowboy: 1, tophat: 1 });
+    const price = hatCost(s, 'tophat');
+    expect(wearHat(s, 0, 'tophat')).toBe(true); // the store always sells a new one
+    expect(s.sentences).toBe(left - price);
+    expect(s.stored.hats).toEqual({ cowboy: 1, tophat: 1 });
+    expect(hatsOwned(s, 'tophat')).toBe(2);
   });
 
   it('has hats that share a price, and some very dear ones', () => {
