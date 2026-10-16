@@ -538,9 +538,10 @@ function takeOffHat(state: GameState, m: MonkeyState): void {
 }
 
 /**
- * Puts a hat on a monkey: one from the inventory (`key`, or any of kind `id`)
- * for free, else a new one bought with Sentences. The hat it wore goes into
- * the inventory. A monkey already wearing that kind takes it off.
+ * Puts a hat on a monkey: a new one bought with Sentences (the store always
+ * sells a new one, Justin 2026-10-16), or with `key` the one from the
+ * inventory, for free. The hat it wore goes into the inventory. Buying the
+ * kind it already wears takes that off instead.
  */
 export function wearHat(state: GameState, index: number, id: string, key?: string): boolean {
   const m = state.monkeys[index];
@@ -549,7 +550,7 @@ export function wearHat(state: GameState, index: number, id: string, key?: strin
     takeOffHat(state, m);
     return true;
   }
-  const stored = key && state.stored.hats[key] ? key : key ? undefined : storedHat(state, id);
+  const stored = key && state.stored.hats[key] ? key : undefined;
   if (key && !stored) return false;
   const cost = stored ? 0 : hatCost(state, id);
   if (state.sentences < cost) return false;
@@ -1247,20 +1248,36 @@ export function dyeCost(state: GameState): number {
 export function furnitureCost(state: GameState, kind: string): number {
   const k = furnitureKinds.find((f) => f.id === kind);
   if (!k) return Infinity;
-  const owned = state.furniture.filter((f) => f.kind === kind).length + (state.stored.furniture[kind] ?? 0);
-  return Math.ceil(k.cost * Math.pow(k.costGrowth, owned));
+  return Math.ceil(k.cost * Math.pow(k.costGrowth, furnitureOwned(state, kind)));
 }
 
-/** Buys a piece of furniture and stands it where it fits (see furnitureSpot), in a room of roomKind if given. */
+/**
+ * Buys a new piece of furniture at its price and stands it where it fits
+ * (see furnitureSpot), in a room of roomKind if given. The store always sells
+ * a new one (Justin, 2026-10-16); pieces in the inventory go back in with
+ * placeStoredFurniture.
+ */
 export function buyFurniture(state: GameState, kind: string, roomKind?: Room['kind']): boolean {
-  const stored = state.stored.furniture[kind] ?? 0;
-  const cost = stored > 0 ? 0 : furnitureCost(state, kind); // one in storage comes out for free
+  const cost = furnitureCost(state, kind);
   const spot = furnitureSpot(state, kind, roomKind);
   if (!spot || state.sentences < cost) return false;
   state.sentences -= cost;
-  if (stored > 0) unstore(state.stored.furniture, kind);
   state.furniture.push({ kind, ...spot });
   return true;
+}
+
+/** Takes a piece of furniture out of the inventory and stands it where it fits, for free. */
+export function placeStoredFurniture(state: GameState, kind: string): boolean {
+  const spot = furnitureSpot(state, kind);
+  if (!state.stored.furniture[kind] || !spot) return false;
+  unstore(state.stored.furniture, kind);
+  state.furniture.push({ kind, ...spot });
+  return true;
+}
+
+/** How many pieces of a kind the player owns: standing in the office and in the inventory. */
+export function furnitureOwned(state: GameState, kind: string): number {
+  return state.furniture.filter((f) => f.kind === kind).length + (state.stored.furniture[kind] ?? 0);
 }
 
 /**

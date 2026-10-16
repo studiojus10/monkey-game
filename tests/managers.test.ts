@@ -376,9 +376,11 @@ describe('storing, selling and firing', () => {
     expect(s.stored.furniture).toEqual({ plant: 1 });
     expect(L.furnitureCost(s, 'plant')).toBe(price); // storing doesn't make the next one cheaper
     const money = s.sentences;
-    expect(buyFurniture(s, 'plant')).toBe(true); // out of storage, free
+    expect(L.placeStoredFurniture(s, 'plant')).toBe(true); // out of the inventory, free
     expect(s.sentences).toBe(money);
     expect(s.stored.furniture).toEqual({});
+    expect(L.placeStoredFurniture(s, 'plant')).toBe(false); // none left
+    expect(L.furnitureOwned(s, 'plant')).toBe(1);
     expect(L.sellFurniture(s, s.furniture.length - 1)).toBe(true);
     expect(s.sentences).toBe(money + Math.floor(plant.cost * sellBack));
     expect(deserialize(serialize({ ...s, stored: { furniture: { plant: 2, nonsense: 1 }, hats: { crown: 1 } } })).stored).toEqual({ furniture: { plant: 2 }, hats: { crown: 1 } });
@@ -402,7 +404,7 @@ describe('storing, selling and firing', () => {
     expect(L.fireBlocker(s, 0)).toBe('your last typing monkey');
     expect(L.fireMonkey(s, 0)).toBe(false);
     const before = s.sentences;
-    expect(L.wearHat(s, 0, cap.id)).toBe(true); // out of storage, free
+    expect(L.wearHat(s, 0, cap.id, cap.id)).toBe(true); // out of the inventory, free
     expect(s.sentences).toBe(before);
     expect(s.stored.hats).toEqual({});
   });

@@ -9,7 +9,7 @@ import {
   applyOfflineProgress,
   dyeHat,
   hatCost,
-  storedHat,
+  placeStoredFurniture,
   wearHat,
   buyFurniture,
   allowedIn,
@@ -450,7 +450,7 @@ function buyItem(id: string): void {
     if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
     else if (!furnitureSpot(state, kind, where))
       message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
-    else if (!state.stored.furniture[kind] && state.sentences < furnitureCost(state, kind)) message = 'Not enough Sentences.';
+    else if (state.sentences < furnitureCost(state, kind)) message = 'Not enough Sentences.';
     else if (buyFurniture(state, kind, where)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in.${officeShop ? '' : ' Move it on the office map with [o].'}`;
@@ -472,12 +472,9 @@ function wearHatOn(i: number, id: string): string {
   const name = monkeyName(state, i);
   const hatName = hats.find((h) => h.id === id)!.name.toLowerCase();
   if (m.hat === id) return wearHat(state, i, id) ? `${name} takes off its ${hatName}.` : '';
-  const free = !!storedHat(state, id);
-  if (!free && state.sentences < hatCost(state, id)) return noSentences;
+  if (state.sentences < hatCost(state, id)) return noSentences;
   const old = m.hat ? hats.find((h) => h.id === m.hat)!.name.toLowerCase() : '';
-  return wearHat(state, i, id)
-    ? `${name} puts on ${free ? 'the' : 'a new'} ${hatName}${free ? ' from your inventory' : ''}.${old ? ` Its ${old} goes into your inventory.` : ''}`
-    : noSentences;
+  return wearHat(state, i, id) ? `${name} puts on a new ${hatName}.${old ? ` Its ${old} goes into your inventory.` : ''}` : noSentences;
 }
 
 /** Dyes monkey `i`'s hat `color` ('' washes it out); returns the message to show. */
@@ -1426,7 +1423,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           // Furniture goes back in the office: the map opens with it in hand.
           const kind = item.id;
           if (!furnitureSpot(state, kind)) message = `No room for it: it needs ${pieceSize(kind).join(' x ')} free squares in a room it fits. Make space or grow a room on the office map.`;
-          else if (buyFurniture(state, kind)) {
+          else if (placeStoredFurniture(state, kind)) {
             showingInventory = false;
             openOffice();
             const i = state.furniture.length - 1;

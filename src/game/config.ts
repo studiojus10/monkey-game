@@ -365,7 +365,7 @@ export const traits: Trait[] = [
   { id: 'loner', name: 'Loner', speed: [0.15, -0.05], text: '15% faster with 3 or fewer monkeys in its room, 5% slower with 8 or more.' },
   { id: 'greenthumb', name: 'Green thumb', speed: [0.1, 0], text: '10% faster with a potted plant or a bonsai tree in its room.' },
   { id: 'bookworm', name: 'Bookworm', pay: [0.1, 0], text: 'Its words pay 10% more with a bookshelf in its room.' },
-  { id: 'couchpotato', name: 'Couch potato', rest: [0.3, 0], text: 'Breaks 30% faster with a couch in its lounge.' },
+  { id: 'couchpotato', name: 'Couch potato', rest: [0.3, 0], text: 'Recovers 30% faster with a couch in its lounge.' },
   { id: 'perfectionist', name: 'Perfectionist', speed: [-0.1, 0], pay: [0.2, 0], text: '10% slower, but its words pay 20% more.' },
   // Traits that rub off on the rest of its room (Justin, 2026-10-14: "traits that make other monkeys happier or work harder or slower").
   { id: 'cheerleader', name: 'Cheerleader', room: { happiness: 0.05 }, text: 'Every other monkey in its room is 5% happier.' },
@@ -410,7 +410,7 @@ export const research = {
   hireCostGrowth: 3,
   projects: [
     { id: 'chairs', name: 'Ergonomic chairs', text: 'Monkeys tire 10% slower.', hours: 1, cost: 100_000, drain: 0.1 },
-    { id: 'snacks', name: 'Banana snacks', text: 'Breaks 20% faster.', hours: 3, cost: 1_000_000, rest: 0.2 },
+    { id: 'snacks', name: 'Banana snacks', text: 'Recovers 20% faster.', hours: 3, cost: 1_000_000, rest: 0.2 },
     { id: 'spelling', name: 'Spelling theory', text: '+10% bananas.', hours: 8, cost: 10_000_000, points: 0.1 },
     { id: 'ribbons', name: 'Carbon ribbons', text: 'Monkeys type 10% faster.', hours: 16, cost: 100_000_000, speed: 0.1 },
     { id: 'floorplans', name: 'Open floor plans', text: 'Room squares cost 25% less.', hours: 24, cost: 1_000_000_000, squares: 0.25 },

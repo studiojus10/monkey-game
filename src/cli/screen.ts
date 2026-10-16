@@ -8,8 +8,8 @@ import {
   folioPagesNow,
   furnitureSpot,
   hatCost,
-  splitHatKey,
-  storedHat,
+  hatsOwned,
+  furnitureOwned,
   furnitureCost,
   dyeCost,
   canSeatMonkey,
@@ -243,7 +243,7 @@ const hasTraitColumn = (state: GameState) => state.managerBook;
 export function traitNow(state: GameState, m: MonkeyState): string {
   const parts = (['speed', 'pay', 'rest'] as const).flatMap((e) => {
     const b = traitBonus(state, m, e);
-    return b === 0 ? [] : [`${b > 0 ? '+' : ''}${Math.round(b * 100)}% ${e === 'rest' ? 'faster breaks' : e}`];
+    return b === 0 ? [] : [`${b > 0 ? '+' : ''}${Math.round(b * 100)}% ${e === 'rest' ? 'faster recovery' : e}`];
   });
   const room = traitOf(m)?.room;
   const mates = room ? roomMates(state, m).length : 0;
@@ -796,17 +796,17 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               : 'Furniture for break rooms: it helps each department whose nearest one it is.',
         },
         ...kinds.map((k): ShopItem => {
-          const stored = state.stored.furniture[k.id] ?? 0;
-          const cost = stored > 0 ? 0 : furnitureCost(state, k.id);
+          const cost = furnitureCost(state, k.id);
+          const owned = furnitureOwned(state, k.id);
           const where = k.rooms.includes(store) ? store : k.rooms[0];
           return {
             id: `furniture:${k.id}@${where}`,
             star: !!furnitureSpot(state, k.id, where) && state.sentences >= cost,
-            text: k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name,
+            text: `${k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name}${owned > 0 ? ` (${owned} owned)` : ''}`,
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
-            effect: stored > 0 ? `${furnitureEffect(k)}; ${stored} stored` : furnitureEffect(k),
+            effect: furnitureEffect(k),
             cost: [[cost, 'sentences']],
           };
         }),
@@ -861,11 +861,11 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
         ...hats.map((h): ShopItem => {
-          const stored = Object.entries(state.stored.hats).reduce((n, [key, k]) => n + (splitHatKey(key).id === h.id ? k : 0), 0);
-          const cost = stored > 0 ? 0 : hatCost(state, h.id);
+          const cost = hatCost(state, h.id);
+          const owned = hatsOwned(state, h.id);
           const someone = team.some((i) => state.monkeys[i].hat !== h.id);
-          const effect = stored > 0 ? `${hatEffect(h)}; ${stored} in inventory` : hatEffect(h);
-          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: h.name, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
+          const effect = hatEffect(h);
+          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name}${owned > 0 ? ` (${owned} owned)` : ''}`, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
         }),
         {
           id: 'dye',
@@ -874,7 +874,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
           cost: [[dyeCost(state), 'sentences']],
         },
-        { text: 'A hat taken off goes into your inventory ([i]); wearing it again is free.' },
+        { text: 'Hats taken off go into your inventory: [i] puts one back on for free.' },
       ];
     }
   }
@@ -911,7 +911,7 @@ export function hatEffect(h: Hat): string {
     ...(h.points ? [`+${pct(h.points)} pay`] : []),
     ...(h.speed ? [`+${pct(h.speed)} speed`] : []),
     ...(h.drain ? [`tires ${pct(h.drain)} slower`] : []),
-    ...(h.rest ? [`breaks ${pct(h.rest)} faster`] : []),
+    ...(h.rest ? [`recovers ${pct(h.rest)} faster`] : []),
     ...(h.combo ? [`combo cap +${h.combo}`] : []),
   ].join(', ');
 }
@@ -920,7 +920,7 @@ export function hatEffect(h: Hat): string {
 export function hatPick(state: GameState, id: string): { title: string; notes: string[] } {
   const h = hats.find((x) => x.id === id)!;
   return {
-    title: `${h.name} (${storedHat(state, id) ? 'free from your inventory' : priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets it?`,
+    title: `${h.name} (${priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets a new one?`,
     notes: state.monkeys.map((m) =>
       m.hat === id ? 'wearing it: takes it off' : hatOf(m) ? `swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()} (into your inventory)` : '',
     ),
@@ -953,7 +953,7 @@ export function furnitureEffect(k: FurnitureKind): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   return [
     ...(k.drain ? [`tire ${pct(k.drain)} slower`] : []),
-    ...(k.rest ? [`breaks ${pct(k.rest)} faster`] : []),
+    ...(k.rest ? [`recovers ${pct(k.rest)} faster`] : []),
     ...(k.happiness ? [`+${pct(k.happiness)} pay`] : []),
   ].join(', ');
 }

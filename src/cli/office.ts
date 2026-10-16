@@ -273,7 +273,7 @@ function roomTable(state: GameState, columns = 0): string[] {
         ? '-'
         : [
             ...(drainCut(state, g) > 0 ? [`tire ${pct(drainCut(state, g))} slower`] : []),
-            ...(restBoost(state, g) > 0 ? [`breaks ${pct(restBoost(state, g))} faster`] : []),
+            ...(restBoost(state, g) > 0 ? [`recovers ${pct(restBoost(state, g))} faster`] : []),
             ...(happiness(state, g) > 0 ? [`+${pct(happiness(state, g))} happy`] : []),
           ].join(', ') || '-';
     return {
@@ -355,7 +355,7 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     '   A department enjoys the furniture in its own room and in its lounge:',
     '   the nearest break room by a door or hallway. When two are as near,',
     '   the bigger one wins, then the more furnished.',
-    '   Furniture makes monkeys happy: more bananas, slower tiring, faster breaks.',
+    '   Furniture makes monkeys happy: more bananas, slower tiring, faster recovery.',
     '   Buy it here with [f].',
     ...(state.fengShuiBook
       ? ['', dim(' FENG SHUI'), `   Office chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} happiness everywhere.`, '   [b] on the map opens the book: what each room needs for good chi.']
