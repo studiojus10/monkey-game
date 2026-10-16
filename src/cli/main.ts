@@ -158,7 +158,7 @@ import {
   hatPick,
   inspectItem,
 } from './screen';
-import { forLightBackground } from './style';
+import { forLightBackground, placeScreen } from './style';
 import { devTools } from '../game/dev';
 import { renderCandidates } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
@@ -721,7 +721,7 @@ function draw() {
         : showingHelp
           ? renderHomeKeys(state)
           : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
-  process.stdout.write('\x1b[2J\x1b[H' + (state.settings.lightBackground ? forLightBackground(screen) : screen) + '\n');
+  process.stdout.write('\x1b[2J\x1b[H' + placeScreen(state.settings.lightBackground ? forLightBackground(screen) : screen, process.stdout.rows || 0, state.settings.screenAtTop));
 }
 
 function quit() {
@@ -1123,12 +1123,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingOptions) {
-    const row = menuKey(key, 3);
+    const row = menuKey(key, 4);
     if (row >= 0) str = String(row + 1);
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
     else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
     else if (str === '3') setScientific((state.settings.scientific = !state.settings.scientific));
+    else if (str === '4') state.settings.screenAtTop = !state.settings.screenAtTop;
     return draw();
   }
 

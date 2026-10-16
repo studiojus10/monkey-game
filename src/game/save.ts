@@ -233,6 +233,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false, lightBackground: s.settings?.lightBackground === true,
         homeDepartment: typeof s.settings?.homeDepartment === 'string' ? s.settings.homeDepartment : '',
         scientific: s.settings?.scientific === true,
+        screenAtTop: s.settings?.screenAtTop === true,
       },
       stats,
       achievements: strings(s.achievements),

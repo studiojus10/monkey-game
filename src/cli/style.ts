@@ -80,6 +80,18 @@ export function titleBar(state: GameState, screen = '', columns = 0): string {
 }
 
 /**
+ * A whole screen as written to a terminal `rows` tall: at the bottom (blank
+ * lines above it, so it sits just over the prompt like other terminal output)
+ * or, with `atTop`, from the top line down. A screen taller than the
+ * terminal starts at the top either way.
+ */
+export function placeScreen(screen: string, rows: number, atTop: boolean): string {
+  const lines = screen.split('\n').length;
+  if (atTop || rows <= lines) return screen + '\n';
+  return '\n'.repeat(rows - lines) + screen;
+}
+
+/**
  * A row of keys and what they do: [key] in bold, then its words. On a screen
  * `columns` wide it breaks between keys rather than letting the terminal cut one.
  */

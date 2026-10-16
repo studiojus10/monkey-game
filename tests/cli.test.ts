@@ -32,7 +32,7 @@ import {
   renderShop,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, cyan, forLightBackground, green, inverse, plainText, red, titleBar, yellow } from '../src/cli/style';
+import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, titleBar, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
@@ -1054,5 +1054,15 @@ describe('balances in full', () => {
     const bar = plain(titleBar(s, 'Shop', 80));
     expect(bar.length).toBeLessThan(80);
     expect(bar).toContain('9.88e9 Sentences'); // the biggest went short first
+  });
+});
+
+describe('screen position', () => {
+  it('sits at the bottom of the terminal by default, at the top with the option, and from the top when too tall', () => {
+    expect(placeScreen('a\nb', 5, false)).toBe('\n\n\na\nb');
+    expect(placeScreen('a\nb', 5, true)).toBe('a\nb\n');
+    expect(placeScreen('a\nb\nc', 2, false)).toBe('a\nb\nc\n');
+    expect(createInitialState(0).settings.screenAtTop).toBe(false);
+    expect(squash(renderOptions(createInitialState(0)))).toContain('[4] Screen at the top off');
   });
 });
