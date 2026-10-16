@@ -223,7 +223,7 @@ let message = [
   .join(' ');
 let confirmingReset = false;
 let confirmingFolio = false;
-let flipping: '' | 'ask' | 'done' = ''; // the coin flip screen ([$] from anywhere): asking, or showing how it went
+let flipping: '' | 'ask' | 'done' = ''; // the coin flip screen ([?] from anywhere): asking, or showing how it went
 let flipMessage = '';
 let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
 let showingScript = false;
@@ -233,7 +233,7 @@ let contentsCursor = 0;
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
-let showingHelp = false; // the [?] page: every key on the home screen
+let showingHelp = false; // the [/] page: every key on the home screen
 let showingDev = false;
 let showingStats = false;
 let showingRoster = false; // the roster of monkeys ([m])
@@ -262,7 +262,7 @@ let slotWordDraft: string | null = null;
 let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
 let readingBook = false; // the feng shui book, open from the office map
 let readingManagerBook = false; // the manager's book, open from the office map
-let officeHelp = false; // the office map's [?] page: how rooms and lounges work
+let officeHelp = false; // the office map's [/] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding a book (feng shui or the manager's), just inspected: [y] reads it
 let menuCursor = 0; // the chosen row of the open menu (opening screens, options, dev tools, keys, hiring)
 let letterCursor = 0; // the chosen letter in the letter picker, among the letters not owned
@@ -902,7 +902,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  // The coin flip: [$] opens its screen from anywhere (Justin: "a dedicated button that is available at any time").
+  // The coin flip: [?] opens its screen from anywhere (Justin: "a dedicated button that is available at any time", "make the coin flip button ?").
   if (flipping) {
     if (flipping === 'ask' && key.name === 'y') {
       const bet = state.currency;
@@ -911,11 +911,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         ? `Heads! Your ${formatNumber(bet)} ${theme.currency} became ${formatNumber(state.currency)}.`
         : `Tails. ${formatNumber(bet)} ${theme.currency} gone. The monkeys keep typing.`;
       flipping = 'done';
-    } else if (flipping === 'done' && str === '$') openFlip();
+    } else if (flipping === 'done' && str === '?') openFlip();
     else flipping = '';
     return draw();
   }
-  if (str === '$' && namingMonkey < 0 && slotWordDraft === null && !confirmingFolio && !confirmingReset && !confirmingFire) {
+  if (str === '?' && namingMonkey < 0 && slotWordDraft === null && !confirmingFolio && !confirmingReset && !confirmingFire) {
     openFlip();
     return draw();
   }
@@ -1224,7 +1224,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingOffice && officeHelp) {
-    if (key.name === 'escape' || key.name === 'q' || str === '?' || str === 'o') officeHelp = false;
+    if (key.name === 'escape' || key.name === 'q' || str === '/' || str === 'o') officeHelp = false;
     return draw();
   }
 
@@ -1352,7 +1352,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else message = 'You have no feng shui book. Perhaps one is hidden somewhere: inspect things with [i].';
     } else if (str === 'e' && !holding && !officeGrowing && state.managerBook) {
       readingManagerBook = true;
-    } else if (str === '?' && !holding && !officeGrowing) {
+    } else if (str === '/' && !holding && !officeGrowing) {
       officeHelp = true;
     } else if (str === 'f' && !holding && !officeGrowing) {
       officeShop = lastOfficeStore;
@@ -1547,7 +1547,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingHelp) {
-    if (key.name === 'escape' || key.name === 'q' || str === '?') showingHelp = false;
+    if (key.name === 'escape' || key.name === 'q' || str === '/') showingHelp = false;
     return draw();
   }
 
@@ -1632,7 +1632,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === 'c') {
     showingOptions = true;
     menuCursor = 0;
-  } else if (str === '?') {
+  } else if (str === '/') {
     showingHelp = true;
   } else if (str === 'i') {
     showingInventory = true;

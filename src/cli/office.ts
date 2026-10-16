@@ -224,7 +224,7 @@ export function renderOffice(
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
             [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow']],
-            [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['?', 'help'], ['esc', 'back']],
+            [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['/', 'help'], ['esc', 'back']],
           ];
   const doing = grow
     ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
@@ -335,7 +335,7 @@ function wrapItems(items: string[], columns = 0): string[] {
   return rows;
 }
 
-/** How rooms, lounges and feng shui work: the office map's [?] page. */
+/** How rooms, lounges and feng shui work: the office map's [/] page. */
 export function renderOfficeHelp(state: GameState, columns = 0): string {
   return [
     titleBar(state, 'Office help', columns),

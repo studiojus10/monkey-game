@@ -389,7 +389,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
   return rows.length === 0 ? [] : ['', dim(' LATELY'), ...rows.map((r) => `   ${r}`)];
 }
 
-/** The keys shown under the home screen: where to go, then what to do. Every key is on the [?] page. */
+/** The keys shown under the home screen: where to go, then what to do. Every key is on the [/] page. */
 function homeKeys(state: GameState, columns: number): string[] {
   return [
     keyRow([['space', 'shop'], ['m', 'monkeys'], ['i', 'inventory'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
@@ -402,13 +402,13 @@ function homeKeys(state: GameState, columns: number): string[] {
       ['d', 'move'],
       ['c', 'options'],
       ...(canPublishFolio(state) ? [['f', 'publish a Folio'] as [string, string]] : []),
-      ['?', 'all keys'],
+      ['/', 'all keys'],
       ['q', 'quit'],
     ], columns),
   ];
 }
 
-/** Every key on the home screen, for the [?] page. */
+/** Every key on the home screen, for the [/] page. */
 export function renderHomeKeys(state: GameState): string {
   const group = (title: string, keys: [string, string][]) => [dim(` ${title}`), ...keys.map(([k, what]) => `   ${bold(`[${k}]`.padEnd(9))} ${what}`), ''];
   return [
@@ -433,7 +433,7 @@ export function renderHomeKeys(state: GameState): string {
       ['n', 'name the chosen monkey'],
       ['d', 'move the chosen monkey to another department'],
     ]),
-    ...group('ANY TIME', [['$', `flip a coin: double all your ${theme.currency} or lose them all`]]),
+    ...group('ANY TIME', [['?', `flip a coin: double all your ${theme.currency} or lose them all`]]),
     ...group('GAME', [
       ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
       ['s', 'save now (the game also saves on its own)'],
@@ -1051,7 +1051,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
 }
 
 /** The options menu. */
-/** The coin flip screen, opened with [$] from any screen: the bet and its odds, then how it went. */
+/** The coin flip screen, opened with [?] from any screen: the bet and its odds, then how it went. */
 export function renderCoinFlip(state: GameState, asking: boolean, message: string, columns = 0): string {
   return [
     titleBar(state, 'Coin flip', columns),
@@ -1064,7 +1064,7 @@ export function renderCoinFlip(state: GameState, asking: boolean, message: strin
       : [` ${bold(message)}`]),
     '',
     rule(columns),
-    keyRow(asking ? [['y', 'flip'], ['esc', 'no']] : [['$', 'flip again'], ['esc', 'back']], columns),
+    keyRow(asking ? [['y', 'flip'], ['esc', 'no']] : [['?', 'flip again'], ['esc', 'back']], columns),
   ].join('\n');
 }
 

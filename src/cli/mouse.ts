@@ -68,7 +68,7 @@ export interface Target {
 /**
  * What is under the mouse: a key label such as [b] (it presses that key), or
  * anywhere on a line whose only label is a key (a menu row: the whole line;
- * not the title bar on top, whose one key is its [$] button),
+ * not the title bar on top, whose one key is its [?] button),
  * or with `letters` (the letter picker) a lone capital letter. `lines` are
  * the screen's lines as drawn, `top` the terminal row its first line is on.
  */
