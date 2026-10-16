@@ -29,6 +29,7 @@ import {
   wordSlots,
   typing,
   petting,
+  lately,
   achievements,
   folio,
   fengShui,
@@ -1569,6 +1570,7 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
       state.wordsTyped++;
       state.lastWord = e.text;
       state.lastWordPoints = paid;
+      noteLately(state, 'word', [e.text]);
       countWord(state, m, e.text, paid, !!slot && e.text === slot);
       checkPlayLines(state, m);
     } else {
@@ -1597,6 +1599,25 @@ function endChain(state: GameState, m: MonkeyState): void {
   if (n === 0) return;
   state.stats.sentencesWritten++;
   if (m.chainAll.length > state.stats.longestSentence.length) state.stats.longestSentence = [...m.chainAll];
+  noteLately(state, 'sentence', m.chainAll);
+}
+
+/**
+ * Keeps the LATELY feed: the newest sentence, and the longest word and
+ * sentence of the last lately.windowSeconds of typing (an older one gives
+ * way to whatever comes next).
+ */
+export function noteLately(state: GameState, kind: 'word' | 'sentence', words: string[]): void {
+  const now = state.stats.secondsTyping;
+  const l = state.lately;
+  const stale = (at: number) => now - at > lately.windowSeconds;
+  if (kind === 'word') {
+    if (words[0].length > l.longWord.length || stale(l.longWordAt)) Object.assign(l, { longWord: words[0], longWordAt: now });
+    return;
+  }
+  const kept = words.slice(0, lately.maxSentenceWords);
+  l.lastSentence = kept;
+  if (words.length > l.longSentence.length || stale(l.longSentenceAt)) Object.assign(l, { longSentence: kept, longSentenceAt: now });
 }
 
 /** Records a scored word in the statistics. Slot words count their letters as typed here. */

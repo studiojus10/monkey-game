@@ -38,9 +38,9 @@ import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
-import { achievements, monkeyNames } from '../src/game/config';
-import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment } from '../src/game/logic';
-import { load, save } from '../src/game/save';
+import { achievements, lately, monkeyNames } from '../src/game/config';
+import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
+import { deserialize, load, save, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 
 describe('file storage', () => {
@@ -109,6 +109,24 @@ describe('terminal screen', () => {
     expect(highlightChoice(prompt, 0)).toContain(inverse(`[1] ${green('Ann')} (free)`));
     expect(promptChoices('Press letters to buy (any other key: done). Values: B(3) C(3)').map((c) => c.key)).toEqual(['B', 'C']);
     expect(highlightChoice('Values: B(3) C(3)', 1)).toBe(`Values: B(3) ${inverse('C(3)')}`);
+  });
+
+  it('shows the longest word, the last sentence and the longest sentence lately', () => {
+    const s = started();
+    noteLately(s, 'word', ['BANANA']);
+    noteLately(s, 'word', ['AT']); // shorter: BANANA stays
+    noteLately(s, 'sentence', ['THE', 'CAT', 'SAT', 'ON', 'THE', 'MAT']);
+    noteLately(s, 'sentence', ['A', 'BIG', 'DOG']);
+    const text = plain(renderScreen(s, '', null, 80));
+    expect(text).toContain('Longest word lately: BANANA (6 letters)');
+    expect(text).toContain('Last sentence: A BIG DOG');
+    expect(text).toContain('Longest sentence lately (6 words): THE CAT SAT ON THE MAT');
+    s.stats.secondsTyping += lately.windowSeconds + 1; // an hour on, anything replaces them
+    noteLately(s, 'word', ['AT']);
+    expect(s.lately.longWord).toBe('AT');
+    noteLately(s, 'sentence', Array.from({ length: 30 }, () => 'BANANA'));
+    expect(plain(renderScreen(s, '', null, 60))).toMatch(/Longest sentence lately \(30 words\): BANANA .*\.\.\./); // cut to fit
+    expect(deserialize(serialize(s)).lately).toEqual(s.lately);
   });
 
   it('shows the currencies, letters, the monkey table and controls', () => {

@@ -555,6 +555,15 @@ export const energy = {
  * monkey a little happier; it's mostly for fun (Justin: "petting should have
  * very little effect on the gameplay"), so it adds little and wears off.
  */
+/**
+ * The home screen's LATELY feed (Justin, 2026-10-16: "longest recent word,
+ * most recent sentence, and longest recent sentence"). "Lately" is the last
+ * windowSeconds of typing time: a longer word or sentence replaces the one
+ * shown, and so does any once it is older than that. Sentences keep at most
+ * maxSentenceWords words, to keep saves small.
+ */
+export const lately = { windowSeconds: 3600, maxSentenceWords: 100 };
+
 export const petting = {
   happinessPerPet: 0.005,
   maxHappiness: 0.05, // petting adds at most +5% to a monkey's happiness

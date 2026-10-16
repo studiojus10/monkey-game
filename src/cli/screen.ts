@@ -358,9 +358,19 @@ function letterRow(state: GameState): string {
 }
 
 /** What happened lately: the last word, line and milestone (dim), anything waiting for you, then the newest message in bold. */
-function latelyLines(state: GameState, message: string): string[] {
+function latelyLines(state: GameState, message: string, columns = 0): string[] {
+  const l = state.lately;
+  const room = (columns > 0 ? columns : 80) - 4;
+  /** A sentence's words after its label, cut short with ... to fit the line. */
+  const sentence = (label: string, words: string[]) => {
+    const text = `${label}: ${words.join(' ')}`;
+    return dim(text.length <= room ? text : `${text.slice(0, room - 3).replace(/ \S*$/, '')} ...`);
+  };
   const rows = [
     ...(state.lastWord ? [dim(`Last word: ${state.lastWord} +${formatNumber(state.lastWordPoints)}`)] : []),
+    ...(l.longWord ? [dim(`Longest word lately: ${l.longWord} (${l.longWord.length} letters)`)] : []),
+    ...(l.lastSentence.length > 0 ? [sentence('Last sentence', l.lastSentence)] : []),
+    ...(l.longSentence.length > 0 ? [sentence(`Longest sentence lately (${l.longSentence.length} words)`, l.longSentence)] : []),
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
     ...folioOffer(state),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
@@ -501,7 +511,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
     `${label('Letters')} ${letterRow(state)}`,
     `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
-    ...latelyLines(state, message),
+    ...latelyLines(state, message, columns),
     ...pinnedText(state),
   ];
   return lines;

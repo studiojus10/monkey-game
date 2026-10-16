@@ -102,6 +102,19 @@ export interface Pin {
   index: number;
 }
 
+/** Recent words and sentences for the home screen's LATELY feed; times are stats.secondsTyping. */
+export interface Lately {
+  longWord: string; // the longest word lately
+  longWordAt: number;
+  lastSentence: string[]; // the words of the newest sentence (a chain that paid a Sentence)
+  longSentence: string[]; // the longest sentence lately
+  longSentenceAt: number;
+}
+
+export function createLately(): Lately {
+  return { longWord: '', longWordAt: 0, lastSentence: [], longSentence: [], longSentenceAt: 0 };
+}
+
 export interface GameState {
   currency: number;
   totalEarned: number;
@@ -145,6 +158,7 @@ export interface GameState {
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
   lastWordPoints: number; // what it paid, combo included
+  lately: Lately;
   settings: Settings;
   stats: Stats;
   achievements: string[]; // ids of achievements unlocked, in order
@@ -305,6 +319,7 @@ export function createInitialState(now = Date.now()): GameState {
     wordsTyped: 0,
     lastWord: '',
     lastWordPoints: 0,
+    lately: createLately(),
     settings: createSettings(),
     stats: createStats(),
     achievements: [],

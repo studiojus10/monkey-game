@@ -223,6 +223,13 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       wordsTyped: num(s.wordsTyped, 0),
       lastWord: str(s.lastWord),
       lastWordPoints: num(s.lastWordPoints, 0),
+      lately: {
+        longWord: str(s.lately?.longWord),
+        longWordAt: num(s.lately?.longWordAt, 0),
+        lastSentence: strings(s.lately?.lastSentence),
+        longSentence: strings(s.lately?.longSentence),
+        longSentenceAt: num(s.lately?.longSentenceAt, 0),
+      },
       settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false, lightBackground: s.settings?.lightBackground === true,
         homeDepartment: typeof s.settings?.homeDepartment === 'string' ? s.settings.homeDepartment : '',
         scientific: s.settings?.scientific === true,
