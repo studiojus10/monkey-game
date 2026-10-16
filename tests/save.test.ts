@@ -14,18 +14,21 @@ describe('save/load', () => {
     expect(deserialize(serialize(s))).toEqual(s);
   });
 
-  it('keeps hats and their dye, and turns old accessory hats into hats', () => {
+  it('keeps hats, their dye and the inventory; old wardrobes and accessory hats become hats', () => {
     const s = createInitialState(0);
-    s.monkeys[0].hats = ['tophat', 'crown'];
     s.monkeys[0].hat = 'crown';
     s.monkeys[0].hatColor = 'cyan';
+    s.stored.hats = { tophat: 1, 'cap:red': 2 };
     s.stats.dyes = 2;
     expect(deserialize(serialize(s))).toEqual(s);
     const raw = JSON.parse(serialize(s));
+    raw.state.stored.hats['cap:plaid'] = 1; // no such dye
+    raw.state.monkeys[0] = { ...raw.state.monkeys[0], hats: ['tophat', 'crown', 'halo'] }; // a wardrobe, from before the inventory
+    const back = deserialize(JSON.stringify(raw));
+    expect(back.stored.hats).toEqual({ tophat: 2, 'cap:red': 2, halo: 1 });
     raw.state.monkeys[0] = { ...raw.state.monkeys[0], hats: undefined, hat: undefined, hatColor: 'plaid', accessories: ['glasses', 'cap'] };
     const m = deserialize(JSON.stringify(raw)).monkeys[0];
-    expect(m.hats).toEqual(['cap']); // glasses aren't a hat any more
-    expect(m.hat).toBe('cap');
+    expect(m.hat).toBe('cap'); // glasses aren't a hat any more
     expect(m.hatColor).toBe('');
   });
 

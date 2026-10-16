@@ -232,7 +232,7 @@ while (t < end) {
   if (s.slots.length >= 1) mark('first word slot', t);
   for (const w of [4, 6, 8]) if (s.stats.longestWord.length >= w) mark(`first ${w}-letter word`, t);
   if (s.monkeys.some((m) => m.typewriter > 0)) mark('first better typewriter', t);
-  const worn = s.monkeys.reduce((n, m) => n + m.hats.length, 0);
+  const worn = s.monkeys.filter((m) => m.hat).length;
   for (const n of [1, 5, 10, 20, 40]) if (worn >= n) mark(`${n} hats`, t);
   if (t >= nextReport) {
     const written = Object.values(s.completed).reduce((a, l) => a + l.length, 0);

@@ -9,6 +9,7 @@ import {
   applyOfflineProgress,
   dyeHat,
   hatCost,
+  storedHat,
   wearHat,
   buyFurniture,
   allowedIn,
@@ -461,9 +462,12 @@ function wearHatOn(i: number, id: string): string {
   const name = monkeyName(state, i);
   const hatName = hats.find((h) => h.id === id)!.name.toLowerCase();
   if (m.hat === id) return wearHat(state, i, id) ? `${name} takes off its ${hatName}.` : '';
-  const free = m.hats.includes(id);
+  const free = !!storedHat(state, id);
   if (!free && state.sentences < hatCost(state, id)) return noSentences;
-  return wearHat(state, i, id) ? `${name} puts on ${free ? 'its' : 'a new'} ${hatName}.` : noSentences;
+  const old = m.hat ? hats.find((h) => h.id === m.hat)!.name.toLowerCase() : '';
+  return wearHat(state, i, id)
+    ? `${name} puts on ${free ? 'the' : 'a new'} ${hatName}${free ? ' from your inventory' : ''}.${old ? ` Its ${old} goes into your inventory.` : ''}`
+    : noSentences;
 }
 
 /** Dyes monkey `i`'s hat `color` ('' washes it out); returns the message to show. */
@@ -1395,7 +1399,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const rows = inventoryRows(state);
     invRow = Math.max(0, Math.min(invRow, rows.length - 1));
     const here = rows[invRow];
-    const name = (who: Holder) => (who === 'storage' ? 'storage' : monkeyName(state, who));
+    const name = (who: Holder) => (typeof who === 'number' ? monkeyName(state, who) : 'your inventory');
     if (key.name === 'escape' || key.name === 'q' || (str === 'i' && !invHeld)) {
       if (invHeld) invHeld = null;
       else showingInventory = false;
@@ -1407,27 +1411,36 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       const item = here.items[invCol];
       if (!invHeld) {
-        if (!item) message = 'Nothing there to pick up.';
-        else if (item.kind === 'typewriter' && isTemp(state.monkeys[here.who as number])) message = 'Temps keep their own typewriter.';
+        if (!item || item.kind === 'nohat') message = 'Nothing there to pick up.';
+        else if (item.kind === 'furniture') {
+          // Furniture goes back in the office: the map opens with it in hand.
+          const kind = item.id;
+          if (!furnitureSpot(state, kind)) message = `No room for it: it needs ${pieceSize(kind).join(' x ')} free squares in a room it fits. Make space or grow a room on the office map.`;
+          else if (buyFurniture(state, kind)) {
+            showingInventory = false;
+            openOffice();
+            const i = state.furniture.length - 1;
+            const f = state.furniture[i];
+            officeCursor = { x: f.x, y: f.y };
+            heldFurniture = i;
+            message = `Where should the ${furnitureName(state, i)} go? [esc] leaves it here.`;
+          }
+        } else if (item.kind === 'typewriter' && isTemp(state.monkeys[here.who as number])) message = 'Temps keep their own typewriter.';
         else invHeld = { who: here.who, item };
       } else if (invHeld.who === here.who) invHeld = null; // put back where it was
       else if (invHeld.item.kind === 'hat') {
         const what = itemName(state, invHeld.who, invHeld.item).toLowerCase();
-        if (moveHat(state, invHeld.who, invHeld.item.id, here.who)) {
-          message = here.who === 'storage' ? `The ${what} is in storage.` : `${name(here.who)} has the ${what} now. [w] puts it on.`;
+        const to = here.who === 'furniture' ? 'storage' : here.who;
+        if (moveHat(state, invHeld.who as number | 'storage', invHeld.item.key, to)) {
+          message = to === 'storage' ? `The ${what} is in your inventory.` : `${name(to)} wears the ${what} now.`;
           invHeld = null;
           invCol = Math.max(0, Math.min(invCol, inventoryRows(state)[invRow].items.length - 1));
-        } else message = `${name(here.who)} has a ${what} already.`;
-      } else if (here.who === 'storage') message = 'Typewriters stay with monkeys: put it on another monkey to swap.';
+        } else message = `That hat can't go there.`;
+      } else if (typeof here.who !== 'number') message = 'Typewriters stay with monkeys: put it on another monkey to swap.';
       else if (swapTypewriters(state, invHeld.who as number, here.who)) {
         message = `${name(invHeld.who)} and ${name(here.who)} swapped typewriters.`;
         invHeld = null;
       } else message = 'Temps keep their own typewriter.';
-    } else if (str === 'w' && !invHeld) {
-      const item = here.items[invCol];
-      if (here.who === 'storage') message = 'Give it to a monkey first: pick it up and put it on one.';
-      else if (item?.kind !== 'hat') message = 'Choose a hat to wear.';
-      else message = wearHatOn(here.who, item.id);
     }
     return draw();
   }
@@ -1452,12 +1465,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (blocked) message = `You can't fire ${monkeyName(state, i)}: ${blocked}.`;
       else {
         confirmingFire = true;
-        message = `Fire ${monkeyName(state, i)}? It leaves for good; its hats go into storage. [y] fire   (any other key: no)`;
+        message = `Fire ${monkeyName(state, i)}? It leaves for good; its hat goes into your inventory. [y] fire   (any other key: no)`;
       }
     } else if (str === 'h' && i !== undefined) {
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat.`;
-      else if (wearHat(state, i, hat.id)) message = `${monkeyName(state, i)} took off the ${hat.name.toLowerCase()}; it stays in its wardrobe.`;
+      else if (wearHat(state, i, hat.id)) message = `${monkeyName(state, i)} took off the ${hat.name.toLowerCase()}; it's in your inventory ([i]).`;
     } else if (str === '$' && i !== undefined) {
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat to sell.`;

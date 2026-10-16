@@ -899,7 +899,6 @@ describe('hats on screen', () => {
     expect(store).toContain('Crown         W@');
     expect(store).toContain('Dye');
     expect(plain(renderScreen(s))).toContain('  @ M-1 ');
-    s.monkeys[0].hats = ['tophat'];
     s.monkeys[0].hat = 'tophat';
     expect(plain(renderScreen(s))).toContain(' #@ M-1 '); // a hat changes the icon
     expect(plain(renderOffice(s))).toContain('|#@]  . :'); // on the map too
@@ -916,29 +915,30 @@ describe('hats on screen', () => {
     expect(menu).toContain('[enter] give');
     expect(renderMonkeyPicker(s, top.title, top.notes, 1)).toContain(inverse(' [2]   @ M-2  ')); // the cursor's monkey
     s.monkeys[0].hat = 'cap';
-    s.monkeys[0].hats.push('cap');
-    expect(hatPick(s, 'tophat').notes[0]).toBe('has one: free');
-    expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap');
+    expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap (into your inventory)');
+    s.stored.hats = { tophat: 1 };
+    expect(plain(hatPick(s, 'tophat').title)).toBe('Top hat (free from your inventory): which monkey gets it?');
     expect(plain(dyeColorPrompt())).toContain('[1] Red   [2] Green');
     expect(plain(dyePick(s, 'red').title)).toBe("Red (150 Sentences): which monkey's hat?");
     expect(dyePick(s, 'red').notes).toEqual(['already', 'no hat']);
     expect(plain(dyePick(s, '').title)).toContain('Undyed (free)');
   });
 
-  it('shows the inventory: typewriters and hats per monkey, then storage', () => {
+  it('shows the inventory: each monkey with its typewriter and hat, then your hats and furniture', () => {
     const s = started();
-    s.monkeys[0].hats = ['tophat', 'cap'];
     s.monkeys[0].hat = 'cap';
-    s.stored.hats = { crown: 1 };
-    expect(inventoryRows(s).map((r) => r.items.length)).toEqual([3, 1]);
+    s.stored.hats = { crown: 1, 'tophat:red': 1 };
+    s.stored.furniture = { plant: 2 };
+    expect(inventoryRows(s).map((r) => r.items.length)).toEqual([2, 2, 1]);
     const text = plain(renderInventory(s, 0, 1, null));
     expect(text).toContain('M-1');
     expect(text).toContain('Rusty');
-    expect(text).toContain('^ Thinking cap (on)');
-    expect(text).toContain('Storage');
-    expect(text).toContain('Crown');
-    expect(renderInventory(s, 0, 2, null)).toContain(inverse('^ Thinking cap (on)')); // hats in shop order: top hat, then thinking cap
-    expect(plain(renderInventory(s, 1, 0, { who: 0, item: { kind: 'hat', id: 'tophat' } }))).toContain('Moving: Top hat from M-1');
+    expect(text).toContain('^ Thinking cap');
+    expect(text).toContain('YOUR INVENTORY');
+    expect(text).toMatch(/Hats +# red top hat   W Crown/); // in shop order, dyed ones by colour
+    expect(text).toMatch(/Furniture +Potted plant x2/);
+    expect(renderInventory(s, 0, 1, null)).toContain(inverse('^ Thinking cap'));
+    expect(plain(renderInventory(s, 1, 0, { who: 0, item: { kind: 'hat', key: 'cap' } }))).toContain('Moving: Thinking cap from M-1');
   });
 });
 
@@ -993,7 +993,6 @@ describe('plain ASCII', () => {
   it('prints only ASCII (plus ANSI codes and the allowed Unicode), so the game runs in any terminal', () => {
     const s = started();
     s.currency = s.sentences = 1e12;
-    s.monkeys[0].hats = ['tophat'];
     s.monkeys[0].hat = 'tophat';
     s.monkeys[0].hatColor = 'blue';
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });

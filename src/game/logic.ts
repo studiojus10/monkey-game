@@ -494,34 +494,70 @@ export function wearing(m: MonkeyState, effect: 'points' | 'speed' | 'drain' | '
   return hats.find((h) => h.id === m.hat)?.[effect] ?? 0;
 }
 
-/** Sentences for the next hat of a kind: each costs costGrowth times the last, across all monkeys. */
+/**
+ * The player's inventory keeps hats by kind and dye: 'tophat', or
+ * 'tophat:red' for a dyed one (Justin, 2026-10-16: no wardrobes, one
+ * inventory for furniture and hats).
+ */
+export function hatKey(id: string, color = ''): string {
+  return color ? `${id}:${color}` : id;
+}
+
+export function splitHatKey(key: string): { id: string; color: string } {
+  const [id, color = ''] = key.split(':');
+  return { id, color };
+}
+
+/** How many hats of a kind the player has: worn and in the inventory. */
+export function hatsOwned(state: GameState, id: string): number {
+  return (
+    state.monkeys.filter((m) => m.hat === id).length +
+    Object.entries(state.stored.hats).reduce((n, [key, k]) => n + (splitHatKey(key).id === id ? k : 0), 0)
+  );
+}
+
+/** A hat of this kind in the inventory (undyed first), or undefined. */
+export function storedHat(state: GameState, id: string): string | undefined {
+  return state.stored.hats[id] ? id : Object.keys(state.stored.hats).find((key) => splitHatKey(key).id === id);
+}
+
+/** Sentences for the next hat of a kind: each costs costGrowth times the last, counting every one owned. */
 export function hatCost(state: GameState, id: string): number {
   const h = hats.find((x) => x.id === id);
   if (!h) return Infinity;
-  const owned = state.monkeys.filter((m) => m.hats.includes(id)).length + (state.stored.hats[id] ?? 0);
-  return Math.ceil(h.cost * Math.pow(h.costGrowth, owned));
+  return Math.ceil(h.cost * Math.pow(h.costGrowth, hatsOwned(state, id)));
+}
+
+/** A monkey takes its hat off; it goes into the inventory, dye and all. */
+function takeOffHat(state: GameState, m: MonkeyState): void {
+  if (!m.hat) return;
+  const key = hatKey(m.hat, m.hatColor);
+  state.stored.hats[key] = (state.stored.hats[key] ?? 0) + 1;
+  m.hat = '';
+  m.hatColor = '';
 }
 
 /**
- * Puts a hat on a monkey: free if it has that hat already, else bought with
- * Sentences (it keeps it). A monkey already wearing that hat takes it off.
+ * Puts a hat on a monkey: one from the inventory (`key`, or any of kind `id`)
+ * for free, else a new one bought with Sentences. The hat it wore goes into
+ * the inventory. A monkey already wearing that kind takes it off.
  */
-export function wearHat(state: GameState, index: number, id: string): boolean {
+export function wearHat(state: GameState, index: number, id: string, key?: string): boolean {
   const m = state.monkeys[index];
   if (!m || !hats.some((h) => h.id === id)) return false;
-  if (m.hat === id) {
-    m.hat = '';
+  if (m.hat === id && !key) {
+    takeOffHat(state, m);
     return true;
   }
-  if (!m.hats.includes(id)) {
-    // One in storage comes out for free.
-    const cost = state.stored.hats[id] ? 0 : hatCost(state, id);
-    if (state.sentences < cost) return false;
-    state.sentences -= cost;
-    if (state.stored.hats[id]) unstore(state.stored.hats, id);
-    m.hats.push(id);
-  }
+  const stored = key && state.stored.hats[key] ? key : key ? undefined : storedHat(state, id);
+  if (key && !stored) return false;
+  const cost = stored ? 0 : hatCost(state, id);
+  if (state.sentences < cost) return false;
+  state.sentences -= cost;
+  if (stored) unstore(state.stored.hats, stored);
+  takeOffHat(state, m);
   m.hat = id;
+  m.hatColor = stored ? splitHatKey(stored).color : '';
   return true;
 }
 
@@ -2048,8 +2084,8 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'rooms': return state.office.length;
     case 'furniture': return state.furniture.filter((f) => f.kind !== desk.id).length;
     case 'harmony': return state.office.filter((r) => roomChi(state, r) === 1).length;
-    case 'hats': return ms.reduce((n, m) => n + m.hats.length, 0);
-    case 'hatKinds': return new Set(ms.flatMap((m) => m.hats)).size;
+    case 'hats': return hats.reduce((n, h) => n + hatsOwned(state, h.id), 0);
+    case 'hatKinds': return hats.filter((h) => hatsOwned(state, h.id) > 0).length;
     case 'dyed': return state.stats.dyes;
     case 'skill': return most((m) => m.skill);
     case 'typewriter': return most((m) => m.typewriter);
@@ -2439,12 +2475,11 @@ export function sellFurniture(state: GameState, index: number): boolean {
   return true;
 }
 
-/** Sells the hat a monkey wears, out of its wardrobe, for sellBack of its base price (in Sentences). */
+/** Sells the hat a monkey wears for sellBack of its base price (in Sentences). */
 export function sellHat(state: GameState, index: number): boolean {
   const m = state.monkeys[index];
   const h = hats.find((x) => x.id === m?.hat);
   if (!m || !h) return false;
-  m.hats = m.hats.filter((id) => id !== h.id);
   m.hat = '';
   m.hatColor = '';
   state.sentences += sellValue(h.cost);
@@ -2452,22 +2487,18 @@ export function sellHat(state: GameState, index: number): boolean {
 }
 
 /**
- * Moves one hat from a monkey's wardrobe (or storage, 'storage') to another
- * monkey's wardrobe (or storage). A monkey keeps one of each kind; one
- * losing the hat it wears takes it off.
+ * Moves a hat: the one a monkey wears (`from` its index) or one from the
+ * inventory (`from` 'storage', `key` as hatKey), onto another monkey (whose
+ * own hat goes into the inventory) or into the inventory.
  */
-export function moveHat(state: GameState, from: number | 'storage', id: string, to: number | 'storage'): boolean {
-  if (from === to || !hats.some((h) => h.id === id)) return false;
+export function moveHat(state: GameState, from: number | 'storage', key: string, to: number | 'storage'): boolean {
+  if (from === to) return false;
   const giver = from === 'storage' ? undefined : state.monkeys[from];
   const taker = to === 'storage' ? undefined : state.monkeys[to];
-  if (from === 'storage' ? !state.stored.hats[id] : !giver?.hats.includes(id)) return false;
-  if (to !== 'storage' && (!taker || taker.hats.includes(id))) return false;
-  if (giver) {
-    giver.hats = giver.hats.filter((h) => h !== id);
-    if (giver.hat === id) giver.hat = '';
-  } else unstore(state.stored.hats, id);
-  if (taker) taker.hats.push(id);
-  else state.stored.hats[id] = (state.stored.hats[id] ?? 0) + 1;
+  if (to !== 'storage' && !taker) return false;
+  if (giver ? !giver.hat || hatKey(giver.hat, giver.hatColor) !== key : !state.stored.hats[key]) return false;
+  if (giver) takeOffHat(state, giver); // into the inventory for a moment
+  if (taker) return wearHat(state, to as number, splitHatKey(key).id, key);
   return true;
 }
 
@@ -2492,7 +2523,7 @@ export function fireBlocker(state: GameState, index: number): string {
 }
 
 /**
- * Fires a monkey: it leaves (its desk stays, free), and its hats go into
+ * Fires a monkey: it leaves (its desk stays, free), and its hat goes into
  * storage for other monkeys to wear for free. Nothing is paid back, and the
  * price of the next hire doesn't drop.
  */
@@ -2502,10 +2533,10 @@ export function fireMonkey(state: GameState, index: number): boolean {
   return true;
 }
 
-/** A monkey leaves: its desk stays, free, and its hats go into storage. */
+/** A monkey leaves: its desk stays, free, and its hat goes into the inventory. */
 function letGo(state: GameState, index: number): void {
   const [m] = state.monkeys.splice(index, 1);
-  for (const id of m.hats) state.stored.hats[id] = (state.stored.hats[id] ?? 0) + 1;
+  takeOffHat(state, m);
   if (m.manager) manage(state);
 }
 

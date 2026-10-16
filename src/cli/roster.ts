@@ -88,7 +88,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
   const desk = i === undefined ? undefined : deskOf(state, i);
   const room = desk === undefined ? undefined : state.office.find((r) => r.id === state.furniture[desk].room);
   const hat = hats.find((h) => h.id === m?.hat);
-  const owned = m ? hats.filter((h) => m.hats.includes(h.id)).map((h) => h.name.toLowerCase()) : [];
   const trait = m && traitOf(m);
   const details = !m
     ? []
@@ -104,7 +103,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
           : []),
         `${label('Happiness')} ${monkeyHappiness(state, m) < 0 ? '' : '+'}${Math.round(monkeyHappiness(state, m) * 100)}%${m.petHappiness > 0 ? dim(`  (petted lately: +${(m.petHappiness * 100).toFixed(1)}%)`) : ''}`,
         `${label('Hat')} ${hat ? `${hat.name}${m.hatColor ? `, dyed ${hatColors.find((c) => c.id === m.hatColor)?.id}` : ''}: ${hatEffect(hat)}` : 'none'}`,
-        ...(owned.length > 1 ? [`${label('Wardrobe')} ${owned.join(', ')}`] : []),
         `${label('Trait')} ${state.managerBook ? (trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?') : dim('unknown (perhaps a book somewhere explains monkeys)')}`,
         ...(statsShown(state)
           ? [

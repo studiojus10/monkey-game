@@ -7,6 +7,8 @@ import {
   folioPagesNow,
   furnitureSpot,
   hatCost,
+  splitHatKey,
+  storedHat,
   furnitureCost,
   dyeCost,
   canSeatMonkey,
@@ -857,10 +859,10 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
         ...hats.map((h): ShopItem => {
-          const stored = state.stored.hats[h.id] ?? 0;
+          const stored = Object.entries(state.stored.hats).reduce((n, [key, k]) => n + (splitHatKey(key).id === h.id ? k : 0), 0);
           const cost = stored > 0 ? 0 : hatCost(state, h.id);
-          const someone = team.some((i) => !state.monkeys[i].hats.includes(h.id));
-          const effect = stored > 0 ? `${hatEffect(h)}; ${stored} stored` : hatEffect(h);
+          const someone = team.some((i) => state.monkeys[i].hat !== h.id);
+          const effect = stored > 0 ? `${hatEffect(h)}; ${stored} in inventory` : hatEffect(h);
           return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: h.name, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
         }),
         {
@@ -870,7 +872,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
           cost: [[dyeCost(state), 'sentences']],
         },
-        { text: 'Monkeys keep every hat they get: wearing one again is free.' },
+        { text: 'A hat taken off goes into your inventory ([i]); wearing it again is free.' },
       ];
     }
   }
@@ -916,9 +918,9 @@ export function hatEffect(h: Hat): string {
 export function hatPick(state: GameState, id: string): { title: string; notes: string[] } {
   const h = hats.find((x) => x.id === id)!;
   return {
-    title: `${h.name} (${priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets it?`,
+    title: `${h.name} (${storedHat(state, id) ? 'free from your inventory' : priceNamed(hatCost(state, id), state.sentences, 'sentences')}): which monkey gets it?`,
     notes: state.monkeys.map((m) =>
-      m.hat === id ? 'wearing it: takes it off' : m.hats.includes(id) ? 'has one: free' : hatOf(m) ? `swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()}` : '',
+      m.hat === id ? 'wearing it: takes it off' : hatOf(m) ? `swaps its ${hats.find((x) => x.id === m.hat)!.name.toLowerCase()} (into your inventory)` : '',
     ),
   };
 }

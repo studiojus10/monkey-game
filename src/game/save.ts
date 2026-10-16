@@ -73,7 +73,6 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       energy: Math.min(1, Math.max(0, num(m?.energy, 1))),
       resting: !!m?.resting,
       // Saves from before hats kept their hats in accessories.
-      hats: [...new Set([...strings(m?.hats), ...strings((m as { accessories?: unknown })?.accessories)])].filter((id) => hats.some((h) => h.id === id)),
       hat: [str(m?.hat), ...strings((m as { accessories?: unknown })?.accessories)].find((id) => hats.some((h) => h.id === id)) ?? '',
       hatColor: hatColors.some((c) => c.id === m?.hatColor) ? str(m?.hatColor) : '',
       petHappiness: Math.min(petting.maxHappiness, Math.max(0, num(m?.petHappiness, 0))),
@@ -186,7 +185,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
       stored: {
         furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),
-        hats: storedCounts((s.stored as { hats?: unknown } | undefined)?.hats, (id) => hats.some((h) => h.id === id)),
+        hats: storedCounts((s.stored as { hats?: unknown } | undefined)?.hats, (key) => {
+          const [id, color = ''] = key.split(':');
+          return hats.some((h) => h.id === id) && (!color || hatColors.some((c) => c.id === color));
+        }),
       },
       researched: strings(s.researched).filter((id) => research.projects.some((p) => p.id === id)),
       researchersHired: Math.max(0, Math.floor(num(s.researchersHired, 0))),
@@ -253,6 +255,15 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     // Saves from before windows get one in every room; windows that don't face outside go.
     tidyDoors(state);
     if (!Array.isArray(s.windows)) for (const r of state.office) addWindow(state, r);
+    // Saves from when each monkey kept a wardrobe: the hats it wasn't wearing go into the inventory.
+    if (Array.isArray(s.monkeys)) {
+      s.monkeys.forEach((raw, i) => {
+        const m = state.monkeys[i];
+        for (const id of strings((raw as { hats?: unknown })?.hats)) {
+          if (m && id !== m.hat && hats.some((h) => h.id === id)) state.stored.hats[id] = (state.stored.hats[id] ?? 0) + 1;
+        }
+      });
+    }
     return state;
   } catch {
     return fresh;
