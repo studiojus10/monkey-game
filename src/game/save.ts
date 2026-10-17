@@ -114,7 +114,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       chainRecent: strings(m?.chainRecent),
       chainLength: Math.max(0, Math.floor(num(m?.chainLength, 0))),
       chainCounted: Math.max(0, Math.floor(num(m?.chainCounted, 0))),
-      chainAll: strings(m?.chainAll).filter((w) => /^[A-Z]+$/.test(w)),
+      chainAll: strings(m?.chainAll).filter((w) => /^\p{Lu}+$/u.test(w)),
       // Saves from before per-monkey skill had one shared "Faster typing" level: every monkey keeps it,
       // with the typewriter it needs.
       skill: Math.max(0, Math.floor(num(m?.skill, oldTypingLevel))),
@@ -140,7 +140,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
-      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking') && Array.isArray(r.cells))
+      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library') && Array.isArray(r.cells))
       .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]) }))
       .filter((r) => r.cells.length > 0);
     const completed: Record<string, number[]> = {};
@@ -179,10 +179,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const st: Partial<Stats> = s.stats && typeof s.stats === 'object' ? s.stats : {};
     const ll = st.longestLine;
     const stats: Stats = {
-      letters: counts(st.letters, /^[A-Z]$/),
-      words: counts(st.words, /^[A-Z]+$/),
-      longestWord: /^[A-Z]*$/.test(str(st.longestWord)) ? str(st.longestWord) : '',
-      bestWord: /^[A-Z]*$/.test(str(st.bestWord)) ? str(st.bestWord) : '',
+      letters: counts(st.letters, /^\p{Lu}$/u),
+      words: counts(st.words, /^\p{Lu}+$/u),
+      longestWord: /^\p{Lu}*$/u.test(str(st.longestWord)) ? str(st.longestWord) : '',
+      bestWord: /^\p{Lu}*$/u.test(str(st.bestWord)) ? str(st.bestWord) : '',
       bestWordPoints: Math.max(0, num(st.bestWordPoints, 0)),
       longestChain: Math.max(0, Math.floor(num(st.longestChain, 0))),
       linesTyped: Math.max(0, Math.floor(num(st.linesTyped, 0))),
@@ -194,7 +194,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       pets: Math.max(0, Math.floor(num(st.pets, 0))),
       chainSentences: Math.max(0, Math.floor(num(st.chainSentences, 0))),
       sentencesWritten: Math.max(0, Math.floor(num(st.sentencesWritten, 0))),
-      longestSentence: strings(st.longestSentence).filter((w) => /^[A-Z]+$/.test(w)),
+      longestSentence: strings(st.longestSentence).filter((w) => /^\p{Lu}+$/u.test(w)),
       secondsTyping: Math.max(0, num(st.secondsTyping, 0)),
       secondsOpen: Math.max(0, num(st.secondsOpen, 0)),
       secondsAway: Math.max(0, num(st.secondsAway, 0)),
@@ -255,12 +255,15 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       furniture: (Array.isArray(s.furniture) ? s.furniture : [])
         .filter((f) => f && (f.kind === desk.id || furnitureKinds.some((k) => k.id === f.kind)) && typeof f.room === 'string' && Number.isInteger(f.x) && Number.isInteger(f.y))
         .map((f) => ({ kind: f.kind, room: f.room, x: f.x, y: f.y, ...(f.turned === true ? { turned: true } : {}) })),
-      departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet'].includes(g)),
+      departments: strings(s.departments).filter((g) => ['comedy', 'history', 'tragedy', 'sonnet', 'greek'].includes(g)),
       owned: oldPlay ? [oldPlay] : strings(s.owned),
       completed,
       scenesDone: strings(s.scenesDone),
       actsDone: strings(s.actsDone),
       playsDone: strings(s.playsDone),
+      shelved: strings(s.shelved),
+      classical: s.classical === 'latin' ? 'latin' : 'greek',
+      galleries: typeof s.galleries === 'number' && s.galleries >= 0 ? Math.floor(s.galleries) : 0,
       lastMilestone,
       pointsBonus: Math.max(0, num(s.pointsBonus, 0)),
       speedBonus: Math.max(0, num(s.speedBonus, 0)),
@@ -271,7 +274,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       slots: Array.isArray(s.slots)
         ? s.slots
             .filter((x) => x && Number.isInteger(x.position) && x.position > 0)
-            .map((x) => ({ department: str(x.department), position: x.position, word: /^[A-Z]*$/.test(str(x.word)) ? str(x.word) : '', on: !!x.on }))
+            .map((x) => ({ department: str(x.department), position: x.position, word: /^\p{Lu}*$/u.test(str(x.word)) ? str(x.word) : '', on: !!x.on }))
         : [],
       letters: Array.isArray(s.letters)
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
@@ -290,6 +293,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         lastSentence: strings(s.lately?.lastSentence),
         longSentence: strings(s.lately?.longSentence),
         longSentenceAt: num(s.lately?.longSentenceAt, 0),
+        news: (Array.isArray(s.lately?.news) ? s.lately.news : []).filter((n) => n && typeof n.text === 'string').map((n) => ({ text: n.text, at: num(n.at, 0) })),
       },
       settings: { autoPlaceFurniture: s.settings?.autoPlaceFurniture !== false, lightBackground: s.settings?.lightBackground === true,
         homeDepartment: typeof s.settings?.homeDepartment === 'string' ? s.settings.homeDepartment : '',

@@ -1,4 +1,4 @@
-import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, library, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
@@ -25,6 +25,8 @@ import {
   marketers,
   codebreakers,
   codebreakingRoom,
+  libraryBonus,
+  unshelvedBooks,
   safeAt,
   lockOf,
   lockCombinations,
@@ -32,7 +34,7 @@ import {
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
-import { dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
+import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
 import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
 import { formatAmount, formatNumber } from '../format';
 
@@ -48,13 +50,14 @@ export type Cell = { x: number; y: number; room?: string };
 export function roomName(state: GameState, room: Room): string {
   if (room.kind === 'department') {
     const g = roomGenre(state, room);
-    return g ? `${genreNames[g]} room` : 'Your room';
+    return g ? `${departmentName(state, g)} room` : 'Your room';
   }
   if (room.kind === 'lab') return `${research.name} lab`;
   if (room.kind === 'hr') return `${hr.name} office`;
   if (room.kind === 'marketing') return `${marketing.name} office`;
   if (room.kind === 'codebreaking') return `${codebreaking.name} office`;
-  if (room.kind === 'office') return `${genreNames[room.department as keyof typeof genreNames] ?? 'Manager'} office`;
+  if (room.kind === 'library') return library.name;
+  if (room.kind === 'office') return `${departmentName(state, room.department as keyof typeof genreNames) ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
 }
@@ -251,7 +254,7 @@ export function renderOffice(
     ...wrapItems([...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished], columns).map(dim),
     '',
     ...roomTable(state, columns),
-    ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
+    ...roomlessDepartments(state).map((g) => red(` The ${departmentName(state, g)} department needs a room: press [r] to buy one.`)),
     '',
     ` ${label(`New room ${bold(formatNumber(roomCost(state)))} Sentences`, roomCost(state), state.sentences)}   ${label(`One more square ${bold(formatNumber(squareCost(state)))} Sentences`, squareCost(state), state.sentences)}`,
     '',
@@ -280,6 +283,10 @@ function roomTable(state: GameState, columns = 0): string[] {
         ? boss
           ? `a slot every ${slotDelay(state, boss).toFixed(1)}s`
           : '-'
+        : r.kind === 'library'
+        ? libraryBonus(state) > 0
+          ? `+${pct(libraryBonus(state))} bananas`
+          : '-'
         : r.kind !== 'department'
         ? '-'
         : [
@@ -293,7 +300,7 @@ function roomTable(state: GameState, columns = 0): string[] {
         String(i + 1),
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' ? '-' : pct(roomChi(state, r))] : []),
+        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library' ? '-' : pct(roomChi(state, r))] : []),
         r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
@@ -307,6 +314,8 @@ function roomTable(state: GameState, columns = 0): string[] {
           ? marketers(state).map((k) => monkeyName(state, k))
           : r.kind === 'codebreaking'
           ? codebreakers(state).map((k) => monkeyName(state, k))
+          : r.kind === 'library'
+          ? [`${state.shelved.length - unshelvedBooks(state)} books in ${Math.max(1, state.galleries)} galleries ([i] to go in)`]
           : r.kind === 'office'
           ? [boss ? `${monkeyName(state, state.monkeys.indexOf(boss))} (manager)` : 'no manager yet']
           : r.kind === 'department'

@@ -150,6 +150,8 @@ describe('terminal screen', () => {
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
     expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
+    // A finished alphabet leaves the home screen.
+    expect(plain(renderScreen({ ...s, letters: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'] }, '', null))).not.toContain(' Letters ');
     const rows = plain(text).split('\n');
     expect(rows[2]).toBe(' MONKEY                SPEED   ENERGY  COMBO  TYPING');
     expect(rows[3]).toBe('  @ M-1               0.50/s     100%   x1.0  I_');

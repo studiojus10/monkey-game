@@ -22,7 +22,7 @@ import {
   slotDelay,
 } from '../game/logic';
 import type { GameState } from '../game/state';
-import { codebreakingStatus, dyed, genreNames, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
+import { codebreakingStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
 import { formatDuration } from '../format';
 import { bold, dim, green, inverse, isCursor, keyRow, red, rule, titleBar } from './style';
@@ -53,7 +53,7 @@ function departmentName(state: GameState, i: number): string {
   if (isMarketer(m)) return marketing.name;
   if (isCodebreaker(m)) return codebreaking.name;
   const g = monkeyGenre(state, m);
-  return g ? genreNames[g] : 'No department yet';
+  return g ? deptName(state, g) : 'No department yet';
 }
 
 /** A hidden stat as a percent: green above average, red below. */

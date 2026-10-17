@@ -246,7 +246,7 @@ export interface FurnitureKind {
 }
 
 /** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
-export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking';
+export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library';
 
 /** The five feng shui elements. A room with all five is balanced. */
 export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
@@ -572,15 +572,47 @@ export const codebreaking = {
 };
 
 /**
+ * The Library (Justin, 2026-10-17: "a new type of room for storing books"): a
+ * room on the office map, built once a play or text is finished, that opens
+ * into hexagonal galleries. Every finished play and text and every published
+ * Folio is shelved in the first gallery with room; each full gallery adds
+ * fullBonus to points. The library's books and galleries outlast a Folio (the
+ * room is rebuilt after one). The first gallery comes with the room; more cost
+ * Lines. Placeholders.
+ */
+export const library = {
+  name: 'Library',
+  booksPerGallery: 4, // one shelf on each of a gallery's four walls (the other two sides are its doors)
+  galleryCost: 100, // Lines for the second gallery
+  galleryCostGrowth: 10,
+  fullBonus: 0.05, // points for each full gallery
+};
+
+/**
+ * The Library's Bibliography (Justin, 2026-10-17: "an automatic book in the
+ * library ... which cites all of the sources of text not written for the
+ * game"): always there, on no shelf. One entry for each outside text; add one
+ * with every text imported.
+ */
+export const bibliography = [
+  'William Shakespeare, Hamlet, Macbeth, A Midsummer Night\'s Dream, Richard III and the Sonnets. The Complete Works of William Shakespeare, the MIT edition (the public-domain Moby text), https://github.com/TheMITTech/shakespeare.',
+  'ENABLE (Enhanced North American Benchmark Lexicon), the public-domain word list behind the dictionary.',
+  'Aristotle, Metaphysics I.4, 985b4-22. Greek: W. D. Ross, ed., Aristotle\'s Metaphysics (Oxford, 1924), via the Perseus Digital Library, CC BY-SA 4.0. English: W. D. Ross, trans. (Oxford, 1908), public domain.',
+  'Aristotle, De generatione et corruptione. Greek: C. Prantl, ed. (Leipzig: Teubner, 1881), via the First1KGreek project (Open Greek and Latin), CC BY-SA 4.0. English: H. H. Joachim, trans., On Generation and Corruption (Oxford, 1922), public domain, via the MIT Internet Classics Archive.',
+  'Marcus Tullius Cicero, De natura deorum. Latin: O. Plasberg, ed. (Leipzig: Teubner, 1917), via the Perseus Digital Library, CC BY-SA 4.0. English: C. D. Yonge, trans., The Nature of the Gods (London, 1878), public domain, via Project Gutenberg (ebook 14988).',
+];
+
+/**
  * Foreign texts (Justin, 2026-10-17): the first safe opened holds a Greek
  * scroll, firstText (Aristotle's Metaphysics I.4), which opens the Greek
  * department. Its monkeys type Greek capitals, and each line they write turns
  * into its English. The texts are data/plays/*.json with genre 'greek', built
- * by scripts/import-greek.ts.
+ * by scripts/import-classical.ts.
  */
 export const translation = {
   firstText: 'metaphysics-1-4',
   language: 'Greek',
+  latinText: 'natura', // Cicero's De natura deorum, on the Library's first shelf
 };
 
 /**
@@ -707,7 +739,7 @@ export const energy = {
  * shown, and so does any once it is older than that. Sentences keep at most
  * maxSentenceWords words, to keep saves small.
  */
-export const lately = { windowSeconds: 3600, maxSentenceWords: 100 };
+export const lately = { windowSeconds: 3600, maxSentenceWords: 100, maxNews: 3 };
 
 export const petting = {
   happinessPerPet: 0.005,

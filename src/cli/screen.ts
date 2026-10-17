@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -100,12 +100,13 @@ import {
   lockCombinations,
   officesWithoutSafe,
   bombeBuilt,
+  latinUnlocked,
   unreadTelegram,
   telegramCipher,
   telegramSettings,
   telegramText,
 } from '../game/logic';
-import { lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
+import { departmentOf, isForeign, lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
@@ -222,7 +223,13 @@ export const genreNames: Record<Genre, string> = {
   tragedy: 'Tragedies',
   sonnet: 'Sonnets',
   greek: 'Greek',
+  latin: 'Latin',
 };
+
+/** A department's name: its genre's, except that the Greek department is the Classical department once it has Latin too (Justin, 2026-10-17). */
+export function departmentName(state: GameState, genre: Genre | string | undefined): string {
+  return genre === 'greek' && latinUnlocked(state) ? 'Classical' : genreNames[genre as Genre];
+}
 
 /**
  * One of the opening screens (genre, free scene, first letter): the title,
@@ -248,7 +255,7 @@ function openingScreen(intro: string, explain: string[], choices: [string, strin
 
 /** The prompt for unlocking another genre. */
 export function departmentPrompt(state: GameState): string {
-  return `Open a department: ${departmentChoices(state).map((g, i) => `[${i + 1}] ${genreNames[g]}`).join('   ')}   (any other key cancels)`;
+  return `Open a department: ${departmentChoices(state).map((g, i) => `[${i + 1}] ${departmentName(state, g)}`).join('   ')}   (any other key cancels)`;
 }
 
 /** A bonus as a percentage, e.g. 0.215 -> "21.5%". */
@@ -356,7 +363,7 @@ function monkeyHeadings(state: GameState): string {
 /** One monkey's row: its icon (hat dyed), department initial, name (a heart if petted lately), speed, energy, combo and line. */
 function monkeyRow(state: GameState, i: number, room: number, chosen = false): string {
   const m = state.monkeys[i];
-  const dept = hasDeptColumn(state) ? `${isResearcher(m) ? 'R' : genreNames[monkeyGenre(state, m)!][0]} ` : '';
+  const dept = hasDeptColumn(state) ? `${isResearcher(m) ? 'R' : departmentName(state, monkeyGenre(state, m)!)[0]} ` : '';
   // The home cursor: the chosen monkey's name inverse.
   const name = `${chosen && cursorsOn() ? inverse(monkeyName(state, i).padEnd(col.name)) : monkeyName(state, i).padEnd(col.name)}${m.petHappiness > 0 ? '<3' : '  '}`;
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
@@ -374,7 +381,7 @@ export function codebreakingStatus(state: GameState): string {
   }
   const s = state.safes[state.codebreakFocus];
   if (!s || s.open) return 'no locked safe to crack';
-  return `cracking the ${genreNames[state.codebreakFocus as Genre] ?? ''} safe: ${formatNumber(Math.floor(s.tries))} combinations tried`;
+  return `cracking the ${departmentName(state, state.codebreakFocus as Genre) ?? ''} safe: ${formatNumber(Math.floor(s.tries))} combinations tried`;
 }
 
 function researcherLine(state: GameState): string {
@@ -413,7 +420,7 @@ function telegramRows(state: GameState, columns = 0): string[] {
 function codeRows(state: GameState, columns = 0): string[] {
   const found = Object.entries(state.safes).sort(([, a], [, b]) => a.level - b.level);
   const safeRows = found.map(([g, x]) => {
-    const name = `${genreNames[g as Genre] ?? 'A'} safe`;
+    const name = `${departmentName(state, g as Genre) ?? 'A'} safe`;
     const lock = `${lockOf(x.level).name} (${formatAmount(lockCombinations(x.level))} combinations)`;
     return x.open
       ? ` ${bold(name)}  ${green(x.combo)}  ${dim(`${lock}, cracked after ${formatAmount(Math.floor(x.tries))} tries`)}`
@@ -448,6 +455,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
     ...(l.lastSentence.length > 0 ? [sentence('Last sentence', l.lastSentence)] : []),
     ...(l.longSentence.length > 0 ? [sentence(`Longest sentence lately (${l.longSentence.length} words)`, l.longSentence)] : []),
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
+    ...l.news.filter((n) => state.stats.secondsTyping - n.at <= latelyRules.windowSeconds).map((n) => `* ${n.text}`),
     ...folioOffer(state),
     ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
@@ -578,7 +586,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
   const views = homeViews(state);
   const shown = homeMonkeys(state);
   const view = homeView(state);
-  const viewName = view === research.id ? research.name : view ? genreNames[view as Genre] : '';
+  const viewName = view === research.id ? research.name : view ? departmentName(state, view as Genre) : '';
   const lines = [
     titleBar(state, '', columns),
     '',
@@ -588,7 +596,8 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
     ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room, i === chosen)),
     ...(shown.length > maxMonkeyLines ? [dim(` ...and ${shown.length - maxMonkeyLines} more monkeys typing`)] : []),
     '',
-    `${label('Letters')} ${letterRow(state)}`,
+    // Only an alphabet still to finish (Justin, 2026-10-17): Greek and Latin monkeys have all their letters from the start.
+    ...(state.letters.length < Object.keys(letterValues).length ? [`${label('Letters')} ${letterRow(state)}`] : []),
     `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
     ...latelyLines(state, message, columns),
@@ -735,7 +744,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       // A department with no free square for a desk (or no room yet) says so where the price goes.
       const hire = (genre?: Genre): ShopItem => {
         const cost = nextMonkeyCost(state, genre);
-        const where = genre ? `for ${genreNames[genre]} (${departmentTypists(state, genre)}/${departmentRules.maxTypists})` : `you have ${state.monkeys.length}`;
+        const where = genre ? `for ${departmentName(state, genre)} (${departmentTypists(state, genre)}/${departmentRules.maxTypists})` : `you have ${state.monkeys.length}`;
         const item: ShopItem = { id: genre ? `hire:${genre}` : 'hire', text: 'Hire a monkey', effect: where };
         return hasDeskSpace(state, genre ?? open[0])
           ? { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] }
@@ -747,7 +756,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const hireManager = (g: Genre): ShopItem => {
         const cost = managerCost(state, g);
         const blocked = managerBlocker(state, g);
-        const item: ShopItem = { id: `boss:${g}`, text: 'Hire a manager', effect: open.length > 1 ? `for ${genreNames[g]}` : 'picks lines, fills slots' };
+        const item: ShopItem = { id: `boss:${g}`, text: 'Hire a manager', effect: open.length > 1 ? `for ${departmentName(state, g)}` : 'picks lines, fills slots' };
         return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
       };
       return [
@@ -817,6 +826,9 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 : []),
               ...(state.telegrams.length > 0 ? [{ id: 'telegram', text: state.telegrams.length > 1 ? 'Read the telegrams' : 'Read the telegram', effect: unreadTelegram(state) ? 'in Enigma: not yet read' : `${state.telegrams.length} read` }] : []),
             ]
+          : []),
+        ...(latinUnlocked(state)
+          ? [{ id: 'classical', text: `Switch Classical to ${state.classical === 'greek' ? 'Latin' : 'Greek'}`, effect: `now typing ${state.classical === 'greek' ? 'Greek' : 'Latin'}; slots start over` }]
           : []),
         ...(managing.length > 0
           ? managing.map(hireManager)
@@ -946,7 +958,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const play = at && getPlay(at.play);
       const sc = play && sceneOf(play, at.line);
       if (!play || !sc) return [{ text: 'No plays loaded.' }];
-      if (!departmentGenres(state).includes(play.genre)) return [{ text: `Open a ${genreNames[play.genre]} department to buy these.` }];
+      if (!departmentGenres(state).includes(departmentOf(play.genre))) return [{ text: `Open a ${departmentName(state, departmentOf(play.genre))} department to buy these.` }];
       const section = (id: string, text: string, n: number, effect: string): ShopItem =>
         n === 0 ? { id, text, effect, blocked: 'owned' } : { id, text, effect, star: state.currency >= n, cost: [[n, 'currency']] };
       const lines = (n: number) => `${count(n)} line${n === 1 ? '' : 's'}`;
@@ -1245,7 +1257,7 @@ export function renderSlotsMenu(
   return [
     titleBar(state, 'Word slots', columns),
     '',
-    ...(genre ? [` ${bold(`${genreNames[genre]} department`)}`, ''] : []),
+    ...(genre ? [` ${bold(`${departmentName(state, genre)} department`)}`, ''] : []),
     dim(' Each slot makes the word at its position in a chain always the word you'),
     dim(' choose, e.g. 3rd word: FRIEND. Switch slots off for fully random typing.'),
     '',
@@ -1440,14 +1452,14 @@ export const scriptPageSize = 15;
 function lineStatus(state: GameState, play: Play, index: number): string {
   if (state.completed[play.id]?.includes(index)) return 'written';
   if (!ownsLine(state, play, index)) return 'not owned';
-  const missing = missingLetters(state, play.lines[index].letters);
+  const missing = missingLetters(state, play.lines[index].letters, play.genre);
   return missing.length > 0 ? `needs ${missing.join(' ')}` : 'within reach';
 }
 
 /** What a line still needs, for the NEEDS column: the letters you don't own yet, "in reach", or nothing. */
 function lineNeeds(state: GameState, play: Play, index: number): string {
   if (state.completed[play.id]?.includes(index) || !ownsLine(state, play, index)) return '';
-  const missing = missingLetters(state, play.lines[index].letters);
+  const missing = missingLetters(state, play.lines[index].letters, play.genre);
   return missing.length > 0 ? missing.join('') : green('in reach');
 }
 
@@ -1464,7 +1476,7 @@ function wrapVisible(items: string[], columns: number, lead: string): string[] {
 }
 
 /** Words of `text` in rows at most `width` long (a word longer than that gets a row of its own). */
-function wrapWords(text: string, width: number): string[] {
+export function wrapWords(text: string, width: number): string[] {
   const rows: string[] = [];
   for (const word of text.split(' ')) {
     const last = rows.length - 1;
@@ -1536,9 +1548,9 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     state.currency >= n && n > 0
       ? `${bold(`[${key}]`)} ${green(`${label} * ${bold(formatNumber(n))} ${theme.currency}`)}`
       : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatNumber(n)} ${theme.currency}`}`;
-  const locked = !departmentGenres(state).includes(play.genre);
+  const locked = !departmentGenres(state).includes(departmentOf(play.genre));
   return [
-    titleBar(state, play.genre === 'greek' ? 'Text' : 'Script', columns),
+    titleBar(state, isForeign(play.genre) ? 'Text' : 'Script', columns),
     '',
     ` ${bold(play.title)}   ${dim(`${genreNames[play.genre]}${locked ? ', locked' : ''}`)}   ${count(done.length)} / ${count(play.lines.length)} lines written`,
     '',
@@ -1547,13 +1559,13 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     dim(` + written   @ pinned (${state.pinned.length}/${maxPinnedLines})   NEEDS: letters you don't own yet`),
     ...(shop ? [rule(columns), shop] : [
     ...(locked
-      ? [` Open a ${genreNames[play.genre]} department to buy these.`]
+      ? [` Open a ${departmentName(state, departmentOf(play.genre))} department to buy these.`]
       : wrapVisible(
           play.genre === 'sonnet'
             ? [section('b', 'this sonnet', sectionPrice(state, play, sc.act, sc.key)), section('w', 'all the sonnets', sectionPrice(state, play))]
             : [
                 section('b', 'scene', sectionPrice(state, play, sc.act, sc.key)),
-                section('a', `${play.genre === 'greek' ? 'Book' : 'Act'} ${sc.act}`, sectionPrice(state, play, sc.act)),
+                section('a', `${isForeign(play.genre) ? 'Book' : 'Act'} ${sc.act}`, sectionPrice(state, play, sc.act)),
                 section('w', 'whole play', sectionPrice(state, play)),
               ],
           columns,
@@ -1594,7 +1606,7 @@ export function textsTabs(state: GameState): TextsTab[] {
 
 /** The plays (or foreign texts) a tab lists, in availablePlays() order. */
 export function tabPlays(tab: TextsTab): Play[] {
-  return tab === 'codes' ? [] : availablePlays().filter((p) => (p.genre === 'greek') === (tab === 'foreign'));
+  return tab === 'codes' ? [] : availablePlays().filter((p) => isForeign(p.genre) === (tab === 'foreign'));
 }
 
 /**
@@ -1616,8 +1628,8 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
         const [w, total] = sceneProgress(state, play, sc);
         const owned = ownsScene(state, play.id, sc);
         const prev = play.scenes[i - 1];
-        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `${play.genre === 'greek' ? 'BOOK' : 'ACT'} ${sc.act}` : undefined;
-        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `${play.genre === 'greek' ? 'Chapter' : 'Scene'} ${sc.scene}`;
+        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `${isForeign(play.genre) ? 'BOOK' : 'ACT'} ${sc.act}` : undefined;
+        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `${play.genre === 'greek' ? 'Chapter' : play.genre === 'latin' ? 'Section' : 'Scene'} ${sc.scene}`;
         return {
           cols: [name, owned ? `${count(w)} / ${count(total)}` : 'not owned', owned ? '' : `${count(total)} line${total === 1 ? '' : 's'}`],
           faded: !owned,
@@ -1628,12 +1640,12 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     : tabPlays(tab).map((p) => {
         const owned = p.scenes.filter((sc) => ownsScene(state, p.id, sc)).length;
         const done = (state.completed[p.id] ?? []).length;
-        return open.includes(p.genre)
+        return open.includes(departmentOf(p.genre))
           ? { cols: [p.title, genreNames[p.genre], `${count(done)} / ${count(p.lines.length)}`, `${count(owned)} / ${count(p.scenes.length)}`] }
           : { cols: [p.title, genreNames[p.genre], 'locked', ''], faded: true };
       });
   const headings = play
-    ? [play.genre === 'sonnet' ? 'SONNET' : play.genre === 'greek' ? 'CHAPTER' : 'SCENE', 'WRITTEN', '']
+    ? [play.genre === 'sonnet' ? 'SONNET' : play.genre === 'greek' ? 'CHAPTER' : play.genre === 'latin' ? 'SECTION' : 'SCENE', 'WRITTEN', '']
     : tab === 'foreign'
     ? ['TEXT', 'LANGUAGE', 'WRITTEN', 'CHAPTERS OWNED']
     : ['PLAY', 'GENRE', 'WRITTEN', 'SCENES OWNED'];
@@ -1660,7 +1672,7 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     '',
     rule(columns),
     play
-      ? keyRow([['up/down', 'choose'], ['enter', play.genre === 'greek' ? 'go to this chapter' : 'go to this scene'], ['esc', tab === 'foreign' ? 'all texts' : 'all plays'], ['tab', 'close']], columns)
+      ? keyRow([['up/down', 'choose'], ['enter', play.genre === 'greek' ? 'go to this chapter' : play.genre === 'latin' ? 'go to this section' : 'go to this scene'], ['esc', tab === 'foreign' ? 'all texts' : 'all plays'], ['tab', 'close']], columns)
       : keyRow([['up/down', 'choose'], ['enter', tab === 'foreign' ? "this text's books and chapters" : "this play's acts and scenes"], ...(tabs.length > 1 ? [['[/]', 'tab'] as [string, string]] : []), ['esc', 'back']], columns),
   ].join('\n');
 }
