@@ -117,6 +117,10 @@ import {
   suggestRoomSpot,
   findSafe,
   canBuildCodebreaking,
+  canBuildLibrary,
+  libraryGalleries,
+  galleryCost,
+  buyGallery,
   hireCodebreaker,
   codebreakerBlocker,
   codebreakerCost,
@@ -174,6 +178,7 @@ import {
   hatPick,
   inspectItem,
 } from './screen';
+import { bookRows, renderBook, renderLibrary } from './library';
 import { forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
 import { mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
@@ -297,6 +302,9 @@ let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a n
 let pickingManagerUpgrade = false;
 let pickingManagerSpeed = false;
 let readingTelegrams = false; // the telegrams in Enigma
+let showingLibrary = false; // the Library's galleries, from the office map
+let libraryCursor = 0; // the gallery chosen
+let readingShelf: { id: string; top: number } | null = null; // a book from the Library, open
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
 
@@ -538,6 +546,7 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
     ...(canBuildHR(state) ? [{ kind: 'hr' as const }] : []),
     ...(canBuildMarketing(state) ? [{ kind: 'marketing' as const }] : []),
     ...(canBuildCodebreaking(state) ? [{ kind: 'codebreaking' as const }] : []),
+    ...(canBuildLibrary(state) ? [{ kind: 'library' as const }] : []),
   ];
 }
 
@@ -593,6 +602,7 @@ function newRoomMessage(room: Room): string {
     ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
     ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
     ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
+    ...(room.kind === 'library' ? ['Every finished play, text and Folio is shelved here. [i] on it to go in.'] : []),
     ...(room.kind === 'codebreaking' ? ['Hire codebreakers for it in the Staff store: they try combinations on a safe you found.'] : []),
   ].join(' ');
 }
@@ -602,6 +612,11 @@ function officeShopScreen(columns: number): string {
   const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true));
   const rows = process.stdout.rows || 0;
   return rows > 0 && both.split('\n').length > rows ? renderShop(state, officeShop!, shopCursor, message, columns) : both;
+}
+
+/** Rows of a book the screen has room for. */
+function bookHeight(): number {
+  return Math.max(5, (process.stdout.rows || 30) - 8);
 }
 
 /** Opens the office map with the cursor in the top-left corner of the first room. */
@@ -728,6 +743,10 @@ function draw() {
     ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
     : readingTelegrams
     ? renderTelegrams(state, columns)
+    : readingShelf
+    ? renderBook(state, readingShelf.id, readingShelf.top, bookHeight(), columns)
+    : showingLibrary
+    ? renderLibrary(state, libraryCursor, shown, columns)
     : pickingLetter
     ? renderLetterPicker(state, pickingLetter === 'free', letterCursor, message, columns)
     : pick
@@ -955,6 +974,30 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
   if (str === '?' && namingMonkey < 0 && slotWordDraft === null && !confirmingFolio && !confirmingReset && !confirmingFire) {
     openFlip();
+    return draw();
+  }
+  if (readingShelf) {
+    const step = { up: -1, down: 1, pageup: -bookHeight(), pagedown: bookHeight(), k: -1, j: 1 }[key.name ?? ''];
+    const last = Math.max(0, bookRows(readingShelf.id, process.stdout.columns || 0).length - bookHeight());
+    if (step) readingShelf.top = Math.max(0, Math.min(last, readingShelf.top + step));
+    else if (key.name === 'escape' || key.name === 'q' || key.name === 'return' || key.name === 'enter') readingShelf = null;
+    return draw();
+  }
+  if (showingLibrary) {
+    message = '';
+    const galleries = libraryGalleries(state);
+    const book = galleries[libraryCursor]?.[Number(str) - 1];
+    if (key.name === 'escape' || key.name === 'q') showingLibrary = false;
+    else if (key.name === 'left' || key.name === 'up') libraryCursor = Math.max(0, libraryCursor - 1);
+    else if (key.name === 'right' || key.name === 'down') libraryCursor = Math.min(galleries.length - 1, libraryCursor + 1);
+    else if (book) readingShelf = { id: book, top: 0 };
+    else if (str === 'b') {
+      const cost = galleryCost(state);
+      if (buyGallery(state)) {
+        libraryCursor = state.galleries - 1;
+        message = `A new gallery, No. ${state.galleries}, opens off the last one.`;
+      } else message = `A new gallery takes ${formatNumber(cost)} Lines.`;
+    }
     return draw();
   }
 
@@ -1309,6 +1352,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else if (str === 'y' || !shelved) message = 'You leave the books where they are, for now.';
       return draw();
     }
+    if (str === 'i' && !officeGrowing && heldFurniture < 0 && here?.kind === 'library') {
+      showingLibrary = true;
+      libraryCursor = 0;
+      return draw();
+    }
     if (str === 'i' && !officeGrowing) {
       const here = roomAt(state, c.x, c.y);
       const spot = heldFurniture >= 0 ? heldFurniture : here ? cellAt(state, here.id, c.x, c.y) : null;
@@ -1441,7 +1489,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
       );
       message = `Buy a room (${formatNumber(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {

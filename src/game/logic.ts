@@ -44,6 +44,7 @@ import {
   hr,
   marketing,
   codebreaking,
+  library,
   safe,
   safes,
   translation,
@@ -320,7 +321,7 @@ export function ownedProgress(state: GameState): [number, number] {
 
 /** Points a monkey earns are multiplied by this; finished scenes raise it, and so does its department's happiness. */
 export function pointsMultiplier(state: GameState, m?: MonkeyState): number {
-  return (1 + state.pointsBonus) * (1 + happiness(state, m && monkeyGenre(state, m))) * folioMultiplier(state) * (m ? 1 + traitBonus(state, m, 'pay') : 1) * (1 + researchBonus(state, 'points'));
+  return (1 + state.pointsBonus) * (1 + happiness(state, m && monkeyGenre(state, m))) * folioMultiplier(state) * (m ? 1 + traitBonus(state, m, 'pay') : 1) * (1 + researchBonus(state, 'points')) * (1 + libraryBonus(state));
 }
 
 /** Points are multiplied by this for good: every Folio published multiplies it by 1 + its pages x bonusPerPage. */
@@ -352,8 +353,11 @@ export function folioPagesNow(state: GameState): number {
  */
 export function publishFolio(state: GameState): GameState | null {
   if (!canPublishFolio(state)) return null;
+  shelveBooks(state);
   const next = createInitialState(state.lastSaved);
   next.folios = state.folios + 1;
+  next.shelved = [...state.shelved, `folio-${next.folios}`];
+  next.galleries = state.galleries;
   next.folioPages = state.folioPages + folioPagesNow(state);
   next.folioBoost = folioMultiplierAfter(state);
   next.achievements = [...state.achievements];
@@ -1115,6 +1119,7 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
   if (kind === 'hr' && !canBuildHR(state)) return false;
   if (kind === 'marketing' && !canBuildMarketing(state)) return false;
   if (kind === 'codebreaking' && !canBuildCodebreaking(state)) return false;
+  if (kind === 'library' && !canBuildLibrary(state)) return false;
   state.sentences -= cost;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height, at);
@@ -1122,6 +1127,7 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
   if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
+  if (kind === 'library') state.galleries = Math.max(1, state.galleries); // the first gallery comes with the room
   seatWaiting(state);
   return true;
 }
@@ -2131,6 +2137,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   earn(state, royalties(state) * seconds);
   crackSafes(state, seconds, rng);
   unlockGreek(state);
+  shelveBooks(state);
   deliverTelegrams(state, seconds, rng);
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
@@ -2875,3 +2882,57 @@ export function endTemps(state: GameState, seconds: number): string[] {
   return left;
 }
 
+
+/** The Library, if built. */
+export function libraryRoom(state: GameState): Room | undefined {
+  return state.office.find((r) => r.kind === 'library');
+}
+
+/** Whether the Library can be built on the office map: a play or text is finished (or shelved before a Folio) and there's no Library yet. */
+export function canBuildLibrary(state: GameState): boolean {
+  return !libraryRoom(state) && (state.playsDone.length > 0 || state.shelved.length > 0);
+}
+
+/** Shelves every finished play and text not shelved yet. Returns whether any was. */
+export function shelveBooks(state: GameState): boolean {
+  const fresh = state.playsDone.filter((id) => !state.shelved.includes(id));
+  state.shelved.push(...fresh);
+  return fresh.length > 0;
+}
+
+/** A shelved book's title: its play or text, or "Folio N". */
+export function bookTitle(id: string): string {
+  const folio = /^folio-(\d+)$/.exec(id);
+  return folio ? `Folio ${folio[1]}` : (getPlay(id)?.title ?? id);
+}
+
+/** The Library's galleries, each a list of its books (first to last, filled in the order shelved). Empty without the Library. */
+export function libraryGalleries(state: GameState): string[][] {
+  if (!libraryRoom(state)) return [];
+  return Array.from({ length: Math.max(1, state.galleries) }, (_, g) => state.shelved.slice(g * library.booksPerGallery, (g + 1) * library.booksPerGallery));
+}
+
+/** Books waiting for a gallery with room. */
+export function unshelvedBooks(state: GameState): number {
+  return libraryRoom(state) ? Math.max(0, state.shelved.length - Math.max(1, state.galleries) * library.booksPerGallery) : state.shelved.length;
+}
+
+/** Lines for the next gallery. */
+export function galleryCost(state: GameState): number {
+  return Math.ceil(library.galleryCost * Math.pow(library.galleryCostGrowth, Math.max(0, state.galleries - 1)));
+}
+
+/** Buys a gallery for the Library. */
+export function buyGallery(state: GameState): boolean {
+  const cost = galleryCost(state);
+  if (!libraryRoom(state) || state.lines < cost) return false;
+  state.lines -= cost;
+  state.galleries = Math.max(1, state.galleries) + 1;
+  return true;
+}
+
+/** Points bonus from the Library: fullBonus for each full gallery. */
+export function libraryBonus(state: GameState): number {
+  if (!libraryRoom(state)) return 0;
+  return Math.min(Math.max(1, state.galleries), Math.floor(state.shelved.length / library.booksPerGallery)) * library.fullBonus;
+}

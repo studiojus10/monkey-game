@@ -75,7 +75,7 @@ export interface Milestone {
  */
 export interface Room {
   id: string;
-  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's
+  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's; library is the Library
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
 }
@@ -166,6 +166,8 @@ export interface GameState {
   scenesDone: string[]; // finished scenes as "play:act.scene"
   actsDone: string[]; // finished acts as "play:act"
   playsDone: string[]; // finished play ids
+  shelved: string[]; // the Library's books in the order shelved: play and text ids, and 'folio-N' for each Folio (kept through a Folio)
+  galleries: number; // the Library's galleries bought (the first comes with the room; kept through a Folio)
   lastMilestone: Milestone | null;
   pointsBonus: number; // from finished scenes: points x (1 + pointsBonus)
   speedBonus: number; // from finished acts: typing speed x (1 + speedBonus)
@@ -333,6 +335,8 @@ export function createInitialState(now = Date.now()): GameState {
     scenesDone: [],
     actsDone: [],
     playsDone: [],
+    shelved: [],
+    galleries: 0,
     lastMilestone: null,
     pointsBonus: 0,
     speedBonus: 0,

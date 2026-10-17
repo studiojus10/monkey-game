@@ -246,7 +246,7 @@ export interface FurnitureKind {
 }
 
 /** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
-export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking';
+export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library';
 
 /** The five feng shui elements. A room with all five is balanced. */
 export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
@@ -569,6 +569,23 @@ export const codebreaking = {
   hireCost: 1_000_000,
   hireCostGrowth: 3,
   triesPerSecond: 1,
+};
+
+/**
+ * The Library (Justin, 2026-10-17: "a new type of room for storing books"): a
+ * room on the office map, built once a play or text is finished, that opens
+ * into hexagonal galleries. Every finished play and text and every published
+ * Folio is shelved in the first gallery with room; each full gallery adds
+ * fullBonus to points. The library's books and galleries outlast a Folio (the
+ * room is rebuilt after one). The first gallery comes with the room; more cost
+ * Lines. Placeholders.
+ */
+export const library = {
+  name: 'Library',
+  booksPerGallery: 4, // one shelf on each of a gallery's four walls (the other two sides are its doors)
+  galleryCost: 100, // Lines for the second gallery
+  galleryCostGrowth: 10,
+  fullBonus: 0.05, // points for each full gallery
 };
 
 /**

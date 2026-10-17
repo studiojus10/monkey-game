@@ -1464,7 +1464,7 @@ function wrapVisible(items: string[], columns: number, lead: string): string[] {
 }
 
 /** Words of `text` in rows at most `width` long (a word longer than that gets a row of its own). */
-function wrapWords(text: string, width: number): string[] {
+export function wrapWords(text: string, width: number): string[] {
   const rows: string[] = [];
   for (const word of text.split(' ')) {
     const last = rows.length - 1;
