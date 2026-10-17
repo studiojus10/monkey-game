@@ -19,6 +19,7 @@ import {
   renderOptions,
   renderCoinFlip,
   renderScroll,
+  renderTelegrams,
   promptChoices,
   highlightChoice,
   hatPick,
@@ -1016,6 +1017,7 @@ describe('plain ASCII', () => {
       renderDictionary(s, 0),
       renderAchievements(s, 0),
       renderScroll(s),
+      renderTelegrams({ ...s, telegrams: [{ key: { rotors: [0, 1, 2], start: 'AAA', plugs: 'ABCD' }, tested: 1, keyAt: 1, read: true }, { key: { rotors: [3, 4, 0], start: 'QEV', plugs: '' }, tested: 0, keyAt: 9, read: false }] }),
       renderCoinFlip(s, true, ''),
     ];
     for (const text of screens) expect([...plain(text)].filter((c) => c > '\x7f' && !allowedUnicode.includes(c))).toEqual([]);

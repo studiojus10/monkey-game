@@ -1,5 +1,6 @@
-import { letterValues } from './config';
-import { getPlay } from './logic';
+import { enigma, letterValues } from './config';
+import { randomKey } from './enigma';
+import { getPlay, telegramSettings } from './logic';
 import type { GameState } from './state';
 
 /** A development tool for testing: a label and what it does to the game. */
@@ -42,6 +43,14 @@ export const devTools: DevTool[] = [
       if (!play) return;
       state.completed[play.id] = play.lines.map((_, i) => i);
       if (!state.playsDone.includes(play.id)) state.playsDone.push(play.id);
+    },
+  },
+  {
+    label: 'Send a telegram in Enigma, with the Bombe built',
+    apply(state) {
+      const n = state.telegrams.length;
+      state.telegrams.push({ key: randomKey(enigma.leads + n, Math.random), tested: 0, keyAt: 1 + Math.floor(Math.random() * telegramSettings(n)), read: false });
+      for (const id of ['cribs', 'bombe']) if (!state.researched.includes(id)) state.researched.push(id);
     },
   },
 ];

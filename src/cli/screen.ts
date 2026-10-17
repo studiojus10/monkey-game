@@ -98,6 +98,11 @@ import {
   codebreakTargets,
   officesWithoutSafe,
   scrollFound,
+  bombeBuilt,
+  unreadTelegram,
+  telegramCipher,
+  telegramSettings,
+  telegramText,
   scrollLetters,
   translatedSentences,
 } from '../game/logic';
@@ -106,6 +111,7 @@ import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber } from '../format';
+import { inGroups, rotorNames } from '../game/enigma';
 import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /**
@@ -362,6 +368,10 @@ function monkeyRow(state: GameState, i: number, room: number, chosen = false): s
 /** A researcher's line on the home screen: what R&D is working on. */
 /** What Codebreaking is doing: which safe, and how many combinations it has tried. */
 export function codebreakingStatus(state: GameState): string {
+  if (state.codebreakFocus === 'telegram') {
+    const t = unreadTelegram(state);
+    if (t) return `running the Bombe on the telegram: ${formatNumber(Math.floor(t.tested))} of ${formatNumber(telegramSettings(state.telegrams.indexOf(t)))} settings tested`;
+  }
   if (state.codebreakFocus === 'scroll') return `translating the ${translation.scroll.language} scroll: ${translatedSentences(state)} of ${scrollLetters.length} sentences`;
   const s = state.safes[state.codebreakFocus];
   if (!s || s.open) return 'no locked safe to crack';
@@ -375,7 +385,7 @@ function researcherLine(state: GameState): string {
 
 /** What Codebreaking can turn to, by name: a department's safe, or the scroll. */
 export function focusName(focus: string): string {
-  return focus === 'scroll' ? `the ${translation.scroll.language} scroll` : `the ${genreNames[focus as Genre] ?? ''} safe`;
+  return focus === 'telegram' ? 'the telegram' : focus === 'scroll' ? `the ${translation.scroll.language} scroll` : `the ${genreNames[focus as Genre] ?? ''} safe`;
 }
 
 /**
@@ -402,6 +412,23 @@ export function renderScroll(state: GameState, columns = 0): string {
     rule(columns),
     keyRow([['esc', 'back']], columns),
   ].join('\n');
+}
+
+/**
+ * The telegrams that came: each in five-letter groups as it came, and once
+ * the Bombe finds its key, the key and the plain text.
+ */
+export function renderTelegrams(state: GameState, columns = 0): string {
+  const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
+  const rows = state.telegrams.flatMap((t, n) => {
+    const head = ` ${bold(`Telegram ${n + 1}`)}${t.read ? dim(`  key: rotors ${t.key.rotors.map((r) => rotorNames[r]).join(' ')}, start ${t.key.start}, plugs ${t.key.plugs.match(/../g)?.join(' ') ?? 'none'}`) : ''}`;
+    const cipher = wrapWords(inGroups(telegramCipher(state, n)), width).map((r) => `  ${t.read ? dim(r) : r}`);
+    const plain = t.read
+      ? wrapWords(telegramText(n), width).map((r) => `  ${bold(r)}`)
+      : [dim(`  ${bombeBuilt(state) ? `${formatNumber(Math.floor(t.tested))} of ${formatNumber(telegramSettings(n))} settings tested${state.codebreakFocus === 'telegram' ? '' : ` (${codebreaking.name} is working on ${focusName(state.codebreakFocus)})`}` : `Enciphered on an Enigma machine. ${research.name} might find a way in.`}`)];
+    return [head, ...cipher, ...plain, ''];
+  });
+  return [titleBar(state, 'Telegrams', columns), '', dim(' A knock at the door, and a telegram with no explanation.'), '', ...rows, rule(columns), keyRow([['esc', 'back']], columns)].join('\n');
 }
 
 /** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
@@ -436,6 +463,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
     ...(canBuildMarketing(state) ? [`* You can build a ${marketing.name} office on the office map ([o], then [r]).`] : []),
     ...(canBuildCodebreaking(state) ? [`* You can build a ${codebreaking.name} office on the office map ([o], then [r]).`] : []),
+    ...(unreadTelegram(state) && !bombeBuilt(state) ? [`* A telegram came, in Enigma: read it in the Staff store; ${research.name} can study it.`] : []),
     ...(codebreakers(state).length > 0 ? [`${codebreaking.name}: ${codebreakingStatus(state)}`] : []),
     ...(royalties(state) > 0 ? [`${marketing.name}: royalties ${formatNumber(royalties(state))} ${theme.currency}/s`] : []),
     ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
@@ -789,13 +817,14 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 const item: ShopItem = {
                   id: 'codebreaker',
                   text: 'Hire a codebreaker',
-                  effect: `${codebreakers(state).length}/${codebreaking.maxStaff}: tries combinations on a safe`,
+                  effect: `${codebreakers(state).length}/${codebreaking.maxStaff}: cracks safes, translates, decodes`,
                 };
                 return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
               })(),
               ...(codebreakTargets(state).length > 1
                 ? [{ id: 'codefocus', text: 'Switch focus', effect: `now: ${focusName(state.codebreakFocus)}` }]
                 : []),
+              ...(state.telegrams.length > 0 ? [{ id: 'telegram', text: state.telegrams.length > 1 ? 'Read the telegrams' : 'Read the telegram', effect: unreadTelegram(state) ? 'in Enigma: not yet read' : `${state.telegrams.length} read` }] : []),
               ...(scrollFound(state) ? [{ id: 'scroll', text: `Read the ${translation.scroll.language} scroll`, effect: `${translatedSentences(state)}/${scrollLetters.length} sentences translated` }] : []),
             ]
           : []),

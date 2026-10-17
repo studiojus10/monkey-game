@@ -427,7 +427,9 @@ export interface ResearchProject {
   combo?: number;
   squares?: number;
   marketing?: number; // a marketing tactic: royalties up by this share
-  needs?: 'marketing'; // listed only once there's a Marketing office
+  bombe?: number; // the Bombe tests this share more settings a second
+  needs?: 'marketing' | 'telegram'; // listed only once there's a Marketing office, or a telegram has come
+  after?: string; // listed only once this project is done
 }
 
 export const research = {
@@ -449,6 +451,11 @@ export const research = {
     { id: 'posters', name: 'Posters', text: 'Royalties +50%.', hours: 4, cost: 10_000_000, marketing: 0.5, needs: 'marketing' },
     { id: 'radio', name: 'Radio ads', text: 'Royalties +100%.', hours: 24, cost: 1_000_000_000, marketing: 1, needs: 'marketing' },
     { id: 'booktour', name: 'Book tour', text: 'Royalties +200%.', hours: 72, cost: 1e11, marketing: 2, needs: 'marketing' },
+    // The Bombe, once a telegram has come (see enigma).
+    { id: 'cribs', name: 'Study the telegram', text: 'Finds cribs, words it likely holds: the way in.', hours: 24, cost: 1e12, needs: 'telegram' },
+    { id: 'bombe', name: 'Build the Bombe', text: 'Codebreaking can test Enigma settings on a telegram.', hours: 72, cost: 1e13, needs: 'telegram', after: 'cribs' },
+    { id: 'bombe2', name: 'Perfect the Bombe', text: 'Tests settings twice as fast.', hours: 96, cost: 1e14, bombe: 1, needs: 'telegram', after: 'bombe' },
+    { id: 'bombe3', name: 'More Bombes', text: 'Tests settings +200% faster.', hours: 168, cost: 1e15, bombe: 2, needs: 'telegram', after: 'bombe2' },
   ] as ResearchProject[],
 };
 
@@ -596,6 +603,36 @@ export const translation = {
     ],
   },
 };
+
+/**
+ * Telegrams in Enigma (Justin, 2026-10-17: "after all of the safes are
+ * unlocked, a knock on the door of the office, a telegram with no
+ * explanation coded with the enigma machine. the monkeys will then have to
+ * research, develop, and perfect the turing computer"). Once every
+ * department's safe is open, a telegram comes, enciphered on a real Enigma
+ * (enigma.ts) with a random key. R&D studies it and builds the Bombe (see
+ * research); then Codebreaking can turn to it, testing settingsPerTry rotor
+ * settings for each try it would make at a safe. A telegram's key is
+ * somewhere among settings x settingsGrowth^n settings (n counts telegrams
+ * before it: rotor orders x starting positions), found after testing up to
+ * it; the next telegram comes hoursBetween after one is read, with one
+ * more plugboard lead. The texts are placeholder nonsense (Justin: story
+ * stuff is nonsense until he specifies it). Placeholders.
+ */
+export const enigma = {
+  settings: 60 * 26 ** 3,
+  settingsGrowth: 3,
+  settingsPerTry: 20,
+  leads: 5,
+  hoursBetween: 24,
+  telegrams: [
+    'WOBBLE THE GRUNTFIG AT DAWN STOP NO SPOONS STOP',
+    'FLUMMOX THE TEAPOT TWICE STOP THE MOON IS CUSTARD STOP',
+    'SNORKEL BADGER UPSIDE STOP PLINK PLONK PLUNK STOP',
+    'GARGLE THE NOODLEWHIP BY THURSDAY STOP BRING ZIZZLES STOP',
+  ],
+};
+
 
 export const marketing = {
   id: 'marketing', // a marketing monkey's department

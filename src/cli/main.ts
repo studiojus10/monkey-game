@@ -164,6 +164,7 @@ import {
   renderOptions,
   renderCoinFlip,
   renderScroll,
+  renderTelegrams,
   focusName,
   managerSpeedPrompt,
   dyeColorPrompt,
@@ -293,6 +294,7 @@ let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a n
 let pickingManagerUpgrade = false;
 let pickingManagerSpeed = false;
 let readingScroll = false; // the Greek scroll from the first safe
+let readingTelegrams = false; // the telegrams in Enigma
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
 
@@ -430,6 +432,8 @@ function buyItem(id: string): void {
     message = cycleCodebreakFocus(state) ? `${codebreaking.name} turns to ${focusName(state.codebreakFocus)}.` : 'Nothing else to work on.';
   } else if (id === 'scroll') {
     readingScroll = true;
+  } else if (id === 'telegram') {
+    readingTelegrams = true;
   } else if (id.startsWith('research:')) {
     const p = projectOf(id.slice('research:'.length));
     if (!p) return;
@@ -724,6 +728,8 @@ function draw() {
     ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
     : readingScroll
     ? renderScroll(state, columns)
+    : readingTelegrams
+    ? renderTelegrams(state, columns)
     : pickingLetter
     ? renderLetterPicker(state, pickingLetter === 'free', letterCursor, message, columns)
     : pick
@@ -945,8 +951,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     else flipping = '';
     return draw();
   }
-  if (readingScroll && str !== '?') {
-    if (key.name === 'escape' || key.name === 'q' || key.name === 'return' || key.name === 'enter') readingScroll = false;
+  if ((readingScroll || readingTelegrams) && str !== '?') {
+    if (key.name === 'escape' || key.name === 'q' || key.name === 'return' || key.name === 'enter') readingScroll = readingTelegrams = false;
     return draw();
   }
   if (str === '?' && namingMonkey < 0 && slotWordDraft === null && !confirmingFolio && !confirmingReset && !confirmingFire) {
@@ -1737,9 +1743,13 @@ setInterval(() => {
   const now = Date.now();
   setHour(new Date().getHours());
   const temps = tempsNow();
+  const telegrams = state.telegrams.length;
+  const read = state.telegrams.filter((t) => t.read).length;
   state.stats.secondsOpen += (now - last) / 1000;
   tick(state, (now - last) / 1000);
   message = tempsGone(temps) || message;
+  if (state.telegrams.length > telegrams) message = 'A knock at the door: a telegram, with no explanation. Read it in the Staff store.';
+  else if (state.telegrams.filter((t) => t.read).length > read) message = `The Bombe found the key: the telegram is read (Staff store).`;
   last = now;
   draw();
 }, FRAME_MS);
