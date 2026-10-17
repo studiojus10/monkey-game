@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, translation, safe, research, hr, marketing, combo } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -97,16 +97,13 @@ import {
   codebreakerBlocker,
   codebreakTargets,
   officesWithoutSafe,
-  scrollFound,
   bombeBuilt,
   unreadTelegram,
   telegramCipher,
   telegramSettings,
   telegramText,
-  scrollLetters,
-  translatedSentences,
 } from '../game/logic';
-import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
+import { lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState } from '../game/state';
@@ -222,6 +219,7 @@ export const genreNames: Record<Genre, string> = {
   history: 'Histories',
   tragedy: 'Tragedies',
   sonnet: 'Sonnets',
+  greek: 'Greek',
 };
 
 /**
@@ -372,7 +370,6 @@ export function codebreakingStatus(state: GameState): string {
     const t = unreadTelegram(state);
     if (t) return `running the Bombe on the telegram: ${formatNumber(Math.floor(t.tested))} of ${formatNumber(telegramSettings(state.telegrams.indexOf(t)))} settings tested`;
   }
-  if (state.codebreakFocus === 'scroll') return `translating the ${translation.scroll.language} scroll: ${translatedSentences(state)} of ${scrollLetters.length} sentences`;
   const s = state.safes[state.codebreakFocus];
   if (!s || s.open) return 'no locked safe to crack';
   return `cracking the ${genreNames[state.codebreakFocus as Genre] ?? ''} safe: ${formatNumber(Math.floor(s.tries))} combinations tried`;
@@ -385,33 +382,7 @@ function researcherLine(state: GameState): string {
 
 /** What Codebreaking can turn to, by name: a department's safe, or the scroll. */
 export function focusName(focus: string): string {
-  return focus === 'telegram' ? 'the telegram' : focus === 'scroll' ? `the ${translation.scroll.language} scroll` : `the ${genreNames[focus as Genre] ?? ''} safe`;
-}
-
-/**
- * The scroll from the first safe: translated sentences in English, the one
- * under way in Greek with how far along it is, the rest in dim Greek.
- */
-export function renderScroll(state: GameState, columns = 0): string {
-  const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
-  const done = translatedSentences(state);
-  const before = scrollLetters.slice(0, done).reduce((a, b) => a + b, 0);
-  const rows = translation.scroll.sentences.flatMap((x, i) => {
-    const text = i < done ? x.english : x.greek;
-    const wrapped = wrapWords(text, width).map((r) => `  ${i < done ? r : i === done ? bold(r) : dim(r)}`);
-    const note = i === done && state.codebreakFocus === 'scroll' ? [dim(`  (${Math.floor(((state.translated - before) / scrollLetters[i]) * 100)}% translated)`)] : [];
-    return [...wrapped, ...note, ''];
-  });
-  return [
-    titleBar(state, 'Scroll', columns),
-    '',
-    ` ${bold(translation.scroll.title)}`,
-    dim(` ${done} of ${scrollLetters.length} sentences translated${state.codebreakFocus === 'scroll' ? '' : ` (${codebreaking.name} is working on ${focusName(state.codebreakFocus)})`}`),
-    '',
-    ...rows,
-    rule(columns),
-    keyRow([['esc', 'back']], columns),
-  ].join('\n');
+  return focus === 'telegram' ? 'the telegram' : `the ${genreNames[focus as Genre] ?? ''} safe`;
 }
 
 /**
@@ -419,6 +390,11 @@ export function renderScroll(state: GameState, columns = 0): string {
  * the Bombe finds its key, the key and the plain text.
  */
 export function renderTelegrams(state: GameState, columns = 0): string {
+  return [titleBar(state, 'Telegrams', columns), '', ...telegramRows(state, columns), rule(columns), keyRow([['esc', 'back']], columns)].join('\n');
+}
+
+/** Each telegram, as renderTelegrams shows them (also the Texts page's Codes tab). */
+function telegramRows(state: GameState, columns = 0): string[] {
   const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
   const rows = state.telegrams.flatMap((t, n) => {
     const head = ` ${bold(`Telegram ${n + 1}`)}${t.read ? dim(`  key: rotors ${t.key.rotors.map((r) => rotorNames[r]).join(' ')}, start ${t.key.start}, plugs ${t.key.plugs.match(/../g)?.join(' ') ?? 'none'}`) : ''}`;
@@ -428,7 +404,7 @@ export function renderTelegrams(state: GameState, columns = 0): string {
       : [dim(`  ${bombeBuilt(state) ? `${formatNumber(Math.floor(t.tested))} of ${formatNumber(telegramSettings(n))} settings tested${state.codebreakFocus === 'telegram' ? '' : ` (${codebreaking.name} is working on ${focusName(state.codebreakFocus)})`}` : `Enciphered on an Enigma machine. ${research.name} might find a way in.`}`)];
     return [head, ...cipher, ...plain, ''];
   });
-  return [titleBar(state, 'Telegrams', columns), '', dim(' A knock at the door, and a telegram with no explanation.'), '', ...rows, rule(columns), keyRow([['esc', 'back']], columns)].join('\n');
+  return [dim(' A knock at the door, and a telegram with no explanation.'), '', ...rows];
 }
 
 /** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
@@ -475,7 +451,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
 /** The keys shown under the home screen: where to go, then what to do. Every key is on the [/] page. */
 function homeKeys(state: GameState, columns: number): string[] {
   return [
-    keyRow([['space', 'shop'], ['m', 'monkeys'], ['i', 'inventory'], ['p', 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
+    keyRow([['space', 'shop'], ['m', 'monkeys'], ['i', 'inventory'], ['p', textsTabs(state).length > 1 ? 'texts' : 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
       ...(homeViews(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
       ['up/down', 'choose a monkey'],
@@ -501,7 +477,7 @@ export function renderHomeKeys(state: GameState): string {
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
       ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters'],
-      ['p', 'the script: plays, pins and scenes to buy'],
+      ['p', 'the script: plays, pins and scenes to buy (the Texts page, once you have foreign texts or codes: [tab] for its contents, [/] for its tabs)'],
       ['o', 'the office map'],
       ['t', 'statistics'],
       ['a', 'achievements'],
@@ -817,7 +793,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 const item: ShopItem = {
                   id: 'codebreaker',
                   text: 'Hire a codebreaker',
-                  effect: `${codebreakers(state).length}/${codebreaking.maxStaff}: cracks safes, translates, decodes`,
+                  effect: `${codebreakers(state).length}/${codebreaking.maxStaff}: cracks safes and decodes telegrams`,
                 };
                 return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
               })(),
@@ -825,7 +801,6 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 ? [{ id: 'codefocus', text: 'Switch focus', effect: `now: ${focusName(state.codebreakFocus)}` }]
                 : []),
               ...(state.telegrams.length > 0 ? [{ id: 'telegram', text: state.telegrams.length > 1 ? 'Read the telegrams' : 'Read the telegram', effect: unreadTelegram(state) ? 'in Enigma: not yet read' : `${state.telegrams.length} read` }] : []),
-              ...(scrollFound(state) ? [{ id: 'scroll', text: `Read the ${translation.scroll.language} scroll`, effect: `${translatedSentences(state)}/${scrollLetters.length} sentences translated` }] : []),
             ]
           : []),
         ...(managing.length > 0
@@ -1501,7 +1476,9 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   const pinned = (i: number) => state.pinned.some((p) => p.play === play.id && p.index === i);
   const speakerWidth = 13;
   const needsWidth = Math.max('NEEDS'.length, ...shown.map((i) => plainText(lineNeeds(state, play, i)).length));
-  const longest = Math.max(...shown.map((i) => play.lines[i].text.length));
+  // A foreign text's written lines read in English (Justin: "whenever the monkeys completes a line in the original greek, it changes to english").
+  const lineText = (i: number) => (done.includes(i) && play.english[i]) || play.lines[i].text;
+  const longest = Math.max(...shown.map((i) => lineText(i).length));
   // Text gets what the screen leaves after the marks, speaker and NEEDS column.
   const textWidth = columns > 0 ? Math.max(20, Math.min(longest, columns - 1 - 3 - speakerWidth - 1 - 2 - needsWidth)) : longest;
   const rowWidth = 3 + speakerWidth + 1 + textWidth + 2 + needsWidth;
@@ -1522,7 +1499,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     const written = done.includes(i);
     const owned = ownsScene(state, play.id, sc);
     const mark = (i === at ? '>' : ' ') + (written ? '+' : pinned(i) ? '@' : ' ');
-    const texts = wrapWords(line.text, textWidth);
+    const texts = wrapWords(lineText(i), textWidth);
     const lines = texts.map((t, k) => {
       const text = owned && !written ? slotHighlight(state, t, play.genre) : t;
       const lead = k === 0 ? `${mark} ${(line.speaker || '').padEnd(speakerWidth).slice(0, speakerWidth)}` : ' '.repeat(3 + speakerWidth);
@@ -1546,7 +1523,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
       : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatNumber(n)} ${theme.currency}`}`;
   const locked = !departmentGenres(state).includes(play.genre);
   return [
-    titleBar(state, 'Script', columns),
+    titleBar(state, play.genre === 'greek' ? 'Text' : 'Script', columns),
     '',
     ` ${bold(play.title)}   ${dim(`${genreNames[play.genre]}${locked ? ', locked' : ''}`)}   ${count(done.length)} / ${count(play.lines.length)} lines written`,
     '',
@@ -1561,7 +1538,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
             ? [section('b', 'this sonnet', sectionPrice(state, play, sc.act, sc.key)), section('w', 'all the sonnets', sectionPrice(state, play))]
             : [
                 section('b', 'scene', sectionPrice(state, play, sc.act, sc.key)),
-                section('a', `Act ${sc.act}`, sectionPrice(state, play, sc.act)),
+                section('a', `${play.genre === 'greek' ? 'Book' : 'Act'} ${sc.act}`, sectionPrice(state, play, sc.act)),
                 section('w', 'whole play', sectionPrice(state, play)),
               ],
           columns,
@@ -1592,13 +1569,31 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
 /** Rows of the table of contents shown at once. */
 export const contentsPageSize = 20;
 
+/** The table of contents' tabs: plays, then foreign texts and codes once you have any (Justin: the scripts page "turns into the texts page"). */
+export type TextsTab = 'plays' | 'foreign' | 'codes';
+const textsTabNames: Record<TextsTab, string> = { plays: 'Plays', foreign: 'Foreign texts', codes: 'Codes' };
+
+export function textsTabs(state: GameState): TextsTab[] {
+  return ['plays', ...(departmentGenres(state).includes('greek') ? ['foreign' as const] : []), ...(state.telegrams.length > 0 ? ['codes' as const] : [])];
+}
+
+/** The plays (or foreign texts) a tab lists, in availablePlays() order. */
+export function tabPlays(tab: TextsTab): Play[] {
+  return tab === 'codes' ? [] : availablePlays().filter((p) => (p.genre === 'greek') === (tab === 'foreign'));
+}
+
 /**
  * The script's table of contents: every play (when playId is null), or one
  * play's acts and scenes. `cursor` indexes availablePlays() or play.scenes.
  * The cursor's row is inverse; locked plays and scenes you don't own are dim.
  */
-export function renderContents(state: GameState, playId: string | null, cursor: number, message = '', columns = 0): string {
+export function renderContents(state: GameState, playId: string | null, cursor: number, message = '', columns = 0, tab: TextsTab = 'plays'): string {
   const play = playId ? getPlay(playId) : undefined;
+  const tabs = textsTabs(state);
+  const tabRow = tabs.length > 1 && !play ? [tabs.map((t) => (t === tab ? bold(inverse(` ${textsTabNames[t]} `)) : dim(` ${textsTabNames[t]} `))).join(' '), ''] : [];
+  if (!play && tab === 'codes') {
+    return [titleBar(state, 'Texts', columns), '', ...tabRow, ...telegramRows(state, columns), ...(message ? [` ${bold(message)}`, ''] : []), rule(columns), keyRow([['[/]', 'tab'], ['esc', 'back']], columns)].join('\n');
+  }
   const open = departmentGenres(state);
   type Row = { cols: string[]; faded?: boolean; finished?: boolean; header?: string };
   const items: Row[] = play
@@ -1606,8 +1601,8 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
         const [w, total] = sceneProgress(state, play, sc);
         const owned = ownsScene(state, play.id, sc);
         const prev = play.scenes[i - 1];
-        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `ACT ${sc.act}` : undefined;
-        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `Scene ${sc.scene}`;
+        const header = play.genre !== 'sonnet' && (!prev || prev.act !== sc.act) ? `${play.genre === 'greek' ? 'BOOK' : 'ACT'} ${sc.act}` : undefined;
+        const name = play.genre === 'sonnet' ? sceneName(sc.act, sc.scene, play.genre) : `${play.genre === 'greek' ? 'Chapter' : 'Scene'} ${sc.scene}`;
         return {
           cols: [name, owned ? `${count(w)} / ${count(total)}` : 'not owned', owned ? '' : `${count(total)} line${total === 1 ? '' : 's'}`],
           faded: !owned,
@@ -1615,14 +1610,18 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
           header,
         };
       })
-    : availablePlays().map((p) => {
+    : tabPlays(tab).map((p) => {
         const owned = p.scenes.filter((sc) => ownsScene(state, p.id, sc)).length;
         const done = (state.completed[p.id] ?? []).length;
         return open.includes(p.genre)
           ? { cols: [p.title, genreNames[p.genre], `${count(done)} / ${count(p.lines.length)}`, `${count(owned)} / ${count(p.scenes.length)}`] }
           : { cols: [p.title, genreNames[p.genre], 'locked', ''], faded: true };
       });
-  const headings = play ? [play.genre === 'sonnet' ? 'SONNET' : 'SCENE', 'WRITTEN', ''] : ['PLAY', 'GENRE', 'WRITTEN', 'SCENES OWNED'];
+  const headings = play
+    ? [play.genre === 'sonnet' ? 'SONNET' : play.genre === 'greek' ? 'CHAPTER' : 'SCENE', 'WRITTEN', '']
+    : tab === 'foreign'
+    ? ['TEXT', 'LANGUAGE', 'WRITTEN', 'CHAPTERS OWNED']
+    : ['PLAY', 'GENRE', 'WRITTEN', 'SCENES OWNED'];
   const widths = headings.map((h, c) => Math.max(h.length, ...items.map((x) => x.cols[c].length)));
   const right = (c: number) => (play ? c === 1 : c >= 2);
   const line = (mark: string, cols: string[]) => ` ${mark} ` + cols.map((t, c) => (right(c) ? t.padStart(widths[c]) : t.padEnd(widths[c]))).join('   ');
@@ -1636,8 +1635,9 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     ];
   });
   return [
-    titleBar(state, 'Contents', columns),
+    titleBar(state, tabs.length > 1 ? 'Texts' : 'Contents', columns),
     '',
+    ...tabRow,
     ...(play ? [` ${bold(play.title)}`, ''] : []),
     dim(line(' ', headings).trimEnd()),
     ...rows,
@@ -1645,8 +1645,8 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     '',
     rule(columns),
     play
-      ? keyRow([['up/down', 'choose'], ['enter', 'go to this scene'], ['esc', 'all plays'], ['tab', 'close']], columns)
-      : keyRow([['up/down', 'choose'], ['enter', "this play's acts and scenes"], ['esc', 'back']], columns),
+      ? keyRow([['up/down', 'choose'], ['enter', play.genre === 'greek' ? 'go to this chapter' : 'go to this scene'], ['esc', tab === 'foreign' ? 'all texts' : 'all plays'], ['tab', 'close']], columns)
+      : keyRow([['up/down', 'choose'], ['enter', tab === 'foreign' ? "this text's books and chapters" : "this play's acts and scenes"], ...(tabs.length > 1 ? [['[/]', 'tab'] as [string, string]] : []), ['esc', 'back']], columns),
   ].join('\n');
 }
 
@@ -1659,8 +1659,8 @@ export function slotHighlight(state: GameState, text: string, genre: Genre | und
     state.slots.filter((x) => x.on && x.word && slotGenre(state, x) === genre).map((x) => [x.position, x.word]),
   );
   let position = 0;
-  return text.replace(/[A-Za-z'\u2019]+/g, (token) => {
-    const word = token.replace(/['\u2019]/g, '').toUpperCase();
+  return text.replace(/[\p{L}\p{M}'\u2019\u02bc]+/gu, (token) => {
+    const word = textToWords(token).join('');
     if (!word) return token;
     position++;
     return slotAt.get(position) === word ? bold(token) : token;

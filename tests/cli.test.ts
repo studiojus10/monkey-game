@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -18,7 +18,6 @@ import {
   renderSlotsMenu,
   renderOptions,
   renderCoinFlip,
-  renderScroll,
   renderTelegrams,
   promptChoices,
   highlightChoice,
@@ -41,7 +40,8 @@ import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
-import { achievements, lately, monkeyNames, translation } from '../src/game/config';
+import { achievements, lately, monkeyNames } from '../src/game/config';
+import { greekLetters, type PlayData } from '../src/game/plays';
 import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
@@ -993,8 +993,8 @@ describe('publishing a Folio on screen', () => {
 // Unicode is allowed but ASCII is preferred, so the game runs in any terminal.
 // A screen may use only the non-ASCII characters listed here; add one when
 // the game starts printing it (Justin, 2026-10-14: "lets allow unicode then").
-// Greek letters, only for the scroll from the first safe (Justin, 2026-10-14: "lets allow unicode then").
-const greek = new Set(translation.scroll.sentences.map((x) => x.greek).join(''));
+// Greek, only for the foreign texts and their department (Justin, 2026-10-14: "lets allow unicode then").
+const greek = new Set([...greekLetters, ...['metaphysics-1-4', 'generatione'].flatMap((id) => (JSON.parse(readFileSync(`data/plays/${id}.json`, 'utf8')) as PlayData).lines.map((l) => l[3]))].join(''));
 const allowedUnicode = [...greek].join('');
 
 describe('plain ASCII', () => {
@@ -1016,7 +1016,6 @@ describe('plain ASCII', () => {
       renderStats(s),
       renderDictionary(s, 0),
       renderAchievements(s, 0),
-      renderScroll(s),
       renderTelegrams({ ...s, telegrams: [{ key: { rotors: [0, 1, 2], start: 'AAA', plugs: 'ABCD' }, tested: 1, keyAt: 1, read: true }, { key: { rotors: [3, 4, 0], start: 'QEV', plugs: '' }, tested: 0, keyAt: 9, read: false }] }),
       renderCoinFlip(s, true, ''),
     ];

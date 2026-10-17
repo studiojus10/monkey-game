@@ -32,9 +32,14 @@ describe('plays', () => {
     for (const f of files) {
       const data = JSON.parse(readFileSync(new URL(f, dir), 'utf8')) as PlayData;
       expect(data.id + '.json').toBe(f);
-      expect(data.lines.length).toBeGreaterThan(1000);
+      expect(data.lines.length).toBeGreaterThan(data.genre === 'greek' ? 20 : 1000);
       const play = buildPlay(data);
       expect(play.lines.every((l) => l.letters.length > 0)).toBe(true);
+      if (data.genre === 'greek') {
+        // Greek lines are at most 12 words, typed in plain capitals, each with its share of the English.
+        expect(play.lines.every((l) => l.words.length <= 12 && /^[Α-Ω]+$/.test(l.letters))).toBe(true);
+        expect(play.english.filter(Boolean).length).toBeGreaterThan(play.lines.length * 0.99);
+      }
     }
   });
 });

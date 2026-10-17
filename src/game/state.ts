@@ -148,8 +148,7 @@ export interface GameState {
   managerBook: boolean; // read the book in a manager's desk: monkeys' traits show
   researchOpen: boolean; // R&D is open
   safes: Record<string, SafeState>; // safes found, by the genre of the manager's office they stand in
-  codebreakFocus: string; // what Codebreaking works on: a safe's genre, 'scroll' (translating), or '' for nothing
-  translated: number; // Greek letters of the scroll translated so far
+  codebreakFocus: string; // what Codebreaking works on: a safe's genre, 'telegram', or '' for nothing
   telegrams: TelegramState[]; // telegrams in Enigma that have come, oldest first
   telegramWait: number; // seconds until the next telegram comes, once the last is read
   researching: string; // the project under way ('' for none)
@@ -317,7 +316,6 @@ export function createInitialState(now = Date.now()): GameState {
     researchOpen: false,
     safes: {},
     codebreakFocus: '',
-    translated: 0,
     telegrams: [],
     telegramWait: 0,
     researching: '',

@@ -231,7 +231,6 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
           .map(([g, x], i) => [g, { level: Math.max(0, Math.floor(num(x.level, i))), combo: x.combo!, tries: Math.max(0, num(x.tries, 0)), open: x.open === true, held: str(x.held) }]),
       ),
       codebreakFocus: str(s.codebreakFocus),
-      translated: Math.max(0, num(s.translated, 0)),
       telegrams: (Array.isArray(s.telegrams) ? (s.telegrams as Partial<TelegramState>[]) : [])
         .filter((t) => t && t.key && Array.isArray(t.key.rotors) && t.key.rotors.length === 3 && t.key.rotors.every((r) => Number.isInteger(r) && r >= 0 && r < 5) && /^[A-Z]{3}$/.test(str(t.key.start)) && /^([A-Z]{2})*$/.test(str(t.key.plugs)))
         .map((t) => ({ key: { rotors: [...t.key!.rotors], start: t.key!.start, plugs: t.key!.plugs }, tested: Math.max(0, num(t.tested, 0)), keyAt: Math.max(1, num(t.keyAt, 1)), read: t.read === true })),
