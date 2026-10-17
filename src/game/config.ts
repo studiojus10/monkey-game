@@ -27,6 +27,17 @@ export const letterValues: Record<string, number> = {
   Q: 10, Z: 10,
 };
 
+/** Values of the Greek capitals the Greek department types, by how rare they are in Greek (like Greek Scrabble). */
+export const greekLetterValues: Record<string, number> = {
+  Α: 1, Ε: 1, Ι: 1, Ο: 1, Ν: 1, Σ: 1, Τ: 1, Η: 1,
+  Κ: 2, Π: 2, Ρ: 2, Υ: 2,
+  Λ: 3, Μ: 3, Ω: 3,
+  Γ: 4, Δ: 4, Θ: 4,
+  Χ: 5, Φ: 5,
+  Β: 8,
+  Ζ: 10, Ξ: 10, Ψ: 10,
+};
+
 /**
  * Monkeys start slow; each "Faster typing" level multiplies their speed.
  * Level n costs upgradeBaseCost x upgradeCostGrowth^n.
@@ -561,47 +572,15 @@ export const codebreaking = {
 };
 
 /**
- * Translation (Justin, 2026-10-17: "the codebreaking department can expand to
- * translation"): once the first safe is open, Codebreaking can work on its
- * Greek scroll instead of a safe, translating lettersPerTry Greek letters for
- * each combination it would have tried. Each sentence reads in English once
- * all its letters are done. The scroll is Aristotle, Metaphysics I.4
- * (985b4-22): the Greek is W. D. Ross's edition as digitized by the Perseus
- * Digital Library (CC BY-SA 4.0), the English Ross's 1908 translation (Justin
- * supplied it). Placeholders.
+ * Foreign texts (Justin, 2026-10-17): the first safe opened holds a Greek
+ * scroll, firstText (Aristotle's Metaphysics I.4), which opens the Greek
+ * department. Its monkeys type Greek capitals, and each line they write turns
+ * into its English. The texts are data/plays/*.json with genre 'greek', built
+ * by scripts/import-greek.ts.
  */
 export const translation = {
-  lettersPerTry: 0.05,
-  scroll: {
-    title: 'Aristotle, Metaphysics, Book I, chapter 4',
-    language: 'Greek',
-    sentences: [
-    {
-      greek: "Λεύκιππος δὲ καὶ ὁ ἑταῖρος αὐτοῦ Δημόκριτος στοιχεῖα μὲν τὸ πλῆρες καὶ τὸ κενὸν εἶναί φασι, λέγοντες τὸ μὲν ὂν τὸ δὲ μὴ ὄν, τούτων δὲ τὸ μὲν πλῆρες καὶ στερεὸν τὸ ὄν, τὸ δὲ κενὸν τὸ μὴ ὄν (διὸ καὶ οὐθὲν μᾶλλον τὸ ὂν τοῦ μὴ ὄντος εἶναί φασιν, ὅτι οὐδὲ τοῦ κενοῦ τὸ σῶμα), αἴτια δὲ τῶν ὄντων ταῦτα ὡς ὕλην.",
-      english: "Leucippus and his associate Democritus say that the full and the empty are the elements, calling the one being and the other non-being - the full and solid being being, the empty non-being (whence they say being no more is than non-being, because the solid no more is than the empty); and they make these the material causes of things.",
-    },
-    {
-      greek: "καὶ καθάπερ οἱ ἓν ποιοῦντες τὴν ὑποκειμένην οὐσίαν τἆλλα τοῖς πάθεσιν αὐτῆς γεννῶσι, τὸ μανὸν καὶ τὸ πυκνὸν ἀρχὰς τιθέμενοι τῶν παθημάτων, τὸν αὐτὸν τρόπον καὶ οὗτοι τὰς διαφορὰς αἰτίας τῶν ἄλλων εἶναί φασιν.",
-      english: "And as those who make the underlying substance one generate all other things by its modifications, supposing the rare and the dense to be the sources of the modifications, in the same way these philosophers say the differences in the elements are the causes of all other qualities.",
-    },
-    {
-      greek: "ταύτας μέντοι τρεῖς εἶναι λέγουσι, σχῆμά τε καὶ τάξιν καὶ θέσιν·",
-      english: "These differences, they say, are three - shape and order and position.",
-    },
-    {
-      greek: "διαφέρειν γάρ φασι τὸ ὂν ῥυσμῷ καὶ διαθιγῇ καὶ τροπῇ μόνον· τούτων δὲ ὁ μὲν ῥυσμὸς σχῆμά ἐστιν ἡ δὲ διαθιγὴ τάξις ἡ δὲ τροπὴ θέσις· διαφέρει γὰρ τὸ μὲν Α τοῦ Ν σχήματι τὸ δὲ ΑΝ τοῦ ΝΑ τάξει τὸ δὲ Ζ τοῦ Η θέσει.",
-      english: "For they say the real is differentiated only by 'rhythm' and 'inter-contact' and 'turning'; and of these rhythm is shape, inter-contact is order, and turning is position; for A differs from N in shape, AN from NA in order, M from W in position.",
-    },
-    {
-      greek: "περὶ δὲ κινήσεως, ὅθεν ἢ πῶς ὑπάρξει τοῖς οὖσι, καὶ οὗτοι παραπλησίως τοῖς ἄλλοις ῥᾳθύμως ἀφεῖσαν.",
-      english: "The question of movement - whence or how it is to belong to things - these thinkers, like the others, lazily neglected.",
-    },
-    {
-      greek: "περὶ μὲν οὖν τῶν δύο αἰτιῶν, ὥσπερ λέγομεν, ἐπὶ τοσοῦτον ἔοικεν ἐζητῆσθαι παρὰ τῶν πρότερον.",
-      english: "Regarding the two causes, then, as we say, the inquiry seems to have been pushed thus far by the early philosophers.",
-    },
-    ],
-  },
+  firstText: 'metaphysics-1-4',
+  language: 'Greek',
 };
 
 /**

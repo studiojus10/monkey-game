@@ -1,7 +1,11 @@
 import { wordPoints } from './words';
 
-export type Genre = 'comedy' | 'history' | 'tragedy' | 'sonnet';
+export type Genre = 'comedy' | 'history' | 'tragedy' | 'sonnet' | 'greek';
+/** Genres whose departments open as your monkeys grow. */
 export const genres: Genre[] = ['comedy', 'history', 'tragedy', 'sonnet'];
+/** Foreign texts: their department opens when the first such text is found (the Greek scroll, in the first safe opened). */
+export const foreignGenres: Genre[] = ['greek'];
+export const allGenres: Genre[] = [...genres, ...foreignGenres];
 /** The play genres; the sonnet department opens only after all of these. */
 export const playGenres: Genre[] = ['comedy', 'history', 'tragedy'];
 
@@ -11,6 +15,7 @@ export interface PlayData {
   title: string;
   genre?: Genre; // comedy if missing
   lines: [number, number, string, string][];
+  english?: string[]; // a foreign text's translation, a share for each line ('' for none)
 }
 
 export interface PlayLine {
@@ -44,12 +49,16 @@ export interface Play {
   /** Every word in the play, so they can score even if the word list lacks them. */
   words: Set<string>;
   longestLine: number; // in letters
+  english: string[]; // a foreign text's translation of each line, shown once it's written ('' for none)
 }
 
-/** Splits text into upper-case words; apostrophes are dropped ("o'er" -> OER). */
+/** Splits text into upper-case words; apostrophes are dropped ("o'er" -> OER). Greek loses its accents and breathings (λόγος -> ΛΟΓΟΣ). */
 export function textToWords(text: string): string[] {
-  return text.toUpperCase().replace(/['’]/g, '').split(/[^A-Z]+/).filter(Boolean);
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase().replace(/['’ʼ]/g, '').split(/[^A-ZΑ-Ω]+/).filter(Boolean);
 }
+
+/** The Greek capitals a Greek department's monkeys type: all 24 from the start. */
+export const greekLetters = [...'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ'];
 
 export function buildPlay(data: PlayData): Play {
   const byLetters = new Map<string, number[]>();
@@ -76,12 +85,14 @@ export function buildPlay(data: PlayData): Play {
     sc.letters += l.letters.length;
   });
   const acts = [...new Set(scenes.map((sc) => sc.act))];
-  return { id: data.id, title: data.title, genre: genres.includes(data.genre!) ? data.genre! : 'comedy', lines, scenes, acts, byLetters, words, longestLine };
+  const english = lines.map((_, i) => data.english?.[i] ?? '');
+  return { id: data.id, title: data.title, genre: allGenres.includes(data.genre!) ? data.genre! : 'comedy', lines, scenes, acts, byLetters, words, longestLine, english };
 }
 
 /** Where a line sits in the play, e.g. "1.2" for act 1, scene 2 (scene 0 is a prologue), or "Sonnet 18". */
 export function lineLocation(line: PlayLine, genre?: Genre): string {
   if (genre === 'sonnet') return `Sonnet ${line.act}`;
+  if (genre === 'greek') return `${line.act}.${line.scene}`;
   return line.scene === 0 ? `${line.act} prologue` : `${line.act}.${line.scene}`;
 }
 
@@ -91,5 +102,6 @@ export function lineLocation(line: PlayLine, genre?: Genre): string {
  */
 export function sceneName(act: number, scene: number, genre?: Genre): string {
   if (genre === 'sonnet') return `Sonnet ${act}`;
+  if (genre === 'greek') return `Book ${act}, chapter ${scene}`;
   return scene === 0 ? `Act ${act} prologue` : `Act ${act}, scene ${scene}`;
 }

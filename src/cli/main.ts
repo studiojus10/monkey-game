@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream';
 import { achievements, research, hr, marketing, codebreaking, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { sceneName, type Genre, type PlayData } from '../game/plays';
+import { sceneName, textToWords, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   dyeHat,
@@ -163,8 +163,10 @@ import {
   scriptPageSize,
   renderOptions,
   renderCoinFlip,
-  renderScroll,
   renderTelegrams,
+  tabPlays,
+  textsTabs,
+  type TextsTab,
   focusName,
   managerSpeedPrompt,
   dyeColorPrompt,
@@ -241,6 +243,7 @@ let showingScript = false;
 let scriptCursor = 0;
 let contents: '' | 'plays' | 'scenes' = ''; // the script's table of contents, when open
 let contentsCursor = 0;
+let contentsTab: TextsTab = 'plays'; // the Texts page's tab: plays, foreign texts or codes
 let scriptPlay = 0; // index into availablePlays()
 let findIndex = -1;
 let showingKeys = false;
@@ -293,7 +296,6 @@ let pickingDepartment = false;
 let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
 let pickingManagerUpgrade = false;
 let pickingManagerSpeed = false;
-let readingScroll = false; // the Greek scroll from the first safe
 let readingTelegrams = false; // the telegrams in Enigma
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
@@ -430,8 +432,6 @@ function buyItem(id: string): void {
     else hire({ job: 'codebreaking' });
   } else if (id === 'codefocus') {
     message = cycleCodebreakFocus(state) ? `${codebreaking.name} turns to ${focusName(state.codebreakFocus)}.` : 'Nothing else to work on.';
-  } else if (id === 'scroll') {
-    readingScroll = true;
   } else if (id === 'telegram') {
     readingTelegrams = true;
   } else if (id.startsWith('research:')) {
@@ -726,8 +726,6 @@ function draw() {
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
   const screen = flipping
     ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
-    : readingScroll
-    ? renderScroll(state, columns)
     : readingTelegrams
     ? renderTelegrams(state, columns)
     : pickingLetter
@@ -739,7 +737,7 @@ function draw() {
     : hiring
     ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), shown, columns, menuCursor)
     : showingScript && contents
-    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns)
+    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns, contentsTab)
     : showingOptions
     ? renderOptions(state, columns, menuCursor)
     : showingOffice && readingBook
@@ -951,8 +949,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     else flipping = '';
     return draw();
   }
-  if ((readingScroll || readingTelegrams) && str !== '?') {
-    if (key.name === 'escape' || key.name === 'q' || key.name === 'return' || key.name === 'enter') readingScroll = readingTelegrams = false;
+  if (readingTelegrams && str !== '?') {
+    if (key.name === 'escape' || key.name === 'q' || key.name === 'return' || key.name === 'enter') readingTelegrams = false;
     return draw();
   }
   if (str === '?' && namingMonkey < 0 && slotWordDraft === null && !confirmingFolio && !confirmingReset && !confirmingFire) {
@@ -1099,15 +1097,20 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (showingScript && contents) {
     message = '';
     const play = availablePlays()[scriptPlay];
-    const size = contents === 'plays' ? availablePlays().length : (play?.scenes.length ?? 0);
+    const listed = tabPlays(contentsTab);
+    const size = contents === 'plays' ? listed.length : (play?.scenes.length ?? 0);
     if (key.name === 'q') return quit();
     if (key.name === 'tab' || (key.name === 'escape' && contents === 'plays')) {
       contents = '';
     } else if (key.name === 'escape' || key.name === 'backspace' || key.name === 'left') {
       if (contents === 'scenes') {
         contents = 'plays';
-        contentsCursor = scriptPlay;
+        contentsCursor = Math.max(0, listed.indexOf(play!));
       }
+    } else if (contents === 'plays' && str && '[]'.includes(str)) {
+      const tabs = textsTabs(state);
+      contentsTab = tabs[(tabs.indexOf(contentsTab) + (str === ']' ? 1 : tabs.length - 1)) % tabs.length];
+      contentsCursor = Math.max(0, tabPlays(contentsTab).indexOf(play!));
     } else if (key.name === 'up' || key.name === 'k') {
       contentsCursor = Math.max(0, contentsCursor - 1);
     } else if (key.name === 'down' || key.name === 'j') {
@@ -1118,10 +1121,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       contentsCursor = Math.min(size - 1, contentsCursor + contentsPageSize);
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'right') {
       if (contents === 'plays') {
-        const chosen = availablePlays()[contentsCursor];
-        const sc = chosen && contentsCursor === scriptPlay ? sceneOf(chosen, scriptCursor) : undefined;
-        if (contentsCursor !== scriptPlay) scriptCursor = 0;
-        scriptPlay = contentsCursor;
+        const chosen = listed[contentsCursor];
+        if (!chosen) return draw(); // the Codes tab: nothing to open
+        const index = availablePlays().indexOf(chosen);
+        const sc = index === scriptPlay ? sceneOf(chosen, scriptCursor) : undefined;
+        if (index !== scriptPlay) scriptCursor = 0;
+        scriptPlay = index;
         contents = 'scenes';
         contentsCursor = Math.max(0, sc && chosen ? chosen.scenes.indexOf(sc) : 0);
       } else if (play?.scenes[contentsCursor]) {
@@ -1194,7 +1199,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       }
     } else if (key.name === 'tab') {
       contents = 'plays';
-      contentsCursor = scriptPlay;
+      contentsTab = play?.genre === 'greek' ? 'foreign' : 'plays';
+      contentsCursor = Math.max(0, tabPlays(contentsTab).indexOf(play!));
     } else if (play && (str === 'b' || (str === 'a' && play.genre !== 'sonnet') || str === 'w')) {
       buyScriptSection(str);
     } else if (key.name === 'f') {
@@ -1221,8 +1227,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         }
       } else if (key.name === 'backspace') {
         slotWordDraft = slotWordDraft.slice(0, -1);
-      } else if (str && /^[a-z]$/i.test(str)) {
-        slotWordDraft += str.toUpperCase();
+      } else if (str && /^\p{L}$/u.test(str)) {
+        slotWordDraft += textToWords(str).join(''); // Greek too, without its accents
       }
       return draw();
     }
@@ -1745,11 +1751,13 @@ setInterval(() => {
   const temps = tempsNow();
   const telegrams = state.telegrams.length;
   const read = state.telegrams.filter((t) => t.read).length;
+  const greek = state.departments.includes('greek');
   state.stats.secondsOpen += (now - last) / 1000;
   tick(state, (now - last) / 1000);
   message = tempsGone(temps) || message;
   if (state.telegrams.length > telegrams) message = 'A knock at the door: a telegram, with no explanation. Read it in the Staff store.';
   else if (state.telegrams.filter((t) => t.read).length > read) message = `The Bombe found the key: the telegram is read (Staff store).`;
+  if (!greek && state.departments.includes('greek')) message = 'The scroll is in Greek! A Greek department can type it out and translate it: build its room on the office map ([o], [r]).';
   last = now;
   draw();
 }, FRAME_MS);

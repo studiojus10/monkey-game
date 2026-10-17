@@ -18,9 +18,6 @@ import {
   lockedSafes,
   codebreakTargets,
   scrollFound,
-  scrollLetters,
-  scrollTranslated,
-  translatedSentences,
   lockCombinations,
   moveFurniture,
   officeOf,
@@ -34,11 +31,22 @@ import {
   telegramText,
   unreadTelegram,
   setPlays,
+  unlockGreek,
+  departmentGenres,
+  getPlay,
+  ownsScene,
+  keyboard,
+  dictionaryFor,
+  typeLetter,
 } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState, createMonkey, type GameState } from '../src/game/state';
 import { safeText } from '../src/cli/office';
-import { renderScroll, renderTelegrams, storeItems } from '../src/cli/screen';
+import { renderContents, renderScript, renderTelegrams, storeItems, textsTabs } from '../src/cli/screen';
+import { plainText } from '../src/cli/style';
+import { readFileSync } from 'node:fs';
+import { greekLetters } from '../src/game/plays';
+import { wordPoints } from '../src/game/words';
 
 /** What the Manager furniture store sells. */
 const sold = (s: GameState) => storeItems(s, 'office').map((x) => x.text).join('|');
@@ -123,39 +131,53 @@ describe('safes', () => {
     expect(s.safes.comedy.held).toBe(safes.contents[1]);
     expect(safeText(s, safeIn(s, 'comedy'))).toContain(safes.contents[1]);
     expect(lockedSafes(s)).toEqual([]);
-    expect(s.codebreakFocus).toBe('scroll'); // nothing locked: on to the Greek scroll
-    expect(codebreakTargets(s)).toEqual(['scroll']);
+    expect(s.codebreakFocus).toBe(''); // nothing left to crack
+    // The Texts page's Codes tab lists each safe with its combination once cracked.
+    expect(textsTabs(s)).toContain('codes');
+    const codes = plainText(renderContents(s, null, 0, '', 0, 'codes'));
+    expect(codes).toContain(`Comedies safe  ${s.safes.comedy.combo}`);
+    expect(codes).toContain(s.safes.tragedy.combo);
+    expect(codebreakTargets(s)).toEqual([]);
     s.monkeys.push({ ...createMonkey(), department: codebreaking.id });
     expect(codebreakers(s)).toEqual([1, 2]);
   });
 
-  it('translate the Greek scroll a sentence at a time, and switch between it and a safe any time', () => {
-    const s = offices();
-    findSafe(s, safeIn(s, 'comedy'));
-    buyRoom(s, 'codebreaking');
-    hireCodebreaker(s);
-    crackSafes(s, 1, () => 0);
-    expect(scrollFound(s)).toBe(true);
-    expect(s.codebreakFocus).toBe('scroll');
-    expect(translatedSentences(s)).toBe(0);
-    const rate = codebreakingRate(s) * translation.lettersPerTry;
-    crackSafes(s, scrollLetters[0] / rate - 1);
-    expect(translatedSentences(s)).toBe(0);
-    crackSafes(s, 1);
-    expect(translatedSentences(s)).toBe(1);
-    expect(renderScroll(s)).toContain(translation.scroll.sentences[0].english.slice(0, 40));
-    // A new safe: switch to it and back.
-    findSafe(s, safeIn(s, 'tragedy'));
-    expect(s.codebreakFocus).toBe('scroll'); // still on the scroll until you switch
-    expect(codebreakTargets(s)).toEqual(['tragedy', 'scroll']);
-    cycleCodebreakFocus(s);
-    expect(s.codebreakFocus).toBe('tragedy');
-    cycleCodebreakFocus(s);
-    expect(s.codebreakFocus).toBe('scroll');
-    crackSafes(s, 1e9);
-    expect(scrollTranslated(s)).toBe(true);
-    expect(s.codebreakFocus).toBe('tragedy');
-    expect(deserialize(serialize(s)).translated).toBe(s.translated);
+  it('open the Greek department with the scroll, whose monkeys type Greek that turns into English', () => {
+    const text = JSON.parse(readFileSync('data/plays/metaphysics-1-4.json', 'utf8')) as PlayData;
+    setPlays([text]);
+    try {
+      const s = offices();
+      findSafe(s, safeIn(s, 'comedy'));
+      buyRoom(s, 'codebreaking');
+      hireCodebreaker(s);
+      expect(unlockGreek(s)).toBe(false); // no scroll yet
+      crackSafes(s, 1, () => 0);
+      expect(scrollFound(s)).toBe(true);
+      expect(unlockGreek(s)).toBe(true);
+      expect(unlockGreek(s)).toBe(false);
+      expect(departmentGenres(s)).toContain('greek');
+      const play = getPlay(translation.firstText)!;
+      expect(play.scenes.every((sc) => ownsScene(s, play.id, sc))).toBe(true);
+      // Greek monkeys type the 24 Greek capitals, and only the text's own words count.
+      expect(keyboard(s, 'greek').map((k) => k.text)).toEqual(greekLetters);
+      const dict = dictionaryFor(s, 'greek');
+      expect(dict.isWord('ΛΕΥΚΙΠΠΟΣ')).toBe(true);
+      expect(dict.isWord('HAMLET')).toBe(false);
+      expect(wordPoints('ΛΕΥΚΙΠΠΟΣ')).toBeGreaterThan(0);
+      // A Greek monkey types the first line letter by letter: it's written, and reads in English.
+      s.monkeys.push({ ...createMonkey(), department: 'greek' });
+      const i = s.monkeys.length - 1;
+      for (const ch of play.lines[0].letters + 'Α') typeLetter(s, i, () => (greekLetters.indexOf(ch) + 0.5) / greekLetters.length);
+      expect(s.completed[play.id]).toContain(0);
+      expect(plainText(renderScript(s, play.id, 0))).toContain(play.english[0].slice(0, 30));
+      expect(plainText(renderScript(s, play.id, 0))).toContain(play.lines[1].text.slice(0, 10)); // the next is still Greek
+      const tabs = textsTabs(s);
+      expect(tabs).toContain('foreign');
+      expect(plainText(renderContents(s, null, 0, '', 0, 'foreign'))).toContain(play.title);
+      expect(plainText(renderContents(s, null, 0, '', 0, 'plays'))).not.toContain(play.title);
+    } finally {
+      setPlays([]);
+    }
   });
 });
 
@@ -195,7 +217,6 @@ function telegramsCome() {
   crackSafes(s, 1e9, () => 0);
   crackSafes(s, 1e9, () => 0);
   expect(lockedSafes(s)).toEqual([]);
-  s.translated = 1e9; // the scroll is done
   expect(deliverTelegrams(s, 1, () => 0.5)).toBe(true);
   expect(deliverTelegrams(s, 1)).toBe(false); // one at a time
   const t = unreadTelegram(s)!;

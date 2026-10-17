@@ -1,9 +1,9 @@
-import { letterValues } from './config';
+import { greekLetterValues, letterValues } from './config';
 
 /** Points for a word: (sum of letter values) x length. */
 export function wordPoints(word: string): number {
   let sum = 0;
-  for (const ch of word) sum += letterValues[ch] ?? 0;
+  for (const ch of word) sum += letterValues[ch] ?? greekLetterValues[ch] ?? 0;
   return sum * word.length;
 }
 

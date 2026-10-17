@@ -1,6 +1,6 @@
-import { enigma, letterValues } from './config';
+import { enigma, letterValues, safes } from './config';
 import { randomKey } from './enigma';
-import { getPlay, telegramSettings } from './logic';
+import { getPlay, telegramSettings, unlockGreek } from './logic';
 import type { GameState } from './state';
 
 /** A development tool for testing: a label and what it does to the game. */
@@ -43,6 +43,13 @@ export const devTools: DevTool[] = [
       if (!play) return;
       state.completed[play.id] = play.lines.map((_, i) => i);
       if (!state.playsDone.includes(play.id)) state.playsDone.push(play.id);
+    },
+  },
+  {
+    label: 'Find the Greek scroll (opens the Greek department)',
+    apply(state) {
+      if (!Object.values(state.safes).some((x) => x.open && x.held === safes.contents[0])) state.safes['dev'] = { level: 0, combo: '00000', tries: 0, open: true, held: safes.contents[0] };
+      unlockGreek(state);
     },
   },
   {
