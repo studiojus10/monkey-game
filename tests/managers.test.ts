@@ -52,7 +52,7 @@ describe("managers' offices", () => {
     const office = officeOf(s, 'comedy')!;
     expect(office.kind).toBe('office');
     expect(doorBetween(s, office, departmentRoom(s, 'comedy')!)).toBe(true);
-    expect(s.furniture.filter((f) => f.room === office.id).map((f) => f.kind)).toEqual([managerDesk.id]);
+    expect(s.furniture.filter((f) => f.room === office.id).map((f) => f.kind)).toEqual([managerDesk.id]); // a safe is bought separately
     expect(buyRoom(s, 'office', 'comedy')).toBe(false); // one each
     expect(officelessDepartments(s)).toEqual([]);
     expect(loungeOf(s, departmentRoom(s, 'comedy'))).toBeUndefined(); // an office is no break room

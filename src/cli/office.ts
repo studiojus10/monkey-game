@@ -1,4 +1,4 @@
-import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
@@ -23,13 +23,18 @@ import {
   researchers,
   hrStaff,
   marketers,
+  codebreakers,
+  codebreakingRoom,
+  safeAt,
+  lockOf,
+  lockCombinations,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
 import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
-import { formatNumber } from '../format';
+import { formatAmount, formatNumber } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -48,6 +53,7 @@ export function roomName(state: GameState, room: Room): string {
   if (room.kind === 'lab') return `${research.name} lab`;
   if (room.kind === 'hr') return `${hr.name} office`;
   if (room.kind === 'marketing') return `${marketing.name} office`;
+  if (room.kind === 'codebreaking') return `${codebreaking.name} office`;
   if (room.kind === 'office') return `${genreNames[room.department as keyof typeof genreNames] ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
@@ -287,7 +293,7 @@ function roomTable(state: GameState, columns = 0): string[] {
         String(i + 1),
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' ? '-' : pct(roomChi(state, r))] : []),
+        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' ? '-' : pct(roomChi(state, r))] : []),
         r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
@@ -299,6 +305,8 @@ function roomTable(state: GameState, columns = 0): string[] {
           ? hrStaff(state).map((k) => monkeyName(state, k))
           : r.kind === 'marketing'
           ? marketers(state).map((k) => monkeyName(state, k))
+          : r.kind === 'codebreaking'
+          ? codebreakers(state).map((k) => monkeyName(state, k))
           : r.kind === 'office'
           ? [boss ? `${monkeyName(state, state.monkeys.indexOf(boss))} (manager)` : 'no manager yet']
           : r.kind === 'department'
@@ -396,6 +404,7 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
     const who = deskSitters(state).get(spot);
     const sits = who === undefined ? [] : [`${monkeyName(state, who)}'s desk.`, ...(state.managerBook ? [traitSentence(state, who)] : [])];
     if (f.kind === desk.id) return { text: [...(who === undefined ? ['An empty desk.'] : sits), desk.description].join(' '), book: -1 };
+    if (f.kind === safe.id) return { text: safeText(state, spot), book: -1 };
     const k = furnitureKinds.find((x) => x.id === f.kind);
     const found = hidesBook(state, spot) ? fengShui.found : hidesManagerBook(state, spot) ? managerBook.found : '';
     const shelf = f.kind === fengShui.hiddenIn ? libraryBooks(state) : [];
@@ -412,6 +421,19 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
   }
   if (room && (['n', 'e', 's', 'w'] as Side[]).some((s) => windowAt(state, x, y, s))) return { text: fengShui.window, book: -1 };
   return { text: fengShui.nothing, book: -1 };
+}
+
+/** What inspecting a safe shows: how Codebreaking is getting on with it, or what it held. */
+export function safeText(state: GameState, index: number): string {
+  const s = safeAt(state, index);
+  if (!s) return safes.found;
+  if (s.open) return `${safes.open} ${s.held}`;
+  const at = codebreakingRoom(state)
+    ? state.codebreakFocus === Object.keys(state.safes).find((g) => state.safes[g] === s)
+      ? `${codebreaking.name} is on it: ${formatNumber(Math.floor(s.tries))} combinations tried.`
+      : `${codebreaking.name} is working on another safe ([space] shop, Staff store, to switch).`
+    : `Perhaps a ${codebreaking.name} office could crack it (office map, [r]).`;
+  return `${safes.found} Its lock: ${lockOf(s.level).name} (${formatAmount(lockCombinations(s.level))} combinations). ${at}`;
 }
 
 /** A sentence on a monkey's trait, for once the manager's book is read: "Bo is a night owl: ... (now +15% speed)". */

@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, research, hr, marketing, combo } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, translation, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -89,6 +89,17 @@ import {
   managerSpeed,
   managerSpeedCost,
   slotDelay,
+  isCodebreaker,
+  canBuildCodebreaking,
+  codebreakers,
+  codebreakingRoom,
+  codebreakerCost,
+  codebreakerBlocker,
+  codebreakTargets,
+  officesWithoutSafe,
+  scrollFound,
+  scrollLetters,
+  translatedSentences,
 } from '../game/logic';
 import { lineLocation, sceneName, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
@@ -345,13 +356,52 @@ function monkeyRow(state: GameState, i: number, room: number, chosen = false): s
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
   const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m).toFixed(1)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
-  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : renderLine(m, room)}`;
+  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : isCodebreaker(m) ? codebreakingStatus(state).toUpperCase() : renderLine(m, room)}`;
 }
 
 /** A researcher's line on the home screen: what R&D is working on. */
+/** What Codebreaking is doing: which safe, and how many combinations it has tried. */
+export function codebreakingStatus(state: GameState): string {
+  if (state.codebreakFocus === 'scroll') return `translating the ${translation.scroll.language} scroll: ${translatedSentences(state)} of ${scrollLetters.length} sentences`;
+  const s = state.safes[state.codebreakFocus];
+  if (!s || s.open) return 'no locked safe to crack';
+  return `cracking the ${genreNames[state.codebreakFocus as Genre] ?? ''} safe: ${formatNumber(Math.floor(s.tries))} combinations tried`;
+}
+
 function researcherLine(state: GameState): string {
   const p = projectOf(state.researching);
   return p ? `RESEARCHING ${p.name.toUpperCase()} ${Math.floor(researchShare(state) * 100)}%` : dim('RESEARCHING nothing yet');
+}
+
+/** What Codebreaking can turn to, by name: a department's safe, or the scroll. */
+export function focusName(focus: string): string {
+  return focus === 'scroll' ? `the ${translation.scroll.language} scroll` : `the ${genreNames[focus as Genre] ?? ''} safe`;
+}
+
+/**
+ * The scroll from the first safe: translated sentences in English, the one
+ * under way in Greek with how far along it is, the rest in dim Greek.
+ */
+export function renderScroll(state: GameState, columns = 0): string {
+  const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
+  const done = translatedSentences(state);
+  const before = scrollLetters.slice(0, done).reduce((a, b) => a + b, 0);
+  const rows = translation.scroll.sentences.flatMap((x, i) => {
+    const text = i < done ? x.english : x.greek;
+    const wrapped = wrapWords(text, width).map((r) => `  ${i < done ? r : i === done ? bold(r) : dim(r)}`);
+    const note = i === done && state.codebreakFocus === 'scroll' ? [dim(`  (${Math.floor(((state.translated - before) / scrollLetters[i]) * 100)}% translated)`)] : [];
+    return [...wrapped, ...note, ''];
+  });
+  return [
+    titleBar(state, 'Scroll', columns),
+    '',
+    ` ${bold(translation.scroll.title)}`,
+    dim(` ${done} of ${scrollLetters.length} sentences translated${state.codebreakFocus === 'scroll' ? '' : ` (${codebreaking.name} is working on ${focusName(state.codebreakFocus)})`}`),
+    '',
+    ...rows,
+    rule(columns),
+    keyRow([['esc', 'back']], columns),
+  ].join('\n');
 }
 
 /** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
@@ -385,6 +435,8 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
     ...(canBuildMarketing(state) ? [`* You can build a ${marketing.name} office on the office map ([o], then [r]).`] : []),
+    ...(canBuildCodebreaking(state) ? [`* You can build a ${codebreaking.name} office on the office map ([o], then [r]).`] : []),
+    ...(codebreakers(state).length > 0 ? [`${codebreaking.name}: ${codebreakingStatus(state)}`] : []),
     ...(royalties(state) > 0 ? [`${marketing.name}: royalties ${formatNumber(royalties(state))} ${theme.currency}/s`] : []),
     ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),
@@ -729,6 +781,24 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               })(),
             ]
           : []),
+        ...(codebreakingRoom(state)
+          ? [
+              ((): ShopItem => {
+                const cost = codebreakerCost(state);
+                const blocked = codebreakerBlocker(state);
+                const item: ShopItem = {
+                  id: 'codebreaker',
+                  text: 'Hire a codebreaker',
+                  effect: `${codebreakers(state).length}/${codebreaking.maxStaff}: tries combinations on a safe`,
+                };
+                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
+              })(),
+              ...(codebreakTargets(state).length > 1
+                ? [{ id: 'codefocus', text: 'Switch focus', effect: `now: ${focusName(state.codebreakFocus)}` }]
+                : []),
+              ...(scrollFound(state) ? [{ id: 'scroll', text: `Read the ${translation.scroll.language} scroll`, effect: `${translatedSentences(state)}/${scrollLetters.length} sentences translated` }] : []),
+            ]
+          : []),
         ...(managing.length > 0
           ? managing.map(hireManager)
           : open.some((g) => !managerOf(state, g))
@@ -800,7 +870,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
     case 'break':
     case 'office': {
       const have = state.office.some((r) => r.kind === store);
-      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store)).sort((a, b) => a.cost - b.cost);
+      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store) && (k.id !== safe.id || officesWithoutSafe(state).length > 0)).sort((a, b) => a.cost - b.cost);
       const roomName = store === 'break' ? 'break room' : store === 'office' ? "manager's office" : "department's room";
       return [
         {

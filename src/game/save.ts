@@ -1,7 +1,7 @@
 import { desk, folio, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
 import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
-import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type Stats } from './state';
+import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type SafeState, type Stats } from './state';
 
 import { GAME_VERSION } from '../version';
 
@@ -140,7 +140,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
-      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing') && Array.isArray(r.cells))
+      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking') && Array.isArray(r.cells))
       .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]) }))
       .filter((r) => r.cells.length > 0);
     const completed: Record<string, number[]> = {};
@@ -225,6 +225,13 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       fengShuiBook: s.fengShuiBook === true,
       managerBook: s.managerBook === true,
       researchOpen: s.researchOpen === true,
+      safes: Object.fromEntries(
+        Object.entries(s.safes && typeof s.safes === 'object' ? (s.safes as Record<string, Partial<SafeState>>) : {})
+          .filter(([, x]) => typeof x?.combo === 'string' && /^[A-Z0-9]+$/.test(x.combo))
+          .map(([g, x], i) => [g, { level: Math.max(0, Math.floor(num(x.level, i))), combo: x.combo!, tries: Math.max(0, num(x.tries, 0)), open: x.open === true, held: str(x.held) }]),
+      ),
+      codebreakFocus: str(s.codebreakFocus),
+      translated: Math.max(0, num(s.translated, 0)),
       researching: research.projects.some((p) => p.id === s.researching) ? str(s.researching) : '',
       researchProgress: Math.max(0, num(s.researchProgress, 0)),
       candidates: (Array.isArray(s.candidates) ? (s.candidates as Partial<MonkeyState>[]) : [])
