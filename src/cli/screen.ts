@@ -596,7 +596,8 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
     ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room, i === chosen)),
     ...(shown.length > maxMonkeyLines ? [dim(` ...and ${shown.length - maxMonkeyLines} more monkeys typing`)] : []),
     '',
-    `${label('Letters')} ${letterRow(state)}`,
+    // Only an alphabet still to finish (Justin, 2026-10-17): Greek and Latin monkeys have all their letters from the start.
+    ...(state.letters.length < Object.keys(letterValues).length ? [`${label('Letters')} ${letterRow(state)}`] : []),
     `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
     ...latelyLines(state, message, columns),

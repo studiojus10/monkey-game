@@ -234,6 +234,8 @@ Justin, 2026-10-17: "when building the library for the first time, the player sh
 - **The text.** Plasberg's 1917 Teubner edition via Perseus (CC BY-SA 4.0), whole: 3 books, 387 sections as "scenes", 5,279 lines cut like the Greek. English: C. D. Yonge's 1878 translation (public domain, Project Gutenberg #14988, the file Justin supplied). Yonge's 151 chapters each span a few of the Latin's sections; the importer lines them up by length and shared names, then shares each chapter's English across its lines.
 - **Later (Justin, not built):** after the first Greek text is finished, more Greek texts (Sophocles, Euripides and other plays) to buy like the Shakespeare plays, less tied to the story.
 
+The home screen's Letters row shows only while your alphabet is unfinished (Justin, 2026-10-17: "only show incomplete alphabets"); Greek and Latin monkeys have all their letters from the start, so they never show one.
+
 ### LATELY news
 
 Justin, 2026-10-17: "make sure when things like departments being renamed and other new things are unlocked ... it shows up as messages in the lately category". The LATELY feed keeps the last 3 such notes for an hour of typing: a department opening or becoming Classical, the Classical department's language, a safe cracked, a telegram arriving, a book shelved (`announce` in logic.ts).
