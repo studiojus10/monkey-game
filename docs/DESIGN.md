@@ -215,7 +215,7 @@ Justin, 2026-10-17: "eventually the codebreaking department will need harder and
   2. **Build the Bombe** (Turing's machine): Codebreaking can now work on the telegram, testing rotor settings instead of random keys (about a million per telegram, like the Bombe's search).
   3. **Perfect the Bombe**: faster settings per second, then more Bombes.
 - **Deciphering.** With the telegram as Codebreaking's focus, it tests settings a second (exact over any stretch like the safes); finding the day's key shows the plain text. Later telegrams keep coming, each harder (more rotors to choose from, more plugboard leads), with story contents still to come from Justin.
-- Open: what the telegrams say and who sends them; rewards for each one deciphered.
+- Telegram text: nonsense placeholders for now (Justin, 2026-10-17: "for now dont worry about what they say or who sends them fill it with nonsense for now"). Still open: rewards for each one deciphered.
 
 ### Marketing
 
