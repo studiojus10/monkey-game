@@ -132,6 +132,11 @@ describe('safes', () => {
     expect(safeText(s, safeIn(s, 'comedy'))).toContain(safes.contents[1]);
     expect(lockedSafes(s)).toEqual([]);
     expect(s.codebreakFocus).toBe(''); // nothing left to crack
+    // The Texts page's Codes tab lists each safe with its combination once cracked.
+    expect(textsTabs(s)).toContain('codes');
+    const codes = plainText(renderContents(s, null, 0, '', 0, 'codes'));
+    expect(codes).toContain(`Comedies safe  ${s.safes.comedy.combo}`);
+    expect(codes).toContain(s.safes.tragedy.combo);
     expect(codebreakTargets(s)).toEqual([]);
     s.monkeys.push({ ...createMonkey(), department: codebreaking.id });
     expect(codebreakers(s)).toEqual([1, 2]);

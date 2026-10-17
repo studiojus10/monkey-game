@@ -96,6 +96,8 @@ import {
   codebreakerCost,
   codebreakerBlocker,
   codebreakTargets,
+  lockOf,
+  lockCombinations,
   officesWithoutSafe,
   bombeBuilt,
   unreadTelegram,
@@ -405,6 +407,19 @@ function telegramRows(state: GameState, columns = 0): string[] {
     return [head, ...cipher, ...plain, ''];
   });
   return [dim(' A knock at the door, and a telegram with no explanation.'), '', ...rows];
+}
+
+/** The Texts page's Codes tab: every safe found, hardest last, with its combination or password once cracked, then the telegrams. */
+function codeRows(state: GameState, columns = 0): string[] {
+  const found = Object.entries(state.safes).sort(([, a], [, b]) => a.level - b.level);
+  const safeRows = found.map(([g, x]) => {
+    const name = `${genreNames[g as Genre] ?? 'A'} safe`;
+    const lock = `${lockOf(x.level).name} (${formatAmount(lockCombinations(x.level))} combinations)`;
+    return x.open
+      ? ` ${bold(name)}  ${green(x.combo)}  ${dim(`${lock}, cracked after ${formatAmount(Math.floor(x.tries))} tries`)}`
+      : ` ${bold(name)}  ${'?'.repeat(x.combo.length)}  ${dim(`${lock}, ${formatAmount(Math.floor(x.tries))} tried${state.codebreakFocus === g ? '' : ' (not in focus)'}`)}`;
+  });
+  return [...(found.length > 0 ? [dim(' SAFES'), ...safeRows, ''] : []), ...(state.telegrams.length > 0 ? [dim(' TELEGRAMS'), ...telegramRows(state, columns)] : [])];
 }
 
 /** Letters a monkey's line has room for on a screen this many columns wide (after its columns, keeping the last column and the cursor free). */
@@ -1574,7 +1589,7 @@ export type TextsTab = 'plays' | 'foreign' | 'codes';
 const textsTabNames: Record<TextsTab, string> = { plays: 'Plays', foreign: 'Foreign texts', codes: 'Codes' };
 
 export function textsTabs(state: GameState): TextsTab[] {
-  return ['plays', ...(departmentGenres(state).includes('greek') ? ['foreign' as const] : []), ...(state.telegrams.length > 0 ? ['codes' as const] : [])];
+  return ['plays', ...(departmentGenres(state).includes('greek') ? ['foreign' as const] : []), ...(state.telegrams.length > 0 || Object.keys(state.safes).length > 0 ? ['codes' as const] : [])];
 }
 
 /** The plays (or foreign texts) a tab lists, in availablePlays() order. */
@@ -1592,7 +1607,7 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
   const tabs = textsTabs(state);
   const tabRow = tabs.length > 1 && !play ? [tabs.map((t) => (t === tab ? bold(inverse(` ${textsTabNames[t]} `)) : dim(` ${textsTabNames[t]} `))).join(' '), ''] : [];
   if (!play && tab === 'codes') {
-    return [titleBar(state, 'Texts', columns), '', ...tabRow, ...telegramRows(state, columns), ...(message ? [` ${bold(message)}`, ''] : []), rule(columns), keyRow([['[/]', 'tab'], ['esc', 'back']], columns)].join('\n');
+    return [titleBar(state, 'Texts', columns), '', ...tabRow, ...codeRows(state, columns), ...(message ? [` ${bold(message)}`, ''] : []), rule(columns), keyRow([['[/]', 'tab'], ['esc', 'back']], columns)].join('\n');
   }
   const open = departmentGenres(state);
   type Row = { cols: string[]; faded?: boolean; finished?: boolean; header?: string };
