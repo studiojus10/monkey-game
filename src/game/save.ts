@@ -1,7 +1,7 @@
 import { desk, folio, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
 import { furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
-import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type SafeState, type Stats } from './state';
+import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type SafeState, type TelegramState, type Stats } from './state';
 
 import { GAME_VERSION } from '../version';
 
@@ -232,6 +232,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       ),
       codebreakFocus: str(s.codebreakFocus),
       translated: Math.max(0, num(s.translated, 0)),
+      telegrams: (Array.isArray(s.telegrams) ? (s.telegrams as Partial<TelegramState>[]) : [])
+        .filter((t) => t && t.key && Array.isArray(t.key.rotors) && t.key.rotors.length === 3 && t.key.rotors.every((r) => Number.isInteger(r) && r >= 0 && r < 5) && /^[A-Z]{3}$/.test(str(t.key.start)) && /^([A-Z]{2})*$/.test(str(t.key.plugs)))
+        .map((t) => ({ key: { rotors: [...t.key!.rotors], start: t.key!.start, plugs: t.key!.plugs }, tested: Math.max(0, num(t.tested, 0)), keyAt: Math.max(1, num(t.keyAt, 1)), read: t.read === true })),
+      telegramWait: Math.max(0, num(s.telegramWait, 0)),
       researching: research.projects.some((p) => p.id === s.researching) ? str(s.researching) : '',
       researchProgress: Math.max(0, num(s.researchProgress, 0)),
       candidates: (Array.isArray(s.candidates) ? (s.candidates as Partial<MonkeyState>[]) : [])

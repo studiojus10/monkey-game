@@ -47,15 +47,17 @@ import {
   safe,
   safes,
   translation,
+  enigma,
   monkeyStats,
   coinFlip,
   sellBack,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type SafeState, type Pin, type Segment, type WordSlot } from './state';
+import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type SafeState, type TelegramState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, moveRoom, placeRoom, roomCanUse, roomFits, tidyDoors, touchingRooms, type Square } from './layout';
 import { chiHappiness, roomChi, spaceFactor, squareRank, varietyBonus } from './fengshui';
+import { encipher, randomKey } from './enigma';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
@@ -2114,6 +2116,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   checkLetterGifts(state);
   earn(state, royalties(state) * seconds);
   crackSafes(state, seconds, rng);
+  deliverTelegrams(state, seconds, rng);
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
     m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds, energyRates(state, m));
@@ -2275,7 +2278,7 @@ export function projectOf(id: string): ResearchProject | undefined {
 
 /** Projects not yet finished (the one under way included), in order. */
 export function projectsLeft(state: GameState): ResearchProject[] {
-  return research.projects.filter((p) => !state.researched.includes(p.id) && (p.needs !== 'marketing' || !!marketingRoom(state) || state.researching === p.id));
+  return research.projects.filter((p) => !state.researched.includes(p.id) && (state.researching === p.id || ((p.needs !== 'marketing' || !!marketingRoom(state)) && (p.needs !== 'telegram' || state.telegrams.length > 0) && (!p.after || state.researched.includes(p.after)))));
 }
 
 /** Starts a project, paying its price. One at a time. */
@@ -2323,7 +2326,7 @@ export function advanceResearch(state: GameState, seconds: number): void {
 }
 
 /** What finished projects add up to for one effect (see research in config.ts). */
-export function researchBonus(state: GameState, effect: 'points' | 'speed' | 'drain' | 'rest' | 'combo' | 'squares' | 'marketing'): number {
+export function researchBonus(state: GameState, effect: 'points' | 'speed' | 'drain' | 'rest' | 'combo' | 'squares' | 'marketing' | 'bombe'): number {
   let n = 0;
   for (const id of state.researched) n += projectOf(id)?.[effect] ?? 0;
   return n;
@@ -2414,7 +2417,7 @@ export function scrollTranslated(state: GameState): boolean {
 
 /** What Codebreaking can work on: locked safes in the order found, then the scroll while it's untranslated. */
 export function codebreakTargets(state: GameState): string[] {
-  return [...lockedSafes(state), ...(scrollFound(state) && !scrollTranslated(state) ? ['scroll'] : [])];
+  return [...lockedSafes(state), ...(scrollFound(state) && !scrollTranslated(state) ? ['scroll'] : []), ...(bombeBuilt(state) && unreadTelegram(state) ? ['telegram'] : [])];
 }
 
 /** Turns Codebreaking to the next thing it can work on (Justin: "the option at any time to shift the focus of the department"). */
@@ -2480,14 +2483,28 @@ export function codebreakingRate(state: GameState): number {
  * 1 in its lock's combinations; the chance over all of a stretch's tries is drawn once, so
  * it's exact over any stretch, offline too. Whatever the department, the
  * n-th safe opened holds safes.contents[n - 1] (the first, the Greek scroll).
+ * With the Bombe built it can work on a telegram instead, testing
+ * enigma.settingsPerTry settings for each try, until it reaches the key.
  */
 export function crackSafes(state: GameState, seconds: number, rng: Rng = Math.random): void {
+  const targets = codebreakTargets(state);
+  if (!targets.includes(state.codebreakFocus)) state.codebreakFocus = targets[0] ?? ''; // e.g. once the Bombe is built
   const tries = codebreakingRate(state) * seconds;
   if (state.codebreakFocus === 'scroll') {
     if (!scrollFound(state) || tries <= 0) return;
     const total = scrollLetters.reduce((a, b) => a + b, 0);
     state.translated = Math.min(total, state.translated + tries * translation.lettersPerTry);
     if (scrollTranslated(state)) state.codebreakFocus = codebreakTargets(state)[0] ?? '';
+    return;
+  }
+  if (state.codebreakFocus === 'telegram') {
+    const t = unreadTelegram(state);
+    if (!t || !bombeBuilt(state) || tries <= 0) return;
+    t.tested = Math.min(t.keyAt, t.tested + tries * enigma.settingsPerTry * (1 + researchBonus(state, 'bombe')));
+    if (t.tested < t.keyAt) return;
+    t.read = true;
+    state.telegramWait = enigma.hoursBetween * 3600;
+    state.codebreakFocus = codebreakTargets(state)[0] ?? '';
     return;
   }
   const target = state.safes[state.codebreakFocus];
@@ -2500,6 +2517,52 @@ export function crackSafes(state: GameState, seconds: number, rng: Rng = Math.ra
   target.open = true;
   target.held = safes.contents[opened] ?? safes.empty;
   state.codebreakFocus = codebreakTargets(state)[0] ?? '';
+}
+
+/** Whether R&D has built the Bombe, so Codebreaking can work on telegrams. */
+export function bombeBuilt(state: GameState): boolean {
+  return state.researched.includes('bombe');
+}
+
+/** The telegram waiting to be read, if any (one comes at a time). */
+export function unreadTelegram(state: GameState): TelegramState | undefined {
+  return state.telegrams.find((t) => !t.read);
+}
+
+/** Rotor settings the n-th telegram's key hides among (n from 0): each one is harder. */
+export function telegramSettings(n: number): number {
+  return enigma.settings * Math.pow(enigma.settingsGrowth, n);
+}
+
+/** The n-th telegram's plain text (placeholder nonsense, in turn). */
+export function telegramText(n: number): string {
+  return enigma.telegrams[n % enigma.telegrams.length];
+}
+
+/** The n-th telegram as it came: its plain text through the Enigma with its key. */
+export function telegramCipher(state: GameState, n: number): string {
+  return encipher(state.telegrams[n].key, telegramText(n));
+}
+
+/**
+ * A knock at the door: the first telegram comes once every department's safe
+ * is open (Justin: "after all of the safes are unlocked"), and each next one
+ * enigma.hoursBetween after the last is read, offline too. Returns whether
+ * one came.
+ */
+export function deliverTelegrams(state: GameState, seconds: number, rng: Rng = Math.random): boolean {
+  const last = state.telegrams[state.telegrams.length - 1];
+  if (last) {
+    if (!last.read) return false;
+    state.telegramWait = Math.max(0, state.telegramWait - seconds);
+    if (state.telegramWait > 0) return false;
+  } else {
+    const all = genresWithPlays();
+    if (all.length === 0 || !all.every((g) => state.safes[g]?.open)) return false;
+  }
+  const n = state.telegrams.length;
+  state.telegrams.push({ key: randomKey(enigma.leads + n, rng), tested: 0, keyAt: 1 + Math.floor(rng() * telegramSettings(n)), read: false });
+  return true;
 }
 
 /** Marketing's office, if built. */

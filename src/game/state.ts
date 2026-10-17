@@ -1,4 +1,5 @@
 import { maxMonkeyNameLength, monkeyNames, parodyNames, office as officeRules } from './config';
+import type { EnigmaKey } from './enigma';
 
 /** A piece of a monkey's current line: a scored word or a skipped letter. */
 export interface Segment {
@@ -125,6 +126,14 @@ export interface SafeState {
   held: string; // what was inside, once open
 }
 
+/** A telegram in Enigma: its key, the settings the Bombe has tested, where among them its key lies, and whether it's read. */
+export interface TelegramState {
+  key: EnigmaKey;
+  tested: number;
+  keyAt: number; // the key is found once this many settings are tested
+  read: boolean;
+}
+
 export interface GameState {
   currency: number;
   totalEarned: number;
@@ -141,6 +150,8 @@ export interface GameState {
   safes: Record<string, SafeState>; // safes found, by the genre of the manager's office they stand in
   codebreakFocus: string; // what Codebreaking works on: a safe's genre, 'scroll' (translating), or '' for nothing
   translated: number; // Greek letters of the scroll translated so far
+  telegrams: TelegramState[]; // telegrams in Enigma that have come, oldest first
+  telegramWait: number; // seconds until the next telegram comes, once the last is read
   researching: string; // the project under way ('' for none)
   researchProgress: number; // researcher-seconds of work done on it
   researched: string[]; // finished projects
@@ -307,6 +318,8 @@ export function createInitialState(now = Date.now()): GameState {
     safes: {},
     codebreakFocus: '',
     translated: 0,
+    telegrams: [],
+    telegramWait: 0,
     researching: '',
     researchProgress: 0,
     researched: [],

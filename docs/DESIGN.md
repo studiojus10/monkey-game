@@ -204,18 +204,16 @@ Justin, 2026-10-17: "a 5 digit combination safe as an item for the managers offi
 - **Translation.** Once the scroll is found, Codebreaking can translate it: 0.05 Greek letters for every combination it would have tried. Each sentence turns to English once its letters are done. **Read the Greek scroll** in the Staff store shows it: English for translated sentences, Greek for the rest, with how far along the current one is. The scroll is Aristotle, Metaphysics I.4 (985b4-22, on Leucippus and Democritus), Justin's choice: Greek from W. D. Ross's edition as digitized by the Perseus Digital Library (CC BY-SA 4.0), English Ross's translation (Justin supplied it; the last sentence's end was filled in from Ross). Greek letters are the one place the game prints Unicode.
 - All numbers are placeholders. Game v0.4.0.
 
-### The telegram, Enigma and the Bombe (planned, not built)
+### The telegram, Enigma and the Bombe
 
-Justin, 2026-10-17: "eventually the codebreaking department will need harder and harder puzzles to solve. would it be feasible for them to decode enigma machine type codes? this could be something that the R&D department becomes involved with when the first instance of this type of code appears. it could appear after all of the safes are unlocked, a knock on the door of the office, a telegram with no explanation coded with the enigma machine. the monkeys will then have to research, develop, and perfect the turing computer to decode these messages." Agreed to build after PR #30.
+Justin, 2026-10-17: "eventually the codebreaking department will need harder and harder puzzles to solve. would it be feasible for them to decode enigma machine type codes? this could be something that the R&D department becomes involved with when the first instance of this type of code appears. it could appear after all of the safes are unlocked, a knock on the door of the office, a telegram with no explanation coded with the enigma machine. the monkeys will then have to research, develop, and perfect the turing computer to decode these messages."
 
-- **The machine.** A real Enigma simulation in game logic (three rotors from five, reflector, ring settings, plugboard; about 100 lines), so every telegram is genuinely enciphered and deciphers to real text. There are about 10^20 keys, so random guessing like the safes can never work.
-- **The knock.** Once every safe is open, a knock on the office door delivers a telegram with no explanation: five-letter groups of ciphertext. LATELY says so; it can be read like the scroll.
-- **R&D's part**, as research projects that unlock in turn:
-  1. **Study the telegram**: find cribs (likely words such as a sign-off or a weather report), which turn the search into rotor orders and starting positions.
-  2. **Build the Bombe** (Turing's machine): Codebreaking can now work on the telegram, testing rotor settings instead of random keys (about a million per telegram, like the Bombe's search).
-  3. **Perfect the Bombe**: faster settings per second, then more Bombes.
-- **Deciphering.** With the telegram as Codebreaking's focus, it tests settings a second (exact over any stretch like the safes); finding the day's key shows the plain text. Later telegrams keep coming, each harder (more rotors to choose from, more plugboard leads), with story contents still to come from Justin.
+- **The machine** (`enigma.ts`): a real three-rotor Enigma I (rotors I-V, reflector B, plugboard, the middle rotor's double step; rings at A). Every telegram is its plain text enciphered with a random key: three of the five rotors, starting letters, and plugboard leads.
+- **The knock.** Once every department's safe is open (one per genre with plays), a telegram comes with no explanation. LATELY says so; **Read the telegram** in the Staff store shows it in five-letter groups.
+- **R&D**, projects listed in turn once a telegram has come: **Study the telegram** (finds cribs, the way in), **Build the Bombe** (Codebreaking can now work on telegrams), **Perfect the Bombe** (+100% settings a second), **More Bombes** (+200%).
+- **Deciphering.** The telegram becomes a Codebreaking focus, switchable like the safes and the scroll. Each try a codebreaker would make at a safe tests 20 rotor settings (`enigma.settingsPerTry`). The key sits somewhere among 60 rotor orders x 17,576 starting positions (about 1.05 million) for the first telegram, three times as many for each next one; once the Bombe reaches it, the telegram shows its key and plain text. The next telegram comes 24 hours after one is read, offline too, with one more plugboard lead.
 - Telegram text: nonsense placeholders for now (Justin, 2026-10-17: "for now dont worry about what they say or who sends them fill it with nonsense for now"). Still open: rewards for each one deciphered.
+- All numbers are placeholders. Game v0.5.0.
 
 ### Marketing
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { codebreaking, safe, safes, translation } from '../src/game/config';
+import { codebreaking, enigma, safe, safes, translation } from '../src/game/config';
+import { encipher, inGroups, randomKey } from '../src/game/enigma';
+import type { PlayData } from '../src/game/plays';
 import {
   buyFurniture,
   officesWithoutSafe,
@@ -24,11 +26,19 @@ import {
   officeOf,
   safeAt,
   storeFurniture,
+  deliverTelegrams,
+  genresWithPlays,
+  projectsLeft,
+  telegramCipher,
+  telegramSettings,
+  telegramText,
+  unreadTelegram,
+  setPlays,
 } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState, createMonkey, type GameState } from '../src/game/state';
 import { safeText } from '../src/cli/office';
-import { renderScroll, storeItems } from '../src/cli/screen';
+import { renderScroll, renderTelegrams, storeItems } from '../src/cli/screen';
 
 /** What the Manager furniture store sells. */
 const sold = (s: GameState) => storeItems(s, 'office').map((x) => x.text).join('|');
@@ -148,3 +158,77 @@ describe('safes', () => {
     expect(deserialize(serialize(s)).translated).toBe(s.translated);
   });
 });
+
+describe('telegrams', () => {
+  it('run on a real Enigma machine', () => {
+    // The well-known check: rotors I II III at AAA, reflector B, no plugs.
+    expect(encipher({ rotors: [0, 1, 2], start: 'AAA', plugs: '' }, 'AAAAA')).toBe('BDZGO');
+    const key = randomKey(enigma.leads, () => 0.37);
+    expect(new Set(key.rotors).size).toBe(3);
+    expect(key.plugs).toHaveLength(enigma.leads * 2);
+    const text = 'FLIBBERTHEWOBSNARK';
+    const cipher = encipher(key, text);
+    expect(cipher).not.toBe(text);
+    expect(encipher(key, cipher)).toBe(text); // the same key reads it back
+    expect([...cipher].every((c, i) => c !== text[i])).toBe(true); // Enigma never turns a letter into itself
+  });
+
+  it('come once every safe is open, are studied by R&D, and read by the Bombe', () => {
+    setPlays(['comedy', 'tragedy'].map((genre) => ({ id: genre, title: genre, genre, lines: [[1, 1, 'A', 'No.']] }) as PlayData));
+    try {
+      telegramsCome();
+    } finally {
+      setPlays([]);
+    }
+  });
+});
+
+/** Two departments' safes opened, then telegrams through to the second. */
+function telegramsCome() {
+  const s = offices();
+  findSafe(s, safeIn(s, 'comedy'));
+  expect(buyRoom(s, 'codebreaking')).toBe(true);
+  expect(hireCodebreaker(s)).toBe(true);
+  expect(deliverTelegrams(s, 1)).toBe(false); // not while a safe is locked
+  expect(genresWithPlays()).toEqual(['comedy', 'tragedy']);
+  findSafe(s, safeIn(s, 'tragedy'));
+  crackSafes(s, 1e9, () => 0);
+  crackSafes(s, 1e9, () => 0);
+  expect(lockedSafes(s)).toEqual([]);
+  s.translated = 1e9; // the scroll is done
+  expect(deliverTelegrams(s, 1, () => 0.5)).toBe(true);
+  expect(deliverTelegrams(s, 1)).toBe(false); // one at a time
+  const t = unreadTelegram(s)!;
+  expect(t.keyAt).toBe(1 + Math.floor(0.5 * telegramSettings(0)));
+  expect(telegramCipher(s, 0)).toBe(encipher(t.key, telegramText(0)));
+  expect(renderTelegrams(s)).toContain(inGroups(telegramCipher(s, 0)).slice(0, 23));
+  expect(codebreakTargets(s)).toEqual([]); // no Bombe yet
+  // R&D: study the telegram, then the Bombe, then perfecting it, in turn.
+  const left = () => projectsLeft(s).map((p) => p.id);
+  expect(left()).toContain('cribs');
+  expect(left()).not.toContain('bombe');
+  s.researched.push('cribs');
+  expect(left()).toContain('bombe');
+  expect(left()).not.toContain('bombe2');
+  s.researched.push('bombe');
+  expect(codebreakTargets(s)).toEqual(['telegram']);
+  const rate = codebreakingRate(s) * enigma.settingsPerTry;
+  expect(rate).toBeGreaterThan(0);
+  crackSafes(s, 10);
+  expect(s.codebreakFocus).toBe('telegram');
+  expect(t.tested).toBeCloseTo(10 * rate);
+  s.researched.push('bombe2'); // twice as fast
+  crackSafes(s, 10);
+  expect(t.tested).toBeCloseTo(30 * rate);
+  crackSafes(s, 1e9);
+  expect(t.read).toBe(true);
+  expect(renderTelegrams(s)).toContain(telegramText(0).slice(0, 20));
+  // The next comes a while after.
+  expect(deliverTelegrams(s, enigma.hoursBetween * 3600 - 1)).toBe(false);
+  expect(deliverTelegrams(s, 1, () => 0.5)).toBe(true);
+  expect(s.telegrams[1].key.plugs).toHaveLength((enigma.leads + 1) * 2);
+  expect(telegramSettings(1)).toBeGreaterThan(telegramSettings(0));
+  const back = deserialize(serialize(s));
+  expect(back.telegrams).toEqual(s.telegrams);
+  expect(back.telegramWait).toBe(s.telegramWait);
+}
