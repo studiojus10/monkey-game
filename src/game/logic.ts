@@ -2927,6 +2927,7 @@ export function shelveBooks(state: GameState): boolean {
 
 /** A shelved book's title: its play or text, or "Folio N". */
 export function bookTitle(id: string): string {
+  if (id === 'bibliography') return 'Bibliography';
   const folio = /^folio-(\d+)$/.exec(id);
   return folio ? `Folio ${folio[1]}` : (getPlay(id)?.title ?? id);
 }

@@ -991,7 +991,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (showingLibrary) {
     message = '';
     const galleries = libraryGalleries(state);
-    const book = galleries[libraryCursor]?.[Number(str) - 1];
+    const book = str === '0' ? 'bibliography' : galleries[libraryCursor]?.[Number(str) - 1];
     if (key.name === 'escape' || key.name === 'q') showingLibrary = false;
     else if (key.name === 'left' || key.name === 'up') libraryCursor = Math.max(0, libraryCursor - 1);
     else if (key.name === 'right' || key.name === 'down') libraryCursor = Math.min(galleries.length - 1, libraryCursor + 1);

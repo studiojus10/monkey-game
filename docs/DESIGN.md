@@ -222,6 +222,7 @@ Justin, 2026-10-17: "I dont want to make the entire office hexagons, but instead
 - **The room.** Once a play or text is finished (or anything is shelved, after a Folio), a **Library** can be built on the office map (`r`), for Sentences like any room. `i` on one of its squares goes in.
 - **Galleries.** Its screen draws its galleries as a honeycomb of hexagons (flat-topped, every other column half a hexagon lower). Each gallery has four shelves (the other two sides are its doors) and holds 4 books. The first gallery comes with the room; more cost Lines (100, x10 each). Arrows choose a gallery; its books are listed under the honeycomb.
 - **Shelving.** Every finished play and text is shelved automatically, in the first gallery with room, and so is every published Folio ("Folio 1", ...). Books past the last gallery's room wait for a new one. Each full gallery adds +5% points (placeholders). The books and galleries outlast a Folio; the room is rebuilt after one.
+- **Bibliography.** Always in the Library, on no shelf (`0`): it cites every text not written for the game, with its edition and licence (`bibliography` in config.ts; add an entry with every text imported). Justin, 2026-10-17: "have an automatic book in the library that is a 'bibliography' which cites all of the sources of text not written for the game".
 - **Reading.** `1`-`4` opens a shelved book: a play with its speakers, a foreign text in English where written (in the original where not), a Folio's placeholder nonsense.
 - Game v0.7.0.
 

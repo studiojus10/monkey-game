@@ -589,6 +589,20 @@ export const library = {
 };
 
 /**
+ * The Library's Bibliography (Justin, 2026-10-17: "an automatic book in the
+ * library ... which cites all of the sources of text not written for the
+ * game"): always there, on no shelf. One entry for each outside text; add one
+ * with every text imported.
+ */
+export const bibliography = [
+  'William Shakespeare, Hamlet, Macbeth, A Midsummer Night\'s Dream, Richard III and the Sonnets. The Complete Works of William Shakespeare, the MIT edition (the public-domain Moby text), https://github.com/TheMITTech/shakespeare.',
+  'ENABLE (Enhanced North American Benchmark Lexicon), the public-domain word list behind the dictionary.',
+  'Aristotle, Metaphysics I.4, 985b4-22. Greek: W. D. Ross, ed., Aristotle\'s Metaphysics (Oxford, 1924), via the Perseus Digital Library, CC BY-SA 4.0. English: W. D. Ross, trans. (Oxford, 1908), public domain.',
+  'Aristotle, De generatione et corruptione. Greek: C. Prantl, ed. (Leipzig: Teubner, 1881), via the First1KGreek project (Open Greek and Latin), CC BY-SA 4.0. English: H. H. Joachim, trans., On Generation and Corruption (Oxford, 1922), public domain, via the MIT Internet Classics Archive.',
+  'Marcus Tullius Cicero, De natura deorum. Latin: O. Plasberg, ed. (Leipzig: Teubner, 1917), via the Perseus Digital Library, CC BY-SA 4.0. English: C. D. Yonge, trans., The Nature of the Gods (London, 1878), public domain, via Project Gutenberg (ebook 14988).',
+];
+
+/**
  * Foreign texts (Justin, 2026-10-17): the first safe opened holds a Greek
  * scroll, firstText (Aristotle's Metaphysics I.4), which opens the Greek
  * department. Its monkeys type Greek capitals, and each line they write turns

@@ -103,6 +103,8 @@ describe('the Library', () => {
     expect(screen).toContain('[2] Folio 1');
     expect(screen).toContain('an empty shelf');
     expect(plain(renderBook(s, 'a', 0, 10, 80))).toContain('HAMLET: I.');
+    expect(screen).toContain('[0] Bibliography');
+    expect(plain(renderBook(s, 'bibliography', 0, 40, 80))).toContain('Yonge');
     expect([...plain(screen)].filter((c) => c > '\x7f')).toEqual([]);
   });
 });

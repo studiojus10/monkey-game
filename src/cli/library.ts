@@ -1,4 +1,4 @@
-import { library, translation } from '../game/config';
+import { bibliography, library, translation } from '../game/config';
 import { bookTitle, galleryCost, libraryBonus, libraryGalleries, getPlay, unshelvedBooks } from '../game/logic';
 import { sceneName } from '../game/plays';
 import type { GameState } from '../game/state';
@@ -50,6 +50,7 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
     '',
     ` ${bold(`Gallery ${at + 1}`)}   ${books.length} / ${library.booksPerGallery} books`,
     ...shelves,
+    ` ${bold('[0]')} Bibliography ${dim('(on the desk: where the texts come from)')}`,
     '',
     ` ${bonus > 0 ? green(`+${Math.round(bonus * 100)}% bananas`) : dim('No full gallery yet.')}${waiting > 0 ? `   ${waiting} book${waiting === 1 ? ' waits' : 's wait'} for a gallery.` : ''}`,
     ...(message ? ['', ` ${message}`] : []),
@@ -57,7 +58,7 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
     keyRow(
       [
         ['arrows', 'gallery'],
-        ...(books.length > 0 ? [[`1-${books.length}`, 'read'] as [string, string]] : []),
+        [books.length > 0 ? `0-${books.length}` : '0', 'read'],
         ['b', `a new gallery ${state.lines >= cost ? green(`* ${formatNumber(cost)} Lines`) : `${formatNumber(cost)} Lines`}`],
         ['esc', 'back'],
       ],
@@ -69,6 +70,7 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
 /** Rows of a shelved book: a play's lines with their speakers, a foreign text in English where it's written (else as found), a Folio's (placeholder) pages. */
 export function bookRows(state: GameState, id: string, columns = 0): string[] {
   const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
+  if (id === 'bibliography') return bibliography.flatMap((entry, k) => [...(k > 0 ? [''] : []), ...wrapWords(entry, width).map((r, j) => (j === 0 ? `  ${r}` : `    ${r}`))]);
   const play = getPlay(id);
   if (!play) return [dim(' Flumph the pages, wibbly and bound. Nothing on them yet but the smell of glue.')];
   const rows: string[] = [];
