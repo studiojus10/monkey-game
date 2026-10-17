@@ -43,12 +43,16 @@ import {
   type ResearchProject,
   hr,
   marketing,
+  codebreaking,
+  safe,
+  safes,
+  translation,
   monkeyStats,
   coinFlip,
   sellBack,
 } from './config';
 import { buildPlay, genres, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
-import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type Pin, type Segment, type WordSlot } from './state';
+import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type SafeState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, moveRoom, placeRoom, roomCanUse, roomFits, tidyDoors, touchingRooms, type Square } from './layout';
 import { chiHappiness, roomChi, spaceFactor, squareRank, varietyBonus } from './fengshui';
@@ -187,7 +191,12 @@ export function isMarketer(m: MonkeyState): boolean {
 
 /** Whether a monkey works outside the play departments (R&D, HR or Marketing). */
 export function isStaff(m: MonkeyState): boolean {
-  return isResearcher(m) || isHR(m) || isMarketer(m);
+  return isResearcher(m) || isHR(m) || isMarketer(m) || isCodebreaker(m);
+}
+
+/** Whether a monkey works in Codebreaking. */
+export function isCodebreaker(m: MonkeyState): boolean {
+  return m.department === codebreaking.id;
 }
 
 /** Whether a monkey types: not a manager, not in R&D or HR. */
@@ -398,7 +407,7 @@ export function giveTraits(state: GameState, rng: Rng): void {
 
 /** The job a monkey does: managing, research, hr or typing (a monkeyStats.jobs id). */
 export function jobOf(m: MonkeyState): string {
-  return m.manager ? 'managing' : isResearcher(m) ? 'research' : isHR(m) ? 'hr' : isMarketer(m) ? 'marketing' : 'typing';
+  return m.manager ? 'managing' : isResearcher(m) ? 'research' : isHR(m) ? 'hr' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaking' : 'typing';
 }
 
 /** How a monkey feels about a job (fine until its stats are picked). */
@@ -421,6 +430,7 @@ export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
   if (isResearcher(m)) return labRoom(state);
   if (isHR(m)) return hrRoom(state);
   if (isMarketer(m)) return marketingRoom(state);
+  if (isCodebreaker(m)) return codebreakingRoom(state);
   const genre = monkeyGenre(state, m);
   return (m.manager ? officeOf(state, genre) : undefined) ?? departmentRoom(state, genre);
 }
@@ -432,7 +442,7 @@ export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
 export function traitMood(state: GameState, m: MonkeyState): number {
   const room = workRoom(state, m);
   const inRoom = (kinds: string[]) => !!room && state.furniture.some((f) => f.room === room.id && kinds.includes(f.kind));
-  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : room?.kind === 'hr' ? hrStaff(state).length : room?.kind === 'marketing' ? marketers(state).length : 1;
+  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : room?.kind === 'hr' ? hrStaff(state).length : room?.kind === 'marketing' ? marketers(state).length : room?.kind === 'codebreaking' ? codebreakers(state).length : 1;
   switch (m.trait) {
     case 'claustrophobic': {
       const index = state.monkeys.indexOf(m);
@@ -1023,6 +1033,10 @@ export function deskOf(state: GameState, index: number): number | undefined {
     const room = marketingRoom(state);
     return room ? roomDesks(state, room)[marketers(state).indexOf(index)] : undefined;
   }
+  if (isCodebreaker(m)) {
+    const room = codebreakingRoom(state);
+    return room ? roomDesks(state, room)[codebreakers(state).indexOf(index)] : undefined;
+  }
   const genre = monkeyGenre(state, m);
   const office = officeOf(state, genre);
   if (m.manager && office) {
@@ -1086,11 +1100,13 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
   if (kind === 'lab' && !canBuildLab(state)) return false;
   if (kind === 'hr' && !canBuildHR(state)) return false;
   if (kind === 'marketing' && !canBuildMarketing(state)) return false;
+  if (kind === 'codebreaking' && !canBuildCodebreaking(state)) return false;
   state.sentences -= cost;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height, at);
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
+    addSafes(state);
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
   if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
   seatWaiting(state);
@@ -1299,7 +1315,7 @@ export function rotateFurniture(state: GameState, index: number): boolean {
 /** Moves a piece of furniture so its first square is x, y, if all its squares are free floor of one room. Desks stay in their department's room. */
 export function moveFurniture(state: GameState, index: number, roomId: string, x: number, y: number): boolean {
   const f = state.furniture[index];
-  if (!f || !fitsAt(state, roomId, f.kind, x, y, f.turned, index) || (f.kind === desk.id && f.room !== roomId)) return false;
+  if (!f || !fitsAt(state, roomId, f.kind, x, y, f.turned, index) || ((f.kind === desk.id || f.kind === safe.id) && f.room !== roomId)) return false;
   Object.assign(f, { room: roomId, x, y });
   return true;
 }
@@ -2095,6 +2111,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   advanceResearch(state, seconds);
   checkLetterGifts(state);
   earn(state, royalties(state) * seconds);
+  crackSafes(state, seconds, rng);
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
     m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds, energyRates(state, m));
@@ -2320,6 +2337,173 @@ export function hrStaff(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (isHR(m) ? [i] : []));
 }
 
+/** Puts a safe in every manager's office that has none (new offices, and offices from before safes). */
+export function addSafes(state: GameState): void {
+  for (const room of state.office.filter((r) => r.kind === 'office')) {
+    if (state.furniture.some((f) => f.room === room.id && f.kind === safe.id)) continue;
+    const square = bestSquares(state, room, true).find(([x, y]) => fitsAt(state, room.id, safe.id, x, y));
+    if (square) state.furniture.push({ kind: safe.id, room: room.id, x: square[0], y: square[1] });
+  }
+}
+
+/** The genre of the manager's office a piece of furniture stands in ('' if none). */
+function officeGenre(state: GameState, index: number): string {
+  const room = state.office.find((r) => r.id === state.furniture[index]?.room);
+  return room?.kind === 'office' ? room.department : '';
+}
+
+/** The safe a piece of furniture is, by its office's genre, once found (undefined: not a safe, or not found yet). */
+export function safeAt(state: GameState, index: number): SafeState | undefined {
+  return state.furniture[index]?.kind === safe.id ? state.safes[officeGenre(state, index)] : undefined;
+}
+
+/**
+ * Finds the safe at a piece of furniture (inspecting it): it gets a random
+ * combination, and Codebreaking turns to it if it has nothing else to work
+ * on. False if it isn't a safe or was found already.
+ */
+export function findSafe(state: GameState, index: number, rng: Rng = Math.random): boolean {
+  if (state.furniture[index]?.kind !== safe.id || safeAt(state, index)) return false;
+  const genre = officeGenre(state, index);
+  const level = Object.keys(state.safes).length;
+  const lock = lockOf(level);
+  let combo = '';
+  for (let i = 0; i < lock.length; i++) combo += lock.symbols[Math.min(lock.symbols.length - 1, Math.floor(rng() * lock.symbols.length))];
+  state.safes[genre] = { level, combo, tries: 0, open: false, held: '' };
+  if (!codebreakTargets(state).includes(state.codebreakFocus)) state.codebreakFocus = genre;
+  return true;
+}
+
+/** The lock of the safe found `level`-th (from 0): safes.locks in turn, then one more character of letters and digits each. */
+export function lockOf(level: number): { length: number; symbols: string; name: string } {
+  const last = safes.locks[safes.locks.length - 1];
+  if (level < safes.locks.length) return safes.locks[level];
+  const length = last.length + level - safes.locks.length + 1;
+  return { length, symbols: last.symbols, name: `a ${length}-character password of letters and digits` };
+}
+
+/** Combinations a lock has: symbols ^ length, the tries it takes on average. */
+export function lockCombinations(level: number): number {
+  const lock = lockOf(level);
+  return Math.pow(lock.symbols.length, lock.length);
+}
+
+/** Found safes not yet open, by genre, in the order found. */
+export function lockedSafes(state: GameState): string[] {
+  return Object.keys(state.safes).filter((g) => !state.safes[g].open);
+}
+
+/** Letters in each sentence of the scroll: what translating it takes. */
+export const scrollLetters = translation.scroll.sentences.map((x) => [...x.greek].filter((c) => /\p{L}/u.test(c)).length);
+
+/** Whether the scroll has turned up: the first safe opened holds it. */
+export function scrollFound(state: GameState): boolean {
+  return Object.values(state.safes).some((x) => x.open && x.held === safes.contents[0]);
+}
+
+/** Sentences of the scroll translated so far: those whose letters are all done. */
+export function translatedSentences(state: GameState): number {
+  let left = state.translated;
+  let n = 0;
+  while (n < scrollLetters.length && left >= scrollLetters[n]) left -= scrollLetters[n++];
+  return n;
+}
+
+/** Whether the whole scroll is translated. */
+export function scrollTranslated(state: GameState): boolean {
+  return translatedSentences(state) >= scrollLetters.length;
+}
+
+/** What Codebreaking can work on: locked safes in the order found, then the scroll while it's untranslated. */
+export function codebreakTargets(state: GameState): string[] {
+  return [...lockedSafes(state), ...(scrollFound(state) && !scrollTranslated(state) ? ['scroll'] : [])];
+}
+
+/** Turns Codebreaking to the next thing it can work on (Justin: "the option at any time to shift the focus of the department"). */
+export function cycleCodebreakFocus(state: GameState): boolean {
+  const targets = codebreakTargets(state);
+  if (targets.length === 0) return false;
+  state.codebreakFocus = targets[(targets.indexOf(state.codebreakFocus) + 1) % targets.length];
+  return true;
+}
+
+/** Codebreaking's office, if built. */
+export function codebreakingRoom(state: GameState): Room | undefined {
+  return state.office.find((r) => r.kind === 'codebreaking');
+}
+
+/** Codebreakers, by index. */
+export function codebreakers(state: GameState): number[] {
+  return state.monkeys.flatMap((m, i) => (isCodebreaker(m) ? [i] : []));
+}
+
+/** Whether Codebreaking's office can be built on the office map: a safe has been found and there's no Codebreaking office yet. */
+export function canBuildCodebreaking(state: GameState): boolean {
+  return !codebreakingRoom(state) && Object.keys(state.safes).length > 0;
+}
+
+/** Bananas for the next codebreaker (before HR's discount on a candidate). */
+export function codebreakerCost(state: GameState): number {
+  return Math.ceil(codebreaking.hireCost * Math.pow(codebreaking.hireCostGrowth, state.monkeysBought[codebreaking.id] ?? 0));
+}
+
+/** Why a codebreaker can't be hired right now, money aside ('' if one can). */
+export function codebreakerBlocker(state: GameState): string {
+  const room = codebreakingRoom(state);
+  if (!room) return `${codebreaking.name} office needed`;
+  if (codebreakers(state).length >= codebreaking.maxStaff) return `${codebreaking.name} full`;
+  return freeSquares(state, room).length > 0 ? '' : 'desk needed';
+}
+
+/** Hires a codebreaker into Codebreaking's office, with a desk. */
+export function hireCodebreaker(state: GameState, from?: number): boolean {
+  const cost = hirePrice(state, codebreakerCost(state), 'codebreaking', from);
+  if (codebreakerBlocker(state) || state.currency < cost) return false;
+  state.currency -= cost;
+  state.monkeysBought[codebreaking.id] = (state.monkeysBought[codebreaking.id] ?? 0) + 1;
+  addMonkey(state, { ...takeCandidate(state, from), department: codebreaking.id });
+  const room = codebreakingRoom(state)!;
+  const square = bestSquares(state, room, true)[0];
+  state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+  return true;
+}
+
+/** Combinations a second Codebreaking tries: triesPerSecond for each codebreaker at its desk, more or less by its trait and how it feels about codebreaking. */
+export function codebreakingRate(state: GameState): number {
+  return codebreakers(state).reduce((n, i) => {
+    const m = state.monkeys[i];
+    return n + (canReachDesk(state, m) && deskOf(state, i) !== undefined ? codebreaking.triesPerSecond * (1 + traitBonus(state, m, 'speed')) * (1 + jobBonus(m)) : 0);
+  }, 0);
+}
+
+/**
+ * Codebreaking works on the safe in focus for `seconds`: every try is a
+ * random combination (repeats and all), so each opens it with a chance of
+ * 1 in its lock's combinations; the chance over all of a stretch's tries is drawn once, so
+ * it's exact over any stretch, offline too. Whatever the department, the
+ * n-th safe opened holds safes.contents[n - 1] (the first, the Greek scroll).
+ */
+export function crackSafes(state: GameState, seconds: number, rng: Rng = Math.random): void {
+  const tries = codebreakingRate(state) * seconds;
+  if (state.codebreakFocus === 'scroll') {
+    if (!scrollFound(state) || tries <= 0) return;
+    const total = scrollLetters.reduce((a, b) => a + b, 0);
+    state.translated = Math.min(total, state.translated + tries * translation.lettersPerTry);
+    if (scrollTranslated(state)) state.codebreakFocus = codebreakTargets(state)[0] ?? '';
+    return;
+  }
+  const target = state.safes[state.codebreakFocus];
+  if (!target || target.open || tries <= 0) return;
+  const before = Math.floor(target.tries);
+  target.tries += tries;
+  const n = Math.floor(target.tries) - before;
+  if (n <= 0 || rng() >= 1 - Math.pow(1 - 1 / lockCombinations(target.level), n)) return;
+  const opened = Object.values(state.safes).filter((x) => x.open).length;
+  target.open = true;
+  target.held = safes.contents[opened] ?? safes.empty;
+  state.codebreakFocus = codebreakTargets(state)[0] ?? '';
+}
+
 /** Marketing's office, if built. */
 export function marketingRoom(state: GameState): Room | undefined {
   return state.office.find((r) => r.kind === 'marketing');
@@ -2518,7 +2702,7 @@ export function sellValue(cost: number): number {
 /** Whether a piece can be put away or sold: anything but a desk or a manager's desk (monkeys sit at those). */
 export function canRemoveFurniture(state: GameState, index: number): boolean {
   const f = state.furniture[index];
-  return !!f && f.kind !== desk.id && f.kind !== managerDesk.id;
+  return !!f && f.kind !== desk.id && f.kind !== managerDesk.id && f.kind !== safe.id;
 }
 
 /** Puts a piece of furniture away in storage; buying one of its kind later takes it out for free. */

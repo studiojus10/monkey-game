@@ -133,7 +133,7 @@ describe('feng shui', () => {
       const store = furnitureKinds.filter((k) => (k.drain > 0) === decor);
       expect(new Set(store.map((k) => k.element)).size).toBe(5);
     }
-    expect(Object.fromEntries(['fire', 'water', 'wood', 'earth', 'metal'].map((e) => [e, count(e)]))).toEqual({ fire: 3, water: 4, wood: 6, earth: 5, metal: 6 });
+    expect(Object.fromEntries(['fire', 'water', 'wood', 'earth', 'metal'].map((e) => [e, count(e)]))).toEqual({ fire: 3, water: 4, wood: 6, earth: 5, metal: 7 }); // metal counts the safe
     expect(new Set(furnitureKinds.map((k) => k.glyph)).size).toBe(furnitureKinds.length); // each looks different on the map
   });
 

@@ -74,7 +74,7 @@ export interface Milestone {
  */
 export interface Room {
   id: string;
-  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's
+  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
 }
@@ -116,6 +116,15 @@ export function createLately(): Lately {
   return { longWord: '', longWordAt: 0, lastSentence: [], longSentence: [], longSentenceAt: 0 };
 }
 
+/** A safe found in a manager's office: how hard it is, its combination, the tries so far, and once open what it held. */
+export interface SafeState {
+  level: number; // 0 for the first safe found, 1 for the next...: its lock (see lockOf)
+  combo: string;
+  tries: number;
+  open: boolean;
+  held: string; // what was inside, once open
+}
+
 export interface GameState {
   currency: number;
   totalEarned: number;
@@ -129,6 +138,9 @@ export interface GameState {
   fengShuiBook: boolean; // read the feng shui book (found in a bookshelf): chi counts, and the office map shows it
   managerBook: boolean; // read the book in a manager's desk: monkeys' traits show
   researchOpen: boolean; // R&D is open
+  safes: Record<string, SafeState>; // safes found, by the genre of the manager's office they stand in
+  codebreakFocus: string; // what Codebreaking works on: a safe's genre, 'scroll' (translating), or '' for nothing
+  translated: number; // Greek letters of the scroll translated so far
   researching: string; // the project under way ('' for none)
   researchProgress: number; // researcher-seconds of work done on it
   researched: string[]; // finished projects
@@ -292,6 +304,9 @@ export function createInitialState(now = Date.now()): GameState {
     fengShuiBook: false,
     managerBook: false,
     researchOpen: false,
+    safes: {},
+    codebreakFocus: '',
+    translated: 0,
     researching: '',
     researchProgress: 0,
     researched: [],

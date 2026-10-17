@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { PassThrough } from 'node:stream';
-import { achievements, research, hr, marketing, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
+import { achievements, research, hr, marketing, codebreaking, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { sceneName, type Genre, type PlayData } from '../game/plays';
@@ -115,6 +115,13 @@ import {
   newRoomCells,
   roomFitsAt,
   suggestRoomSpot,
+  findSafe,
+  canBuildCodebreaking,
+  hireCodebreaker,
+  codebreakerBlocker,
+  codebreakerCost,
+  cycleCodebreakFocus,
+  addSafes,
 } from '../game/logic';
 import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
 import { GAME_VERSION } from '../version';
@@ -157,6 +164,8 @@ import {
   scriptPageSize,
   renderOptions,
   renderCoinFlip,
+  renderScroll,
+  focusName,
   managerSpeedPrompt,
   dyeColorPrompt,
   dyePick,
@@ -189,6 +198,7 @@ const fromVersion = saved && saved.gameVersion !== GAME_VERSION ? saved.gameVers
 const backupPath = fromVersion ? savePath.replace(/(\.json)?$/, `-${saved!.gameVersion ? `v${saved!.gameVersion}` : 'old'}.json`) : '';
 if (backupPath && savedRaw && !existsSync(backupPath)) writeFileSync(backupPath, savedRaw);
 let state = deserialize(savedRaw);
+addSafes(state); // managers' offices from before safes get one
 setScientific(state.settings.scientific);
 /** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
 function fitLines(): number {
@@ -284,6 +294,7 @@ let pickingDepartment = false;
 let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
 let pickingManagerUpgrade = false;
 let pickingManagerSpeed = false;
+let readingScroll = false; // the Greek scroll from the first safe
 let namingMonkey = -1; // index of the monkey being named, or -1
 let nameDraft = '';
 
@@ -307,7 +318,7 @@ function loadPlays(): PlayData[] {
 
 /** A hire under way through HR's list of candidates: the job, and the department for a typist or manager. */
 interface Hiring {
-  job: 'typing' | 'managing' | 'research' | 'hr' | 'marketing';
+  job: 'typing' | 'managing' | 'research' | 'hr' | 'marketing' | 'codebreaking';
   genre?: Genre;
 }
 let hiring: Hiring | null = null;
@@ -318,6 +329,7 @@ function hiringBase(h: Hiring): number {
   if (h.job === 'research') return researcherCost(state);
   if (h.job === 'hr') return hrCost(state);
   if (h.job === 'marketing') return marketingCost(state);
+  if (h.job === 'codebreaking') return codebreakerCost(state);
   return nextMonkeyCost(state, h.genre);
 }
 
@@ -327,6 +339,7 @@ function hiringTitle(h: Hiring): string {
   if (h.job === 'research') return 'a researcher';
   if (h.job === 'hr') return `an ${hr.name} monkey`;
   if (h.job === 'marketing') return 'a marketing monkey';
+  if (h.job === 'codebreaking') return 'a codebreaker';
   return h.genre ? `a monkey for ${genreNames[h.genre]}` : 'a monkey';
 }
 
@@ -336,6 +349,7 @@ function doHire(h: Hiring, from?: number): boolean {
   if (h.job === 'research') return hireResearcher(state, from);
   if (h.job === 'hr') return hireHR(state, from);
   if (h.job === 'marketing') return hireMarketer(state, from);
+  if (h.job === 'codebreaking') return hireCodebreaker(state, from);
   return buyMonkey(state, h.genre, from);
 }
 
@@ -410,6 +424,14 @@ function buyItem(id: string): void {
     const blocked = marketingBlocker(state);
     if (blocked) message = `Can't hire a marketing monkey: ${blocked}.${blocked === 'Marketing office needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
     else hire({ job: 'marketing' });
+  } else if (id === 'codebreaker') {
+    const blocked = codebreakerBlocker(state);
+    if (blocked) message = `Can't hire a codebreaker: ${blocked}.${blocked.endsWith('office needed') || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
+    else hire({ job: 'codebreaking' });
+  } else if (id === 'codefocus') {
+    message = cycleCodebreakFocus(state) ? `${codebreaking.name} turns to ${focusName(state.codebreakFocus)}.` : 'Nothing else to work on.';
+  } else if (id === 'scroll') {
+    readingScroll = true;
   } else if (id.startsWith('research:')) {
     const p = projectOf(id.slice('research:'.length));
     if (!p) return;
@@ -513,6 +535,7 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
     ...(canBuildLab(state) ? [{ kind: 'lab' as const }] : []),
     ...(canBuildHR(state) ? [{ kind: 'hr' as const }] : []),
     ...(canBuildMarketing(state) ? [{ kind: 'marketing' as const }] : []),
+    ...(canBuildCodebreaking(state) ? [{ kind: 'codebreaking' as const }] : []),
   ];
 }
 
@@ -568,6 +591,7 @@ function newRoomMessage(room: Room): string {
     ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
     ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
     ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
+    ...(room.kind === 'codebreaking' ? ['Hire codebreakers for it in the Staff store: they try combinations on a safe you found.'] : []),
   ].join(' ');
 }
 
@@ -700,6 +724,8 @@ function draw() {
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
   const screen = flipping
     ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
+    : readingScroll
+    ? renderScroll(state, columns)
     : pickingLetter
     ? renderLetterPicker(state, pickingLetter === 'free', letterCursor, message, columns)
     : pick
@@ -919,6 +945,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       flipping = 'done';
     } else if (flipping === 'done' && str === '?') openFlip();
     else flipping = '';
+    return draw();
+  }
+  if (readingScroll && str !== '?') {
+    if (key.name === 'escape' || key.name === 'q' || key.name === 'return' || key.name === 'enter') readingScroll = false;
     return draw();
   }
   if (str === '?' && namingMonkey < 0 && slotWordDraft === null && !confirmingFolio && !confirmingReset && !confirmingFire) {
@@ -1270,8 +1300,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       return draw();
     }
     if (str === 'i' && !officeGrowing) {
+      const here = roomAt(state, c.x, c.y);
+      const spot = heldFurniture >= 0 ? heldFurniture : here ? cellAt(state, here.id, c.x, c.y) : null;
+      const first = Object.keys(state.safes).length === 0;
+      const found = typeof spot === 'number' && findSafe(state, spot, Math.random);
       const seen = inspectSquare(state, c.x, c.y, heldFurniture);
-      message = seen.text;
+      message = found && first ? `${seen.text}  You can build a ${codebreaking.name} office now (office map, [r]).` : seen.text;
       offeredBook = seen.book;
       return draw();
     }
@@ -1397,7 +1431,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
       );
       message = `Buy a room (${formatNumber(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {

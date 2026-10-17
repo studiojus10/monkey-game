@@ -235,7 +235,7 @@ export interface FurnitureKind {
 }
 
 /** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
-export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing';
+export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking';
 
 /** The five feng shui elements. A room with all five is balanced. */
 export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
@@ -261,6 +261,22 @@ export const managerDesk: FurnitureKind = {
   element: 'wood',
   rooms: ['office'],
   description: 'A big oak desk with a nameplate, a stamp and three pens. The bottom drawer is stuck shut, or nearly.',
+};
+
+/** The safe in every manager's office: not sold, and it stays put in its office. */
+export const safe: FurnitureKind = {
+  id: 'safe',
+  name: 'Safe',
+  glyph: 'S',
+  color: 'gray',
+  cost: 0,
+  costGrowth: 1,
+  drain: 0,
+  rest: 0,
+  happiness: 0,
+  element: 'metal',
+  rooms: ['office'],
+  description: 'A heavy steel safe with a five-digit dial.',
 };
 
 export const furnitureKinds: FurnitureKind[] = [
@@ -290,6 +306,7 @@ export const furnitureKinds: FurnitureKind[] = [
   { id: 'tv', name: 'Television', glyph: 'T', color: 'gray', cost: 20_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', rooms: ['break'], description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
   { id: 'hottub', name: 'Hot tub', glyph: 'U', color: 'cyan', cost: 20_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, size: [2, 1], element: 'water', rooms: ['break'], description: 'Nobody remembers approving this. Nobody is complaining.' },
   managerDesk,
+  safe,
 ];
 
 /**
@@ -478,6 +495,102 @@ export const hr = {
  * published (they stay popular for good). Marketing tactics researched in R&D
  * raise royalties. Placeholders.
  */
+/**
+ * Safes (Justin, 2026-10-17: "a 5 digit combination safe as an item for the
+ * managers office"). Every manager's office comes with one (not sold, and it
+ * can't leave its office). Inspecting one ([i] on the office map) finds it,
+ * and the first one found lets you build a Codebreaking office. Each safe
+ * found is harder than the last, whichever department it's in (Justin:
+ * "each safe should get harder than the last. maybe eventually they can work
+ * like passwords with letters or numbers"): the n-th takes `locks[n - 1]`,
+ * and past the list each adds a character of letters and digits. Codebreakers
+ * try random combinations on the safe in focus, so a lock with S symbols and
+ * length L takes S^L tries on average. What's inside comes in the same order
+ * whichever safe is opened (Justin: "the contents of the safes are unlocked
+ * in the same order no matter which department"): the first safe opened holds
+ * the first foreign text (Greek, from Aristotle's Metaphysics, for
+ * translation later), and so on down `contents`. Placeholders.
+ */
+export const safes = {
+  locks: [
+    { length: 5, symbols: '0123456789', name: 'a five-digit dial' },
+    { length: 6, symbols: '0123456789', name: 'a six-digit dial' },
+    { length: 5, symbols: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', name: 'a five-letter password' },
+    { length: 5, symbols: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', name: 'a five-character password of letters and digits' },
+  ],
+  contents: [
+    'a scroll covered in Greek letters, signed with a name: ARISTOTLE. Nobody here can read it. Yet.',
+    'a rubber banana and a note in a monkey\'s scrawl: "The best jokes are typed by accident."',
+    'a yellowed memo: "Re: the Globe. Do NOT let the monkeys near the cannon again."',
+    'a single page of a lost play. Every word on it is BANANA.',
+    'a pressed rose and a love letter, misspelled beautifully.',
+  ],
+  empty: 'dust, and a note in neat handwriting: "Not this one. Keep looking."',
+  found: 'A heavy steel safe. Something rattles inside when you tip it.',
+  open: 'The safe stands open. Inside:',
+};
+
+/**
+ * Codebreaking (Justin, 2026-10-17): an office you can build once you've
+ * found a safe, with up to maxStaff codebreakers hired in the Staff store.
+ * They work on one thing at a time, the one in focus (a safe, or once the
+ * first safe is open its scroll, see translation), which you can switch at
+ * any time (Justin: "the player has the option at any time to shift the
+ * focus of the department from the foreign text to the safe"). Placeholders.
+ */
+export const codebreaking = {
+  id: 'codebreaking', // a codebreaker's department
+  name: 'Codebreaking',
+  maxStaff: 5,
+  hireCost: 1_000_000,
+  hireCostGrowth: 3,
+  triesPerSecond: 1,
+};
+
+/**
+ * Translation (Justin, 2026-10-17: "the codebreaking department can expand to
+ * translation"): once the first safe is open, Codebreaking can work on its
+ * Greek scroll instead of a safe, translating lettersPerTry Greek letters for
+ * each combination it would have tried. Each sentence reads in English once
+ * all its letters are done. The scroll is Aristotle, Metaphysics I.4
+ * (985b4-22): the Greek is W. D. Ross's edition as digitized by the Perseus
+ * Digital Library (CC BY-SA 4.0), the English Ross's 1908 translation (Justin
+ * supplied it). Placeholders.
+ */
+export const translation = {
+  lettersPerTry: 0.05,
+  scroll: {
+    title: 'Aristotle, Metaphysics, Book I, chapter 4',
+    language: 'Greek',
+    sentences: [
+    {
+      greek: "Λεύκιππος δὲ καὶ ὁ ἑταῖρος αὐτοῦ Δημόκριτος στοιχεῖα μὲν τὸ πλῆρες καὶ τὸ κενὸν εἶναί φασι, λέγοντες τὸ μὲν ὂν τὸ δὲ μὴ ὄν, τούτων δὲ τὸ μὲν πλῆρες καὶ στερεὸν τὸ ὄν, τὸ δὲ κενὸν τὸ μὴ ὄν (διὸ καὶ οὐθὲν μᾶλλον τὸ ὂν τοῦ μὴ ὄντος εἶναί φασιν, ὅτι οὐδὲ τοῦ κενοῦ τὸ σῶμα), αἴτια δὲ τῶν ὄντων ταῦτα ὡς ὕλην.",
+      english: "Leucippus and his associate Democritus say that the full and the empty are the elements, calling the one being and the other non-being - the full and solid being being, the empty non-being (whence they say being no more is than non-being, because the solid no more is than the empty); and they make these the material causes of things.",
+    },
+    {
+      greek: "καὶ καθάπερ οἱ ἓν ποιοῦντες τὴν ὑποκειμένην οὐσίαν τἆλλα τοῖς πάθεσιν αὐτῆς γεννῶσι, τὸ μανὸν καὶ τὸ πυκνὸν ἀρχὰς τιθέμενοι τῶν παθημάτων, τὸν αὐτὸν τρόπον καὶ οὗτοι τὰς διαφορὰς αἰτίας τῶν ἄλλων εἶναί φασιν.",
+      english: "And as those who make the underlying substance one generate all other things by its modifications, supposing the rare and the dense to be the sources of the modifications, in the same way these philosophers say the differences in the elements are the causes of all other qualities.",
+    },
+    {
+      greek: "ταύτας μέντοι τρεῖς εἶναι λέγουσι, σχῆμά τε καὶ τάξιν καὶ θέσιν·",
+      english: "These differences, they say, are three - shape and order and position.",
+    },
+    {
+      greek: "διαφέρειν γάρ φασι τὸ ὂν ῥυσμῷ καὶ διαθιγῇ καὶ τροπῇ μόνον· τούτων δὲ ὁ μὲν ῥυσμὸς σχῆμά ἐστιν ἡ δὲ διαθιγὴ τάξις ἡ δὲ τροπὴ θέσις· διαφέρει γὰρ τὸ μὲν Α τοῦ Ν σχήματι τὸ δὲ ΑΝ τοῦ ΝΑ τάξει τὸ δὲ Ζ τοῦ Η θέσει.",
+      english: "For they say the real is differentiated only by 'rhythm' and 'inter-contact' and 'turning'; and of these rhythm is shape, inter-contact is order, and turning is position; for A differs from N in shape, AN from NA in order, M from W in position.",
+    },
+    {
+      greek: "περὶ δὲ κινήσεως, ὅθεν ἢ πῶς ὑπάρξει τοῖς οὖσι, καὶ οὗτοι παραπλησίως τοῖς ἄλλοις ῥᾳθύμως ἀφεῖσαν.",
+      english: "The question of movement - whence or how it is to belong to things - these thinkers, like the others, lazily neglected.",
+    },
+    {
+      greek: "περὶ μὲν οὖν τῶν δύο αἰτιῶν, ὥσπερ λέγομεν, ἐπὶ τοσοῦτον ἔοικεν ἐζητῆσθαι παρὰ τῶν πρότερον.",
+      english: "Regarding the two causes, then, as we say, the inquiry seems to have been pushed thus far by the early philosophers.",
+    },
+    ],
+  },
+};
+
 export const marketing = {
   id: 'marketing', // a marketing monkey's department
   name: 'Marketing',
@@ -507,6 +620,7 @@ export const monkeyStats = {
     { id: 'hr', name: 'HR' },
     { id: 'marketing', name: 'Marketing' },
     { id: 'research', name: 'Research' },
+    { id: 'codebreaking', name: 'Codebreaking' },
   ],
   feelings: [
     { id: 'loves', name: 'loves', bonus: 0.2, weight: 0.1 },
