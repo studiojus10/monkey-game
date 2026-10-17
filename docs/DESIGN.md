@@ -204,6 +204,19 @@ Justin, 2026-10-17: "a 5 digit combination safe as an item for the managers offi
 - **Translation.** Once the scroll is found, Codebreaking can translate it: 0.05 Greek letters for every combination it would have tried. Each sentence turns to English once its letters are done. **Read the Greek scroll** in the Staff store shows it: English for translated sentences, Greek for the rest, with how far along the current one is. The scroll is Aristotle, Metaphysics I.4 (985b4-22, on Leucippus and Democritus), Justin's choice: Greek from W. D. Ross's edition as digitized by the Perseus Digital Library (CC BY-SA 4.0), English Ross's translation (Justin supplied it; the last sentence's end was filled in from Ross). Greek letters are the one place the game prints Unicode.
 - All numbers are placeholders. Game v0.4.0.
 
+### The telegram, Enigma and the Bombe (planned, not built)
+
+Justin, 2026-10-17: "eventually the codebreaking department will need harder and harder puzzles to solve. would it be feasible for them to decode enigma machine type codes? this could be something that the R&D department becomes involved with when the first instance of this type of code appears. it could appear after all of the safes are unlocked, a knock on the door of the office, a telegram with no explanation coded with the enigma machine. the monkeys will then have to research, develop, and perfect the turing computer to decode these messages." Agreed to build after PR #30.
+
+- **The machine.** A real Enigma simulation in game logic (three rotors from five, reflector, ring settings, plugboard; about 100 lines), so every telegram is genuinely enciphered and deciphers to real text. There are about 10^20 keys, so random guessing like the safes can never work.
+- **The knock.** Once every safe is open, a knock on the office door delivers a telegram with no explanation: five-letter groups of ciphertext. LATELY says so; it can be read like the scroll.
+- **R&D's part**, as research projects that unlock in turn:
+  1. **Study the telegram**: find cribs (likely words such as a sign-off or a weather report), which turn the search into rotor orders and starting positions.
+  2. **Build the Bombe** (Turing's machine): Codebreaking can now work on the telegram, testing rotor settings instead of random keys (about a million per telegram, like the Bombe's search).
+  3. **Perfect the Bombe**: faster settings per second, then more Bombes.
+- **Deciphering.** With the telegram as Codebreaking's focus, it tests settings a second (exact over any stretch like the safes); finding the day's key shows the plain text. Later telegrams keep coming, each harder (more rotors to choose from, more plugboard leads), with story contents still to come from Justin.
+- Open: what the telegrams say and who sends them; rewards for each one deciphered.
+
 ### Marketing
 
 Justin, 2026-10-14: "Marketing earns bananas from published Folios by count and popularity; marketing tactics researched in R&D boost it". On 2026-10-15 he picked "Plays and Folios" so it helps mid-game: once there's an HR office, a Marketing office can be built on the office map. Marketing monkeys (Staff store, up to 5, 10M then x3; hired through HR's candidate list like anyone) don't type. Each one at its desk earns royalties every second, offline too: `perLine` (10) bananas for every line of every scene finished this run, plus `perPage` (100) for every page of every Folio published, which stay popular for good. A marketer's feeling about marketing and its speed trait count. R&D gets three marketing tactics, listed once the Marketing office stands: Posters (+50%), Radio ads (+100%), Book tour (+200%). LATELY shows the royalties a second. Numbers in `marketing` in config.ts, placeholders.
