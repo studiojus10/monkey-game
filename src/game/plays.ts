@@ -1,10 +1,20 @@
 import { wordPoints } from './words';
 
-export type Genre = 'comedy' | 'history' | 'tragedy' | 'sonnet' | 'greek';
+export type Genre = 'comedy' | 'history' | 'tragedy' | 'sonnet' | 'greek' | 'latin';
 /** Genres whose departments open as your monkeys grow. */
 export const genres: Genre[] = ['comedy', 'history', 'tragedy', 'sonnet'];
-/** Foreign texts: their department opens when the first such text is found (the Greek scroll, in the first safe opened). */
-export const foreignGenres: Genre[] = ['greek'];
+/**
+ * Foreign texts: their department opens when the first such text is found
+ * (the Greek scroll, in the first safe opened). Latin texts are typed by the
+ * same department (see departmentOf), which becomes the Classical department.
+ */
+export const foreignGenres: Genre[] = ['greek', 'latin'];
+
+/** Whether a genre is a foreign text's (Greek or Latin). */
+export const isForeign = (genre: Genre | undefined) => !!genre && foreignGenres.includes(genre);
+
+/** The department that types a genre's texts: Latin goes to the Greek (Classical) department. */
+export const departmentOf = (genre: Genre): Genre => (genre === 'latin' ? 'greek' : genre);
 export const allGenres: Genre[] = [...genres, ...foreignGenres];
 /** The play genres; the sonnet department opens only after all of these. */
 export const playGenres: Genre[] = ['comedy', 'history', 'tragedy'];
@@ -92,7 +102,7 @@ export function buildPlay(data: PlayData): Play {
 /** Where a line sits in the play, e.g. "1.2" for act 1, scene 2 (scene 0 is a prologue), or "Sonnet 18". */
 export function lineLocation(line: PlayLine, genre?: Genre): string {
   if (genre === 'sonnet') return `Sonnet ${line.act}`;
-  if (genre === 'greek') return `${line.act}.${line.scene}`;
+  if (isForeign(genre)) return `${line.act}.${line.scene}`;
   return line.scene === 0 ? `${line.act} prologue` : `${line.act}.${line.scene}`;
 }
 
@@ -103,5 +113,6 @@ export function lineLocation(line: PlayLine, genre?: Genre): string {
 export function sceneName(act: number, scene: number, genre?: Genre): string {
   if (genre === 'sonnet') return `Sonnet ${act}`;
   if (genre === 'greek') return `Book ${act}, chapter ${scene}`;
+  if (genre === 'latin') return `Book ${act}, section ${scene}`;
   return scene === 0 ? `Act ${act} prologue` : `Act ${act}, scene ${scene}`;
 }

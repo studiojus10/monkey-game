@@ -593,11 +593,12 @@ export const library = {
  * scroll, firstText (Aristotle's Metaphysics I.4), which opens the Greek
  * department. Its monkeys type Greek capitals, and each line they write turns
  * into its English. The texts are data/plays/*.json with genre 'greek', built
- * by scripts/import-greek.ts.
+ * by scripts/import-classical.ts.
  */
 export const translation = {
   firstText: 'metaphysics-1-4',
   language: 'Greek',
+  latinText: 'natura', // Cicero's De natura deorum, on the Library's first shelf
 };
 
 /**
@@ -724,7 +725,7 @@ export const energy = {
  * shown, and so does any once it is older than that. Sentences keep at most
  * maxSentenceWords words, to keep saves small.
  */
-export const lately = { windowSeconds: 3600, maxSentenceWords: 100 };
+export const lately = { windowSeconds: 3600, maxSentenceWords: 100, maxNews: 3 };
 
 export const petting = {
   happinessPerPet: 0.005,

@@ -213,7 +213,30 @@ Justin, 2026-10-17: "add a copy of 'De generatione et corruptione' by aristotle,
 - **Lines.** A text's sentences run long (25 Greek words on average, up to 113), so lines are cut at punctuation, at most 12 words, like play lines (Justin asked: a standard length, or whole sentences counted as lines). De generatione has 2,393 lines.
 - **English.** Each written line reads in English instead of Greek. The two languages don't line up clause by clause, so each line gets its share of the English (a sentence's, or for De generatione a chapter's, translation split by Greek letters at word boundaries). Prantl runs Book I's last two chapters together, so Joachim's chapter 10 shares chapter 9's lines.
 - **The Texts page.** `p` opens the script as before; once there are foreign texts or telegrams, its contents (`tab`) become the Texts page, with tabs (`[` `]`) for Plays, Foreign texts and Codes: every safe found (its lock, tries so far, and its combination or password once cracked; Justin: "dont forget safe combinations and passwords on the text page") and the telegrams.
-- Built by `scripts/import-greek.ts` into data/plays/ (genre 'greek'). Game v0.6.0.
+- Built by `scripts/import-classical.ts` (was import-greek.ts) into data/plays/ (genre 'greek'). Game v0.6.0.
+
+### The Library
+
+Justin, 2026-10-17: "I dont want to make the entire office hexagons, but instead a new type of room for storing books, library ... storing texts"; agreed plan: a normal square room on the office map that opens into a hexagon view of galleries.
+
+- **The room.** Once a play or text is finished (or anything is shelved, after a Folio), a **Library** can be built on the office map (`r`), for Sentences like any room. `i` on one of its squares goes in.
+- **Galleries.** Its screen draws its galleries as a honeycomb of hexagons (flat-topped, every other column half a hexagon lower). Each gallery has four shelves (the other two sides are its doors) and holds 4 books. The first gallery comes with the room; more cost Lines (100, x10 each). Arrows choose a gallery; its books are listed under the honeycomb.
+- **Shelving.** Every finished play and text is shelved automatically, in the first gallery with room, and so is every published Folio ("Folio 1", ...). Books past the last gallery's room wait for a new one. Each full gallery adds +5% points (placeholders). The books and galleries outlast a Folio; the room is rebuilt after one.
+- **Reading.** `1`-`4` opens a shelved book: a play with its speakers, a foreign text in English where written (in the original where not), a Folio's placeholder nonsense.
+- Game v0.7.0.
+
+### Latin and the Classical department
+
+Justin, 2026-10-17: "when building the library for the first time, the player should have access to a new book already on the library bookshelf, this one in latin, necessitating expanding the greek department to a 'classical' department then allowing the translation of latin. this first latin text in the library would be De natura deorum by Marcus Tullius Cicero"; "make the department start as the greek department and only change once latin is unlocked".
+
+- **The book.** Building the Library (each time, so again after a Folio) finds Cicero's **De natura deorum** on its first shelf: you own all of it, and it's shelved. The Greek department becomes the **Classical department** (or opens as it, if there was no Greek department yet).
+- **Typing Latin.** The Classical department types one language at a time: **Switch Classical to Latin/Greek** in the Staff store. Latin monkeys type the Latin text's capitals (all from the start) and score only its words; switching clears the department's word slots and its manager's line.
+- **The text.** Plasberg's 1917 Teubner edition via Perseus (CC BY-SA 4.0), whole: 3 books, 387 sections as "scenes", 5,279 lines cut like the Greek. English: C. D. Yonge's 1878 translation (public domain, Project Gutenberg #14988, the file Justin supplied). Yonge's 151 chapters each span a few of the Latin's sections; the importer lines them up by length and shared names, then shares each chapter's English across its lines.
+- **Later (Justin, not built):** after the first Greek text is finished, more Greek texts (Sophocles, Euripides and other plays) to buy like the Shakespeare plays, less tied to the story.
+
+### LATELY news
+
+Justin, 2026-10-17: "make sure when things like departments being renamed and other new things are unlocked ... it shows up as messages in the lately category". The LATELY feed keeps the last 3 such notes for an hour of typing: a department opening or becoming Classical, the Classical department's language, a safe cracked, a telegram arriving, a book shelved (`announce` in logic.ts).
 
 ### The telegram, Enigma and the Bombe
 

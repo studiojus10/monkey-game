@@ -14,7 +14,15 @@ import {
   shelveBooks,
   tick,
   unshelvedBooks,
+  departmentGenres,
+  keyboard,
+  latinUnlocked,
+  switchClassical,
+  textGenre,
+  managerLine,
+  buySection,
 } from '../src/game/logic';
+import { departmentName, renderScreen } from '../src/cli/screen';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState } from '../src/game/state';
 import { renderBook, renderLibrary } from '../src/cli/library';
@@ -107,5 +115,51 @@ describe('saves', () => {
     const back = deserialize(serialize(s))!;
     expect(back.departments).toContain('greek');
     expect(back.stats.longestWord).toBe('ΑΡΧΗ');
+  });
+});
+
+describe('the Latin book', () => {
+  const natura = { id: 'natura', title: 'Cicero, De natura deorum', genre: 'latin' as const, lines: [[1, 1, '', 'Cum multae res in philosophia'] as [number, number, string, string]], english: ['There are many things in philosophy'] };
+  const scroll = { id: 'metaphysics-1-4', title: 'Scroll', genre: 'greek' as const, lines: [[1, 4, '', 'ΟΥΚ ΑΛΛΑ'] as [number, number, string, string]] };
+
+  it('waits on the Library\'s first shelf and makes the Greek department the Classical department', () => {
+    const s = started();
+    setPlays([play('a'), natura, scroll]);
+    s.departments.push('greek');
+    s.playsDone.push('a');
+    expect(departmentName(s, 'greek')).toBe('Greek');
+    buyRoom(s, 'library');
+    expect(latinUnlocked(s)).toBe(true);
+    expect(s.shelved).toEqual(['a', 'natura']);
+    expect(departmentName(s, 'greek')).toBe('Classical');
+    expect(departmentGenres(s)).not.toContain('latin');
+    expect(s.lately.news.map((n) => n.text).join(' ')).toContain('Classical department');
+    expect(plain(renderScreen(s, '', null, 120))).toContain('De natura deorum');
+  });
+
+  it('types Greek until switched to Latin, with Latin letters and lines', () => {
+    const s = started();
+    setPlays([play('a'), natura, scroll]);
+    s.owned.push('metaphysics-1-4:1.4');
+    s.departments.push('greek');
+    s.playsDone.push('a');
+    buyRoom(s, 'library');
+    expect(textGenre(s, 'greek')).toBe('greek');
+    expect(managerLine(s, 'greek')?.play).toBe('metaphysics-1-4');
+    expect(switchClassical(s)).toBe(true);
+    expect(textGenre(s, 'greek')).toBe('latin');
+    expect(keyboard(s, 'greek').map((k) => k.text)).toContain('P');
+    expect(keyboard(s, 'greek').map((k) => k.text)).not.toContain('Α');
+    expect(managerLine(s, 'greek')?.play).toBe('natura');
+    expect(buySection(s, 'natura')).toBe(false); // already owned
+  });
+
+  it('opens the Classical department itself when there is no Greek department yet', () => {
+    const s = started();
+    setPlays([play('a'), natura, scroll]);
+    s.playsDone.push('a');
+    buyRoom(s, 'library');
+    expect(s.departments).toContain('greek');
+    expect(departmentName(s, 'greek')).toBe('Classical');
   });
 });

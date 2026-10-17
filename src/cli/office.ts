@@ -34,7 +34,7 @@ import {
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
-import { dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
+import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
 import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
 import { formatAmount, formatNumber } from '../format';
 
@@ -50,14 +50,14 @@ export type Cell = { x: number; y: number; room?: string };
 export function roomName(state: GameState, room: Room): string {
   if (room.kind === 'department') {
     const g = roomGenre(state, room);
-    return g ? `${genreNames[g]} room` : 'Your room';
+    return g ? `${departmentName(state, g)} room` : 'Your room';
   }
   if (room.kind === 'lab') return `${research.name} lab`;
   if (room.kind === 'hr') return `${hr.name} office`;
   if (room.kind === 'marketing') return `${marketing.name} office`;
   if (room.kind === 'codebreaking') return `${codebreaking.name} office`;
   if (room.kind === 'library') return library.name;
-  if (room.kind === 'office') return `${genreNames[room.department as keyof typeof genreNames] ?? 'Manager'} office`;
+  if (room.kind === 'office') return `${departmentName(state, room.department as keyof typeof genreNames) ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
 }
@@ -254,7 +254,7 @@ export function renderOffice(
     ...wrapItems([...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished], columns).map(dim),
     '',
     ...roomTable(state, columns),
-    ...roomlessDepartments(state).map((g) => red(` The ${genreNames[g]} department needs a room: press [r] to buy one.`)),
+    ...roomlessDepartments(state).map((g) => red(` The ${departmentName(state, g)} department needs a room: press [r] to buy one.`)),
     '',
     ` ${label(`New room ${bold(formatNumber(roomCost(state)))} Sentences`, roomCost(state), state.sentences)}   ${label(`One more square ${bold(formatNumber(squareCost(state)))} Sentences`, squareCost(state), state.sentences)}`,
     '',

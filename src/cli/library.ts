@@ -1,4 +1,4 @@
-import { library } from '../game/config';
+import { library, translation } from '../game/config';
 import { bookTitle, galleryCost, libraryBonus, libraryGalleries, getPlay, unshelvedBooks } from '../game/logic';
 import { sceneName } from '../game/plays';
 import type { GameState } from '../game/state';
@@ -66,8 +66,8 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
   ].join('\n');
 }
 
-/** Rows of a shelved book: a play's lines with their speakers, a foreign text in its English, a Folio's (placeholder) pages. */
-export function bookRows(id: string, columns = 0): string[] {
+/** Rows of a shelved book: a play's lines with their speakers, a foreign text in English where it's written (else as found), a Folio's (placeholder) pages. */
+export function bookRows(state: GameState, id: string, columns = 0): string[] {
   const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
   const play = getPlay(id);
   if (!play) return [dim(' Flumph the pages, wibbly and bound. Nothing on them yet but the smell of glue.')];
@@ -75,7 +75,8 @@ export function bookRows(id: string, columns = 0): string[] {
   play.lines.forEach((line, i) => {
     const prev = play.lines[i - 1];
     if (!prev || prev.act !== line.act || prev.scene !== line.scene) rows.push(...(rows.length > 0 ? [''] : []), ` ${dim(sceneName(line.act, line.scene, play.genre).toUpperCase())}`);
-    const text = play.english[i] || line.text;
+    const written = (state.shelved.includes(id) && id !== translation.latinText) || state.playsDone.includes(id) || (state.completed[id] ?? []).includes(i);
+    const text = (written && play.english[i]) || line.text;
     const lead = line.speaker ? `${line.speaker}: ` : '';
     rows.push(...wrapWords(lead + text, width).map((r) => `  ${r}`));
   });
@@ -84,7 +85,7 @@ export function bookRows(id: string, columns = 0): string[] {
 
 /** A shelved book open for reading, from row `top`, `height` rows at a time. */
 export function renderBook(state: GameState, id: string, top: number, height: number, columns = 0): string {
-  const rows = bookRows(id, columns);
+  const rows = bookRows(state, id, columns);
   const from = Math.max(0, Math.min(top, rows.length - height));
   const play = getPlay(id);
   return [

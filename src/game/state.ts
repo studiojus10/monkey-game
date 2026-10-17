@@ -111,10 +111,11 @@ export interface Lately {
   lastSentence: string[]; // the words of the newest sentence (a chain that paid a Sentence)
   longSentence: string[]; // the longest sentence lately
   longSentenceAt: number;
+  news: { text: string; at: number }[]; // what opened or changed lately, newest last (see announce)
 }
 
 export function createLately(): Lately {
-  return { longWord: '', longWordAt: 0, lastSentence: [], longSentence: [], longSentenceAt: 0 };
+  return { longWord: '', longWordAt: 0, lastSentence: [], longSentence: [], longSentenceAt: 0, news: [] };
 }
 
 /** A safe found in a manager's office: how hard it is, its combination, the tries so far, and once open what it held. */
@@ -167,6 +168,7 @@ export interface GameState {
   actsDone: string[]; // finished acts as "play:act"
   playsDone: string[]; // finished play ids
   shelved: string[]; // the Library's books in the order shelved: play and text ids, and 'folio-N' for each Folio (kept through a Folio)
+  classical: 'greek' | 'latin'; // the language the Greek (Classical) department types, once it has Latin
   galleries: number; // the Library's galleries bought (the first comes with the room; kept through a Folio)
   lastMilestone: Milestone | null;
   pointsBonus: number; // from finished scenes: points x (1 + pointsBonus)
@@ -337,6 +339,7 @@ export function createInitialState(now = Date.now()): GameState {
     playsDone: [],
     shelved: [],
     galleries: 0,
+    classical: 'greek',
     lastMilestone: null,
     pointsBonus: 0,
     speedBonus: 0,

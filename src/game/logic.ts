@@ -53,7 +53,7 @@ import {
   coinFlip,
   sellBack,
 } from './config';
-import { allGenres, buildPlay, genres, greekLetters, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
+import { allGenres, buildPlay, departmentOf, genres, greekLetters, isForeign, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type SafeState, type TelegramState, type Pin, type Segment, type WordSlot } from './state';
 import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, moveRoom, placeRoom, roomCanUse, roomFits, tidyDoors, touchingRooms, type Square } from './layout';
@@ -76,13 +76,16 @@ export function setWordList(list: readonly string[]): void {
 }
 
 const plays = new Map<string, Play>();
+let latinLetters: string[] = []; // the capitals in the Latin texts, which Latin monkeys type
 let longestLine = 0;
 
 /** Registers the plays whose scenes can be bought; the front end loads them. */
 export function setPlays(list: readonly PlayData[]): void {
   plays.clear();
   // Foreign texts come after the plays, so the script opens on a play.
-  for (const data of [...list].sort((a, b) => Number(a.genre === 'greek') - Number(b.genre === 'greek'))) plays.set(data.id, buildPlay(data));
+  const foreign = (d: PlayData) => Number(isForeign(d.genre));
+  for (const data of [...list].sort((a, b) => foreign(a) - foreign(b))) plays.set(data.id, buildPlay(data));
+  latinLetters = [...new Set([...plays.values()].filter((p) => p.genre === 'latin').flatMap((p) => p.lines.flatMap((l) => [...l.letters])))].sort();
   longestLine = Math.max(0, ...[...plays.values()].map((p) => p.longestLine));
   cached.clear();
   ownedCache.clear();
@@ -125,7 +128,7 @@ export function departmentGenres(state: GameState): Genre[] {
   const list = state.departments.filter((g): g is Genre => allGenres.includes(g as Genre));
   for (const k of state.owned) {
     const g = plays.get(k.split(':')[0])?.genre;
-    if (g && !list.includes(g)) list.push(g);
+    if (g && !list.includes(departmentOf(g))) list.push(departmentOf(g));
   }
   genreMemo.set(state, { departments: snapshot(state.departments), owned: snapshot(state.owned), list });
   return list.slice();
@@ -283,7 +286,7 @@ export function sectionPrice(state: GameState, play: Play, act?: number, sceneKe
 /** Buys a scene, an act or a whole play with points. */
 export function buySection(state: GameState, playId: string, act?: number, sceneKey?: string): boolean {
   const play = plays.get(playId);
-  if (!play || state.owned.length === 0 || !departmentGenres(state).includes(play.genre)) return false;
+  if (!play || state.owned.length === 0 || !departmentGenres(state).includes(departmentOf(play.genre))) return false;
   const exists = play.scenes.some(
     (sc) => (act === undefined || sc.act === act) && (sceneKey === undefined || sc.key === sceneKey),
   );
@@ -786,23 +789,33 @@ export function togglePin(state: GameState, playId: string, index: number): bool
 
 /** Letters a line needs that you don't own yet. */
 /** True when you own every letter in `letters`. */
-export function inReach(state: GameState, letters: string): boolean {
-  for (const c of letters) if (!hasLetter(state, c)) return false;
+export function inReach(state: GameState, letters: string, genre?: Genre): boolean {
+  for (const c of letters) if (!hasLetter(state, c, genre)) return false;
   return true;
 }
 
-export function missingLetters(state: GameState, letters: string): string[] {
-  return [...new Set(letters)].filter((c) => !hasLetter(state, c)).sort();
+export function missingLetters(state: GameState, letters: string, genre?: Genre): string[] {
+  return [...new Set(letters)].filter((c) => !hasLetter(state, c, genre)).sort();
 }
 
-/** Whether monkeys can type a letter: one you own, or any Greek capital (the Greek department has them all). */
-function hasLetter(state: GameState, c: string): boolean {
-  return state.letters.includes(c) || greekLetters.includes(c);
+/** Whether monkeys can type a letter of a genre's text: one you own, or for a foreign text any letter of its alphabet (that department has them all). */
+function hasLetter(state: GameState, c: string, genre?: Genre): boolean {
+  return isForeign(genre) ? alphabet(state, genre).includes(c) : state.letters.includes(c) || greekLetters.includes(c);
 }
 
 /** The letters a department's monkeys type: the Greek capitals for Greek, your letters for the rest. */
 export function lettersFor(state: GameState, genre: Genre | undefined): string[] {
-  return genre === 'greek' ? greekLetters : state.letters;
+  return alphabet(state, textGenre(state, genre));
+}
+
+/** The letters a genre's texts are typed in: the Greek capitals, the Latin texts' capitals, or your letters. */
+function alphabet(state: GameState, genre: Genre | undefined): string[] {
+  return genre === 'greek' ? greekLetters : genre === 'latin' ? latinLetters : state.letters;
+}
+
+/** The genre a department types now: the Greek department's language once it can type Latin too (see switchClassical), else its own. */
+export function textGenre(state: GameState, department: Genre | undefined): Genre | undefined {
+  return department === 'greek' && latinUnlocked(state) ? state.classical : department;
 }
 
 /** Unwritten lines of a play that you own, with every letter they need, shortest first. */
@@ -813,7 +826,7 @@ export function reachableLines(state: GameState, playId: string): number[] {
   return play.lines
     .map((line, i) => ({ line, i }))
     .filter(
-      ({ line, i }) => !done.has(i) && ownsLine(state, play, i) && inReach(state, line.letters),
+      ({ line, i }) => !done.has(i) && ownsLine(state, play, i) && inReach(state, line.letters, play.genre),
     )
     .sort((a, b) => a.line.letters.length - b.line.letters.length || a.i - b.i)
     .map(({ i }) => i);
@@ -822,7 +835,8 @@ export function reachableLines(state: GameState, playId: string): number[] {
 /** Owned lines of one genre by their letters, rebuilt when ownership changes. */
 let ownedCache = new Map<string, { key: string; byLetters: Map<string, Pin[]>; words: string[] }>();
 
-function ownedLines(state: GameState, genre: Genre | undefined): { byLetters: Map<string, Pin[]>; words: string[] } {
+function ownedLines(state: GameState, department: Genre | undefined): { byLetters: Map<string, Pin[]>; words: string[] } {
+  const genre = textGenre(state, department);
   const key = state.owned.join('|');
   let entry = ownedCache.get(genre ?? '');
   if (entry?.key !== key) {
@@ -856,14 +870,15 @@ function isOneLetterRun(word: string): boolean {
  * The dictionary for the player's current letters plus the words of a
  * department's owned scenes (which always count), rebuilt only when they change.
  */
-export function dictionaryFor(state: GameState, genre = departmentGenres(state)[0]): Dictionary {
+export function dictionaryFor(state: GameState, department = departmentGenres(state)[0]): Dictionary {
+  const genre = textGenre(state, department);
   let entry = cached.get(genre ?? '');
   // Checking the snapshots first skips building the key on almost every letter.
   if (entry && unchanged(entry.letters, state.letters) && unchanged(entry.owned, state.owned)) return entry.dict;
   const key = [...state.letters].sort().join('') + '|' + state.owned.join('|');
   if (entry?.key !== key) {
     // A foreign text scores only its own words.
-    const words = [...(genre === 'greek' ? [] : wordList), ...ownedLines(state, genre).words].filter((w) => !isOneLetterRun(w));
+    const words = [...(isForeign(genre) ? [] : wordList), ...ownedLines(state, genre).words].filter((w) => !isOneLetterRun(w));
     entry = { key, dict: new Dictionary(words, lettersFor(state, genre)), letters: snapshot(state.letters), owned: snapshot(state.owned) };
     cached.set(genre ?? '', entry);
   }
@@ -1127,7 +1142,11 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
   if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
-  if (kind === 'library') state.galleries = Math.max(1, state.galleries); // the first gallery comes with the room
+  if (kind === 'library') {
+    state.galleries = Math.max(1, state.galleries); // the first gallery comes with the room
+    shelveBooks(state);
+    unlockLatin(state);
+  }
   seatWaiting(state);
   return true;
 }
@@ -1539,7 +1558,7 @@ export function buyKey(state: GameState, key: string): boolean {
 
 /** Everything a monkey can hit, with weights: your letters and your keys (a Greek department's monkeys: the Greek capitals). */
 export function keyboard(state: GameState, genre?: Genre): { text: string; weight: number }[] {
-  if (genre === 'greek') return greekLetters.map((l) => ({ text: l, weight: 1 }));
+  if (isForeign(textGenre(state, genre))) return lettersFor(state, genre).map((l) => ({ text: l, weight: 1 }));
   return [
     ...state.letters.map((l) => ({ text: l, weight: 1 })),
     ...state.keys.map((k) => ({ text: k, weight: 1 })),
@@ -1982,16 +2001,17 @@ function unpin(state: GameState, pin: Pin): void {
  * words than the department has slots when there are any. Null when nothing
  * is in reach.
  */
-export function managerLine(state: GameState, genre: Genre | undefined, rng: Rng = Math.random): Pin | null {
+export function managerLine(state: GameState, department: Genre | undefined, rng: Rng = Math.random): Pin | null {
   const lines: { pin: Pin; words: number }[] = [];
+  const genre = textGenre(state, department);
   for (const play of plays.values()) {
     if (play.genre !== genre) continue;
     const done = new Set(state.completed[play.id] ?? []);
     play.lines.forEach((line, index) => {
-      if (!done.has(index) && ownsLine(state, play, index) && inReach(state, line.letters)) lines.push({ pin: { play: play.id, index }, words: line.words.length });
+      if (!done.has(index) && ownsLine(state, play, index) && inReach(state, line.letters, genre)) lines.push({ pin: { play: play.id, index }, words: line.words.length });
     });
   }
-  const slots = departmentSlots(state, genre).length;
+  const slots = departmentSlots(state, department).length;
   const fit = lines.filter((l) => l.words <= slots);
   const pool = fit.length > 0 ? fit : lines;
   return pool.length > 0 ? pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))].pin : null;
@@ -2000,7 +2020,7 @@ export function managerLine(state: GameState, genre: Genre | undefined, rng: Rng
 /** Whether a manager's line still stands: owned, unwritten and within reach. */
 function lineStands(state: GameState, t: Pin): boolean {
   const play = plays.get(t.play);
-  return !!play?.lines[t.index] && !(state.completed[t.play] ?? []).includes(t.index) && ownsLine(state, play, t.index) && inReach(state, play.lines[t.index].letters);
+  return !!play?.lines[t.index] && !(state.completed[t.play] ?? []).includes(t.index) && ownsLine(state, play, t.index) && inReach(state, play.lines[t.index].letters, play.genre);
 }
 
 /** How much quicker than usual a manager changes slots: upgrades, its office's furniture and (with the book) its chi. */
@@ -2138,6 +2158,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   crackSafes(state, seconds, rng);
   unlockGreek(state);
   shelveBooks(state);
+  unlockLatin(state);
   deliverTelegrams(state, seconds, rng);
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
@@ -2435,6 +2456,7 @@ export function unlockGreek(state: GameState): boolean {
   for (const sc of play.scenes) state.owned.push(`${play.id}:${sc.key}`);
   state.completed[play.id] ??= [];
   if (!state.departments.includes('greek')) state.departments.push('greek');
+  announce(state, `The scroll is in Greek: a Greek department opened to type and translate it.`);
   return true;
 }
 
@@ -2532,6 +2554,7 @@ export function crackSafes(state: GameState, seconds: number, rng: Rng = Math.ra
   const opened = Object.values(state.safes).filter((x) => x.open).length;
   target.open = true;
   target.held = safes.contents[opened] ?? safes.empty;
+  announce(state, `${codebreaking.name} cracked a safe! It held ${target.held}.`);
   state.codebreakFocus = codebreakTargets(state)[0] ?? '';
 }
 
@@ -2578,6 +2601,7 @@ export function deliverTelegrams(state: GameState, seconds: number, rng: Rng = M
   }
   const n = state.telegrams.length;
   state.telegrams.push({ key: randomKey(enigma.leads + n, rng), tested: 0, keyAt: 1 + Math.floor(rng() * telegramSettings(n)), read: false });
+  announce(state, 'A telegram came, in Enigma (Staff store).');
   return true;
 }
 
@@ -2897,6 +2921,7 @@ export function canBuildLibrary(state: GameState): boolean {
 export function shelveBooks(state: GameState): boolean {
   const fresh = state.playsDone.filter((id) => !state.shelved.includes(id));
   state.shelved.push(...fresh);
+  if (libraryRoom(state)) for (const id of fresh) announce(state, `${bookTitle(id)} is shelved in the ${library.name}.`);
   return fresh.length > 0;
 }
 
@@ -2935,4 +2960,44 @@ export function buyGallery(state: GameState): boolean {
 export function libraryBonus(state: GameState): number {
   if (!libraryRoom(state)) return 0;
   return Math.min(Math.max(1, state.galleries), Math.floor(state.shelved.length / library.booksPerGallery)) * library.fullBonus;
+}
+
+/** Whether the Latin text is found: the Library's first shelf held it, which makes the Greek department the Classical department. */
+export function latinUnlocked(state: GameState): boolean {
+  return state.owned.some((k) => k.startsWith(`${translation.latinText}:`));
+}
+
+/**
+ * Building the Library for the first time (and again after a Folio) finds
+ * the Latin text on its first shelf (Justin, 2026-10-17): you own all of it,
+ * it's shelved, and the Greek department (opened now if it isn't yet) becomes
+ * the Classical department, which can type Greek or Latin. Returns whether it
+ * was found now.
+ */
+export function unlockLatin(state: GameState): boolean {
+  const play = plays.get(translation.latinText);
+  if (!play || !libraryRoom(state) || latinUnlocked(state)) return false;
+  const opened = state.departments.includes('greek');
+  for (const sc of play.scenes) state.owned.push(`${play.id}:${sc.key}`);
+  state.completed[play.id] ??= [];
+  if (!opened) state.departments.push('greek');
+  if (!state.shelved.includes(play.id)) state.shelved.push(play.id);
+  announce(state, `A book in Latin was waiting on the ${library.name}'s first shelf: ${play.title}.`);
+  announce(state, opened ? 'The Greek department is now the Classical department: it can type Latin too (Staff store).' : 'A Classical department opened to type it: build its room on the office map.');
+  return true;
+}
+
+/** Switches the Classical department between Greek and Latin. Its slots and its manager's line start over in the new language. */
+export function switchClassical(state: GameState): boolean {
+  if (!latinUnlocked(state)) return false;
+  state.classical = state.classical === 'greek' ? 'latin' : 'greek';
+  state.slots = state.slots.map((x) => (x.department === 'greek' ? { ...x, word: '', on: false } : x));
+  for (const m of state.monkeys) if (m.manager && m.department === 'greek') m.target = null;
+  announce(state, `The Classical department is typing ${state.classical === 'greek' ? 'Greek' : 'Latin'} now.`);
+  return true;
+}
+
+/** Adds a line to the LATELY feed's news: what just opened or changed (Justin, 2026-10-17: "it shows up as messages in the lately category"). */
+export function announce(state: GameState, text: string): void {
+  state.lately.news = [...state.lately.news, { text, at: state.stats.secondsTyping }].slice(-lately.maxNews);
 }

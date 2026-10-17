@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream';
 import { achievements, research, hr, marketing, codebreaking, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { sceneName, textToWords, type Genre, type PlayData } from '../game/plays';
+import { isForeign, sceneName, textToWords, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   dyeHat,
@@ -125,6 +125,8 @@ import {
   codebreakerBlocker,
   codebreakerCost,
   cycleCodebreakFocus,
+  switchClassical,
+  latinUnlocked,
 } from '../game/logic';
 import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
 import { GAME_VERSION } from '../version';
@@ -135,7 +137,7 @@ import {
   keyChoices,
   renderLetterPicker,
   unownedLetters,
-  genreNames,
+  departmentName,
   departmentPrompt,
   managerChoices,
   managerUpgradePrompt,
@@ -345,12 +347,12 @@ function hiringBase(h: Hiring): number {
 
 /** What a hire is for, e.g. "a monkey for Comedies". */
 function hiringTitle(h: Hiring): string {
-  if (h.job === 'managing') return `a manager for ${genreNames[h.genre!]}`;
+  if (h.job === 'managing') return `a manager for ${departmentName(state, h.genre!)}`;
   if (h.job === 'research') return 'a researcher';
   if (h.job === 'hr') return `an ${hr.name} monkey`;
   if (h.job === 'marketing') return 'a marketing monkey';
   if (h.job === 'codebreaking') return 'a codebreaker';
-  return h.genre ? `a monkey for ${genreNames[h.genre]}` : 'a monkey';
+  return h.genre ? `a monkey for ${departmentName(state, h.genre)}` : 'a monkey';
 }
 
 /** Makes a hire: candidate `from` on HR's list, or someone unseen. */
@@ -417,7 +419,7 @@ function buyItem(id: string): void {
   } else if (id.startsWith('boss:')) {
     const g = id.slice('boss:'.length) as Genre;
     const blocked = managerBlocker(state, g);
-    if (blocked) message = `${genreNames[g]} can't hire a manager yet: ${blocked}.${blocked.includes('office') || blocked.includes('door') || blocked.includes('desk') ? ' See the office map ([o]).' : ''}`;
+    if (blocked) message = `${departmentName(state, g)} can't hire a manager yet: ${blocked}.${blocked.includes('office') || blocked.includes('door') || blocked.includes('desk') ? ' See the office map ([o]).' : ''}`;
     else if (!hrRoom(state) && state.currency < managerCost(state, g)) message = `Not enough ${theme.currency}.`;
     else hire({ job: 'managing', genre: g });
   } else if (id === 'researcher') {
@@ -442,6 +444,9 @@ function buyItem(id: string): void {
     message = cycleCodebreakFocus(state) ? `${codebreaking.name} turns to ${focusName(state.codebreakFocus)}.` : 'Nothing else to work on.';
   } else if (id === 'telegram') {
     readingTelegrams = true;
+  } else if (id === 'classical') {
+    switchClassical(state);
+    message = `The Classical department types ${state.classical === 'greek' ? 'Greek' : 'Latin'} now.`;
   } else if (id.startsWith('research:')) {
     const p = projectOf(id.slice('research:'.length));
     if (!p) return;
@@ -602,7 +607,7 @@ function newRoomMessage(room: Room): string {
     ...(room.kind === 'lab' ? ['Hire researchers for it in the Staff store.'] : []),
     ...(room.kind === 'hr' ? ['Hire HR monkeys for it in the Staff store.'] : []),
     ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
-    ...(room.kind === 'library' ? ['Every finished play, text and Folio is shelved here. [i] on it to go in.'] : []),
+    ...(room.kind === 'library' ? [`Every finished play, text and Folio is shelved here. [i] on it to go in.${latinUnlocked(state) ? ' A book in Latin waits on its first shelf, and the Greek department is now the Classical department.' : ''}`] : []),
     ...(room.kind === 'codebreaking' ? ['Hire codebreakers for it in the Staff store: they try combinations on a safe you found.'] : []),
   ].join(' ');
 }
@@ -856,7 +861,7 @@ function quit() {
 /** A prompt listing the departments with room, keys 1-4. */
 function deptPrompt(question: string): string {
   const choices = departmentsWithRoom(state).map(
-    (g, i) => `[${i + 1}] ${genreNames[g]} (${departmentTypists(state, g)}/${departmentRules.maxTypists})`,
+    (g, i) => `[${i + 1}] ${departmentName(state, g)} (${departmentTypists(state, g)}/${departmentRules.maxTypists})`,
   );
   return `${question} ${choices.join('   ')}   (any other key cancels)`;
 }
@@ -978,7 +983,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
   if (readingShelf) {
     const step = { up: -1, down: 1, pageup: -bookHeight(), pagedown: bookHeight(), k: -1, j: 1 }[key.name ?? ''];
-    const last = Math.max(0, bookRows(readingShelf.id, process.stdout.columns || 0).length - bookHeight());
+    const last = Math.max(0, bookRows(state, readingShelf.id, process.stdout.columns || 0).length - bookHeight());
     if (step) readingShelf.top = Math.max(0, Math.min(last, readingShelf.top + step));
     else if (key.name === 'escape' || key.name === 'q' || key.name === 'return' || key.name === 'enter') readingShelf = null;
     return draw();
@@ -1131,7 +1136,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const g = departmentChoices(state)[Number(str) - 1];
     message =
       g && openDepartment(state, g)
-        ? `The ${genreNames[g]} department is open. Buy in the script ([p]) and move monkeys there with [d].`
+        ? `The ${departmentName(state, g)} department is open. Buy in the script ([p]) and move monkeys there with [d].`
         : 'No department opened.';
     return draw();
   }
@@ -1242,7 +1247,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       }
     } else if (key.name === 'tab') {
       contents = 'plays';
-      contentsTab = play?.genre === 'greek' ? 'foreign' : 'plays';
+      contentsTab = isForeign(play?.genre) ? 'foreign' : 'plays';
       contentsCursor = Math.max(0, tabPlays(contentsTab).indexOf(play!));
     } else if (play && (str === 'b' || (str === 'a' && play.genre !== 'sonnet') || str === 'w')) {
       buyScriptSection(str);
@@ -1489,7 +1494,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${genreNames[c.genre!]}'s manager` : `a room for ${genreNames[c.genre!]}`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${departmentName(state, c.genre!)}'s manager` : `a room for ${departmentName(state, c.genre!)}`}`,
       );
       message = `Buy a room (${formatNumber(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
@@ -1726,7 +1731,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (str === 'd') {
     const i = homeChosen(state, homeCursor);
     message = moveMonkey(state, i)
-      ? `${monkeyName(state, i)} now works in ${genreNames[monkeyGenre(state, state.monkeys[i])!]}.`
+      ? `${monkeyName(state, i)} now works in ${departmentName(state, monkeyGenre(state, state.monkeys[i])!)}.`
       : state.monkeys.length === 1
         ? 'You need more monkeys and departments first.'
         : 'No monkey moved. Moving needs a second department.';
