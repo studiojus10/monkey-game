@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { codebreaking, safe, safes, translation } from '../src/game/config';
 import {
-  addSafes,
+  buyFurniture,
+  officesWithoutSafe,
   buyRoom,
   canBuildCodebreaking,
   codebreakerBlocker,
@@ -27,9 +28,12 @@ import {
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState, createMonkey, type GameState } from '../src/game/state';
 import { safeText } from '../src/cli/office';
-import { renderScroll } from '../src/cli/screen';
+import { renderScroll, storeItems } from '../src/cli/screen';
 
-/** Comedy and tragedy departments, each with a manager's office (and so a safe), and plenty of bananas. */
+/** What the Manager furniture store sells. */
+const sold = (s: GameState) => storeItems(s, 'office').map((x) => x.text).join('|');
+
+/** Comedy and tragedy departments, each with a manager's office and a safe bought for it, and plenty of bananas. */
 function offices(): GameState {
   const s = createInitialState(0);
   s.letters = ['I'];
@@ -39,12 +43,27 @@ function offices(): GameState {
   expect(buyRoom(s, 'department', 'tragedy')).toBe(true);
   expect(buyRoom(s, 'office', 'comedy')).toBe(true);
   expect(buyRoom(s, 'office', 'tragedy')).toBe(true);
+  expect(buyFurniture(s, 'safe', 'office')).toBe(true);
+  expect(buyFurniture(s, 'safe', 'office')).toBe(true);
   return s;
 }
 const safeIn = (s: GameState, genre: 'comedy' | 'tragedy') => s.furniture.findIndex((f) => f.kind === safe.id && f.room === officeOf(s, genre)!.id);
 
 describe('safes', () => {
-  it("come with every manager's office, stay put, and are found by inspecting them", () => {
+  it("are sold for a manager's office that has none, one each, stay put, and are found by inspecting them", () => {
+    const fresh = createInitialState(0);
+    fresh.departments = ['comedy'];
+    fresh.sentences = 1e15;
+    expect(sold(fresh)).not.toContain('Safe');
+    expect(buyRoom(fresh, 'office', 'comedy')).toBe(true);
+    expect(officesWithoutSafe(fresh)).toHaveLength(1); // offices come without one
+    expect(sold(fresh)).toContain('Safe');
+    const before = fresh.sentences;
+    expect(buyFurniture(fresh, 'safe', 'office')).toBe(true);
+    expect(before - fresh.sentences).toBe(safe.cost);
+    expect(buyFurniture(fresh, 'safe', 'office')).toBe(false); // one per office
+    expect(sold(fresh)).not.toContain('Safe');
+
     const s = offices();
     const c = safeIn(s, 'comedy');
     expect(c).toBeGreaterThanOrEqual(0);
@@ -59,10 +78,6 @@ describe('safes', () => {
     expect(canBuildCodebreaking(s)).toBe(true);
     expect(safeText(s, c)).toContain('Codebreaking office could crack it');
     expect(safeText(s, c)).toContain('a five-digit dial (100,000 combinations)');
-    // Offices from before safes get one.
-    s.furniture.splice(safeIn(s, 'tragedy'), 1);
-    addSafes(s);
-    expect(safeIn(s, 'tragedy')).toBeGreaterThanOrEqual(0);
     const back = deserialize(serialize(s));
     expect(back.safes).toEqual(s.safes);
     expect(back.codebreakFocus).toBe('comedy');

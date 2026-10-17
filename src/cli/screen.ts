@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, translation, research, hr, marketing, combo } from '../game/config';
+import { achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, translation, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -96,6 +96,7 @@ import {
   codebreakerCost,
   codebreakerBlocker,
   codebreakTargets,
+  officesWithoutSafe,
   scrollFound,
   scrollLetters,
   translatedSentences,
@@ -869,7 +870,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
     case 'break':
     case 'office': {
       const have = state.office.some((r) => r.kind === store);
-      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store) && k.cost > 0).sort((a, b) => a.cost - b.cost);
+      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store) && (k.id !== safe.id || officesWithoutSafe(state).length > 0)).sort((a, b) => a.cost - b.cost);
       const roomName = store === 'break' ? 'break room' : store === 'office' ? "manager's office" : "department's room";
       return [
         {

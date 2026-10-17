@@ -1106,7 +1106,6 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height, at);
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
-    addSafes(state);
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
   if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
   seatWaiting(state);
@@ -1221,7 +1220,10 @@ export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room[
   // Only rooms of roomKind when given; else rooms of the kind it suits first (decor in departments' rooms, comforts in break rooms).
   const suits = kindOf(kind)?.rooms ?? [];
   const first: Room['kind'] = roomKind ?? (suits.length === 1 ? suits[0] : (kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
-  const rooms = [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
+  const rooms =
+    kind === safe.id
+      ? officesWithoutSafe(state)
+      : [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
   const [w, h] = pieceSize(kind);
   for (const room of rooms) {
     for (const [x, y] of bestSquares(state, room)) {
@@ -2337,13 +2339,9 @@ export function hrStaff(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (isHR(m) ? [i] : []));
 }
 
-/** Puts a safe in every manager's office that has none (new offices, and offices from before safes). */
-export function addSafes(state: GameState): void {
-  for (const room of state.office.filter((r) => r.kind === 'office')) {
-    if (state.furniture.some((f) => f.room === room.id && f.kind === safe.id)) continue;
-    const square = bestSquares(state, room, true).find(([x, y]) => fitsAt(state, room.id, safe.id, x, y));
-    if (square) state.furniture.push({ kind: safe.id, room: room.id, x: square[0], y: square[1] });
-  }
+/** Managers' offices without a safe yet: where the Manager store's safe goes (one each). */
+export function officesWithoutSafe(state: GameState): Room[] {
+  return state.office.filter((r) => r.kind === 'office' && !state.furniture.some((f) => f.room === r.id && f.kind === safe.id));
 }
 
 /** The genre of the manager's office a piece of furniture stands in ('' if none). */

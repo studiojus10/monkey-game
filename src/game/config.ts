@@ -263,14 +263,19 @@ export const managerDesk: FurnitureKind = {
   description: 'A big oak desk with a nameplate, a stamp and three pens. The bottom drawer is stuck shut, or nearly.',
 };
 
-/** The safe in every manager's office: not sold, and it stays put in its office. */
+/**
+ * A safe for a manager's office (Justin, 2026-10-17: "make safes a purchasable
+ * furniture upgrade that only shows up in the menu when a new managers office
+ * is placed"): sold in the Manager store while a manager's office has none,
+ * one per office; it can't be stored, sold or moved out of its office.
+ */
 export const safe: FurnitureKind = {
   id: 'safe',
   name: 'Safe',
   glyph: 'S',
   color: 'gray',
-  cost: 0,
-  costGrowth: 1,
+  cost: 5_000,
+  costGrowth: 2,
   drain: 0,
   rest: 0,
   happiness: 0,
@@ -497,8 +502,8 @@ export const hr = {
  */
 /**
  * Safes (Justin, 2026-10-17: "a 5 digit combination safe as an item for the
- * managers office"). Every manager's office comes with one (not sold, and it
- * can't leave its office). Inspecting one ([i] on the office map) finds it,
+ * managers office"). You can buy one for each manager's office (see `safe`).
+ * Inspecting one ([i] on the office map) finds it,
  * and the first one found lets you build a Codebreaking office. Each safe
  * found is harder than the last, whichever department it's in (Justin:
  * "each safe should get harder than the last. maybe eventually they can work

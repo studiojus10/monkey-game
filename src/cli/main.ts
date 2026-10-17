@@ -121,7 +121,6 @@ import {
   codebreakerBlocker,
   codebreakerCost,
   cycleCodebreakFocus,
-  addSafes,
 } from '../game/logic';
 import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
 import { GAME_VERSION } from '../version';
@@ -198,7 +197,6 @@ const fromVersion = saved && saved.gameVersion !== GAME_VERSION ? saved.gameVers
 const backupPath = fromVersion ? savePath.replace(/(\.json)?$/, `-${saved!.gameVersion ? `v${saved!.gameVersion}` : 'old'}.json`) : '';
 if (backupPath && savedRaw && !existsSync(backupPath)) writeFileSync(backupPath, savedRaw);
 let state = deserialize(savedRaw);
-addSafes(state); // managers' offices from before safes get one
 setScientific(state.settings.scientific);
 /** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
 function fitLines(): number {
