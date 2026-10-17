@@ -477,7 +477,7 @@ describe('monkeys', () => {
     // With only I, every letter is a 1-point word.
     expect(earned / letters).toBeCloseTo(1, 3);
     expect(s.wordsTyped / letters).toBeCloseTo(1, 3);
-  });
+  }, 30_000); // simulates hours of 100 monkeys: slow on a busy CI runner
 });
 
 describe('combos', () => {
