@@ -514,7 +514,8 @@ export const hr = {
  * whichever safe is opened (Justin: "the contents of the safes are unlocked
  * in the same order no matter which department"): the first safe opened holds
  * the first foreign text (Greek, from Aristotle's Metaphysics, for
- * translation later), and so on down `contents`. Placeholders.
+ * translation later), and so on down `contents`. The notes are placeholder
+ * nonsense (Justin: story stuff is nonsense until he specifies it).
  */
 export const safes = {
   locks: [
@@ -525,12 +526,12 @@ export const safes = {
   ],
   contents: [
     'a scroll covered in Greek letters, signed with a name: ARISTOTLE. Nobody here can read it. Yet.',
-    'a rubber banana and a note in a monkey\'s scrawl: "The best jokes are typed by accident."',
-    'a yellowed memo: "Re: the Globe. Do NOT let the monkeys near the cannon again."',
-    'a single page of a lost play. Every word on it is BANANA.',
-    'a pressed rose and a love letter, misspelled beautifully.',
+    'a note: "Flibber the wobsnark twelvely. Plonk."',
+    'a note: "Grumbleworth sings the teapot backwards on Thursdays."',
+    'a note: "Zizzle. Zizzle. Frondabout the custard moon."',
+    'a note: "Wimble the snorkpot, quoth the gargleduck."',
   ],
-  empty: 'dust, and a note in neat handwriting: "Not this one. Keep looking."',
+  empty: 'a note: "Blorp. Blorp again. Splendiferous noodlewhip."',
   found: 'A heavy steel safe. Something rattles inside when you tip it.',
   open: 'The safe stands open. Inside:',
 };
