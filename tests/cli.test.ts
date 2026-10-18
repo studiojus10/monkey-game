@@ -1164,3 +1164,26 @@ describe('scrolling lists', () => {
   });
 });
 
+
+describe('pickers', () => {
+  it('lists the inventory hats for a hat spot, with no hat last, and the stored furniture that fits a room', async () => {
+    const { renderHatPicker, hatChoices } = await import('../src/cli/inventory');
+    const { renderFurniturePicker } = await import('../src/cli/office');
+    const { storedFitting, placeStoredFurniture } = await import('../src/game/logic');
+    const s = createInitialState(0);
+    s.stored.hats = { tophat: 2 };
+    expect(hatChoices(s, 0)).toEqual(['tophat', '']);
+    const box = renderHatPicker(s, 0, 0).join('\n').replace(/\x1b\[[\d;]+m/g, '');
+    expect(box).toContain('[1]');
+    expect(box).toContain('x2');
+    expect(box).toContain('[2]');
+    expect(box).toContain('no hat');
+    const room = s.office[0].id;
+    s.stored.furniture = { plant: 1 };
+    expect(storedFitting(s, room)).toEqual(['plant']);
+    expect(renderFurniturePicker(s, room, -1).join('\n')).toContain('Potted plant');
+    expect(placeStoredFurniture(s, 'plant', room)).toBe(true);
+    expect(s.furniture.at(-1)?.room).toBe(room);
+    expect(storedFitting(s, room)).toEqual([]);
+  });
+});

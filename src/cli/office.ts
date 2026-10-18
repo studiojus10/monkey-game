@@ -1,5 +1,7 @@
 import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, records, library, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
+import { menuBox } from './hiring';
 import {
+  storedFitting,
   departmentMonkeys,
   expansionSquares,
   monkeyName,
@@ -235,7 +237,7 @@ export function renderOffice(
       : heldDoor
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
-            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow']],
+            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['p', 'put out'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow']],
             [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['/', 'help'], ['esc', 'back']],
           ];
   const doing = grow
@@ -382,7 +384,8 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     '   the nearest break room by a door or hallway. When two are as near,',
     '   the bigger one wins, then the more furnished.',
     '   Furniture makes monkeys happy: more bananas, slower tiring, faster recovery.',
-    '   Buy it here with [f].',
+    '   Buy it here with [f]. [p] puts out a piece from your inventory',
+    '   in the room under the cursor.',
     ...(state.fengShuiBook
       ? ['', dim(' FENG SHUI'), `   Office chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} happiness everywhere.`, '   [b] on the map opens the book: what each room needs for good chi.']
       : []),
@@ -535,4 +538,17 @@ export function renderFengShuiBook(state: GameState): string {
 /** A price's label: green when you can afford it, dim when you can't. */
 function label(text: string, cost: number, have: number): string {
   return have >= cost ? green(text) : dim(text);
+}
+
+/** The popup of furniture in your inventory that fits in a room (Justin, 2026-10-18), with how many of each and their size. */
+export function renderFurniturePicker(state: GameState, roomId: string, cursor = -1): string[] {
+  const room = state.office.find((r) => r.id === roomId);
+  const rows = storedFitting(state, roomId).map((id) => {
+    const kind = furnitureKinds.find((k) => k.id === id)!;
+    const [w, h] = pieceSize(id);
+    const count = state.stored.furniture[id];
+    return `${furnitureColor(kind.color, kind.glyph)} ${kind.name}${count > 1 ? ` x${count}` : ''}${w * h > 1 ? dim(` (${w} x ${h})`) : ''}`;
+  });
+  const empty = Object.values(state.stored.furniture).some((n) => n > 0) ? 'Nothing in your inventory fits in this room.' : 'No furniture in your inventory: [s] puts a piece away.';
+  return menuBox(`Furniture for the ${room ? roomName(state, room) : 'room'}`, rows, cursor, empty);
 }

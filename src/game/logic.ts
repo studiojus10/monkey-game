@@ -1291,6 +1291,23 @@ export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room[
   return null;
 }
 
+/** The best free spot for a piece in one room, or null if it doesn't fit there (a safe only goes in a manager's office without one). */
+export function furnitureSpotIn(state: GameState, kind: string, roomId: string): Omit<Furniture, 'kind'> | null {
+  const room = state.office.find((r) => r.id === roomId);
+  if (!room || (kind === safe.id && !officesWithoutSafe(state).includes(room))) return null;
+  const [w, h] = pieceSize(kind);
+  for (const [x, y] of bestSquares(state, room)) {
+    if (fitsAt(state, room.id, kind, x, y)) return { room: room.id, x, y };
+    if (w !== h && fitsAt(state, room.id, kind, x, y, true)) return { room: room.id, x, y, turned: true };
+  }
+  return null;
+}
+
+/** The kinds of furniture in the inventory that fit in a room, in shop order. */
+export function storedFitting(state: GameState, roomId: string): string[] {
+  return furnitureKinds.filter((k) => state.stored.furniture[k.id] && furnitureSpotIn(state, k.id, roomId)).map((k) => k.id);
+}
+
 /** Whether a piece of furniture hides the feng shui book, not yet read (it's in every bookshelf until then). */
 export function hidesBook(state: GameState, index: number): boolean {
   return !state.fengShuiBook && state.furniture[index]?.kind === fengShui.hiddenIn;
@@ -1343,8 +1360,8 @@ export function buyFurniture(state: GameState, kind: string, roomKind?: Room['ki
 }
 
 /** Takes a piece of furniture out of the inventory and stands it where it fits, for free. */
-export function placeStoredFurniture(state: GameState, kind: string): boolean {
-  const spot = furnitureSpot(state, kind);
+export function placeStoredFurniture(state: GameState, kind: string, roomId?: string): boolean {
+  const spot = roomId ? furnitureSpotIn(state, kind, roomId) : furnitureSpot(state, kind);
   if (!state.stored.furniture[kind] || !spot) return false;
   unstore(state.stored.furniture, kind);
   state.furniture.push({ kind, ...spot });
