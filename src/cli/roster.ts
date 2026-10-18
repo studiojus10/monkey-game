@@ -113,7 +113,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
           : []),
         `${label('Happiness')} ${monkeyHappiness(state, m) < 0 ? '' : '+'}${Math.round(monkeyHappiness(state, m) * 100)}%${m.petHappiness > 0 ? dim(`  (petted lately: +${(m.petHappiness * 100).toFixed(1)}%)`) : ''}`,
         `${label('Hat')} ${hat ? `${hat.name}${m.hatColor ? `, dyed ${hatColors.find((c) => c.id === m.hatColor)?.id}` : ''}: ${hatEffect(hat)}` : 'none'}`,
-        `${label('Trait')} ${state.managerBook ? (trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?') : dim('unknown (perhaps a book somewhere explains monkeys)')}`,
+        ...(state.managerBook ? [`${label('Trait')} ${trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?'}`] : []),
         ...(statsShown(state)
           ? [
               `${label('Stats')} speed ${statText(m.speedStat)}   stamina ${statText(m.stamina)}`,

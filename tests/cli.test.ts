@@ -302,7 +302,7 @@ describe('the roster', () => {
     expect(text).toContain('Worked     0s at the company');
     s.monkeys[1].worked = 3 * 86400 + 2 * 3600;
     expect(plain(renderRoster(s, 2))).toContain('Worked     3d 2h 0m at the company');
-    expect(text).toContain('unknown');
+    expect(text).not.toContain('Trait');
     s.managerBook = true;
     expect(plain(renderRoster(s, 2))).toContain('Loner');
     expect(plain(renderRoster(s, 2))).toContain('unknown (an HR office would find out)');
