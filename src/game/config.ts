@@ -954,6 +954,14 @@ export const managers = {
   // expensive, since one upgrades the whole department: the n-th costs
   // linesPerMonkey Lines per monkey in the department x upgradeCostGrowth^(n-1).
   bonusPerLevel: 0.1,
+  // Sentences (Justin, 2026-10-18): a manager multiplies the Sentences its
+  // department's chains pay, like the word combo: x1 plus sentencePerLevel for
+  // each upgrade as its base, then +sentenceGood for each chain holding a
+  // grammatical sentence (see grammar.ts) and -sentenceBad for each without
+  // one, never below the base. Placeholders.
+  sentencePerLevel: 0.1,
+  sentenceGood: 0.2,
+  sentenceBad: 0.1,
   linesPerMonkey: 50,
   upgradeCostGrowth: 2,
   // Managers change their department's word slots one at a time, one change

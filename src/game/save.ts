@@ -96,6 +96,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       department: str(m?.department),
       manager: !!m?.manager,
       managerLevel: Math.max(0, Math.floor(num(m?.managerLevel, 0))),
+      sentenceStreak: Math.max(0, num(m?.sentenceStreak, 0)),
       managerSpeedLevel: Math.max(0, Math.floor(num(m?.managerSpeedLevel, 0))),
       slotWait: Math.max(0, num(m?.slotWait, 0)),
       target:

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { hr, records } from '../src/game/config';
+import { hr, managers, records } from '../src/game/config';
 import { isGrammatical, sentencesIn, setLexicon } from '../src/game/grammar';
 import {
   buyRoom,
@@ -14,7 +14,10 @@ import {
   recordsRoom,
   recordsShare,
   setPlays,
+  setWordList,
+  sentenceMultiplier,
   tempTypewriter,
+  typeLetter,
 } from '../src/game/logic';
 import { bookRows } from '../src/cli/library';
 import { deserialize, serialize } from '../src/game/save';
@@ -95,5 +98,34 @@ describe('temps', () => {
     expect(tempTypewriter(s, hr.tempSecondTypewriter)).toBe(5);
     s.monkeys[3].tempLeft = 100; // temps don't count
     expect(tempTypewriter(s, 0)).toBe(1);
+  });
+});
+
+describe("a manager's Sentences multiplier", () => {
+  it('starts at its upgrades, rises with grammatical sentences and falls back to them with the rest', () => {
+    setWordList(['KINGS', 'LOVE', 'GOLD', 'LOVES']);
+    try {
+      const s = createInitialState(0);
+      s.departments = ['comedy'];
+      s.letters = ['K', 'I', 'N', 'G', 'S', 'L', 'O', 'V', 'E', 'D', 'X'];
+      s.monkeys[0].department = 'comedy';
+      s.monkeys.push({ ...createMonkey(), department: 'comedy', manager: true, managerLevel: 2 });
+      const boss = s.monkeys[1];
+      expect(sentenceMultiplier(boss)).toBeCloseTo(1 + 2 * managers.sentencePerLevel);
+      const type = (text: string) => {
+        for (const ch of text) typeLetter(s, 0, () => (s.letters.indexOf(ch) + 0.5) / s.letters.length);
+      };
+      type('KINGSLOVEGOLDXX'); // "kings love gold": grammatical
+      expect(boss.sentenceStreak).toBeCloseTo(managers.sentenceGood);
+      expect(s.sentences).toBeCloseTo(1 + 2 * managers.sentencePerLevel + managers.sentenceGood);
+      type('GOLDGOLDGOLDXX'); // a Sentence, but not grammatical
+      expect(boss.sentenceStreak).toBeCloseTo(managers.sentenceGood - managers.sentenceBad);
+      type('GOLDGOLDGOLDXX');
+      type('GOLDGOLDGOLDXX');
+      expect(boss.sentenceStreak).toBe(0); // never below its base
+      expect(deserialize(serialize(s))!.monkeys[1].sentenceStreak).toBe(0);
+    } finally {
+      setWordList([]);
+    }
   });
 });

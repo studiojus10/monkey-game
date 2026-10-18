@@ -1730,8 +1730,12 @@ export function chainSentences(counted: number): number {
 
 /** A chain just broke: a long one pays Sentences. */
 function endChain(state: GameState, m: MonkeyState): void {
-  recordChain(state, m.chainAll);
-  const n = chainSentences(m.chainCounted);
+  const n0 = chainSentences(m.chainCounted);
+  const found = n0 > 0 || recordsRoom(state) ? sentencesIn(m.chainAll) : [];
+  recordChain(state, m.chainAll, found);
+  const boss = n0 > 0 ? managerOf(state, monkeyGenre(state, m)) : undefined;
+  if (boss) boss.sentenceStreak = Math.max(0, boss.sentenceStreak + (found.length > 0 ? managers.sentenceGood : -managers.sentenceBad));
+  const n = n0 * (boss ? sentenceMultiplier(boss) : 1);
   state.sentences += n;
   state.stats.chainSentences += n;
   if (n === 0) return;
@@ -1970,6 +1974,16 @@ export function hireManager(state: GameState, genre: Genre | undefined, from?: n
 export function managerMultiplier(state: GameState, m: MonkeyState): number {
   const boss = managerOf(state, monkeyGenre(state, m));
   return boss ? (1 + managers.bonusPerLevel * boss.managerLevel) * (1 + jobBonus(boss)) : 1;
+}
+
+/** A manager's Sentences multiplier: its base from upgrades plus its streak of grammatical sentences. */
+export function sentenceMultiplier(boss: MonkeyState): number {
+  return sentenceBase(boss) + boss.sentenceStreak;
+}
+
+/** A manager's lowest Sentences multiplier: x1 plus sentencePerLevel per upgrade. */
+export function sentenceBase(boss: MonkeyState): number {
+  return 1 + managers.sentencePerLevel * boss.managerLevel;
 }
 
 /** Lines price of a manager's next upgrade: grows with its department's size and each level. */
@@ -3235,11 +3249,11 @@ function recordedSet(state: GameState): Set<number> {
  * caught at Records' share (its catch builds up, one sentence at a time) and
  * written in the book being filled; a full book goes to the Library.
  */
-export function recordChain(state: GameState, words: readonly string[]): void {
+export function recordChain(state: GameState, words: readonly string[], found = sentencesIn(words)): void {
   if (words.length < minSentenceWords || !recordsRoom(state)) return;
   const share = recordsShare(state);
   if (share <= 0) return;
-  for (const sentence of sentencesIn(words)) {
+  for (const sentence of found) {
     if (scriptLetters.has(sentence.join(''))) continue;
     const text = sentence.join(' ');
     const set = recordedSet(state);

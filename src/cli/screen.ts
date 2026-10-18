@@ -23,6 +23,7 @@ import {
   managerOf,
   slotGenre,
   managerUpgradeCost,
+  sentenceMultiplier,
   nextDepartmentAt,
   getPlay,
   comboCap,
@@ -826,7 +827,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               {
                 id: 'manager',
                 text: 'Upgrade a manager',
-                effect: `+${managers.bonusPerLevel}x bananas for its department`,
+                effect: `+${managers.bonusPerLevel}x bananas and base sentences for its department`,
                 cost: [[Math.min(...managerChoices(state).map((i) => managerUpgradeCost(state, state.monkeys[i]))), 'lines']] as [number, Currency][],
                 costFrom: managerChoices(state).length > 1,
                 star: managerChoices(state).some((i) => state.lines >= managerUpgradeCost(state, state.monkeys[i])),
@@ -1324,7 +1325,7 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
 function managerLine(m: MonkeyState): string {
   const play = m.target && getPlay(m.target.play);
   const line = play && m.target && play.lines[m.target.index];
-  const title = `MANAGER (department x${(1 + managers.bonusPerLevel * m.managerLevel).toFixed(1)})`;
+  const title = `MANAGER (department x${(1 + managers.bonusPerLevel * m.managerLevel).toFixed(1)}, sentences x${sentenceMultiplier(m).toFixed(1)})`;
   return play && line
     ? `${title}, aiming at ${play.title} ${lineLocation(line, play.genre)}`
     : `${title}, waiting for a line your letters can spell`;
@@ -1350,7 +1351,7 @@ export function managerUpgradePrompt(state: GameState): string {
   const choices = managerChoices(state).map((i, k) => {
     const m = state.monkeys[i];
     const now = 1 + managers.bonusPerLevel * m.managerLevel;
-    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} ` +
+    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} (sentences x${sentenceMultiplier(m).toFixed(1)}) ` +
       priceNamed(managerUpgradeCost(state, m), state.lines, 'lines');
   });
   return `Upgrade which manager? ${choices.join('   ')}   (any other key: done)`;
