@@ -2,7 +2,6 @@ import { hatColors, hats, marketing, codebreaking, records, research, hr, monkey
 import {
   comboMultiplier,
   currentSpeed,
-  deskOf,
   isResearcher,
   isHR,
   isMarketer,
@@ -24,7 +23,6 @@ import {
 } from '../game/logic';
 import type { GameState } from '../game/state';
 import { bySeniority, codebreakingStatus, recordsStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
-import { roomName } from './office';
 import { formatDuration } from '../format';
 import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, titleBar } from './style';
 
@@ -70,7 +68,7 @@ function statText(stat: number): string {
  * The roster: every monkey, grouped by department, with a cursor on one
  * (`cursor` is a position in rosterOrder), and below the list everything
  * about that monkey: its job, typing, energy, hats, trait (once the manager's
- * book is read) and desk.
+ * book is read).
  */
 export function renderRoster(state: GameState, cursor: number, message = '', columns = 0): string {
   const order = rosterOrder(state);
@@ -93,8 +91,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
   const i = order[at];
   const m = state.monkeys[i];
   const label = (s: string) => dim(`   ${s.padEnd(10)}`);
-  const desk = i === undefined ? undefined : deskOf(state, i);
-  const room = desk === undefined ? undefined : state.office.find((r) => r.id === state.furniture[desk].room);
   const hat = hats.find((h) => h.id === m?.hat);
   const trait = m && traitOf(m);
   const details = !m
@@ -127,7 +123,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
                 .join(dim(', '))}`,
             ]
           : [`${label('Stats')} ${dim(`unknown (an ${hr.name} office would find out)`)}`]),
-        `${label('Desk')} ${room ? `in the ${roomName(state, room)}` : 'none yet'}`,
       ];
 
   return [
