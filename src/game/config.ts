@@ -620,9 +620,9 @@ export const bibliography = [
   'William Shakespeare, Hamlet, Macbeth, A Midsummer Night\'s Dream, Richard III and the Sonnets. The Complete Works of William Shakespeare, the MIT edition (the public-domain Moby text), https://github.com/TheMITTech/shakespeare.',
   'ENABLE (Enhanced North American Benchmark Lexicon), the public-domain word list behind the dictionary.',
   'Grady Ward, Moby Part-of-Speech List (Moby Project, 1996), public domain: the parts of speech behind the Records department\'s grammar check.',
-  'Aristotle, Metaphysics I.4, 985b4-22. Greek: W. D. Ross, ed., Aristotle\'s Metaphysics (Oxford, 1924), via the Perseus Digital Library, CC BY-SA 4.0. English: W. D. Ross, trans. (Oxford, 1908), public domain.',
-  'Aristotle, De generatione et corruptione. Greek: C. Prantl, ed. (Leipzig: Teubner, 1881), via the First1KGreek project (Open Greek and Latin), CC BY-SA 4.0. English: H. H. Joachim, trans., On Generation and Corruption (Oxford, 1922), public domain, via the MIT Internet Classics Archive.',
-  'Marcus Tullius Cicero, De natura deorum. Latin: O. Plasberg, ed. (Leipzig: Teubner, 1917), via the Perseus Digital Library, CC BY-SA 4.0. English: C. D. Yonge, trans., The Nature of the Gods (London, 1878), public domain, via Project Gutenberg (ebook 14988).',
+  'Aristotle, Metaphysics I.4, 985b4-22. Greek: W. D. Ross, ed., Aristotle\'s Metaphysics (Oxford, 1924), public domain, transcribed from the Internet Archive\'s scan. English: W. D. Ross, trans. (Oxford, 1908), public domain.',
+  'Aristotle, De generatione et corruptione. Greek: I. Bekker, ed., Aristotelis Opera (Berlin: Royal Prussian Academy, 1831), public domain, via Greek Wikisource. English: H. H. Joachim, trans., On Generation and Corruption (Oxford, 1922), public domain, via the MIT Internet Classics Archive.',
+  'Marcus Tullius Cicero, De natura deorum. Latin: G. F. Schoemann, ed., De natura deorum libri tres, ed. A. Stickney (Boston: Ginn, 1881), public domain, from the Internet Archive\'s scan; section numbers from R. Klotz\'s Teubner text (Leipzig, 1879 and 1886), public domain. English: C. D. Yonge, trans., The Nature of the Gods (London, 1878), public domain, via Project Gutenberg (ebook 14988).',
 ];
 
 /**

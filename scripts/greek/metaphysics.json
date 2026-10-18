@@ -1,5 +1,5 @@
 {
- "source": "Greek: W. D. Ross ed., Perseus Digital Library (CC BY-SA 4.0), tlg0086.tlg025.perseus-grc2, 985b4-22. English: W. D. Ross, 1908.",
+ "source": "Greek: W. D. Ross, ed., Aristotle's Metaphysics, vol. 1 (Oxford, 1924), 985b4-22, transcribed from the Internet Archive's scan (aristotlesmetaph0001aris, pages 182-183). English: W. D. Ross, trans. (Oxford, 1908).",
  "sentences": [
   {
    "greek": "Λεύκιππος δὲ καὶ ὁ ἑταῖρος αὐτοῦ Δημόκριτος στοιχεῖα μὲν τὸ πλῆρες καὶ τὸ κενὸν εἶναί φασι, λέγοντες τὸ μὲν ὂν τὸ δὲ μὴ ὄν, τούτων δὲ τὸ μὲν πλῆρες καὶ στερεὸν τὸ ὄν, τὸ δὲ κενὸν τὸ μὴ ὄν (διὸ καὶ οὐθὲν μᾶλλον τὸ ὂν τοῦ μὴ ὄντος εἶναί φασιν, ὅτι οὐδὲ τοῦ κενοῦ τὸ σῶμα), αἴτια δὲ τῶν ὄντων ταῦτα ὡς ὕλην.",
@@ -14,7 +14,7 @@
    "english": "These differences, they say, are three - shape and order and position."
   },
   {
-   "greek": "διαφέρειν γάρ φασι τὸ ὂν ῥυσμῷ καὶ διαθιγῇ καὶ τροπῇ μόνον· τούτων δὲ ὁ μὲν ῥυσμὸς σχῆμά ἐστιν ἡ δὲ διαθιγὴ τάξις ἡ δὲ τροπὴ θέσις· διαφέρει γὰρ τὸ μὲν Α τοῦ Ν σχήματι τὸ δὲ ΑΝ τοῦ ΝΑ τάξει τὸ δὲ Ζ τοῦ Η θέσει.",
+   "greek": "διαφέρειν γάρ φασι τὸ ὂν ῥυσμῷ καὶ διαθιγῇ καὶ τροπῇ μόνον· τούτων δὲ ὁ μὲν ῥυσμὸς σχῆμά ἐστιν ἡ δὲ διαθιγὴ τάξις ἡ δὲ τροπὴ θέσις· διαφέρει γὰρ τὸ μὲν Α τοῦ Ν σχήματι τὸ δὲ ΑΝ τοῦ ΝΑ τάξει τὸ δὲ Ξ τοῦ Η θέσει.",
    "english": "For they say the real is differentiated only by 'rhythm' and 'inter-contact' and 'turning'; and of these rhythm is shape, inter-contact is order, and turning is position; for A differs from N in shape, AN from NA in order, M from W in position."
   },
   {
