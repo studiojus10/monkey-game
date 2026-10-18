@@ -22,7 +22,7 @@ import {
   slotDelay,
 } from '../game/logic';
 import type { GameState } from '../game/state';
-import { codebreakingStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
+import { bySeniority, codebreakingStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
 import { formatDuration } from '../format';
 import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, titleBar } from './style';
@@ -30,7 +30,7 @@ import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, ti
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
 export const rosterPageRows = 12;
 
-/** Every monkey by index, for the roster: department by department (as [tab] orders them), then in the order they were hired. */
+/** Every monkey by index, for the roster: department by department (as [tab] orders them), managers first, then in the order they were hired. */
 export function rosterOrder(state: GameState): number[] {
   const viewOf = (i: number) => {
     const m = state.monkeys[i];
@@ -42,7 +42,9 @@ export function rosterOrder(state: GameState): number[] {
     const k = views.indexOf(viewOf(i));
     return k >= 0 ? k : views.length + (viewOf(i) === marketing.id ? 1 : viewOf(i) === codebreaking.id ? 2 : 0);
   };
-  return state.monkeys.map((_, i) => i).sort((a, b) => rank(a) - rank(b) || a - b);
+  // Within a department, managers first, then by seniority (Justin, 2026-10-18).
+  const senior = bySeniority(state, state.monkeys.map((_, i) => i));
+  return senior.sort((a, b) => rank(a) - rank(b) || senior.indexOf(a) - senior.indexOf(b));
 }
 
 /** A department's name for the roster: its genre's, or R&D. */
@@ -138,6 +140,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([['up/down', 'choose a monkey'], ['n', 'rename it'], ['h', 'hat off'], ['v', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose a monkey'], ['d', 'move it'], ['n', 'rename it'], ['h', 'hat off'], ['v', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
   ].join('\n');
 }

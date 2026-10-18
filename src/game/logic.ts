@@ -2784,6 +2784,114 @@ export function hirePrice(state: GameState, base: number, job: string, from?: nu
   return c ? Math.ceil(base * candidateFactor(c, job) * (c.tempLeft > 0 ? hr.tempPrice : 1)) : base;
 }
 
+/** A job a monkey can be hired for (a monkeyStats.jobs id). */
+export type Job = 'typing' | 'managing' | 'research' | 'hr' | 'marketing' | 'codebreaking';
+
+/**
+ * A place a monkey can work: typing for a department, its manager's chair,
+ * or a seat in R&D, HR, Marketing or Codebreaking. `id` is the genre (typing),
+ * `boss:<genre>` (managing) or the staff department's id. `have` of `max`
+ * places are taken; `blocked` says why nobody can go there now ('' if they can).
+ */
+export interface Post {
+  id: string;
+  job: Job;
+  genre?: Genre;
+  have: number;
+  max: number;
+  blocked: string;
+}
+
+/** Why a staff department can't take another monkey, money aside: no office, full, or no square for a desk. */
+function staffBlocker(room: Room | undefined, have: number, max: number, state: GameState, needed: string): string {
+  if (!room) return needed;
+  if (have >= max) return 'full';
+  return freeSquares(state, room).length > 0 ? '' : 'desk needed';
+}
+
+/**
+ * Every place a monkey could work, for hiring (with managers' chairs) or
+ * moving a monkey (without): each department with its count of how many it holds.
+ */
+export function posts(state: GameState, managing = true): Post[] {
+  const open = departmentGenres(state);
+  const typing: Post[] = (open.length > 0 ? open : [undefined]).map((g) => {
+    const have = departmentTypists(state, g);
+    const blocked = have >= departmentRules.maxTypists ? 'full' : !departmentRoom(state, g) ? 'room needed' : hasDeskSpace(state, g) ? '' : 'desk needed';
+    return { id: g ?? '', job: 'typing', genre: g, have, max: departmentRules.maxTypists, blocked };
+  });
+  // A department's manager's chair shows once it has an office or the monkeys for one, as the shop did.
+  const bosses: Post[] = !managing
+    ? []
+    : open
+        .filter((g) => managerOf(state, g) || officeOf(state, g) || departmentTypists(state, g) >= managers.minDepartmentMonkeys)
+        .map((g) => ({ id: `boss:${g}`, job: 'managing', genre: g, have: managerOf(state, g) ? 1 : 0, max: 1, blocked: managerOf(state, g) ? 'full' : managerBlocker(state, g) }));
+  const staff: Post[] = [
+    ...(state.researchOpen ? [{ id: research.id, job: 'research' as Job, have: researchers(state).length, max: research.maxResearchers, room: labRoom(state), name: 'lab needed' }] : []),
+    ...(hrRoom(state) ? [{ id: hr.id, job: 'hr' as Job, have: hrStaff(state).length, max: hr.maxStaff, room: hrRoom(state), name: `${hr.name} office needed` }] : []),
+    ...(marketingRoom(state) ? [{ id: marketing.id, job: 'marketing' as Job, have: marketers(state).length, max: marketing.maxStaff, room: marketingRoom(state), name: `${marketing.name} office needed` }] : []),
+    ...(codebreakingRoom(state) ? [{ id: codebreaking.id, job: 'codebreaking' as Job, have: codebreakers(state).length, max: codebreaking.maxStaff, room: codebreakingRoom(state), name: `${codebreaking.name} office needed` }] : []),
+  ].map(({ room, name, ...p }) => ({ ...p, blocked: staffBlocker(room, p.have, p.max, state, name) }));
+  return [...typing, ...bosses, ...staff];
+}
+
+/** The usual price of a hire for a post, before a candidate's stats change it. */
+export function postCost(state: GameState, post: Post): number {
+  if (post.job === 'managing') return managerCost(state, post.genre!);
+  if (post.job === 'research') return researcherCost(state);
+  if (post.job === 'hr') return hrCost(state);
+  if (post.job === 'marketing') return marketingCost(state);
+  if (post.job === 'codebreaking') return codebreakerCost(state);
+  return nextMonkeyCost(state, post.genre);
+}
+
+/** Hires a monkey for a post: candidate `from` on HR's list, or someone unseen (random stats and trait). */
+export function hireFor(state: GameState, post: Post, from?: number): boolean {
+  if (post.job === 'managing') return hireManager(state, post.genre, from);
+  if (post.job === 'research') return hireResearcher(state, from);
+  if (post.job === 'hr') return hireHR(state, from);
+  if (post.job === 'marketing') return hireMarketer(state, from);
+  if (post.job === 'codebreaking') return hireCodebreaker(state, from);
+  return buyMonkey(state, post.genre, from);
+}
+
+/** The room a staff department works in, by its id. */
+function staffRoom(state: GameState, id: string): Room | undefined {
+  return id === research.id ? labRoom(state) : id === hr.id ? hrRoom(state) : id === marketing.id ? marketingRoom(state) : id === codebreaking.id ? codebreakingRoom(state) : undefined;
+}
+
+/** The post a monkey works at now, by its id (as in posts). */
+export function postOf(state: GameState, m: MonkeyState): string {
+  if (isStaff(m)) return m.department;
+  const g = monkeyGenre(state, m) ?? '';
+  return m.manager ? `boss:${g}` : g;
+}
+
+/**
+ * Moves a monkey to another department, typing or staff (see posts), with
+ * its desk. A manager who moves goes back to typing (or to its new job).
+ */
+export function moveMonkeyTo(state: GameState, index: number, postId: string): boolean {
+  const m = state.monkeys[index];
+  const post = posts(state, false).find((p) => p.id === postId);
+  if (!m || !post || post.blocked || postOf(state, m) === postId) return false;
+  // Its desk moves with it (a manager's desk stays in its office).
+  const from = monkeyGenre(state, m);
+  const oldRoom = isStaff(m) ? staffRoom(state, m.department) : m.manager && officeOf(state, from) ? undefined : departmentRoom(state, from);
+  const oldDesk = oldRoom ? roomDesks(state, oldRoom).pop() : undefined;
+  if (oldDesk !== undefined) state.furniture.splice(oldDesk, 1);
+  if (m.manager) {
+    m.manager = false;
+    if (m.target) unpin(state, m.target);
+    m.target = null;
+  }
+  m.department = post.id;
+  const room = post.job === 'typing' ? departmentRoom(state, post.genre) : staffRoom(state, post.id);
+  const square = room && bestSquares(state, room, true)[0];
+  if (room && square) state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+  return true;
+}
+
 /** Takes a candidate off the list, for a hire: its trait and stats (nothing for an unseen hire). */
 function takeCandidate(state: GameState, from?: number): Partial<Candidate> {
   if (from === undefined || !state.candidates[from]) return {};

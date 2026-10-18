@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
 import {
   keyChoices,
+  homeMonkeys,
   renderLetterPicker,
   maxMonkeyLines,
   renderKeysMenu,
@@ -37,15 +38,15 @@ import {
 import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
-import { renderCandidates } from '../src/cli/hiring';
+import { cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, lately, monkeyNames } from '../src/game/config';
 import { greekLetters, type PlayData } from '../src/game/plays';
-import { poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
+import { posts, postCost, poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
-import { formatAmount } from '../src/format';
+import { formatAmount, formatPrice } from '../src/format';
 
 describe('file storage', () => {
   it('saves and loads through a file, and clears it', () => {
@@ -166,7 +167,7 @@ describe('terminal screen', () => {
     expect(tools).toContain('[1] Buy a letter key you choose it (25 left) * 25 Bananas\n'); // the 2nd letter costs no Words
     s.letters.push('A');
     expect(squash(renderScreen(s, '', 'typewriters'))).toContain('[1] Buy a letter key you choose it (24 left) 75 Bananas + 1 Words\n');
-    expect(shop).toContain('[2] Hire a monkey you have 1 300,000 Bananas\n');
+    expect(shop).toContain('[2] Hire a monkey random stats and trait, you have 1 300,000 Bananas\n');
     expect(shop).toContain('[3] Starting combo x1.0 -> x1.1 1 Sentences\n');
   });
 
@@ -562,10 +563,10 @@ describe('office space on screen', () => {
     s.furniture.push({ kind: 'desk', room: 'r1', x: 1, y: 0 }, { kind: 'desk', room: 'r1', x: 0, y: 1 }, { kind: 'desk', room: 'r1', x: 1, y: 1 });
     s.currency = s.sentences = 1e30;
     const staff = renderScreen(s, '', 'staff');
-    expect(squash(staff)).toContain('[2] Hire a monkey you have 4 desk needed\n'); // no price: a desk is what it needs
+    expect(squash(staff)).toContain('[2] Hire a monkey random stats and trait, you have 4 desk needed\n'); // no price: a desk is what it needs
     expect(staff).toContain(red('desk needed'));
     s.departments = ['comedy', 'tragedy'];
-    expect(squash(renderScreen(s, '', 'staff'))).toContain('Hire a monkey for Tragedies (0/10) room needed\n');
+    expect(squash(renderPostPopup(s, 'x', posts(s), -1, true).map(plain).join('\n'))).toContain('[2] Tragedies (0/10) room needed');
   });
 
   it("shows one department's monkeys at a time on the home screen", () => {
@@ -573,18 +574,23 @@ describe('office space on screen', () => {
     s.departments = ['comedy', 'tragedy'];
     s.monkeys[0].name = 'Clown';
     s.monkeys.push({ ...createMonkey(), department: 'tragedy', name: 'Mourner' });
-    const first = plain(renderScreen(s));
-    expect(first).toContain(' COMEDIES   department 1 of 2\n');
+    const first = renderScreen(s);
+    expect(first).toContain(bold(inverse(' [1] Comedies '))); // the shown department's tab
+    expect(plain(first)).toContain('\n [1] Comedies  [2] Tragedies \n');
     expect(first).toContain('Clown');
     expect(first).not.toContain('Mourner');
-    expect(first).toContain('[tab] department');
+    expect(plain(first)).toContain('[tab] next department');
     s.settings.homeDepartment = 'tragedy';
-    const second = plain(renderScreen(s));
-    expect(second).toContain(' TRAGEDIES   department 2 of 2\n');
+    const second = renderScreen(s);
+    expect(second).toContain(bold(inverse(' [2] Tragedies ')));
     expect(second).toContain('Mourner');
     expect(second).not.toContain('Clown');
     s.departments = ['comedy'];
     expect(plain(renderScreen(s))).not.toContain('[tab]'); // one department: no heading, no key
+    // Managers first, then by seniority.
+    s.monkeys.push({ ...createMonkey(), department: 'comedy', name: 'Junior', number: 3 }, { ...createMonkey(), department: 'comedy', name: 'Boss', number: 4, manager: true });
+    s.monkeys[0].number = 1;
+    expect(homeMonkeys(s).map((i) => s.monkeys[i].name)).toEqual(['Boss', 'Clown', 'Mourner', 'Junior']); // Mourner's department is closed, so it types for Comedies
   });
 
   it('lists a hire line for each department, each with its own price', () => {
@@ -592,9 +598,10 @@ describe('office space on screen', () => {
     s.currency = s.sentences = 1e30;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
-    const staff = squash(renderScreen(s, '', 'staff'));
-    expect(staff).toContain('Hire a monkey for Comedies (1/10) * 300,000 Bananas');
-    expect(staff).toContain('Hire a monkey for Tragedies (0/10) * 30,000,000 Bananas');
+    expect(squash(renderScreen(s, '', 'staff'))).toContain('[2] Hire a monkey random stats and trait, you have 1 * from 300,000 Bananas');
+    const popup = squash(renderPostPopup(s, 'x', posts(s), -1, true).map(plain).join('\n'));
+    expect(popup).toContain('[1] Comedies (1/10) * 300,000 Bananas');
+    expect(popup).toContain('[2] Tragedies (0/10) * 30,000,000 Bananas');
   });
 
   it('draws the office on one grid: rooms, their desks and who sits at them', () => {
@@ -874,9 +881,10 @@ describe('managers and traits on screen', () => {
 
   it("sells a manager once there's an office, says what's missing until then, and puts the manager at the manager's desk", () => {
     const s = staffed();
-    expect(squash(renderScreen(s, '', 'staff'))).toContain('Hire a manager picks lines, fills slots office needed');
+    const popup = () => squash(renderPostPopup(s, 'x', posts(s), -1, true).map(plain).join('\n'));
+    expect(popup()).toContain('[2] Comedies manager (0/1) office needed');
     expect(buyRoom(s, 'office', 'comedy')).toBe(true);
-    expect(squash(renderScreen(s, '', 'staff'))).toMatch(/\[\d\] Hire a manager picks lines, fills slots \* [\d,]+ Bananas/);
+    expect(popup()).toMatch(/\[2\] Comedies manager \(0\/1\) \* [\d,]+ Bananas/);
     const map = plain(renderOffice(s));
     expect(map).toContain(' D ');
     expect(squash(map)).toContain('2 Comedies office 4 - - no manager yet');
@@ -1055,18 +1063,33 @@ describe('furniture colours', () => {
 });
 
 describe('hiring screen', () => {
-  it('lists candidates with their stats and prices, and someone unseen at the usual price', () => {
+  it('lists candidates with their stats and lowest prices, and someone unseen at the usual price', () => {
     const s = started();
     s.candidates = [{ trait: 'loner', speedStat: 1.1, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' }, tempLeft: 0 }];
     s.candidatesIn = 600;
-    const text = plain(renderCandidates(s, 'typing', 'a monkey for Comedies', 1000, '', 80));
-    expect(text).toContain('HIRING: A MONKEY FOR COMEDIES');
-    expect(squash(text)).toContain(`[1] 110% 90% loves ? for good 1,440 Bananas`);
-    expect(squash(text)).toContain('[0] someone unseen 1,000 Bananas');
+    const text = plain(renderCandidates(s, '', 80));
+    expect(text).toContain('HIRING A MONKEY');
+    expect(squash(text)).toContain(`[1] 110% 90% loves typing ? for good ${squash(plain(formatPrice(cheapestHire(s, 0))))}`);
+    expect(squash(text)).toContain(`[0] someone unseen: random stats and trait from ${formatPrice(cheapestHire(s))} Bananas`);
     expect(text).toContain('New candidates in 10m');
     s.managerBook = true;
-    expect(plain(renderCandidates(s, 'typing', 'x', 1000))).toContain('Loner');
+    expect(plain(renderCandidates(s))).toContain('Loner');
     expect(text.split('\n').every((r) => r.length <= 80)).toBe(true);
+  });
+});
+
+describe('the department popup', () => {
+  it('lists every department with its count and its price for the monkey, blocked ones in red', () => {
+    const s = started();
+    s.currency = 1e12;
+    const box = renderPostPopup(s, 'Which department gets the new monkey?', posts(s), -1, true).map(plain);
+    expect(box[0]).toMatch(/^\+-+\+$/);
+    expect(box.join('\n')).toContain('| Which department gets the new monkey?');
+    expect(squash(box.join('\n'))).toContain(`[1] Comedies (1/10) * ${formatPrice(postCost(s, posts(s)[0]))} Bananas`);
+    expect(new Set(box.map((r) => r.length)).size).toBe(1); // a neat box
+    const screen = overlay('a\nb\nc\nd', box, 80).split('\n');
+    expect(screen.slice(0, 2)).toEqual(['a', 'b']);
+    expect(screen[2].trim()).toBe(box[0]);
   });
 });
 

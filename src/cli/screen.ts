@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, departmentRules, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -37,10 +37,6 @@ import {
   canAffordLetter,
   monkeySpeed,
   currentSpeed,
-  nextMonkeyCost,
-  departmentTypists,
-  hasDeskSpace,
-  departmentRoom,
   ownedProgress,
   ownsLine,
   ownsScene,
@@ -56,31 +52,18 @@ import {
   skillCap,
   typewriterCost,
   typewriterName,
-  managerBlocker,
-  managerCost,
-  officeOf,
   traitOf,
   roomMates,
   traitBonus,
   isResearcher,
   isTemp,
   isTypist,
-  researchers,
   canBuildLab,
   canBuildHR,
   canBuildMarketing,
-  marketers,
-  marketingBlocker,
-  marketingCost,
-  marketingRoom,
   royalties,
-  hrBlocker,
-  hrCost,
   hrRoom,
-  hrStaff,
   labRoom,
-  researcherBlocker,
-  researcherCost,
   projectOf,
   projectsLeft,
   researchRate,
@@ -93,8 +76,6 @@ import {
   canBuildCodebreaking,
   codebreakers,
   codebreakingRoom,
-  codebreakerCost,
-  codebreakerBlocker,
   codebreakTargets,
   lockOf,
   lockCombinations,
@@ -105,6 +86,9 @@ import {
   telegramCipher,
   telegramSettings,
   telegramText,
+  posts,
+  postCost,
+  isStaff,
 } from '../game/logic';
 import { departmentOf, isForeign, lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
@@ -315,27 +299,43 @@ function energyText(m: MonkeyState): string {
 
 /** The departments [tab] goes through on the home screen: the play departments, then R&D once it's open. */
 export function homeViews(state: GameState): string[] {
-  return [...departmentGenres(state), ...(state.researchOpen ? [research.id] : [])];
+  return [
+    ...departmentGenres(state),
+    ...(state.researchOpen ? [research.id] : []),
+    ...[hr.id, marketing.id, codebreaking.id].filter((id) => state.monkeys.some((m) => m.department === id)),
+  ];
 }
 
-/** The department whose monkeys the home screen shows: the one chosen with [tab], else the first. */
+/** The department whose monkeys the home screen shows: the one chosen with [tab] or its number, else the first. */
 export function homeView(state: GameState): string | undefined {
   const views = homeViews(state);
   return views.find((g) => g === state.settings.homeDepartment) ?? views[0];
 }
 
-/** The play department the home screen shows, if it shows one (not R&D). */
+/** The play department the home screen shows, if it shows one (not R&D, HR, Marketing or Codebreaking). */
 export function homeGenre(state: GameState): Genre | undefined {
   const view = homeView(state);
-  return view === research.id ? undefined : (view as Genre | undefined);
+  return departmentGenres(state).find((g) => g === view);
 }
 
-/** The monkeys on the home screen, by index: with several departments, only the shown department's. */
+/** A department's name by its view id (a genre, or R&D, HR, Marketing, Codebreaking). */
+export function viewName(state: GameState, view: string): string {
+  const staff: Record<string, string> = { [research.id]: research.name, [hr.id]: hr.name, [marketing.id]: marketing.name, [codebreaking.id]: codebreaking.name };
+  return staff[view] ?? departmentName(state, view as Genre);
+}
+
+/** Monkeys by index, managers first, then by seniority: the first hired first (Justin, 2026-10-18). */
+export function bySeniority(state: GameState, list: number[]): number[] {
+  const m = (i: number) => state.monkeys[i];
+  return [...list].sort((a, b) => Number(m(b).manager) - Number(m(a).manager) || (m(a).number || a + 1) - (m(b).number || b + 1));
+}
+
+/** The monkeys on the home screen, by index: only the chosen department's, managers first, then by seniority. */
 export function homeMonkeys(state: GameState): number[] {
-  if (homeViews(state).length <= 1) return state.monkeys.map((_, i) => i);
-  if (homeView(state) === research.id) return researchers(state);
-  const shown = homeGenre(state);
-  return state.monkeys.flatMap((m, i) => (!isResearcher(m) && monkeyGenre(state, m) === shown ? [i] : []));
+  const view = homeView(state);
+  const genre = homeGenre(state);
+  const shown = state.monkeys.flatMap((m, i) => (isStaff(m) ? m.department === view : !view || monkeyGenre(state, m) === genre) ? [i] : []);
+  return bySeniority(state, shown);
 }
 
 /** The monkey at place `cursor` in the home screen's table (kept to the rows shown), or -1 with none. */
@@ -476,7 +476,7 @@ function homeKeys(state: GameState, columns: number): string[] {
   return [
     keyRow([['space', 'shop'], ['m', 'monkeys'], ['i', 'inventory'], ['p', textsTabs(state).length > 1 ? 'texts' : 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
-      ...(homeViews(state).length > 1 ? [['tab', 'department'] as [string, string]] : []),
+      ...(homeViews(state).length > 1 ? [['tab', 'next department'] as [string, string]] : []),
       ['up/down', 'choose a monkey'],
       ['enter', 'details'],
       ['h', theme.pokeAction],
@@ -508,12 +508,12 @@ export function renderHomeKeys(state: GameState): string {
       ['c', 'options'],
     ]),
     ...group('MONKEYS', [
-      ...(homeViews(state).length > 1 ? [['tab', "show the next department's monkeys"] as [string, string]] : []),
+      ...(homeViews(state).length > 1 ? [['1-9', "show that department's monkeys (the tabs above the table)"] as [string, string], ['tab', "show the next department's monkeys"] as [string, string]] : []),
       ['up/down', 'choose a monkey (its name is highlighted)'],
       ['enter', "the chosen monkey's details"],
       ['h', theme.pokeAction],
       ['n', 'name the chosen monkey'],
-      ['d', 'move the chosen monkey to another department'],
+      ['d', 'move the chosen monkey to another department (pick it from a list)'],
     ]),
     ...group('ANY TIME', [['?', `flip a coin: double all your ${theme.currency} or lose them all`]]),
     ...group('GAME', [
@@ -577,6 +577,21 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   return [...homeLines(state, message, columns, chosen), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
 
+/** The home screen's department tabs: each department's number key and name, the shown one inverse; they wrap to the screen. */
+function departmentTabs(state: GameState, views: string[], view: string, columns: number): string[] {
+  const tabs = views.map((v, i) => {
+    const name = `${i < 9 ? `[${i + 1}] ` : ''}${viewName(state, v)}`;
+    return v === view ? bold(inverse(` ${name} `)) : ` ${name} `;
+  });
+  const rows = [''];
+  for (const t of tabs) {
+    const last = rows.length - 1;
+    if (columns > 0 && rows[last] && plainText(rows[last] + t).length >= columns) rows.push(t);
+    else rows[last] += t;
+  }
+  return rows;
+}
+
 /** The home screen above its keys: the monkey table, letters, script, LATELY and pins. */
 function homeLines(state: GameState, message: string, columns: number, chosen = -1): string[] {
   const [written, ownedLines] = ownedProgress(state);
@@ -586,12 +601,11 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
   const views = homeViews(state);
   const shown = homeMonkeys(state);
   const view = homeView(state);
-  const viewName = view === research.id ? research.name : view ? departmentName(state, view as Genre) : '';
   const lines = [
     titleBar(state, '', columns),
     '',
-    // With several departments, one at a time: its name, then which of how many.
-    ...(views.length > 1 && view ? [` ${bold(viewName.toUpperCase())}${dim(`   department ${views.indexOf(view) + 1} of ${views.length}`)}`] : []),
+    // With several departments, one at a time, picked on a row of tabs (Justin, 2026-10-18): [1]-[9] or [tab].
+    ...(views.length > 1 && view ? [...departmentTabs(state, views, view, columns), ''] : []),
     monkeyHeadings(state),
     ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room, i === chosen)),
     ...(shown.length > maxMonkeyLines ? [dim(` ...and ${shown.length - maxMonkeyLines} more monkeys typing`)] : []),
@@ -740,25 +754,16 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
     case 'staff': {
       const nextStart = comboStartCost(state.comboStartLevel);
       const open = departmentGenres(state);
-      // With several departments each has its own price, so each gets its own line.
-      // A department with no free square for a desk (or no room yet) says so where the price goes.
-      const hire = (genre?: Genre): ShopItem => {
-        const cost = nextMonkeyCost(state, genre);
-        const where = genre ? `for ${departmentName(state, genre)} (${departmentTypists(state, genre)}/${departmentRules.maxTypists})` : `you have ${state.monkeys.length}`;
-        const item: ShopItem = { id: genre ? `hire:${genre}` : 'hire', text: 'Hire a monkey', effect: where };
-        return hasDeskSpace(state, genre ?? open[0])
-          ? { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] }
-          : { ...item, blocked: departmentRoom(state, genre ?? open[0]) ? 'desk needed' : 'room needed' };
+      // Every hire is one item (Justin, 2026-10-18): the department is chosen after, in a popup, each with its own price.
+      const free = posts(state).filter((p) => !p.blocked);
+      const cheapest = Math.min(...free.map((p) => postCost(state, p)));
+      const hireItem: ShopItem = {
+        id: 'hire',
+        text: 'Hire a monkey',
+        effect: hrRoom(state) ? `from ${hr.name}'s candidates, you have ${state.monkeys.length}` : `random stats and trait, you have ${state.monkeys.length}`,
       };
-      const hiring = open.filter((g) => departmentTypists(state, g) < departmentRules.maxTypists);
-      // A department can hire a manager once it has the monkeys or an office for one; until then a note says what it takes.
-      const managing = open.filter((g) => !managerOf(state, g) && (officeOf(state, g) || departmentTypists(state, g) >= managers.minDepartmentMonkeys));
-      const hireManager = (g: Genre): ShopItem => {
-        const cost = managerCost(state, g);
-        const blocked = managerBlocker(state, g);
-        const item: ShopItem = { id: `boss:${g}`, text: 'Hire a manager', effect: open.length > 1 ? `for ${departmentName(state, g)}` : 'picks lines, fills slots' };
-        return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
-      };
+      // Until a department could take a manager, a note says what it takes.
+      const managerNote = open.some((g) => !managerOf(state, g)) && !posts(state).some((p) => p.job === 'managing' && p.have === 0);
       return [
         ...(departmentPicks(state) > 0
           ? [{ id: 'department', star: true, text: 'Open a new department!' }]
@@ -766,61 +771,11 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
             ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }]
             : []),
         typingShop.skill,
-        ...(open.length > 1
-          ? hiring.map((g) => hire(g))
-          : hiring.length > 0 || open.length === 0
-            ? [hire()]
-            : [{ text: 'Hire a monkey: the department is full. Open another to hire more.' }]),
-        ...(state.researchOpen
-          ? [
-              ((): ShopItem => {
-                const cost = researcherCost(state);
-                const blocked = researcherBlocker(state);
-                const item: ShopItem = { id: 'researcher', text: 'Hire a researcher', effect: `${researchers(state).length}/${research.maxResearchers} in ${research.name}` };
-                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
-              })(),
-            ]
-          : []),
-        ...(hrRoom(state)
-          ? [
-              ((): ShopItem => {
-                const cost = hrCost(state);
-                const blocked = hrBlocker(state);
-                const item: ShopItem = {
-                  id: 'hr',
-                  text: 'Hire an HR monkey',
-                  effect: `${hrStaff(state).length}/${hr.maxStaff}: each +${Math.round(hr.happierEach * 100)}% happy, monkeys ${Math.round(hr.discountEach * 100)}% cheaper`,
-                };
-                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
-              })(),
-            ]
-          : []),
-        ...(marketingRoom(state)
-          ? [
-              ((): ShopItem => {
-                const cost = marketingCost(state);
-                const blocked = marketingBlocker(state);
-                const item: ShopItem = {
-                  id: 'marketing',
-                  text: 'Hire a marketing monkey',
-                  effect: `${marketers(state).length}/${marketing.maxStaff}: royalties on finished scenes and Folios`,
-                };
-                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
-              })(),
-            ]
-          : []),
+        free.length > 0
+          ? { ...hireItem, star: state.currency >= cheapest, cost: [[cheapest, 'currency']], costFrom: free.length > 1 }
+          : { ...hireItem, blocked: new Set(posts(state).map((p) => p.blocked)).size === 1 ? posts(state)[0].blocked : 'no room' },
         ...(codebreakingRoom(state)
           ? [
-              ((): ShopItem => {
-                const cost = codebreakerCost(state);
-                const blocked = codebreakerBlocker(state);
-                const item: ShopItem = {
-                  id: 'codebreaker',
-                  text: 'Hire a codebreaker',
-                  effect: `${codebreakers(state).length}/${codebreaking.maxStaff}: cracks safes and decodes telegrams`,
-                };
-                return blocked ? { ...item, blocked } : { ...item, star: state.currency >= cost, cost: [[cost, 'currency']] };
-              })(),
               ...(codebreakTargets(state).length > 1
                 ? [{ id: 'codefocus', text: 'Switch focus', effect: `now: ${focusName(state.codebreakFocus)}` }]
                 : []),
@@ -830,11 +785,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
         ...(latinUnlocked(state)
           ? [{ id: 'classical', text: `Switch Classical to ${state.classical === 'greek' ? 'Latin' : 'Greek'}`, effect: `now typing ${state.classical === 'greek' ? 'Greek' : 'Latin'}; slots start over` }]
           : []),
-        ...(managing.length > 0
-          ? managing.map(hireManager)
-          : open.some((g) => !managerOf(state, g))
-            ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }]
-            : []),
+        ...(managerNote ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }] : []),
         ...(state.unassignedMonkeys > 0
           ? [
               canSeatMonkey(state)
