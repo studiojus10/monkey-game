@@ -1105,6 +1105,14 @@ describe('scrolling lists', () => {
     expect(plain(scrollMarks(3, 0)[0][0])).toBe(' ^ 3 more above');
   });
 
+  it('sit right under the last item of a shop page, above its notes', () => {
+    const s = started();
+    const rows = plain(renderShop(s, 'department', 0)).split('\n');
+    const below = rows.findIndex((r) => / more items below$/.test(r));
+    expect(below).toBeGreaterThan(0);
+    expect(rows[below - 1]).toMatch(/^ \[9\]/);
+  });
+
   it('show on the script when a play runs past the screen', () => {
     setPlays([{ id: 'long', title: 'Long', lines: Array.from({ length: 40 }, (_, i) => [1, 1, 'A', `Line ${i}.`] as [number, number, string, string]) }]);
     const s = createInitialState(0);

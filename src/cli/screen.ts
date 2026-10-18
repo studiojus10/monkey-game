@@ -1137,16 +1137,23 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
   const firstItem = items.findIndex((x) => x.id);
   const intro = items.slice(0, Math.max(0, firstItem));
   let k = 0; // numbered items so far, across pages
-  const list = items.slice(Math.max(0, firstItem)).flatMap((x) => {
-    if (!x.id) return [`     ${dim(x.text)}`];
+  // The page's items, with any notes among them; the scroll marks go right under the last item (Justin, 2026-10-18).
+  const list: string[] = [];
+  let lastRow = -1;
+  for (const x of items.slice(Math.max(0, firstItem))) {
+    if (!x.id) {
+      list.push(`     ${dim(x.text)}`);
+      continue;
+    }
     const at = k++;
     const n = at - page * storePageSize;
-    if (n < 0 || n >= storePageSize) return [];
+    if (n < 0 || n >= storePageSize) continue;
     const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `* ${costText(x, true)}` : costText(x);
     const text = row(`[${n + 1}]`, x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
     // What you can afford is green from end to end, glyph and number too.
-    return [isCursor(at, cursor) ? inverse(plainText(text)) : x.star ? affordable(text) : x.cost ? dim(plainText(text)) : text];
-  });
+    lastRow = list.push(isCursor(at, cursor) ? inverse(plainText(text)) : x.star ? affordable(text) : x.cost ? dim(plainText(text)) : text) - 1;
+  }
+  list.splice(lastRow + 1, 0, ...shopMarks[1], ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []));
 
   return [
     ...(under ? [] : [titleBar(state, 'Shop', columns), '']),
@@ -1157,8 +1164,6 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     ...(numbered.length > 0 ? [dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd())] : []),
     ...shopMarks[0],
     ...list,
-    ...shopMarks[1],
-    ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
