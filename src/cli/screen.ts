@@ -109,7 +109,7 @@ import {
 import { departmentOf, isForeign, lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
 
-import type { GameState, MonkeyState } from '../game/state';
+import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
 import { affordable, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
@@ -1708,13 +1708,21 @@ export function slotHighlight(state: GameState, text: string, genre: Genre | und
   });
 }
 
-/** Pinned lines for the home screen, with what each still needs. */
+/** Pinned lines for the home screen, with what each still needs: the player's pins and every manager's line, marked with its department. */
 function pinnedText(state: GameState): string[] {
-  const rows = state.pinned.flatMap((p) => {
+  const managed = departmentGenres(state).flatMap((g) => {
+    const t = managerOf(state, g)?.target;
+    return t ? [{ pin: t, genre: g }] : [];
+  });
+  const same = (a: Pin, b: Pin) => a.play === b.play && a.index === b.index;
+  const pins = [...state.pinned, ...managed.map((m) => m.pin).filter((t) => !state.pinned.some((p) => same(p, t)))];
+  const rows = pins.flatMap((p) => {
     const play = getPlay(p.play);
     const line = play?.lines[p.index];
     if (!play || !line) return [];
-    return [`   @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})`];
+    const bosses = managed.filter((m) => same(m.pin, p)).map((m) => `${departmentName(state, m.genre)} manager`);
+    const by = bosses.length > 0 ? `   [${bosses.join(', ')}]` : '';
+    return [`   @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})${by}`];
   });
   return rows.length === 0 ? [] : ['', dim(' PINNED LINES'), ...rows];
 }

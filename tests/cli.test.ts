@@ -387,6 +387,15 @@ describe('script browser and pins', () => {
     togglePin(s, 'test', 1);
     expect(renderScreen(s)).toContain('@ Test Play 1.2 "Ay, my lord."   (needs A D L M O R Y)');
   });
+
+  it("shows managers' lines with the pinned lines, even past the pin limit", () => {
+    const s = started();
+    s.monkeys[0].manager = true;
+    s.monkeys[0].target = { play: 'test', index: 1 };
+    expect(plainText(renderScreen(s))).toContain('@ Test Play 1.2 "Ay, my lord."   (needs A D L M O R Y)   [Comedies manager]');
+    togglePin(s, 'test', 1);
+    expect(plainText(renderScreen(s)).split('Ay, my lord.').length).toBe(2); // shown once
+  });
 });
 
 describe('buying scenes in the script browser', () => {
