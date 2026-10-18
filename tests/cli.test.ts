@@ -299,6 +299,9 @@ describe('the roster', () => {
     const text = plain(renderRoster(s, 2));
     expect(text).toMatch(/COMEDIES[\s\S]*Puck[\s\S]*TRAGEDIES[\s\S]*Yorick/);
     expect(text).toContain('Types for Tragedies');
+    expect(text).toContain('Worked     0s at the company');
+    s.monkeys[1].worked = 3 * 86400 + 2 * 3600;
+    expect(plain(renderRoster(s, 2))).toContain('Worked     3d 2h 0m at the company');
     expect(text).toContain('unknown');
     s.managerBook = true;
     expect(plain(renderRoster(s, 2))).toContain('Loner');

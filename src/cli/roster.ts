@@ -101,6 +101,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
         ` ${bold(`${iconOf(m)} ${monkeyName(state, i)}`)}${dim(`   hired #${i + 1}`)}`,
         `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : isHR(m) ? `Works in ${hr.name}: keeps the monkeys happy` : isMarketer(m) ? `Works in ${marketing.name}: earns royalties` : isCodebreaker(m) ? `Works in ${codebreaking.name}: ${codebreakingStatus(state)}` : `Types for ${departmentName(state, i)}`}`,
         ...(m.manager ? [`${label('Slots')} changes one every ${slotDelay(state, m).toFixed(1)}s (x${managerSpeed(state, m).toFixed(2)} speed: upgrades, office furniture${state.fengShuiBook ? ', chi' : ''})`] : []),
+        `${label('Worked')} ${formatDuration(m.worked)} at the company`,
         ...(isTemp(m) ? [`${label('Temp')} leaves in ${formatDuration(m.tempLeft)}; temps can't be upgraded`] : []),
         ...(isTypist(m)
           ? [

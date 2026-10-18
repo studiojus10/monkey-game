@@ -130,6 +130,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       speedStat: inStatRange(num(m?.speedStat, 0)) ? num(m?.speedStat, 0) : 0,
       stamina: inStatRange(num(m?.stamina, 0)) ? num(m?.stamina, 0) : 0,
       tempLeft: Math.max(0, num(m?.tempLeft, 0)),
+      worked: Math.max(0, num(m?.worked, 0)),
       number: Math.max(0, Math.floor(num(m?.number, 0))),
       // Feelings about each job; jobs missing (added since the save) are picked when the game runs.
       jobs: Object.fromEntries(

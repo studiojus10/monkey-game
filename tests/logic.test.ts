@@ -309,6 +309,7 @@ describe('typing', () => {
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
     expect(earned).toBe(maxOfflineSeconds * typing.baseLettersPerSecond);
     expect(s.stats.secondsAway).toBe(maxOfflineSeconds + 1000); // the whole time away counts on the timer
+    expect(s.monkeys[0].worked).toBeCloseTo(maxOfflineSeconds + 1000); // and on each monkey's time at the company
   });
 
   it('gives a free letter for each milestone reached, once', () => {

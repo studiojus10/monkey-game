@@ -2149,6 +2149,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   state.stats.secondsTyping += seconds;
   giveTraits(state, rng);
   drawCandidates(state, seconds, rng);
+  for (const m of state.monkeys) m.worked += seconds;
   endTemps(state, seconds);
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state, seconds, rng);
@@ -2265,6 +2266,8 @@ export function applyOfflineProgress(state: GameState, now: number, rng: Rng = M
   tick(state, seconds * simulated, rng);
   // Research runs in real time: the whole time away, not just what was simulated.
   if (state.letters.length > 0) advanceResearch(state, away - seconds * simulated);
+  // So does the time each monkey has worked at the company.
+  if (state.letters.length > 0) for (const m of state.monkeys) m.worked += away - seconds * simulated;
   const scale = 1 / simulated - 1;
   if (scale > 0) {
     earn(state, (state.currency - before) * scale);

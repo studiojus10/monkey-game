@@ -35,6 +35,7 @@ export interface MonkeyState {
   speedStat: number; // hidden stat: typing speed x this (0 until picked when it joins); shown once HR is built
   stamina: number; // hidden stat: energy lasts x this (0 until picked)
   tempLeft: number; // a temp's seconds left before it leaves (0: not a temp)
+  worked: number; // seconds it has worked at the company, offline time included
   number: number; // its M-number, kept for good (0: not given yet; then it goes by its place in the list)
   jobs: Record<string, string>; // hidden: its feeling (monkeyStats.feelings id) about each job id; empty until picked
 }
@@ -249,7 +250,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, managerSpeedLevel: 0, slotWait: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, managerSpeedLevel: 0, slotWait: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, worked: 0, number: 0 };
 }
 
 /** A name with the sounds before each word's first vowel swapped for `onset` (King Kong -> Bing Bong); words without a vowel stay. */
