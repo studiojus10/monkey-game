@@ -1,5 +1,6 @@
 import { furnitureKinds, hatColors, hats } from '../game/config';
 import { hatKey, isTemp, monkeyName, splitHatKey, typewriterName } from '../game/logic';
+import { menuBox } from './hiring';
 import type { GameState } from '../game/state';
 import { dyed, iconOf, paint } from './screen';
 import { bold, dim, inverse, isCursor, keyRow, padVisible, plainText, rule, titleBar } from './style';
@@ -136,4 +137,25 @@ export function renderInventory(
       columns,
     ),
   ].join('\n');
+}
+
+/** The hats a monkey's hat spot can take: every kind in your inventory (by hatKey), then '' for no hat (its own goes in the inventory). */
+export function hatChoices(state: GameState, monkey: number): string[] {
+  const keys = Object.keys(state.stored.hats)
+    .filter((key) => state.stored.hats[key] > 0)
+    .sort((a, b) => hatRank(a) - hatRank(b) || a.localeCompare(b));
+  return state.monkeys[monkey] ? [...keys, ''] : [];
+}
+
+/** The popup for a monkey's hat spot (Justin, 2026-10-18): the hats in your inventory it could wear. */
+export function renderHatPicker(state: GameState, monkey: number, cursor = -1): string[] {
+  const rows = hatChoices(state, monkey).map((key) => {
+    if (!key) return dim(state.monkeys[monkey].hat ? 'no hat (its hat goes in your inventory)' : 'no hat');
+    const icon = hats.find((h) => h.id === splitHatKey(key).id)?.icon ?? '';
+    const count = state.stored.hats[key];
+    const text = `${icon} ${itemName(state, 'storage', { kind: 'hat', key })}${count > 1 ? ` x${count}` : ''}`;
+    const color = splitHatKey(key).color;
+    return color ? paint(color, text) : text;
+  });
+  return menuBox(`A hat for ${monkeyName(state, monkey)}`, rows, cursor, 'No hats in your inventory: buy them in the shop.');
 }

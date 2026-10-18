@@ -1,12 +1,12 @@
-import { hatColors, hats, marketing, codebreaking, research, hr, monkeyStats } from '../game/config';
+import { hatColors, hats, marketing, codebreaking, records, research, hr, monkeyStats } from '../game/config';
 import {
   comboMultiplier,
   currentSpeed,
-  deskOf,
   isResearcher,
   isHR,
   isMarketer,
   isCodebreaker,
+  isRecorder,
   isTemp,
   isTypist,
   jobFeeling,
@@ -22,8 +22,7 @@ import {
   slotDelay,
 } from '../game/logic';
 import type { GameState } from '../game/state';
-import { bySeniority, codebreakingStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
-import { roomName } from './office';
+import { bySeniority, codebreakingStatus, recordsStatus, departmentName as deptName, dyed, hatEffect, staffViews, iconOf, speedText, traitNow } from './screen';
 import { formatDuration } from '../format';
 import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, titleBar } from './style';
 
@@ -34,13 +33,13 @@ export const rosterPageRows = 12;
 export function rosterOrder(state: GameState): number[] {
   const viewOf = (i: number) => {
     const m = state.monkeys[i];
-    return isResearcher(m) ? research.id : isHR(m) ? hr.id : isMarketer(m) ? marketing.id : isCodebreaker(m) ? codebreaking.id : (monkeyGenre(state, m) ?? '');
+    return isResearcher(m) ? research.id : isHR(m) ? hr.id : isMarketer(m) ? marketing.id : isCodebreaker(m) ? codebreaking.id : isRecorder(m) ? records.id : (monkeyGenre(state, m) ?? '');
   };
-  const views = homeViews(state);
+  const views = staffViews(state);
   const rank = (i: number) => {
     // Departments in [tab] order, then HR, then Marketing.
     const k = views.indexOf(viewOf(i));
-    return k >= 0 ? k : views.length + (viewOf(i) === marketing.id ? 1 : viewOf(i) === codebreaking.id ? 2 : 0);
+    return k >= 0 ? k : views.length + (viewOf(i) === marketing.id ? 1 : viewOf(i) === codebreaking.id ? 2 : viewOf(i) === records.id ? 3 : 0);
   };
   // Within a department, managers first, then by seniority (Justin, 2026-10-18).
   const senior = bySeniority(state, state.monkeys.map((_, i) => i));
@@ -54,6 +53,7 @@ function departmentName(state: GameState, i: number): string {
   if (isHR(m)) return hr.name;
   if (isMarketer(m)) return marketing.name;
   if (isCodebreaker(m)) return codebreaking.name;
+  if (isRecorder(m)) return records.name;
   const g = monkeyGenre(state, m);
   return g ? deptName(state, g) : 'No department yet';
 }
@@ -68,7 +68,7 @@ function statText(stat: number): string {
  * The roster: every monkey, grouped by department, with a cursor on one
  * (`cursor` is a position in rosterOrder), and below the list everything
  * about that monkey: its job, typing, energy, hats, trait (once the manager's
- * book is read) and desk.
+ * book is read).
  */
 export function renderRoster(state: GameState, cursor: number, message = '', columns = 0): string {
   const order = rosterOrder(state);
@@ -82,7 +82,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     }
     if (k < top || k >= top + rosterPageRows) return;
     const m = state.monkeys[i];
-    const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaker' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
+    const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaker' : isRecorder(m) ? 'records clerk' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
     // The cursor's row is inverse; the others show the hat in its dye.
     const row = `${iconOf(m)} ${monkeyName(state, i)}${role ? `  (${role})` : ''}`;
     list.push(isCursor(k, at) ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
@@ -91,16 +91,15 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
   const i = order[at];
   const m = state.monkeys[i];
   const label = (s: string) => dim(`   ${s.padEnd(10)}`);
-  const desk = i === undefined ? undefined : deskOf(state, i);
-  const room = desk === undefined ? undefined : state.office.find((r) => r.id === state.furniture[desk].room);
   const hat = hats.find((h) => h.id === m?.hat);
   const trait = m && traitOf(m);
   const details = !m
     ? []
     : [
         ` ${bold(`${iconOf(m)} ${monkeyName(state, i)}`)}${dim(`   hired #${i + 1}`)}`,
-        `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : isHR(m) ? `Works in ${hr.name}: keeps the monkeys happy` : isMarketer(m) ? `Works in ${marketing.name}: earns royalties` : isCodebreaker(m) ? `Works in ${codebreaking.name}: ${codebreakingStatus(state)}` : `Types for ${departmentName(state, i)}`}`,
+        `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : isHR(m) ? `Works in ${hr.name}: keeps the monkeys happy` : isMarketer(m) ? `Works in ${marketing.name}: earns royalties` : isCodebreaker(m) ? `Works in ${codebreaking.name}: ${codebreakingStatus(state)}` : isRecorder(m) ? `Works in ${records.name}: ${recordsStatus(state)}` : `Types for ${departmentName(state, i)}`}`,
         ...(m.manager ? [`${label('Slots')} changes one every ${slotDelay(state, m).toFixed(1)}s (x${managerSpeed(state, m).toFixed(2)} speed: upgrades, office furniture${state.fengShuiBook ? ', chi' : ''})`] : []),
+        `${label('Worked')} ${formatDuration(m.worked)} at the company`,
         ...(isTemp(m) ? [`${label('Temp')} leaves in ${formatDuration(m.tempLeft)}; temps can't be upgraded`] : []),
         ...(isTypist(m)
           ? [
@@ -110,7 +109,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
           : []),
         `${label('Happiness')} ${monkeyHappiness(state, m) < 0 ? '' : '+'}${Math.round(monkeyHappiness(state, m) * 100)}%${m.petHappiness > 0 ? dim(`  (petted lately: +${(m.petHappiness * 100).toFixed(1)}%)`) : ''}`,
         `${label('Hat')} ${hat ? `${hat.name}${m.hatColor ? `, dyed ${hatColors.find((c) => c.id === m.hatColor)?.id}` : ''}: ${hatEffect(hat)}` : 'none'}`,
-        `${label('Trait')} ${state.managerBook ? (trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?') : dim('unknown (perhaps a book somewhere explains monkeys)')}`,
+        ...(state.managerBook ? [`${label('Trait')} ${trait ? `${trait.name}: ${traitNow(state, m)}. ${dim(trait.text)}` : '?'}`] : []),
         ...(statsShown(state)
           ? [
               `${label('Stats')} speed ${statText(m.speedStat)}   stamina ${statText(m.stamina)}`,
@@ -124,7 +123,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
                 .join(dim(', '))}`,
             ]
           : [`${label('Stats')} ${dim(`unknown (an ${hr.name} office would find out)`)}`]),
-        `${label('Desk')} ${room ? `in the ${roomName(state, room)}` : 'none yet'}`,
       ];
 
   return [
@@ -140,6 +138,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([['up/down', 'choose a monkey'], ['d', 'move it'], ['n', 'rename it'], ['h', 'hat off'], ['v', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose a monkey'], ['d', 'move it'], ['n', 'rename it'], ['h', 'change hat'], ['v', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
   ].join('\n');
 }

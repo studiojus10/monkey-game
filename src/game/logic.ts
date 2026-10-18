@@ -44,6 +44,7 @@ import {
   hr,
   marketing,
   codebreaking,
+  records,
   library,
   safe,
   safes,
@@ -59,6 +60,7 @@ import { Dictionary, readLetter, wordPoints, type ReadEvent } from './words';
 import { addWindow, autoConnect, connectedRooms, doorBetween, doorToTouching, loungeOf, moveRoom, placeRoom, roomCanUse, roomFits, tidyDoors, touchingRooms, type Square } from './layout';
 import { chiHappiness, roomChi, spaceFactor, squareRank, varietyBonus } from './fengshui';
 import { encipher, randomKey } from './enigma';
+import { minSentenceWords, sentencesIn } from './grammar';
 
 /** Random number source in [0, 1); injectable so tests are deterministic. */
 export type Rng = () => number;
@@ -78,6 +80,7 @@ export function setWordList(list: readonly string[]): void {
 const plays = new Map<string, Play>();
 let latinLetters: string[] = []; // the capitals in the Latin texts, which Latin monkeys type
 let longestLine = 0;
+let scriptLetters = new Set<string>(); // every line of every text, as its letters: Records skips sentences that are lines
 
 /** Registers the plays whose scenes can be bought; the front end loads them. */
 export function setPlays(list: readonly PlayData[]): void {
@@ -87,6 +90,7 @@ export function setPlays(list: readonly PlayData[]): void {
   for (const data of [...list].sort((a, b) => foreign(a) - foreign(b))) plays.set(data.id, buildPlay(data));
   latinLetters = [...new Set([...plays.values()].filter((p) => p.genre === 'latin').flatMap((p) => p.lines.flatMap((l) => [...l.letters])))].sort();
   longestLine = Math.max(0, ...[...plays.values()].map((p) => p.longestLine));
+  scriptLetters = new Set([...plays.values()].flatMap((p) => p.lines.map((l) => l.letters)));
   cached.clear();
   ownedCache.clear();
 }
@@ -198,7 +202,12 @@ export function isMarketer(m: MonkeyState): boolean {
 
 /** Whether a monkey works outside the play departments (R&D, HR or Marketing). */
 export function isStaff(m: MonkeyState): boolean {
-  return isResearcher(m) || isHR(m) || isMarketer(m) || isCodebreaker(m);
+  return isResearcher(m) || isHR(m) || isMarketer(m) || isCodebreaker(m) || isRecorder(m);
+}
+
+/** Whether a monkey works in Records. */
+export function isRecorder(m: MonkeyState): boolean {
+  return m.department === records.id;
 }
 
 /** Whether a monkey works in Codebreaking. */
@@ -361,6 +370,9 @@ export function publishFolio(state: GameState): GameState | null {
   next.folios = state.folios + 1;
   next.shelved = [...state.shelved, `folio-${next.folios}`];
   next.galleries = state.galleries;
+  next.recordBooks = state.recordBooks;
+  next.recordDraft = state.recordDraft;
+  next.recordCatch = state.recordCatch;
   next.folioPages = state.folioPages + folioPagesNow(state);
   next.folioBoost = folioMultiplierAfter(state);
   next.achievements = [...state.achievements];
@@ -417,7 +429,7 @@ export function giveTraits(state: GameState, rng: Rng): void {
 
 /** The job a monkey does: managing, research, hr or typing (a monkeyStats.jobs id). */
 export function jobOf(m: MonkeyState): string {
-  return m.manager ? 'managing' : isResearcher(m) ? 'research' : isHR(m) ? 'hr' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaking' : 'typing';
+  return m.manager ? 'managing' : isResearcher(m) ? 'research' : isHR(m) ? 'hr' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaking' : isRecorder(m) ? 'records' : 'typing';
 }
 
 /** How a monkey feels about a job (fine until its stats are picked). */
@@ -441,6 +453,7 @@ export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
   if (isHR(m)) return hrRoom(state);
   if (isMarketer(m)) return marketingRoom(state);
   if (isCodebreaker(m)) return codebreakingRoom(state);
+  if (isRecorder(m)) return recordsRoom(state);
   const genre = monkeyGenre(state, m);
   return (m.manager ? officeOf(state, genre) : undefined) ?? departmentRoom(state, genre);
 }
@@ -452,7 +465,7 @@ export function workRoom(state: GameState, m: MonkeyState): Room | undefined {
 export function traitMood(state: GameState, m: MonkeyState): number {
   const room = workRoom(state, m);
   const inRoom = (kinds: string[]) => !!room && state.furniture.some((f) => f.room === room.id && kinds.includes(f.kind));
-  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : room?.kind === 'hr' ? hrStaff(state).length : room?.kind === 'marketing' ? marketers(state).length : room?.kind === 'codebreaking' ? codebreakers(state).length : 1;
+  const typists = room?.kind === 'department' ? departmentTypists(state, monkeyGenre(state, m)) : room?.kind === 'lab' ? researchers(state).length : room?.kind === 'hr' ? hrStaff(state).length : room?.kind === 'marketing' ? marketers(state).length : room?.kind === 'codebreaking' ? codebreakers(state).length : room?.kind === 'records' ? recorders(state).length : 1;
   switch (m.trait) {
     case 'claustrophobic': {
       const index = state.monkeys.indexOf(m);
@@ -1070,6 +1083,10 @@ export function deskOf(state: GameState, index: number): number | undefined {
     const room = codebreakingRoom(state);
     return room ? roomDesks(state, room)[codebreakers(state).indexOf(index)] : undefined;
   }
+  if (isRecorder(m)) {
+    const room = recordsRoom(state);
+    return room ? roomDesks(state, room)[recorders(state).indexOf(index)] : undefined;
+  }
   const genre = monkeyGenre(state, m);
   const office = officeOf(state, genre);
   if (m.manager && office) {
@@ -1135,6 +1152,7 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
   if (kind === 'marketing' && !canBuildMarketing(state)) return false;
   if (kind === 'codebreaking' && !canBuildCodebreaking(state)) return false;
   if (kind === 'library' && !canBuildLibrary(state)) return false;
+  if (kind === 'records' && !canBuildRecords(state)) return false;
   state.sentences -= cost;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height, at);
@@ -1273,6 +1291,23 @@ export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room[
   return null;
 }
 
+/** The best free spot for a piece in one room, or null if it doesn't fit there (a safe only goes in a manager's office without one). */
+export function furnitureSpotIn(state: GameState, kind: string, roomId: string): Omit<Furniture, 'kind'> | null {
+  const room = state.office.find((r) => r.id === roomId);
+  if (!room || (kind === safe.id && !officesWithoutSafe(state).includes(room))) return null;
+  const [w, h] = pieceSize(kind);
+  for (const [x, y] of bestSquares(state, room)) {
+    if (fitsAt(state, room.id, kind, x, y)) return { room: room.id, x, y };
+    if (w !== h && fitsAt(state, room.id, kind, x, y, true)) return { room: room.id, x, y, turned: true };
+  }
+  return null;
+}
+
+/** The kinds of furniture in the inventory that fit in a room, in shop order. */
+export function storedFitting(state: GameState, roomId: string): string[] {
+  return furnitureKinds.filter((k) => state.stored.furniture[k.id] && furnitureSpotIn(state, k.id, roomId)).map((k) => k.id);
+}
+
 /** Whether a piece of furniture hides the feng shui book, not yet read (it's in every bookshelf until then). */
 export function hidesBook(state: GameState, index: number): boolean {
   return !state.fengShuiBook && state.furniture[index]?.kind === fengShui.hiddenIn;
@@ -1325,8 +1360,8 @@ export function buyFurniture(state: GameState, kind: string, roomKind?: Room['ki
 }
 
 /** Takes a piece of furniture out of the inventory and stands it where it fits, for free. */
-export function placeStoredFurniture(state: GameState, kind: string): boolean {
-  const spot = furnitureSpot(state, kind);
+export function placeStoredFurniture(state: GameState, kind: string, roomId?: string): boolean {
+  const spot = roomId ? furnitureSpotIn(state, kind, roomId) : furnitureSpot(state, kind);
   if (!state.stored.furniture[kind] || !spot) return false;
   unstore(state.stored.furniture, kind);
   state.furniture.push({ kind, ...spot });
@@ -1712,7 +1747,12 @@ export function chainSentences(counted: number): number {
 
 /** A chain just broke: a long one pays Sentences. */
 function endChain(state: GameState, m: MonkeyState): void {
-  const n = chainSentences(m.chainCounted);
+  const n0 = chainSentences(m.chainCounted);
+  const found = n0 > 0 || recordsRoom(state) ? sentencesIn(m.chainAll) : [];
+  recordChain(state, m.chainAll, found);
+  const boss = n0 > 0 ? managerOf(state, monkeyGenre(state, m)) : undefined;
+  if (boss) boss.sentenceStreak = Math.max(0, boss.sentenceStreak + (found.length > 0 ? managers.sentenceGood : -managers.sentenceBad));
+  const n = n0 * (boss ? sentenceMultiplier(boss) : 1);
   state.sentences += n;
   state.stats.chainSentences += n;
   if (n === 0) return;
@@ -1953,6 +1993,16 @@ export function managerMultiplier(state: GameState, m: MonkeyState): number {
   return boss ? (1 + managers.bonusPerLevel * boss.managerLevel) * (1 + jobBonus(boss)) : 1;
 }
 
+/** A manager's Sentences multiplier: its base from upgrades plus its streak of grammatical sentences. */
+export function sentenceMultiplier(boss: MonkeyState): number {
+  return sentenceBase(boss) + boss.sentenceStreak;
+}
+
+/** A manager's lowest Sentences multiplier: x1 plus sentencePerLevel per upgrade. */
+export function sentenceBase(boss: MonkeyState): number {
+  return 1 + managers.sentencePerLevel * boss.managerLevel;
+}
+
 /** Lines price of a manager's next upgrade: grows with its department's size and each level. */
 export function managerUpgradeCost(state: GameState, m: MonkeyState): number {
   const team = departmentMonkeys(state, monkeyGenre(state, m)).length;
@@ -2149,6 +2199,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   state.stats.secondsTyping += seconds;
   giveTraits(state, rng);
   drawCandidates(state, seconds, rng);
+  for (const m of state.monkeys) m.worked += seconds;
   endTemps(state, seconds);
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state, seconds, rng);
@@ -2265,6 +2316,8 @@ export function applyOfflineProgress(state: GameState, now: number, rng: Rng = M
   tick(state, seconds * simulated, rng);
   // Research runs in real time: the whole time away, not just what was simulated.
   if (state.letters.length > 0) advanceResearch(state, away - seconds * simulated);
+  // So does the time each monkey has worked at the company.
+  if (state.letters.length > 0) for (const m of state.monkeys) m.worked += away - seconds * simulated;
   const scale = 1 / simulated - 1;
   if (scale > 0) {
     earn(state, (state.currency - before) * scale);
@@ -2763,6 +2816,7 @@ export function drawCandidates(state: GameState, seconds: number, rng: Rng): voi
       stamina: stat(),
       jobs: Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, pick(hr.tempFeelings)])),
       tempLeft: hr.tempHours * 3600,
+      luck: rng(),
     };
   });
   state.candidatesIn = hr.refreshHours * 3600;
@@ -2785,11 +2839,11 @@ export function hirePrice(state: GameState, base: number, job: string, from?: nu
 }
 
 /** A job a monkey can be hired for (a monkeyStats.jobs id). */
-export type Job = 'typing' | 'managing' | 'research' | 'hr' | 'marketing' | 'codebreaking';
+export type Job = 'typing' | 'managing' | 'research' | 'hr' | 'marketing' | 'codebreaking' | 'records';
 
 /**
  * A place a monkey can work: typing for a department, its manager's chair,
- * or a seat in R&D, HR, Marketing or Codebreaking. `id` is the genre (typing),
+ * or a seat in R&D, HR, Marketing, Codebreaking or Records. `id` is the genre (typing),
  * `boss:<genre>` (managing) or the staff department's id. `have` of `max`
  * places are taken; `blocked` says why nobody can go there now ('' if they can).
  */
@@ -2831,6 +2885,7 @@ export function posts(state: GameState, managing = true): Post[] {
     ...(hrRoom(state) ? [{ id: hr.id, job: 'hr' as Job, have: hrStaff(state).length, max: hr.maxStaff, room: hrRoom(state), name: `${hr.name} office needed` }] : []),
     ...(marketingRoom(state) ? [{ id: marketing.id, job: 'marketing' as Job, have: marketers(state).length, max: marketing.maxStaff, room: marketingRoom(state), name: `${marketing.name} office needed` }] : []),
     ...(codebreakingRoom(state) ? [{ id: codebreaking.id, job: 'codebreaking' as Job, have: codebreakers(state).length, max: codebreaking.maxStaff, room: codebreakingRoom(state), name: `${codebreaking.name} office needed` }] : []),
+    ...(recordsRoom(state) ? [{ id: records.id, job: 'records' as Job, have: recorders(state).length, max: records.maxStaff, room: recordsRoom(state), name: `${records.name} office needed` }] : []),
   ].map(({ room, name, ...p }) => ({ ...p, blocked: staffBlocker(room, p.have, p.max, state, name) }));
   return [...typing, ...bosses, ...staff];
 }
@@ -2842,6 +2897,7 @@ export function postCost(state: GameState, post: Post): number {
   if (post.job === 'hr') return hrCost(state);
   if (post.job === 'marketing') return marketingCost(state);
   if (post.job === 'codebreaking') return codebreakerCost(state);
+  if (post.job === 'records') return recorderCost(state);
   return nextMonkeyCost(state, post.genre);
 }
 
@@ -2852,12 +2908,13 @@ export function hireFor(state: GameState, post: Post, from?: number): boolean {
   if (post.job === 'hr') return hireHR(state, from);
   if (post.job === 'marketing') return hireMarketer(state, from);
   if (post.job === 'codebreaking') return hireCodebreaker(state, from);
+  if (post.job === 'records') return hireRecorder(state, from);
   return buyMonkey(state, post.genre, from);
 }
 
 /** The room a staff department works in, by its id. */
 function staffRoom(state: GameState, id: string): Room | undefined {
-  return id === research.id ? labRoom(state) : id === hr.id ? hrRoom(state) : id === marketing.id ? marketingRoom(state) : id === codebreaking.id ? codebreakingRoom(state) : undefined;
+  return id === research.id ? labRoom(state) : id === hr.id ? hrRoom(state) : id === marketing.id ? marketingRoom(state) : id === codebreaking.id ? codebreakingRoom(state) : id === records.id ? recordsRoom(state) : undefined;
 }
 
 /** The post a monkey works at now, by its id (as in posts). */
@@ -2893,9 +2950,20 @@ export function moveMonkeyTo(state: GameState, index: number, postId: string): b
 }
 
 /** Takes a candidate off the list, for a hire: its trait and stats (nothing for an unseen hire). */
-function takeCandidate(state: GameState, from?: number): Partial<Candidate> {
+function takeCandidate(state: GameState, from?: number): Partial<MonkeyState> {
   if (from === undefined || !state.candidates[from]) return {};
-  return state.candidates.splice(from, 1)[0];
+  const { luck, ...c } = state.candidates.splice(from, 1)[0];
+  return c.tempLeft > 0 ? { ...c, typewriter: tempTypewriter(state, luck ?? 0) } : c;
+}
+
+/**
+ * The typewriter a temp brings: the one of the best- or second-best-equipped
+ * monkey (temps aside), the second when `luck` falls under tempSecondTypewriter.
+ */
+export function tempTypewriter(state: GameState, luck: number): number {
+  const tiers = state.monkeys.filter((m) => !isTemp(m)).map((m) => m.typewriter).sort((a, b) => b - a);
+  if (tiers.length === 0) return 0;
+  return luck < hr.tempSecondTypewriter ? (tiers[1] ?? tiers[0]) : tiers[0];
 }
 
 /** Takes one thing out of a storage count. */
@@ -3027,17 +3095,22 @@ export function canBuildLibrary(state: GameState): boolean {
 
 /** Shelves every finished play and text not shelved yet. Returns whether any was. */
 export function shelveBooks(state: GameState): boolean {
-  const fresh = state.playsDone.filter((id) => !state.shelved.includes(id));
+  const books = state.recordBooks.map((_, k) => `records-${k + 1}`);
+  const fresh = [...state.playsDone, ...books].filter((id) => !state.shelved.includes(id));
   state.shelved.push(...fresh);
-  if (libraryRoom(state)) for (const id of fresh) announce(state, `${bookTitle(id)} is shelved in the ${library.name}.`);
+  if (libraryRoom(state)) for (const id of fresh) announce(state, `${bookTitle(id, state)} is shelved in the ${library.name}.`);
   return fresh.length > 0;
 }
 
-/** A shelved book's title: its play or text, or "Folio N". */
-export function bookTitle(id: string): string {
+/** A shelved book's title: its play or text, "Folio N", or a Records book's first sentence (Justin, 2026-10-18). */
+export function bookTitle(id: string, state?: GameState): string {
   if (id === 'bibliography') return 'Bibliography';
   const folio = /^folio-(\d+)$/.exec(id);
-  return folio ? `Folio ${folio[1]}` : (getPlay(id)?.title ?? id);
+  if (folio) return `Folio ${folio[1]}`;
+  const book = /^records-(\d+)$/.exec(id);
+  if (!book) return getPlay(id)?.title ?? id;
+  const first = state?.recordBooks[Number(book[1]) - 1]?.[0];
+  return first ? `"${first}"` : `${records.name}, volume ${book[1]}`;
 }
 
 /** The Library's galleries, each a list of its books (first to last, filled in the order shelved). Empty without the Library. */
@@ -3056,10 +3129,15 @@ export function galleryCost(state: GameState): number {
   return Math.ceil(library.galleryCost * Math.pow(library.galleryCostGrowth, Math.max(0, state.galleries - 1)));
 }
 
-/** Buys a gallery for the Library. */
+/** Whether the Library has all the galleries its maxBooks allow. */
+export function libraryFull(state: GameState): boolean {
+  return Math.max(1, state.galleries) * library.booksPerGallery >= library.maxBooks;
+}
+
+/** Buys a gallery for the Library, up to maxBooks of shelves. */
 export function buyGallery(state: GameState): boolean {
   const cost = galleryCost(state);
-  if (!libraryRoom(state) || state.lines < cost) return false;
+  if (!libraryRoom(state) || libraryFull(state) || state.lines < cost) return false;
   state.lines -= cost;
   state.galleries = Math.max(1, state.galleries) + 1;
   return true;
@@ -3109,4 +3187,104 @@ export function switchClassical(state: GameState): boolean {
 /** Adds a line to the LATELY feed's news: what just opened or changed (Justin, 2026-10-17: "it shows up as messages in the lately category"). */
 export function announce(state: GameState, text: string): void {
   state.lately.news = [...state.lately.news, { text, at: state.stats.secondsTyping }].slice(-lately.maxNews);
+}
+
+/** Records' office, if built. */
+export function recordsRoom(state: GameState): Room | undefined {
+  return state.office.find((r) => r.kind === 'records');
+}
+
+/** Records clerks, by index. */
+export function recorders(state: GameState): number[] {
+  return state.monkeys.flatMap((m, i) => (isRecorder(m) ? [i] : []));
+}
+
+/** Whether Records' office can be built on the office map: the Library stands and there's no Records office yet. */
+export function canBuildRecords(state: GameState): boolean {
+  return !recordsRoom(state) && !!libraryRoom(state);
+}
+
+/** Bananas for the next records clerk (before HR's discount on a candidate). */
+export function recorderCost(state: GameState): number {
+  return Math.ceil(records.hireCost * Math.pow(records.hireCostGrowth, state.monkeysBought[records.id] ?? 0));
+}
+
+/** Hires a records clerk into Records' office, with a desk. */
+export function hireRecorder(state: GameState, from?: number): boolean {
+  const room = recordsRoom(state);
+  const cost = hirePrice(state, recorderCost(state), 'records', from);
+  if (!room || recorders(state).length >= records.maxStaff || freeSquares(state, room).length === 0 || state.currency < cost) return false;
+  state.currency -= cost;
+  state.monkeysBought[records.id] = (state.monkeysBought[records.id] ?? 0) + 1;
+  addMonkey(state, { ...takeCandidate(state, from), department: records.id });
+  const square = bestSquares(state, room, true)[0];
+  state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+  return true;
+}
+
+/** How much of the monkeys' grammatical writing Records catches: catchEach for each clerk at its desk (more or less by its feeling about the job), up to all of it. */
+export function recordsShare(state: GameState): number {
+  const working = recorders(state)
+    .filter((i) => canReachDesk(state, state.monkeys[i]) && deskOf(state, i) !== undefined)
+    .reduce((n, i) => n + (1 + jobBonus(state.monkeys[i])) * (1 + traitBonus(state, state.monkeys[i], 'speed')), 0);
+  return Math.min(1, working * records.catchEach);
+}
+
+/** Sentences Records has written down, full books and the one being filled. */
+export function recordCount(state: GameState): number {
+  return state.recordBooks.reduce((n, b) => n + b.length, 0) + state.recordDraft.length;
+}
+
+/** A sentence's fingerprint for spotting repeats: a 53-bit hash of its text (two can clash, very rarely, and then one is skipped). */
+function fingerprint(text: string): number {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+/** Fingerprints of every sentence recorded, kept in memory only (rebuilt from the books after loading). */
+const recorded = new WeakMap<GameState, Set<number>>();
+function recordedSet(state: GameState): Set<number> {
+  let set = recorded.get(state);
+  if (!set) {
+    set = new Set([...state.recordBooks.flat(), ...state.recordDraft].map(fingerprint));
+    recorded.set(state, set);
+  }
+  return set;
+}
+
+/**
+ * Records looks over a chain that just ended: each grammatical sentence in
+ * it (see sentencesIn) that isn't a line of a text and isn't recorded yet is
+ * caught at Records' share (its catch builds up, one sentence at a time) and
+ * written in the book being filled; a full book goes to the Library.
+ */
+export function recordChain(state: GameState, words: readonly string[], found = sentencesIn(words)): void {
+  if (words.length < minSentenceWords || !recordsRoom(state)) return;
+  const share = recordsShare(state);
+  if (share <= 0) return;
+  for (const sentence of found) {
+    if (scriptLetters.has(sentence.join(''))) continue;
+    const text = sentence.join(' ');
+    const set = recordedSet(state);
+    const print = fingerprint(text);
+    if (set.has(print)) continue;
+    state.recordCatch += share;
+    if (state.recordCatch < 1) continue;
+    state.recordCatch -= 1;
+    set.add(print);
+    state.recordDraft.push(text);
+    if (state.recordDraft.length >= records.bookSize) {
+      state.recordBooks.push(state.recordDraft);
+      state.recordDraft = [];
+      shelveBooks(state);
+    }
+  }
 }

@@ -13,6 +13,7 @@ export interface MonkeyState {
   manager: boolean; // a manager doesn't type; it picks its department's target line, pins it and fills word slots
   target: Pin | null; // a manager's current target line
   managerLevel: number; // manager upgrades bought; each raises its department's points
+  sentenceStreak: number; // a manager's Sentences multiplier above its base, from its department's grammatical sentences
   managerSpeedLevel: number; // "Quicker manager" upgrades bought; each makes it change slots sooner
   slotWait: number; // a manager's seconds until it can change its next word slot (0: ready)
   pending: string; // letters that might still become a word
@@ -35,6 +36,7 @@ export interface MonkeyState {
   speedStat: number; // hidden stat: typing speed x this (0 until picked when it joins); shown once HR is built
   stamina: number; // hidden stat: energy lasts x this (0 until picked)
   tempLeft: number; // a temp's seconds left before it leaves (0: not a temp)
+  worked: number; // seconds it has worked at the company, offline time included
   number: number; // its M-number, kept for good (0: not given yet; then it goes by its place in the list)
   jobs: Record<string, string>; // hidden: its feeling (monkeyStats.feelings id) about each job id; empty until picked
 }
@@ -75,7 +77,7 @@ export interface Milestone {
  */
 export interface Room {
   id: string;
-  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's; library is the Library
+  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library' | 'records'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's; library is the Library
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
 }
@@ -170,6 +172,9 @@ export interface GameState {
   shelved: string[]; // the Library's books in the order shelved: play and text ids, and 'folio-N' for each Folio (kept through a Folio)
   classical: 'greek' | 'latin'; // the language the Greek (Classical) department types, once it has Latin
   galleries: number; // the Library's galleries bought (the first comes with the room; kept through a Folio)
+  recordBooks: string[][]; // Records' full books, each its sentences (words joined by spaces); shelved as 'records-N' (kept through a Folio)
+  recordDraft: string[]; // the book Records is filling (kept through a Folio)
+  recordCatch: number; // Records' share of the next grammatical sentence caught so far (catches one at 1)
   lastMilestone: Milestone | null;
   pointsBonus: number; // from finished scenes: points x (1 + pointsBonus)
   speedBonus: number; // from finished acts: typing speed x (1 + speedBonus)
@@ -219,6 +224,7 @@ export interface Candidate {
   stamina: number;
   jobs: Record<string, string>;
   tempLeft: number; // a temp's working time in seconds (0: not a temp)
+  luck?: number; // a temp's draw (0 to 1) for which typewriter it brings
 }
 
 export interface Stats {
@@ -249,7 +255,7 @@ export function createStats(): Stats {
 }
 
 export function createMonkey(): MonkeyState {
-  return { name: '', department: '', manager: false, target: null, managerLevel: 0, managerSpeedLevel: 0, slotWait: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, number: 0 };
+  return { name: '', department: '', manager: false, target: null, managerLevel: 0, sentenceStreak: 0, managerSpeedLevel: 0, slotWait: 0, pending: '', line: [], progress: 0, chainWords: [], chainPoints: 0, chainRecent: [], chainLength: 0, chainCounted: 0, chainAll: [], skill: 0, typewriter: 0, energy: 1, resting: false, hat: '', hatColor: '', petHappiness: 0, trait: '', speedStat: 0, stamina: 0, jobs: {}, tempLeft: 0, worked: 0, number: 0 };
 }
 
 /** A name with the sounds before each word's first vowel swapped for `onset` (King Kong -> Bing Bong); words without a vowel stay. */
@@ -339,6 +345,9 @@ export function createInitialState(now = Date.now()): GameState {
     playsDone: [],
     shelved: [],
     galleries: 0,
+    recordBooks: [],
+    recordDraft: [],
+    recordCatch: 0,
     classical: 'greek',
     lastMilestone: null,
     pointsBonus: 0,

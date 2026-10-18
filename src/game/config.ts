@@ -246,7 +246,7 @@ export interface FurnitureKind {
 }
 
 /** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
-export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library';
+export type RoomKind = 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library' | 'records';
 
 /** The five feng shui elements. A room with all five is balanced. */
 export type Element = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
@@ -506,6 +506,8 @@ export const hr = {
   tempStats: { min: 1.1, max: 1.4 },
   tempTraits: ['cheerleader', 'motivator', 'social', 'greenthumb', 'bookworm', 'couchpotato'],
   tempFeelings: ['good', 'loves'],
+  // A temp brings the typewriter of the office's best- or second-best-equipped monkey (Justin, 2026-10-18), the second this often.
+  tempSecondTypewriter: 0.8,
 };
 
 /**
@@ -586,6 +588,26 @@ export const library = {
   galleryCost: 100, // Lines for the second gallery
   galleryCostGrowth: 10,
   fullBonus: 0.05, // points for each full gallery
+  maxBooks: 500, // Justin, 2026-10-18: a library holds 500 books at most, so 125 galleries
+};
+
+/**
+ * Records (Justin, 2026-10-18): "in charge of determining what writing from
+ * the monkeys is worth keeping and recording it in books that will eventually
+ * end up in the libraries when full". An office you can build once the
+ * Library stands, with up to maxStaff clerks. Each clerk at its desk catches
+ * catchEach of the grammatical sentences the monkeys write (see grammar.ts),
+ * and only ones not yet recorded and not a line of a text; bookSize of them
+ * fill a book, which goes to the Library. Placeholders.
+ */
+export const records = {
+  id: 'records', // a records clerk's department
+  name: 'Records',
+  maxStaff: 5,
+  hireCost: 1_000_000,
+  hireCostGrowth: 3,
+  catchEach: 0.2,
+  bookSize: 100,
 };
 
 /**
@@ -597,6 +619,7 @@ export const library = {
 export const bibliography = [
   'William Shakespeare, Hamlet, Macbeth, A Midsummer Night\'s Dream, Richard III and the Sonnets. The Complete Works of William Shakespeare, the MIT edition (the public-domain Moby text), https://github.com/TheMITTech/shakespeare.',
   'ENABLE (Enhanced North American Benchmark Lexicon), the public-domain word list behind the dictionary.',
+  'Grady Ward, Moby Part-of-Speech List (Moby Project, 1996), public domain: the parts of speech behind the Records department\'s grammar check.',
   'Aristotle, Metaphysics I.4, 985b4-22. Greek: W. D. Ross, ed., Aristotle\'s Metaphysics (Oxford, 1924), via the Perseus Digital Library, CC BY-SA 4.0. English: W. D. Ross, trans. (Oxford, 1908), public domain.',
   'Aristotle, De generatione et corruptione. Greek: C. Prantl, ed. (Leipzig: Teubner, 1881), via the First1KGreek project (Open Greek and Latin), CC BY-SA 4.0. English: H. H. Joachim, trans., On Generation and Corruption (Oxford, 1922), public domain, via the MIT Internet Classics Archive.',
   'Marcus Tullius Cicero, De natura deorum. Latin: O. Plasberg, ed. (Leipzig: Teubner, 1917), via the Perseus Digital Library, CC BY-SA 4.0. English: C. D. Yonge, trans., The Nature of the Gods (London, 1878), public domain, via Project Gutenberg (ebook 14988).',
@@ -675,6 +698,7 @@ export const monkeyStats = {
     { id: 'marketing', name: 'Marketing' },
     { id: 'research', name: 'Research' },
     { id: 'codebreaking', name: 'Codebreaking' },
+    { id: 'records', name: 'Records' },
   ],
   feelings: [
     { id: 'loves', name: 'loves', bonus: 0.2, weight: 0.1 },
@@ -930,6 +954,14 @@ export const managers = {
   // expensive, since one upgrades the whole department: the n-th costs
   // linesPerMonkey Lines per monkey in the department x upgradeCostGrowth^(n-1).
   bonusPerLevel: 0.1,
+  // Sentences (Justin, 2026-10-18): a manager multiplies the Sentences its
+  // department's chains pay, like the word combo: x1 plus sentencePerLevel for
+  // each upgrade as its base, then +sentenceGood for each chain holding a
+  // grammatical sentence (see grammar.ts) and -sentenceBad for each without
+  // one, never below the base. Placeholders.
+  sentencePerLevel: 0.1,
+  sentenceGood: 0.2,
+  sentenceBad: 0.1,
   linesPerMonkey: 50,
   upgradeCostGrowth: 2,
   // Managers change their department's word slots one at a time, one change

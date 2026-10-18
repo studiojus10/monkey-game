@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { records, lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -23,6 +23,7 @@ import {
   managerOf,
   slotGenre,
   managerUpgradeCost,
+  sentenceMultiplier,
   nextDepartmentAt,
   getPlay,
   comboCap,
@@ -86,6 +87,10 @@ import {
   telegramCipher,
   telegramSettings,
   telegramText,
+  isRecorder,
+  recorders,
+  recordCount,
+  canBuildRecords,
   posts,
   postCost,
   isStaff,
@@ -297,12 +302,17 @@ function energyText(m: MonkeyState): string {
   return p > energyColors.green ? green(text) : p > energyColors.yellow ? yellow(text) : red(text);
 }
 
-/** The departments [tab] goes through on the home screen: the play departments, then R&D once it's open. */
+/** The departments [tab] goes through on the home screen: only the typing departments. */
 export function homeViews(state: GameState): string[] {
+  return departmentGenres(state); // only typing departments (Justin, 2026-10-18)
+}
+
+/** Every department in the roster's order: the typing departments, then R&D and the staff departments that have monkeys. */
+export function staffViews(state: GameState): string[] {
   return [
     ...departmentGenres(state),
     ...(state.researchOpen ? [research.id] : []),
-    ...[hr.id, marketing.id, codebreaking.id].filter((id) => state.monkeys.some((m) => m.department === id)),
+    ...[hr.id, marketing.id, codebreaking.id, records.id].filter((id) => state.monkeys.some((m) => m.department === id)),
   ];
 }
 
@@ -320,7 +330,7 @@ export function homeGenre(state: GameState): Genre | undefined {
 
 /** A department's name by its view id (a genre, or R&D, HR, Marketing, Codebreaking). */
 export function viewName(state: GameState, view: string): string {
-  const staff: Record<string, string> = { [research.id]: research.name, [hr.id]: hr.name, [marketing.id]: marketing.name, [codebreaking.id]: codebreaking.name };
+  const staff: Record<string, string> = { [research.id]: research.name, [hr.id]: hr.name, [marketing.id]: marketing.name, [codebreaking.id]: codebreaking.name, [records.id]: records.name };
   return staff[view] ?? departmentName(state, view as Genre);
 }
 
@@ -369,7 +379,19 @@ function monkeyRow(state: GameState, i: number, room: number, chosen = false): s
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
   const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m).toFixed(1)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
-  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : isCodebreaker(m) ? codebreakingStatus(state).toUpperCase() : renderLine(m, room)}`;
+  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : isCodebreaker(m) ? codebreakingStatus(state).toUpperCase() : isRecorder(m) ? recordsStatus(state).toUpperCase() : renderLine(m, room)}`;
+}
+
+/** What Records has written down: sentences, and how full the book under way is. */
+export function recordsStatus(state: GameState): string {
+  const books = state.recordBooks.length;
+  return `${count(recordCount(state))} sentences recorded${books > 0 ? ` in ${count(books)} full book${books === 1 ? '' : 's'}` : ''}, this book ${state.recordDraft.length}/${records.bookSize}`;
+}
+
+/** The last sentence Records wrote down, as words, or none. */
+function lastRecorded(state: GameState): string[] {
+  const last = state.recordDraft[state.recordDraft.length - 1] ?? state.recordBooks[state.recordBooks.length - 1]?.slice(-1)[0];
+  return last ? last.split(' ') : [];
 }
 
 /** A researcher's line on the home screen: what R&D is working on. */
@@ -462,8 +484,11 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
     ...(canBuildMarketing(state) ? [`* You can build a ${marketing.name} office on the office map ([o], then [r]).`] : []),
     ...(canBuildCodebreaking(state) ? [`* You can build a ${codebreaking.name} office on the office map ([o], then [r]).`] : []),
+    ...(canBuildRecords(state) ? [`* You can build a ${records.name} office on the office map ([o], then [r]): it keeps the monkeys' best sentences in books.`] : []),
     ...(unreadTelegram(state) && !bombeBuilt(state) ? [`* A telegram came, in Enigma: read it in the Staff store; ${research.name} can study it.`] : []),
     ...(codebreakers(state).length > 0 ? [`${codebreaking.name}: ${codebreakingStatus(state)}`] : []),
+    ...(recorders(state).length > 0 ? [`${records.name}: ${recordsStatus(state)}`] : []),
+    ...(lastRecorded(state).length > 0 && recorders(state).length > 0 ? [sentence('Last recorded', lastRecorded(state))] : []),
     ...(royalties(state) > 0 ? [`${marketing.name}: royalties ${formatNumber(royalties(state))} ${theme.currency}/s`] : []),
     ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),
@@ -498,10 +523,11 @@ export function renderHomeKeys(state: GameState): string {
     '',
     ...group('GO TO', [
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
-      ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
+      ['m', 'your monkeys: each one\'s job, typing, hats and trait'],
       ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters'],
       ['p', 'the script: plays, pins and scenes to buy (the Texts page, once you have foreign texts or codes: [tab] for its contents, [/] for its tabs)'],
-      ['o', 'the office map'],
+      ['o', 'the office map, from any screen'],
+      ['backspace', 'back home, from any screen'],
       ['t', 'statistics'],
       ['a', 'achievements'],
       ['w', 'the dictionary of words your monkeys have spelled'],
@@ -807,7 +833,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               {
                 id: 'manager',
                 text: 'Upgrade a manager',
-                effect: `+${managers.bonusPerLevel}x bananas for its department`,
+                effect: `+${managers.bonusPerLevel}x bananas and base sentences for its department`,
                 cost: [[Math.min(...managerChoices(state).map((i) => managerUpgradeCost(state, state.monkeys[i]))), 'lines']] as [number, Currency][],
                 costFrom: managerChoices(state).length > 1,
                 star: managerChoices(state).some((i) => state.lines >= managerUpgradeCost(state, state.monkeys[i])),
@@ -1241,7 +1267,7 @@ export function renderSlotsMenu(
           [
             ['up/down', 'select'],
             ['w', 'set word'],
-            ['o', 'on/off'],
+            ['enter', 'on/off'],
             ['left/right', 'move position'],
             ...(many ? [['tab', 'next department'] as [string, string]] : []),
             ['esc', 'back'],
@@ -1305,7 +1331,7 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
 function managerLine(m: MonkeyState): string {
   const play = m.target && getPlay(m.target.play);
   const line = play && m.target && play.lines[m.target.index];
-  const title = `MANAGER (department x${(1 + managers.bonusPerLevel * m.managerLevel).toFixed(1)})`;
+  const title = `MANAGER (department x${(1 + managers.bonusPerLevel * m.managerLevel).toFixed(1)}, sentences x${sentenceMultiplier(m).toFixed(1)})`;
   return play && line
     ? `${title}, aiming at ${play.title} ${lineLocation(line, play.genre)}`
     : `${title}, waiting for a line your letters can spell`;
@@ -1331,7 +1357,7 @@ export function managerUpgradePrompt(state: GameState): string {
   const choices = managerChoices(state).map((i, k) => {
     const m = state.monkeys[i];
     const now = 1 + managers.bonusPerLevel * m.managerLevel;
-    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} ` +
+    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} (sentences x${sentenceMultiplier(m).toFixed(1)}) ` +
       priceNamed(managerUpgradeCost(state, m), state.lines, 'lines');
   });
   return `Upgrade which manager? ${choices.join('   ')}   (any other key: done)`;

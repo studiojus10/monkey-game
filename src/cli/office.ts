@@ -1,5 +1,7 @@
-import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, library, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, records, library, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
+import { menuBox } from './hiring';
 import {
+  storedFitting,
   departmentMonkeys,
   expansionSquares,
   monkeyName,
@@ -24,6 +26,7 @@ import {
   hrStaff,
   marketers,
   codebreakers,
+  recorders,
   codebreakingRoom,
   libraryBonus,
   unshelvedBooks,
@@ -35,7 +38,7 @@ import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedB
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
-import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
+import { bold, dim, furnitureColor, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar } from './style';
 import { formatAmount, formatNumber, formatPrice } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -57,9 +60,36 @@ export function roomName(state: GameState, room: Room): string {
   if (room.kind === 'marketing') return `${marketing.name} office`;
   if (room.kind === 'codebreaking') return `${codebreaking.name} office`;
   if (room.kind === 'library') return library.name;
+  if (room.kind === 'records') return `${records.name} office`;
   if (room.kind === 'office') return `${departmentName(state, room.department as keyof typeof genreNames) ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
+}
+
+/**
+ * Each room's label on the map (Justin, 2026-10-18): the first letter of its
+ * name, or two letters where rooms share one (the initials of its first two
+ * words, else its first two letters, else the letter and a number).
+ */
+export function roomLabels(state: GameState): Map<string, string> {
+  const names = state.office.map((r) => roomName(state, r).toUpperCase());
+  const first = names.map((n) => n[0] ?? '?');
+  const out = new Map<string, string>();
+  const used = new Set(first.filter((l, i) => first.indexOf(l) === i && first.lastIndexOf(l) === i));
+  state.office.forEach((r, i) => {
+    if (used.has(first[i]) && first.indexOf(first[i]) === first.lastIndexOf(first[i])) return out.set(r.id, first[i]);
+    const words = names[i].split(/[^A-Z0-9]+/).filter(Boolean);
+    const options = [
+      words.length > 1 ? `${words[0][0]}${words[1][0]}` : '',
+      `${first[i]}${words[words.length - 1]?.at(-1) ?? ''}`,
+      names[i].replace(/[^A-Z0-9]/g, '').slice(0, 2),
+      ...Array.from({ length: 9 }, (_, k) => `${first[i]}${k + 1}`),
+    ].filter((o) => o.length === 2);
+    const pick = options.find((o) => !used.has(o)) ?? `${first[i]}${i}`;
+    used.add(pick);
+    out.set(r.id, pick);
+  });
+  return out;
 }
 
 /** Who sits at each desk: furniture index -> monkey index (see deskOf). */
@@ -109,6 +139,7 @@ export function renderOffice(
   heldDoor: Side | null = null,
   columns = 0,
   shop = '',
+  legend: number | null = null,
 ): string {
   const grow = growingRoom(state, cursor, growing);
   const options = grow ? expansionSquares(state, grow) : [];
@@ -139,6 +170,15 @@ export function renderOffice(
   /** Whether two squares hold the same bigger piece (drawn joined: C===C across, | down). */
   const joined = (ax: number, ay: number, bx: number, by: number) => piece(ax, ay) >= 0 && piece(ax, ay) === piece(bx, by);
 
+  // The legend (Justin, 2026-10-18: hidden until [l], beside the map): the item under its cursor lights up on the map.
+  const items = legendItems(state, sitter);
+  const lit = legend !== null ? items[legend] : undefined;
+  const litAt = (x: number, y: number) => {
+    if (!lit?.square) return false;
+    const f = piece(x, y);
+    return lit.square(x, y, f >= 0 && f !== held ? f : -1);
+  };
+
   const cell = (x: number, y: number): string => {
     const here = cursor?.x === x && cursor.y === y;
     const room = roomAt(state, x, y);
@@ -157,10 +197,13 @@ export function renderOffice(
       const left = joined(x - 1, y, x, y) ? '=' : ' ';
       const right = joined(x, y, x + 1, y) ? '=' : ' ';
       text = `${left}${glyphOf(state.furniture[f].kind)}${right}`;
+      if (!here && litAt(x, y)) return inverse(text);
       if (!here) return furnitureColor(kindOf(state.furniture[f].kind)?.color, text);
     } else if (!room) text = options.some(([ox, oy]) => ox === x && oy === y) ? ' + ' : '   ';
     else text = ' . ';
-    return here ? `>${text[1]}<` : wearer ? dyed(wearer, text) : text;
+    if (here) return `>${text[1]}<`;
+    if (litAt(x, y)) return inverse(text);
+    return wearer ? dyed(wearer, text) : text;
   };
   // Walls run between squares of different spaces; + only where they turn or meet.
   const corner = (x: number, y: number) => {
@@ -171,12 +214,13 @@ export function renderOffice(
     if ((up || down) && (left || right)) return '+';
     return up || down ? '|' : left || right ? '-' : ' ';
   };
-  // Each room's number goes in the wall above its first square that has no door.
+  // Each room's label goes in the wall above its first square that has no door.
   const labels = new Map<string, string>();
-  state.office.forEach((r, i) => {
+  const names = roomLabels(state);
+  state.office.forEach((r) => {
     const top = [...r.cells].filter(([x, y]) => !r.cells.some(([cx, cy]) => cx === x && cy === y - 1));
     const [x, y] = top.sort((a, c) => a[1] - c[1] || a[0] - c[0]).find(([tx, ty]) => !doorAt(state, tx, ty, 'n') && !windowAt(state, tx, ty, 'n')) ?? top[0];
-    labels.set(`${x},${y}`, String(i + 1));
+    labels.set(`${x},${y}`, names.get(r.id) ?? '?');
   });
   // A door being moved shows where it would go, on the cursor's square.
   const preview = (x: number, y: number, side: Side) => {
@@ -191,9 +235,10 @@ export function renderOffice(
   const windowLeft = (x: number, y: number) => !!windowAt(state, x, y, 'w') || !!windowAt(state, x - 1, y, 'e');
   const hWall = (x: number, y: number) => {
     if (!wall(x, y - 1, x, y)) return preview(x, y, 'n') ? ' / ' : joined(x, y - 1, x, y) ? ' | ' : '   ';
-    if (isDoor(x, y, 'n')) return '-/-';
+    if (isDoor(x, y, 'n')) return lit?.wall === 'door' ? inverse('-/-') : '-/-';
     const label = labels.get(`${x},${y}`);
-    return label ? `-${label}`.padEnd(3, '-') : windowAbove(x, y) ? '===' : '---';
+    if (label) return lit?.room && roomAt(state, x, y)?.id === lit.room ? inverse(`-${label}`.padEnd(3, '-')) : `-${label}`.padEnd(3, '-');
+    return windowAbove(x, y) ? (lit?.wall === 'window' ? inverse('===') : '===') : '---';
   };
   const lines: string[] = [];
   for (let y = minY; y <= maxY + 1; y++) {
@@ -203,7 +248,8 @@ export function renderOffice(
     if (y > maxY) break;
     let row = '';
     for (let x = minX; x <= maxX + 1; x++) {
-      row += wall(x - 1, y, x, y) ? (isDoor(x, y, 'w') ? '/' : windowLeft(x, y) ? ':' : '|') : preview(x, y, 'w') ? '/' : joined(x - 1, y, x, y) ? '=' : ' ';
+      const lightWall = (t: string, kind: 'door' | 'window') => (lit?.wall === kind ? inverse(t) : t);
+      row += wall(x - 1, y, x, y) ? (isDoor(x, y, 'w') ? lightWall('/', 'door') : windowLeft(x, y) ? lightWall(':', 'window') : '|') : preview(x, y, 'w') ? '/' : joined(x - 1, y, x, y) ? '=' : ' ';
       if (x <= maxX) row += cell(x, y);
     }
     lines.push(row.trimEnd());
@@ -212,6 +258,7 @@ export function renderOffice(
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 
   if (shop) return [titleBar(state, 'Office', columns), '', ...lines, rule(columns), shop].join('\n');
+  if (legend !== null) besideMap(lines, items.map((i) => i.text), legend, columns);
 
   const underCursor = cursor ? roomAt(state, cursor.x, cursor.y) : undefined;
   const pieceHere = cursor && underCursor ? piece(cursor.x, cursor.y) : -1;
@@ -222,8 +269,9 @@ export function renderOffice(
       : isHall(state, cursor.x, cursor.y)
         ? 'Cursor: hallway.'
         : 'Cursor: outside.';
-  const furnished = furnitureKinds.filter((k) => state.furniture.some((f) => f.kind === k.id)).map((k) => `${k.glyph} ${k.name.toLowerCase()}`);
-  const keys: [string, string][][] = grow
+  const keys: [string, string][][] = legend !== null
+    ? [[['arrows', 'choose'], ['l', 'close the legend'], ['esc', 'close']]]
+    : grow
     ? [[['arrows', 'move'], ['enter', 'buy this square'], ['x', 'done']]]
     : held >= 0
       ? (() => {
@@ -233,7 +281,7 @@ export function renderOffice(
       : heldDoor
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [
-            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['f', 'furniture'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow']],
+            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['l', 'legend'], ['f', 'furniture'], ['p', 'put out'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow']],
             [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['/', 'help'], ['esc', 'back']],
           ];
   const doing = grow
@@ -251,8 +299,6 @@ export function renderOffice(
     '',
     ...lines,
     '',
-    ...wrapItems([...monkeyIconLegend, '[ ] free desk', '/ door', '=== : window', ...furnished], columns).map(dim),
-    '',
     ...roomTable(state, columns),
     ...roomlessDepartments(state).map((g) => red(` The ${departmentName(state, g)} department needs a room: press [r] to buy one.`)),
     '',
@@ -266,7 +312,7 @@ export function renderOffice(
 }
 
 /**
- * The office's rooms as a table: each room's number (as on the map), name and
+ * The office's rooms as a table: each room's label (as on the map), name and
  * size, its chi once the feng shui book is read, then for a department's room
  * its lounge, what its furniture does for it and who works there, and for a
  * break room the departments it is the lounge of. A room with no way in shows
@@ -274,7 +320,8 @@ export function renderOffice(
  */
 function roomTable(state: GameState, columns = 0): string[] {
   const open = connectedRooms(state);
-  const rows = state.office.map((r, i) => {
+  const names = roomLabels(state);
+  const rows = state.office.map((r) => {
     const g = r.kind === 'department' ? roomGenre(state, r) : undefined;
     const lounge = r.kind === 'department' ? loungeOf(state, r) : undefined;
     const boss = r.kind === 'office' ? managerOf(state, r.department as never) : undefined;
@@ -297,10 +344,10 @@ function roomTable(state: GameState, columns = 0): string[] {
     return {
       locked: !open.has(r.id),
       cols: [
-        String(i + 1),
+        names.get(r.id) ?? '?',
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library' ? '-' : pct(roomChi(state, r))] : []),
+        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library' || r.kind === 'records' ? '-' : pct(roomChi(state, r))] : []),
         r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
@@ -314,6 +361,8 @@ function roomTable(state: GameState, columns = 0): string[] {
           ? marketers(state).map((k) => monkeyName(state, k))
           : r.kind === 'codebreaking'
           ? codebreakers(state).map((k) => monkeyName(state, k))
+          : r.kind === 'records'
+          ? recorders(state).map((k) => monkeyName(state, k))
           : r.kind === 'library'
           ? [`${state.shelved.length - unshelvedBooks(state)} books in ${Math.max(1, state.galleries)} galleries ([i] to go in)`]
           : r.kind === 'office'
@@ -346,17 +395,6 @@ function roomTable(state: GameState, columns = 0): string[] {
   ];
 }
 
-/** Items three spaces apart, broken between items to fit a screen `columns` wide. */
-function wrapItems(items: string[], columns = 0): string[] {
-  const rows: string[] = [];
-  for (const item of items) {
-    const last = rows.length - 1;
-    if (last >= 0 && (columns <= 0 || rows[last].length + 3 + item.length < columns)) rows[last] += `   ${item}`;
-    else rows.push(` ${item}`);
-  }
-  return rows;
-}
-
 /** How rooms, lounges and feng shui work: the office map's [/] page. */
 export function renderOfficeHelp(state: GameState, columns = 0): string {
   return [
@@ -367,7 +405,9 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     "   A manager works in its department's office: a small room next door,",
     "   with a door between them and a manager's desk (D).",
     `   ${research.name} researchers work in the ${research.name} lab.`,
-    '   Every room needs a way in from room 1: doors (/) and hallways.',
+    '   Every room needs a way in from your first room: doors (/) and hallways.',
+    '   Rooms are labelled on the map by their first letter (two when they share one).',
+    '   [l] opens the legend beside the map: arrows choose an item to light it up on the map.',
     '   A room grows one square at a time ([x] on the map).',
     '   A new room ([r]) goes where you put it: arrows, then [enter].',
     '   [m] picks up the room under the cursor, with everything in it, to move it.',
@@ -378,7 +418,8 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     '   the nearest break room by a door or hallway. When two are as near,',
     '   the bigger one wins, then the more furnished.',
     '   Furniture makes monkeys happy: more bananas, slower tiring, faster recovery.',
-    '   Buy it here with [f].',
+    '   Buy it here with [f]. [p] puts out a piece from your inventory',
+    '   in the room under the cursor.',
     ...(state.fengShuiBook
       ? ['', dim(' FENG SHUI'), `   Office chi ${pct(officeChi(state))} adds +${pct(chiHappiness(state))} happiness everywhere.`, '   [b] on the map opens the book: what each room needs for good chi.']
       : []),
@@ -490,12 +531,13 @@ export function renderFengShuiBook(state: GameState): string {
     return `  ${e[0].toUpperCase()}${e.slice(1).padEnd(6)} ${names.join(', ')}`;
   });
   const open = connectedRooms(state);
-  const rooms = state.office.flatMap((r, i) => {
+  const names = roomLabels(state);
+  const rooms = state.office.flatMap((r) => {
     if (r.kind === 'office') return []; // offices are too small to count
     const kept = roomRules(state, r);
     const lacks = chiRules.filter((x) => !kept[x.id]).map((x) => x.name);
     const state_ = open.has(r.id) ? (lacks.length === 0 ? 'perfect' : `lacks ${lacks.join(', ')}`) : 'no way in: it counts for nothing';
-    return `  ${String(i + 1).padStart(2)} ${roomName(state, r).padEnd(18)} chi ${pct(roomChi(state, r)).padStart(4)}   ${String(emptySquares(state, r)).padStart(3)} empty   ${state_}`;
+    return `  ${(names.get(r.id) ?? '?').padStart(2)} ${roomName(state, r).padEnd(18)} chi ${pct(roomChi(state, r)).padStart(4)}   ${String(emptySquares(state, r)).padStart(3)} empty   ${state_}`;
   });
   return [
     '=== The Way of the Typewriter: feng shui for monkeys ===',
@@ -531,4 +573,76 @@ export function renderFengShuiBook(state: GameState): string {
 /** A price's label: green when you can afford it, dim when you can't. */
 function label(text: string, cost: number, have: number): string {
   return have >= cost ? green(text) : dim(text);
+}
+
+/** The popup of furniture in your inventory that fits in a room (Justin, 2026-10-18), with how many of each and their size. */
+export function renderFurniturePicker(state: GameState, roomId: string, cursor = -1): string[] {
+  const room = state.office.find((r) => r.id === roomId);
+  const rows = storedFitting(state, roomId).map((id) => {
+    const kind = furnitureKinds.find((k) => k.id === id)!;
+    const [w, h] = pieceSize(id);
+    const count = state.stored.furniture[id];
+    return `${furnitureColor(kind.color, kind.glyph)} ${kind.name}${count > 1 ? ` x${count}` : ''}${w * h > 1 ? dim(` (${w} x ${h})`) : ''}`;
+  });
+  const empty = Object.values(state.stored.furniture).some((n) => n > 0) ? 'Nothing in your inventory fits in this room.' : 'No furniture in your inventory: [s] puts a piece away.';
+  return menuBox(`Furniture for the ${room ? roomName(state, room) : 'room'}`, rows, cursor, empty);
+}
+
+/** How many lines the office map's legend has. */
+export function legendSize(state: GameState): number {
+  return legendItems(state, deskSitters(state)).length;
+}
+
+/** One line of the office map's legend, and which squares (or walls, or a room's label) it lights up. */
+type LegendItem = { text: string; square?: (x: number, y: number, piece: number) => boolean; wall?: 'door' | 'window'; room?: string };
+
+/** The legend's lines: each room by its label, the kinds of monkey and desk, doors, windows, then each kind of furniture in the office. */
+function legendItems(state: GameState, sitter: Map<number, number>): LegendItem[] {
+  const labels = roomLabels(state);
+  const at = (f: number) => (f >= 0 ? state.monkeys[sitter.get(f) ?? -1] : undefined);
+  const isDesk = (f: number) => f >= 0 && state.furniture[f].kind === desk.id;
+  const [plain, boss, hatted] = monkeyIconLegend;
+  return [
+    ...state.office.map((r) => ({ text: `${labels.get(r.id) ?? '?'} ${roomName(state, r)}`, room: r.id, square: (x: number, y: number) => roomAt(state, x, y)?.id === r.id })),
+    { text: plain, square: (_x, _y, f) => !!at(f) && !at(f)!.manager },
+    { text: boss, square: (_x, _y, f) => !!at(f)?.manager },
+    { text: hatted, square: (_x, _y, f) => !!at(f)?.hat },
+    { text: '[ ] free desk', square: (_x, _y, f) => isDesk(f) && !at(f) },
+    { text: '/ door', wall: 'door' },
+    { text: '=== : window', wall: 'window' },
+    ...[managerDesk, ...furnitureKinds]
+      .filter((k) => k.id !== desk.id && state.furniture.some((f) => f.kind === k.id))
+      .map((k) => ({ text: `${k.glyph} ${k.name.toLowerCase()}`, square: (_x: number, _y: number, f: number) => f >= 0 && state.furniture[f].kind === k.id && !at(f) })),
+  ];
+}
+
+/**
+ * Lays the legend beside the map's lines, as high as the map, in two columns
+ * (filled left then right, row by row). A legend taller than the map scrolls
+ * to keep its cursor in view, with ^ and v marks for what's out of sight.
+ */
+function besideMap(lines: string[], items: string[], cursor: number, columns = 0): void {
+  const mapWidth = Math.max(0, ...lines.map((l) => plainText(l).length));
+  while (lines.length < 3) lines.push('');
+  const height = lines.length;
+  const room = Math.max(24, (columns || 80) - mapWidth - 4);
+  const width = Math.max(10, Math.floor((room - 2) / 2));
+  const clip = (t: string) => (t.length <= width ? t : `${t.slice(0, width - 3)}...`);
+  const cell = (k: number) => {
+    const t = items[k];
+    if (t === undefined) return '';
+    return k === cursor ? inverse(clip(t).padEnd(width)) : clip(t).padEnd(width);
+  };
+  const total = Math.ceil(items.length / 2);
+  const scrolls = total > height;
+  const shown = scrolls ? Math.max(1, height - 2) : height;
+  const at = Math.floor(Math.max(0, cursor) / 2);
+  const top = scrolls ? Math.max(0, Math.min(at - Math.floor(shown / 2), total - shown)) : 0;
+  const rows: string[] = [];
+  if (scrolls) rows.push(top > 0 ? dim(`^ ${top * 2} more above`) : '');
+  for (let r = top; r < top + shown; r++) rows.push(`${cell(r * 2)}  ${cell(r * 2 + 1)}`.trimEnd());
+  if (scrolls) rows.push(top + shown < total ? dim(`v ${Math.max(0, items.length - (top + shown) * 2)} more below`) : '');
+  rows.forEach((r, k) => {
+    if (k < lines.length) lines[k] = `${padVisible(lines[k], mapWidth)}   ${r}`.trimEnd();
+  });
 }
