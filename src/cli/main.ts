@@ -131,7 +131,7 @@ import {
 import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
 import { GAME_VERSION } from '../version';
 import { createInitialState, type Door, type GameState, type Room, type Side } from '../game/state';
-import { formatMultiplier, formatNumber, setScientific } from '../format';
+import { formatMultiplier, formatNumber, setScientific, formatPrice } from '../format';
 import { fileStorage } from './fileStorage';
 import {
   keyChoices,
@@ -966,8 +966,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const bet = state.currency;
       const won = flipCoin(state, Math.random);
       flipMessage = won
-        ? `Heads! Your ${formatNumber(bet)} ${theme.currency} became ${formatNumber(state.currency)}.`
-        : `Tails. ${formatNumber(bet)} ${theme.currency} gone. The monkeys keep typing.`;
+        ? `Heads! Your ${formatPrice(bet)} ${theme.currency} became ${formatPrice(state.currency)}.`
+        : `Tails. ${formatPrice(bet)} ${theme.currency} gone. The monkeys keep typing.`;
       flipping = 'done';
     } else if (flipping === 'done' && str === '?') openFlip();
     else flipping = '';
@@ -1001,7 +1001,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (buyGallery(state)) {
         libraryCursor = state.galleries - 1;
         message = `A new gallery, No. ${state.galleries}, opens off the last one.`;
-      } else message = `A new gallery takes ${formatNumber(cost)} Lines.`;
+      } else message = `A new gallery takes ${formatPrice(cost)} Lines.`;
     }
     return draw();
   }
@@ -1481,7 +1481,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         const name = furnitureName(state, spot);
         const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
         if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in your inventory ([i]).`;
-        else if (str === 'v' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} Sentences.`;
+        else if (str === 'v' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatPrice(value)} Sentences.`;
       }
     } else if (str === 'm' && !holding && !officeGrowing) {
       if (!here) message = 'Move the cursor onto a room to move it.';
@@ -1496,7 +1496,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const choices = roomChoices().map(
         (c, i) => `[${i + 1}] ${c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${departmentName(state, c.genre!)}'s manager` : `a room for ${departmentName(state, c.genre!)}`}`,
       );
-      message = `Buy a room (${formatNumber(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
+      message = `Buy a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
       if (officeGrowing) {
@@ -1610,7 +1610,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'v' && i !== undefined) {
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat to sell.`;
-      else if (sellHat(state, i)) message = `Sold the ${hat.name.toLowerCase()} for ${formatNumber(sellValue(hat.cost))} Sentences.`;
+      else if (sellHat(state, i)) message = `Sold the ${hat.name.toLowerCase()} for ${formatPrice(sellValue(hat.cost))} Sentences.`;
     }
     else if (key.name === 'up') rosterCursor = Math.max(0, rosterCursor - 1);
     else if (key.name === 'down') rosterCursor = Math.min(order.length - 1, rosterCursor + 1);

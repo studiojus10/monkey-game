@@ -2,7 +2,7 @@ import { bibliography, library, translation } from '../game/config';
 import { bookTitle, galleryCost, libraryBonus, libraryGalleries, getPlay, unshelvedBooks } from '../game/logic';
 import { sceneName } from '../game/plays';
 import type { GameState } from '../game/state';
-import { formatNumber } from '../format';
+import { formatPrice } from '../format';
 import { genreNames, wrapWords } from './screen';
 import { bold, dim, green, inverseSpan, isCursor, keyRow, rule, scrollMarks, titleBar } from './style';
 
@@ -59,7 +59,7 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
       [
         ['arrows', 'gallery'],
         [books.length > 0 ? `0-${books.length}` : '0', 'read'],
-        state.lines >= cost ? ['b', `a new gallery * ${formatNumber(cost)} Lines`, true] : ['b', `a new gallery ${formatNumber(cost)} Lines`],
+        state.lines >= cost ? ['b', `a new gallery * ${formatPrice(cost)} Lines`, true] : ['b', `a new gallery ${formatPrice(cost)} Lines`],
         ['esc', 'back'],
       ],
       columns,

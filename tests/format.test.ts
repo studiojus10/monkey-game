@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { formatMultiplier, formatNumber, setScientific } from '../src/format';
+import { formatMultiplier, formatNumber, formatPrice, setScientific } from '../src/format';
 
 describe('formatNumber', () => {
   it.each([
@@ -30,5 +30,13 @@ describe('formatMultiplier', () => {
   it('shows two decimals below a thousand, then like a big number', () => {
     expect(formatMultiplier(1.234)).toBe('x1.23');
     expect(formatMultiplier(4_560_000)).toBe('x4.56M');
+  });
+});
+
+describe('formatPrice', () => {
+  it('writes prices like the balances (in full to 10 digits, then 1.23e10), rounded up', () => {
+    expect(formatPrice(300_000)).toBe('300,000');
+    expect(formatPrice(10.2)).toBe('11');
+    expect(formatPrice(1e12)).toBe('1.00e12');
   });
 });

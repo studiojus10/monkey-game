@@ -110,7 +110,7 @@ import { departmentOf, isForeign, lineLocation, sceneName, textToWords, type Gen
 import { devTools } from '../game/dev';
 
 import type { GameState, MonkeyState, Pin } from '../game/state';
-import { formatAmount, formatDuration, formatMultiplier, formatNumber } from '../format';
+import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
 import { affordable, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
 
@@ -142,13 +142,13 @@ export function renderLine(m: MonkeyState, room = Infinity): string {
 
 /** A price in bold: in its currency's colour when you can afford it, the terminal's normal text color when you can't. */
 export function price(cost: number, have: number, currency: Currency = 'currency'): string {
-  const text = bold(formatNumber(cost));
+  const text = bold(formatPrice(cost));
   return have >= cost ? currencyColors[currency](text) : text;
 }
 
 /** A price with its currency's name, e.g. "500 Bananas": all in the currency's colour when you can afford it. */
 export function priceNamed(cost: number, have: number, currency: Currency = 'currency'): string {
-  const text = `${bold(formatNumber(cost))} ${currencyNames[currency]}`;
+  const text = `${bold(formatPrice(cost))} ${currencyNames[currency]}`;
   return have >= cost ? currencyColors[currency](text) : text;
 }
 
@@ -1091,7 +1091,7 @@ export function storePages(state: GameState, store: Store, at?: ScriptSpot): num
 
 /** A price as text, e.g. "from 500 Bananas" or "75 Bananas + 1 Words"; when `affordable`, numbers bold. */
 function costText(item: ShopItem, affordable = false): string {
-  const parts = (item.cost ?? []).map(([n, c]) => `${affordable ? bold(formatNumber(n)) : formatNumber(n)} ${currencyNames[c]}`);
+  const parts = (item.cost ?? []).map(([n, c]) => `${affordable ? bold(formatPrice(n)) : formatPrice(n)} ${currencyNames[c]}`);
   return parts.length === 0 ? '' : `${item.costFrom ? 'from ' : ''}${parts.join(' + ')}`;
 }
 
@@ -1119,19 +1119,25 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
   const nameWidth = width((x) => x.text);
   const glyphWidth = width((x) => x.glyph);
   const elementWidth = numbered.some((x) => x.element) ? Math.max('ELEMENT'.length, width((x) => x.element)) : 0;
-  const effectWidth = width((x) => x.effect);
   const costWidth = Math.max('PRICE'.length, width((x) => (x.cost ? `* ${costText(x)}` : (x.blocked ?? ''))));
-  // Columns are two spaces apart, or one when that's what fits the screen.
-  const widths = [5 + nameWidth, glyphWidth, elementWidth, effectWidth, costWidth].filter((w) => w > 0);
-  const gap = columns > 0 && widths.reduce((a, b) => a + b, 0) + 2 * (widths.length - 1) >= columns ? ' ' : '  ';
-  const row = (num: string, name: string, glyph: string, element: string, effect: string, cost: string) =>
-    [
-      ` ${num.padEnd(4)}${padVisible(name, nameWidth)}`,
-      ...(glyphWidth > 0 ? [padVisible(glyph, glyphWidth)] : []),
-      ...(elementWidth > 0 ? [padVisible(element, elementWidth)] : []),
-      padVisible(effect, effectWidth),
-      padVisible(cost, costWidth, 'right'),
-    ].join(gap);
+  // Columns are two spaces apart, or one when that's what fits the screen; an effect too long for what's left wraps.
+  const others = [5 + nameWidth, glyphWidth, elementWidth, costWidth].filter((w) => w > 0);
+  const fullEffect = width((x) => x.effect);
+  const total = (gapWidth: number) => others.reduce((a, b) => a + b, 0) + fullEffect + gapWidth * others.length;
+  const gap = columns > 0 && total(2) >= columns ? ' ' : '  ';
+  const effectWidth = columns > 0 ? Math.max(12, Math.min(fullEffect, fullEffect + columns - 1 - total(gap.length))) : fullEffect;
+  const row = (num: string, name: string, glyph: string, element: string, effect: string, cost: string) => {
+    const parts = plainText(effect).length <= effectWidth ? [effect] : wrapWords(effect, effectWidth);
+    const cells = (i: number) =>
+      [
+        i === 0 ? ` ${num.padEnd(4)}${padVisible(name, nameWidth)}` : ' '.repeat(5 + nameWidth),
+        ...(glyphWidth > 0 ? [padVisible(i === 0 ? glyph : '', glyphWidth)] : []),
+        ...(elementWidth > 0 ? [padVisible(i === 0 ? element : '', elementWidth)] : []),
+        padVisible(parts[i], effectWidth),
+        padVisible(i === parts.length - 1 ? cost : '', costWidth, 'right'),
+      ].join(gap);
+    return parts.map((_, i) => cells(i)).join('\n');
+  };
 
   const shopMarks = scrollMarks(page * storePageSize, numbered.length - (page + 1) * storePageSize, 'more items');
   const firstItem = items.findIndex((x) => x.id);
@@ -1151,7 +1157,8 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `* ${costText(x, true)}` : costText(x);
     const text = row(`[${n + 1}]`, x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
     // What you can afford is green from end to end, glyph and number too.
-    lastRow = list.push(isCursor(at, cursor) ? inverse(plainText(text)) : x.star ? affordable(text) : x.cost ? dim(plainText(text)) : text) - 1;
+    const style = (t: string) => (isCursor(at, cursor) ? inverse(plainText(t)) : x.star ? affordable(t) : x.cost ? dim(plainText(t)) : t);
+    lastRow = list.push(...text.split('\n').map(style)) - 1;
   }
   list.splice(lastRow + 1, 0, ...shopMarks[1], ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []));
 
@@ -1272,7 +1279,7 @@ export function renderSlotsMenu(
     ...(managed ? [" This department's manager sets these slots for you.", ''] : []),
     ...(rows.length > 0 ? rows : [dim('   No slots yet.')]),
     ...(canBuy
-      ? ['', state.lines >= next ? ` ${affordable(`${bold('[b]')} buy a slot   * ${bold(formatNumber(next))} Lines`)}` : ` ${bold('[b]')} buy a slot   ${formatNumber(next)} Lines`]
+      ? ['', state.lines >= next ? ` ${affordable(`${bold('[b]')} buy a slot   * ${bold(formatPrice(next))} Lines`)}` : ` ${bold('[b]')} buy a slot   ${formatPrice(next)} Lines`]
       : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
@@ -1325,10 +1332,10 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
     '',
     ...choices.map(({ k, kind, cost }, i) => {
       const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
-      if (isCursor(i, cursor)) return inverse(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
+      if (isCursor(i, cursor)) return inverse(`${row(k.padEnd(keyWidth))}  ${formatPrice(cost)} ${theme.currency}`);
       return state.currency >= cost
-        ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatNumber(cost))} ${theme.currency}`)
-        : dim(`${row(k.padEnd(keyWidth))}  ${formatNumber(cost)} ${theme.currency}`);
+        ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatPrice(cost))} ${theme.currency}`)
+        : dim(`${row(k.padEnd(keyWidth))}  ${formatPrice(cost)} ${theme.currency}`);
     }),
     ...(choices.length === 0 ? [dim('   None available yet.')] : []),
     '',
@@ -1555,8 +1562,8 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   const sc = sceneOf(play, at)!;
   const section = (key: string, label: string, n: number) =>
     state.currency >= n && n > 0
-      ? affordable(`${bold(`[${key}]`)} ${label} * ${bold(formatNumber(n))} ${theme.currency}`)
-      : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatNumber(n)} ${theme.currency}`}`;
+      ? affordable(`${bold(`[${key}]`)} ${label} * ${bold(formatPrice(n))} ${theme.currency}`)
+      : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatPrice(n)} ${theme.currency}`}`;
   const locked = !departmentGenres(state).includes(departmentOf(play.genre));
   return [
     titleBar(state, isForeign(play.genre) ? 'Text' : 'Script', columns),

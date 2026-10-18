@@ -162,11 +162,11 @@ describe('terminal screen', () => {
     expect(shop).toContain(' INFINITE MONKEYS > SHOP ');
     expect(shop).toContain(' hello'); // messages still show
     expect(shop).toContain('[1] Faster typing M-1: 0.50 -> 0.63/s, skill 0/10 * 10 Bananas\n');
-    expect(tools).toContain('[2] Portable typewriter M-1: skill cap 10 -> 20 * 1.00K Bananas\n');
+    expect(tools).toContain('[2] Portable typewriter M-1: skill cap 10 -> 20 * 1,000 Bananas\n');
     expect(tools).toContain('[1] Buy a letter key you choose it (25 left) * 25 Bananas\n'); // the 2nd letter costs no Words
     s.letters.push('A');
     expect(squash(renderScreen(s, '', 'typewriters'))).toContain('[1] Buy a letter key you choose it (24 left) 75 Bananas + 1 Words\n');
-    expect(shop).toContain('[2] Hire a monkey you have 1 300.00K Bananas\n');
+    expect(shop).toContain('[2] Hire a monkey you have 1 300,000 Bananas\n');
     expect(shop).toContain('[3] Starting combo x1.0 -> x1.1 1 Sentences\n');
   });
 
@@ -446,10 +446,10 @@ describe('typewriter keys menu', () => {
     expect(text).toContain(' Owned  TH');
     expect(keyChoices(s)).not.toContain('TH');
     expect(keyChoices(s)).toContain('HE');
-    expect(text).toMatch(/ \[1\] HE   combination    [\d.]+[KMBT]? Bananas/);
+    expect(text).toMatch(/ \[1\] HE   combination    [\d,]+ Bananas/);
     expect(text).toMatch(/ \[2\] THE  word /);
     s.currency = s.sentences = 1e9;
-    expect(renderKeysMenu(s)).toContain(`* ${bold('4.00M')} Bananas`); // affordable: * and price, all green
+    expect(renderKeysMenu(s)).toContain(`* ${bold('4,000,000')} Bananas`); // affordable: * and price, all green
     expect(plain(renderKeysMenu(s, '', 80)).split('\n').every((r) => r.length <= 80)).toBe(true);
   });
 });
@@ -593,8 +593,8 @@ describe('office space on screen', () => {
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
     const staff = squash(renderScreen(s, '', 'staff'));
-    expect(staff).toContain('Hire a monkey for Comedies (1/10) * 300.00K Bananas');
-    expect(staff).toContain('Hire a monkey for Tragedies (0/10) * 30.00M Bananas');
+    expect(staff).toContain('Hire a monkey for Comedies (1/10) * 300,000 Bananas');
+    expect(staff).toContain('Hire a monkey for Tragedies (0/10) * 30,000,000 Bananas');
   });
 
   it('draws the office on one grid: rooms, their desks and who sits at them', () => {
@@ -691,8 +691,8 @@ describe('furniture', () => {
     expect(lounge).toContain('You have no break room yet: buy one on the office map ([o], then [r]).');
     expect(lounge).not.toMatch(/\* [0-9.]+K? Bananas/); // nowhere to put any of it
     const last = squash(renderScreen(s, '', 'break', 0, 18)); // the cursor on item 19: page 3
-    expect(last).toContain('[1] Television T recovers 40% faster, +3% pay 20.00K Sentences\n');
-    expect(last).toContain('[2] Hot tub (2x1) U recovers 40% faster, +3% pay 20.00K Sentences\n');
+    expect(last).toContain('[1] Television T recovers 40% faster, +3% pay 20,000 Sentences\n');
+    expect(last).toContain('[2] Hot tub (2x1) U recovers 40% faster, +3% pay 20,000 Sentences\n');
     expect(last).toContain(' page 3 of 3\n');
     expect(storeChoices(s, 'break', 2).map((x) => x.id)).toEqual(['furniture:tv@break', 'furniture:hottub@break']);
     expect(storePages(s, 'hats')).toBe(1);
@@ -721,6 +721,13 @@ describe('furniture', () => {
     expect(shop).toContain('Potted plant');
     expect(shop).not.toContain('[f] furniture'); // the shop takes the place of the room table and keys
     expect(shop.split('\n').slice(0, 4).join('\n')).toContain('+'); // the map is still there
+  });
+
+  it('wraps an effect too long for the screen, keeping the price on its last row', () => {
+    const s = started();
+    s.sentences = 1e12;
+    const text = plain(renderScreen(s, '', 'hats', 80));
+    expect(text).toMatch(/\[8\] Halo +o@ \+50% pay, \+50% speed, tires 50% +\n +slower +\* 1,000,000,000 Sentences\n/);
   });
 
   it('fits every store on an 80-column screen, elements and all', () => {
@@ -869,7 +876,7 @@ describe('managers and traits on screen', () => {
     const s = staffed();
     expect(squash(renderScreen(s, '', 'staff'))).toContain('Hire a manager picks lines, fills slots office needed');
     expect(buyRoom(s, 'office', 'comedy')).toBe(true);
-    expect(squash(renderScreen(s, '', 'staff'))).toMatch(/\[\d\] Hire a manager picks lines, fills slots \* [\d.]+\w? Bananas/);
+    expect(squash(renderScreen(s, '', 'staff'))).toMatch(/\[\d\] Hire a manager picks lines, fills slots \* [\d,]+ Bananas/);
     const map = plain(renderOffice(s));
     expect(map).toContain(' D ');
     expect(squash(map)).toContain('2 Comedies office 4 - - no manager yet');
@@ -926,7 +933,7 @@ describe('hats on screen', () => {
     expect(renderOffice(s)).toContain('|\x1b[31m#\x1b[39m@]');
     s.monkeys.push(createMonkey());
     const top = hatPick(s, 'tophat');
-    expect(plain(top.title)).toBe('Top hat (5.00K Sentences): which monkey gets a new one?');
+    expect(plain(top.title)).toBe('Top hat (5,000 Sentences): which monkey gets a new one?');
     expect(top.notes).toEqual(['wearing it: takes it off', '']);
     const menu = plain(renderMonkeyPicker(s, top.title, top.notes, 1));
     expect(menu).toContain(' [1]  #@ M-1  wearing it: takes it off');
@@ -1054,8 +1061,8 @@ describe('hiring screen', () => {
     s.candidatesIn = 600;
     const text = plain(renderCandidates(s, 'typing', 'a monkey for Comedies', 1000, '', 80));
     expect(text).toContain('HIRING: A MONKEY FOR COMEDIES');
-    expect(squash(text)).toContain(`[1] 110% 90% loves ? for good 1.44K Bananas`);
-    expect(squash(text)).toContain('[0] someone unseen 1.00K Bananas');
+    expect(squash(text)).toContain(`[1] 110% 90% loves ? for good 1,440 Bananas`);
+    expect(squash(text)).toContain('[0] someone unseen 1,000 Bananas');
     expect(text).toContain('New candidates in 10m');
     s.managerBook = true;
     expect(plain(renderCandidates(s, 'typing', 'x', 1000))).toContain('Loner');
