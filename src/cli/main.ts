@@ -613,6 +613,25 @@ function bookHeight(): number {
 }
 
 /** Opens the office map with the cursor in the top-left corner of the first room. */
+/** Closes every screen, menu and popup: back to the home screen. */
+function goHome(): void {
+  showingScript = showingKeys = showingHelp = showingDev = showingStats = showingRoster = showingAchievements = false;
+  showingOffice = showingOptions = showingDictionary = showingSlots = showingInventory = showingLibrary = false;
+  readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = false;
+  pickingDyeColor = pickingDepartment = pickingManagerUpgrade = pickingManagerSpeed = buyingRoom = false;
+  confirmingFire = false;
+  contents = '';
+  pickingTyping = '';
+  pickingDeptFor = '';
+  flipping = '';
+  shop = officeShop = null;
+  giving = picker = choosingPost = readingShelf = invHeld = null;
+  officeLegend = null;
+  officeGrowing = '';
+  offeredBook = -1;
+  message = '';
+}
+
 function openOffice(): void {
   showingOffice = true;
   officeShop = null;
@@ -949,6 +968,18 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       save(state, storage);
       message = `You published Folio #${state.folios}: +${formatNumber(gained)} pages. Bananas ${formatMultiplier(folioMultiplier(state))} for good. The monkeys start again.`;
     } else message = 'Not published. The monkeys keep typing.';
+    return draw();
+  }
+
+  // [o] opens the office map and [backspace] goes home from any screen (Justin, 2026-10-18), except while typing,
+  // confirming, or carrying something on the office map (esc puts it back first).
+  const busy =
+    namingMonkey >= 0 || slotWordDraft !== null || confirmingReset || confirmingFire || !!pickingLetter || state.letters.length === 0 ||
+    heldFurniture >= 0 || !!heldDoor || !!placingRoom || !!movingRoom;
+  const onMap = showingOffice && !officeShop && !readingBook && !readingManagerBook && !officeHelp && !showingLibrary && !readingShelf && !picker;
+  if (!busy && ((str === 'o' && !onMap) || key.name === 'backspace')) {
+    goHome();
+    if (str === 'o') openOffice();
     return draw();
   }
 
@@ -1330,7 +1361,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       slotGenre(state, state.slots[selectedSlot]) === departmentGenres(state)[slotDept]
     ) {
       if (str === 'w') slotWordDraft = '';
-      else if (str === 'o') toggleSlot(state, selectedSlot);
+      else if (key.name === 'space' || key.name === 'return' || key.name === 'enter') toggleSlot(state, selectedSlot);
       else if (key.name === 'left') moveSlot(state, selectedSlot, -1);
       else if (key.name === 'right') moveSlot(state, selectedSlot, 1);
     }

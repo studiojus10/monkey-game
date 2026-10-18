@@ -523,10 +523,11 @@ export function renderHomeKeys(state: GameState): string {
     '',
     ...group('GO TO', [
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
-      ['m', 'your monkeys: each one\'s job, typing, hats, trait and desk'],
+      ['m', 'your monkeys: each one\'s job, typing, hats and trait'],
       ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters'],
       ['p', 'the script: plays, pins and scenes to buy (the Texts page, once you have foreign texts or codes: [tab] for its contents, [/] for its tabs)'],
-      ['o', 'the office map'],
+      ['o', 'the office map, from any screen'],
+      ['backspace', 'back home, from any screen'],
       ['t', 'statistics'],
       ['a', 'achievements'],
       ['w', 'the dictionary of words your monkeys have spelled'],
@@ -1266,7 +1267,7 @@ export function renderSlotsMenu(
           [
             ['up/down', 'select'],
             ['w', 'set word'],
-            ['o', 'on/off'],
+            ['enter', 'on/off'],
             ['left/right', 'move position'],
             ...(many ? [['tab', 'next department'] as [string, string]] : []),
             ['esc', 'back'],
