@@ -53,6 +53,9 @@ export function inverseSpan(line: string, from: number, to: number): string {
   return out;
 }
 const color = (code: number) => (s: string) => `\x1b[${code}m${s}\x1b[39m`;
+
+/** Something you can buy, green from end to end (Justin, 2026-10-18: "the entire button highlights green"): any colours inside it give way; bold stays. */
+export const affordable = (s: string) => `\x1b[32m${s.replace(/\x1b\[(3\d|39)m/g, '')}\x1b[39m`;
 export const red = color(31);
 export const green = color(32);
 export const yellow = color(33);
@@ -146,10 +149,10 @@ export function screenTop(screen: string, rows: number, atTop: boolean): number 
  * A row of keys and what they do: [key] in bold, then its words. On a screen
  * `columns` wide it breaks between keys rather than letting the terminal cut one.
  */
-export function keyRow(keys: [string, string][], columns = 0): string {
+export function keyRow(keys: ([string, string] | [string, string, boolean])[], columns = 0): string {
   const rows: string[][] = [[]];
   let width = 0;
-  for (const [k, what] of keys) {
+  for (const [k, what, buyable] of keys) {
     const item = `[${k}] ${what}`;
     const row = rows[rows.length - 1];
     if (columns > 0 && row.length > 0 && width + 3 + item.length >= columns) {
@@ -157,7 +160,8 @@ export function keyRow(keys: [string, string][], columns = 0): string {
       width = 0;
     }
     width += (rows[rows.length - 1].length > 0 ? 3 : 1) + item.length;
-    rows[rows.length - 1].push(`${bold(`[${k}]`)} ${what}`);
+    const shown = `${bold(`[${k}]`)} ${what}`;
+    rows[rows.length - 1].push(buyable ? affordable(shown) : shown);
   }
   return rows.map((r) => ' ' + r.join('   ')).join('\n');
 }
@@ -165,4 +169,15 @@ export function keyRow(keys: [string, string][], columns = 0): string {
 /** A dim line across the screen, between a screen's content and its keys. */
 export function rule(columns = 0): string {
   return dim(' ' + '-'.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90))));
+}
+
+/**
+ * A scrolling list's marks (Justin, 2026-10-18: "an obvious indicator that
+ * the menu can be scrolled to show more"): a line before it for what's above,
+ * and one after for what's below. A list that fits shows neither; one that
+ * scrolls always has both lines (blank at an end) so the screen doesn't jump.
+ */
+export function scrollMarks(above: number, below: number, what = 'more'): [string[], string[]] {
+  if (above <= 0 && below <= 0) return [[], []];
+  return [[above > 0 ? ` ${bold('^')} ${above.toLocaleString('en-US')} ${what} above` : ''], [below > 0 ? ` ${bold('v')} ${below.toLocaleString('en-US')} ${what} below` : '']];
 }
