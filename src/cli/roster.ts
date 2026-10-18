@@ -25,7 +25,7 @@ import type { GameState } from '../game/state';
 import { codebreakingStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
 import { formatDuration } from '../format';
-import { bold, dim, green, inverse, isCursor, keyRow, red, rule, titleBar } from './style';
+import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, titleBar } from './style';
 
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
 export const rosterPageRows = 12;
@@ -128,7 +128,9 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
   return [
     titleBar(state, 'Monkeys', columns),
     '',
+    ...scrollMarks(top, order.length - top - rosterPageRows, 'more monkeys')[0],
     ...list,
+    ...scrollMarks(top, order.length - top - rosterPageRows, 'more monkeys')[1],
     ...(order.length > rosterPageRows ? [dim(`   ${at + 1} of ${order.length}`)] : []),
     '',
     rule(columns),

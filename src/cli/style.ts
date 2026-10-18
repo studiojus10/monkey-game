@@ -166,3 +166,14 @@ export function keyRow(keys: [string, string][], columns = 0): string {
 export function rule(columns = 0): string {
   return dim(' ' + '-'.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90))));
 }
+
+/**
+ * A scrolling list's marks (Justin, 2026-10-18: "an obvious indicator that
+ * the menu can be scrolled to show more"): a line before it for what's above,
+ * and one after for what's below. A list that fits shows neither; one that
+ * scrolls always has both lines (blank at an end) so the screen doesn't jump.
+ */
+export function scrollMarks(above: number, below: number, what = 'more'): [string[], string[]] {
+  if (above <= 0 && below <= 0) return [[], []];
+  return [[above > 0 ? ` ${bold('^')} ${above.toLocaleString('en-US')} ${what} above` : ''], [below > 0 ? ` ${bold('v')} ${below.toLocaleString('en-US')} ${what} below` : '']];
+}

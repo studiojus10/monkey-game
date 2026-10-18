@@ -280,6 +280,8 @@ A late-game fourth department for Shakespeare's Sonnets **(built)**, mainly a la
 
 Reworked 2026-10-14 (Justin: "the screens appear cluttered and difficult to parse"; "lets go through each section one at a time starting with home screen"). Mockups and the reasoning: the "Infinite Monkeys Screen Cleanup" artifact. Each kind of styling has one job on every screen (`src/cli/style.ts`): inverse is where you are (the title bar), bold is new or live (and keys), dim is what you can skip (headings, explanations, what you don't own yet); green, yellow, red and blue mean good, getting low, needs you and resting; each currency has its own colour (Bananas yellow, Words cyan, Sentences magenta, Lines blue). The currency is called **Bananas** for now (Justin, 2026-10-14: "to stay on the monkey theme"); code still calls it points.
 
+Every list that scrolls (script, Texts contents, shop pages, roster, dictionary, achievements, a Library book) marks it with a line above it, `^ 33 lines above`, and one below, `v 2,112 lines below` (Justin, 2026-10-18: "an obvious indicator that the menu can be scrolled to show more"; `scrollMarks` in style.ts).
+
 ```
  INFINITE MONKEYS     345.44K Bananas   1.11K Words   179 Sentences   3 Lines
 

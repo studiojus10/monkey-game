@@ -112,7 +112,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
+import { blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -1133,6 +1133,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
       padVisible(cost, costWidth, 'right'),
     ].join(gap);
 
+  const shopMarks = scrollMarks(page * storePageSize, numbered.length - (page + 1) * storePageSize, 'more items');
   const firstItem = items.findIndex((x) => x.id);
   const intro = items.slice(0, Math.max(0, firstItem));
   let k = 0; // numbered items so far, across pages
@@ -1154,7 +1155,9 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     ...intro.map((x) => ` ${dim(x.text)}`),
     ...(intro.length > 0 ? [''] : []),
     ...(numbered.length > 0 ? [dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd())] : []),
+    ...shopMarks[0],
     ...list,
+    ...shopMarks[1],
     ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
@@ -1501,6 +1504,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   const first = Math.max(0, Math.min(at - Math.floor(scriptPageSize / 2), play.lines.length - scriptPageSize));
   const shown = Array.from({ length: Math.min(scriptPageSize, play.lines.length - first) }, (_, k) => first + k);
   const pinned = (i: number) => state.pinned.some((p) => p.play === play.id && p.index === i);
+  const scriptMarks = scrollMarks(first, play.lines.length - first - shown.length, 'lines');
   const speakerWidth = 13;
   const needsWidth = Math.max('NEEDS'.length, ...shown.map((i) => plainText(lineNeeds(state, play, i)).length));
   // A foreign text's written lines read in English (Justin: "whenever the monkeys completes a line in the original greek, it changes to english").
@@ -1554,7 +1558,9 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     '',
     ` ${bold(play.title)}   ${dim(`${genreNames[play.genre]}${locked ? ', locked' : ''}`)}   ${count(done.length)} / ${count(play.lines.length)} lines written`,
     '',
+    ...scriptMarks[0],
     ...rows,
+    ...scriptMarks[1],
     '',
     dim(` + written   @ pinned (${state.pinned.length}/${maxPinnedLines})   NEEDS: letters you don't own yet`),
     ...(shop ? [rule(columns), shop] : [
@@ -1654,6 +1660,7 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
   const line = (mark: string, cols: string[]) => ` ${mark} ` + cols.map((t, c) => (right(c) ? t.padStart(widths[c]) : t.padEnd(widths[c]))).join('   ');
   const at = Math.max(0, Math.min(cursor, items.length - 1));
   const first = Math.max(0, Math.min(at - Math.floor(contentsPageSize / 2), items.length - contentsPageSize));
+  const contentsMarks = scrollMarks(first, items.length - first - contentsPageSize);
   const rows = items.slice(first, first + contentsPageSize).flatMap((item, k) => {
     const text = line(first + k === at ? '>' : ' ', item.cols) + (item.finished ? '   finished' : '');
     return [
@@ -1667,7 +1674,9 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     ...tabRow,
     ...(play ? [` ${bold(play.title)}`, ''] : []),
     dim(line(' ', headings).trimEnd()),
+    ...contentsMarks[0],
     ...rows,
+    ...contentsMarks[1],
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),

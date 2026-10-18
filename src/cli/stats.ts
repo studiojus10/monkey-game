@@ -3,7 +3,7 @@ import { achievementValue, folioMultiplier, getPlay } from '../game/logic';
 import { lineLocation } from '../game/plays';
 import type { GameState } from '../game/state';
 import { formatDuration, formatMultiplier, formatNumber } from '../format';
-import { dim, green, keyRow, rule, titleBar } from './style';
+import { dim, green, keyRow, rule, scrollMarks, titleBar } from './style';
 
 /** Rows of the dictionary page shown at once. */
 export const dictionaryPageRows = 20;
@@ -138,7 +138,9 @@ export function renderDictionary(state: GameState, row: number, columns = 0): st
     ` ${formatNumber(words.length)} word${words.length === 1 ? '' : 's'} spelled` +
       (words.length > 0 ? dim(`   showing ${first}-${last}, times spelled after each`) : ''),
     '',
+    ...scrollMarks(first - 1, words.length - last, 'more words')[0],
     ...(page.length > 0 ? page : [dim(' No words yet. Your monkeys will fill this in.')]),
+    ...scrollMarks(first - 1, words.length - last, 'more words')[1],
     '',
     rule(columns),
     keyRow([['up/down', 'scroll'], ['a-z', 'jump to a letter'], ['t', 'stats'], ['esc', 'back']], columns),
@@ -172,8 +174,9 @@ export function renderAchievements(state: GameState, row: number, columns = 0): 
     '',
     ` ${state.achievements.length} of ${achievements.length} unlocked`,
     '',
+    ...scrollMarks(top, all.length - top - achievementPageRows)[0],
     ...all.slice(top, top + achievementPageRows),
-    ...(pages ? [dim(` ${top + 1}-${Math.min(all.length, top + achievementPageRows)} of ${all.length}`)] : []),
+    ...scrollMarks(top, all.length - top - achievementPageRows)[1],
     '',
     rule(columns),
     keyRow([...(pages ? [['up/down', 'scroll'] as [string, string]] : []), ['t', 'stats'], ['w', 'dictionary'], ['esc', 'back']], columns),

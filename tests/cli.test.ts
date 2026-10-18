@@ -34,7 +34,7 @@ import {
   renderShop,
   renderHomeKeys,
 } from '../src/cli/screen';
-import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, titleBar, yellow } from '../src/cli/style';
+import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { renderCandidates } from '../src/cli/hiring';
@@ -1093,3 +1093,22 @@ describe('coin flip any time', () => {
     expect(plain(renderCoinFlip(s, false, 'Heads!', 80))).toContain('[?] flip again');
   });
 });
+
+describe('scrolling lists', () => {
+  it('mark what is above and below the part shown, and nothing when the list fits', () => {
+    expect(scrollMarks(0, 0)).toEqual([[], []]);
+    const [above, below] = scrollMarks(0, 12, 'more lines');
+    expect(above).toEqual(['']);
+    expect(plain(below[0])).toBe(' v 12 more lines below');
+    expect(plain(scrollMarks(3, 0)[0][0])).toBe(' ^ 3 more above');
+  });
+
+  it('show on the script when a play runs past the screen', () => {
+    setPlays([{ id: 'long', title: 'Long', lines: Array.from({ length: 40 }, (_, i) => [1, 1, 'A', `Line ${i}.`] as [number, number, string, string]) }]);
+    const s = createInitialState(0);
+    const text = plain(renderScript(s, 'long', 20, '', 80));
+    expect(text).toMatch(/\^ \d+ lines above/);
+    expect(text).toMatch(/v \d+ lines below/);
+  });
+});
+

@@ -4,7 +4,7 @@ import { sceneName } from '../game/plays';
 import type { GameState } from '../game/state';
 import { formatNumber } from '../format';
 import { genreNames, wrapWords } from './screen';
-import { bold, dim, green, inverseSpan, isCursor, keyRow, rule, titleBar } from './style';
+import { bold, dim, green, inverseSpan, isCursor, keyRow, rule, scrollMarks, titleBar } from './style';
 
 /** One gallery as the honeycomb draws it: 10 wide, 5 tall; galleries side by side share a slanted wall. */
 const hex = ['  ______  ', ' /      \\ ', '/        \\', '\\        /', ' \\______/ '];
@@ -95,7 +95,9 @@ export function renderBook(state: GameState, id: string, top: number, height: nu
     '',
     ` ${bold(bookTitle(id))}${play ? `   ${dim(genreNames[play.genre])}` : ''}`,
     '',
+    ...scrollMarks(from, rows.length - from - height, 'more lines')[0],
     ...rows.slice(from, from + height),
+    ...scrollMarks(from, rows.length - from - height, 'more lines')[1],
     rule(columns),
     keyRow([['up/down', 'scroll'], ['pgup/pgdn', 'page'], ['esc', 'back to the shelves']], columns),
   ].join('\n');
