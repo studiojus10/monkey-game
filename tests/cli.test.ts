@@ -399,7 +399,7 @@ describe('buying scenes in the script browser', () => {
     expect(text).toContain('[b] scene 80 Bananas'); // AYMYLORD is 8 letters
     expect(text).toContain('[a] Act 1 64 Bananas'); // only the unowned scene, less 20%
     s.currency = 100;
-    expect(renderScript(s, 'test', 1)).toContain(green(`scene * ${bold('80')} Bananas`)); // affordable: all green
+    expect(renderScript(s, 'test', 1)).toContain(green(`${bold('[b]')} scene * ${bold('80')} Bananas`)); // affordable: all green, its key too
     s.departments = [];
     s.owned = [];
     expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
@@ -411,8 +411,10 @@ describe('bold prices', () => {
     const s = started();
     s.currency = 20;
     const staff = renderScreen(s, '', 'staff');
-    expect(staff).toContain(green(`* ${bold('10')} Bananas`)); // faster typing: affordable, its number bold
-    expect(staff).toContain(green('Faster typing')); // and its name green
+    const typing = staff.split('\n').find((r) => r.includes('Faster typing'))!;
+    expect(typing).toContain(`* ${bold('10')} Bananas`); // faster typing: affordable, its number bold
+    // and the whole row green, from its number to its price, with no colour inside
+    expect(typing.startsWith('\x1b[32m') && typing.endsWith('\x1b[39m') && !/\x1b\[3\dm/.test(typing.slice(5, -5))).toBe(true);
     const hire = staff.split('\n').find((r) => r.includes('Hire a monkey'))!;
     expect(hire.startsWith('\x1b[2m') && plain(hire) === hire.slice(4, -5)).toBe(true); // a monkey: not yet, so the whole row is dim
     expect(plain(renderScreen(s, '', 'typewriters'))).not.toContain('* 25 Bananas'); // a letter: not yet

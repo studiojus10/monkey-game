@@ -59,7 +59,7 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
       [
         ['arrows', 'gallery'],
         [books.length > 0 ? `0-${books.length}` : '0', 'read'],
-        ['b', `a new gallery ${state.lines >= cost ? green(`* ${formatNumber(cost)} Lines`) : `${formatNumber(cost)} Lines`}`],
+        state.lines >= cost ? ['b', `a new gallery * ${formatNumber(cost)} Lines`, true] : ['b', `a new gallery ${formatNumber(cost)} Lines`],
         ['esc', 'back'],
       ],
       columns,
