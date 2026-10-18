@@ -179,7 +179,7 @@ import { overlay, postName, renderCandidates, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
-import { renderFurniturePicker, sideName, furnitureName, inspectSquare, libraryBooks, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
+import { legendSize, renderFurniturePicker, sideName, furnitureName, inspectSquare, libraryBooks, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
 
 const FRAME_MS = 250;
@@ -255,6 +255,7 @@ let rosterCursor = 0; // the chosen monkey's place in rosterOrder
 let showingAchievements = false;
 let achievementRow = 0;
 let showingOffice = false;
+let officeLegend: number | null = null; // the office map's legend: null while hidden, else the item its cursor is on
 let officeCursor: Cell | null = null; // the selected cell on the office map
 let officeGrowing = ''; // id of the room whose new square is being chosen
 let buyingRoom = false; // choosing what room to buy on the office map
@@ -615,6 +616,7 @@ function bookHeight(): number {
 function openOffice(): void {
   showingOffice = true;
   officeShop = null;
+  officeLegend = null;
   heldFurniture = -1;
   officeGrowing = '';
   buyingRoom = false;
@@ -760,7 +762,7 @@ function draw() {
     : showingOffice && officeShop
     ? officeShopScreen(columns)
     : showingOffice
-    ? renderOffice(officeView(), shown, roomCursor(), heldFurniture, officeGrowing, heldDoor?.side ?? null, columns)
+    ? renderOffice(officeView(), shown, roomCursor(), heldFurniture, officeGrowing, heldDoor?.side ?? null, columns, '', officeLegend)
     : showingAchievements
     ? renderAchievements(state, achievementRow, columns)
     : showingRoster
@@ -1370,6 +1372,18 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (showingOffice && officeCursor && officeLegend !== null) {
+    // The legend has the keys while it's open: arrows choose an item (two columns, row by row), [l] or esc closes it.
+    const n = legendSize(state);
+    const move: Record<string, number> = { up: -2, down: 2, left: -1, right: 1 };
+    if (key.name === 'escape' || key.name === 'q' || str === 'l') officeLegend = null;
+    else if (move[key.name ?? ''] !== undefined) {
+      const next = officeLegend + move[key.name!];
+      if (next >= 0 && next < n) officeLegend = next;
+    }
+    return draw();
+  }
+
   if (showingOffice && officeCursor) {
     message = '';
     const c = officeCursor;
@@ -1497,6 +1511,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       readingManagerBook = true;
     } else if (str === '/' && !holding && !officeGrowing) {
       officeHelp = true;
+    } else if (str === 'l' && !holding && !officeGrowing) {
+      officeLegend = 0;
     } else if (str === 'p' && !holding && !officeGrowing) {
       if (!here) message = 'Put the cursor in the room the furniture is for.';
       else {
