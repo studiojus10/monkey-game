@@ -1,4 +1,4 @@
-import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, library, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
+import { desk, elements, fengShui, furnitureKinds, managerBook, managerDesk, marketing, codebreaking, records, library, safe, safes, monkeyIcon, office as officeRules, research, hr, traits } from '../game/config';
 import {
   departmentMonkeys,
   expansionSquares,
@@ -24,6 +24,7 @@ import {
   hrStaff,
   marketers,
   codebreakers,
+  recorders,
   codebreakingRoom,
   libraryBonus,
   unshelvedBooks,
@@ -57,6 +58,7 @@ export function roomName(state: GameState, room: Room): string {
   if (room.kind === 'marketing') return `${marketing.name} office`;
   if (room.kind === 'codebreaking') return `${codebreaking.name} office`;
   if (room.kind === 'library') return library.name;
+  if (room.kind === 'records') return `${records.name} office`;
   if (room.kind === 'office') return `${departmentName(state, room.department as keyof typeof genreNames) ?? 'Manager'} office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
@@ -300,7 +302,7 @@ function roomTable(state: GameState, columns = 0): string[] {
         String(i + 1),
         roomName(state, r),
         String(r.cells.length),
-        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library' ? '-' : pct(roomChi(state, r))] : []),
+        ...(state.fengShuiBook ? [r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library' || r.kind === 'records' ? '-' : pct(roomChi(state, r))] : []),
         r.kind !== 'department' ? '-' : lounge ? roomName(state, lounge) : 'none',
         open.has(r.id) ? effects : 'NO WAY IN: add a door or hallway',
       ],
@@ -314,6 +316,8 @@ function roomTable(state: GameState, columns = 0): string[] {
           ? marketers(state).map((k) => monkeyName(state, k))
           : r.kind === 'codebreaking'
           ? codebreakers(state).map((k) => monkeyName(state, k))
+          : r.kind === 'records'
+          ? recorders(state).map((k) => monkeyName(state, k))
           : r.kind === 'library'
           ? [`${state.shelved.length - unshelvedBooks(state)} books in ${Math.max(1, state.galleries)} galleries ([i] to go in)`]
           : r.kind === 'office'

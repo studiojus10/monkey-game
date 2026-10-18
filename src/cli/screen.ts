@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { records, lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -86,6 +86,10 @@ import {
   telegramCipher,
   telegramSettings,
   telegramText,
+  isRecorder,
+  recorders,
+  recordCount,
+  canBuildRecords,
   posts,
   postCost,
   isStaff,
@@ -302,7 +306,7 @@ export function homeViews(state: GameState): string[] {
   return [
     ...departmentGenres(state),
     ...(state.researchOpen ? [research.id] : []),
-    ...[hr.id, marketing.id, codebreaking.id].filter((id) => state.monkeys.some((m) => m.department === id)),
+    ...[hr.id, marketing.id, codebreaking.id, records.id].filter((id) => state.monkeys.some((m) => m.department === id)),
   ];
 }
 
@@ -320,7 +324,7 @@ export function homeGenre(state: GameState): Genre | undefined {
 
 /** A department's name by its view id (a genre, or R&D, HR, Marketing, Codebreaking). */
 export function viewName(state: GameState, view: string): string {
-  const staff: Record<string, string> = { [research.id]: research.name, [hr.id]: hr.name, [marketing.id]: marketing.name, [codebreaking.id]: codebreaking.name };
+  const staff: Record<string, string> = { [research.id]: research.name, [hr.id]: hr.name, [marketing.id]: marketing.name, [codebreaking.id]: codebreaking.name, [records.id]: records.name };
   return staff[view] ?? departmentName(state, view as Genre);
 }
 
@@ -369,7 +373,19 @@ function monkeyRow(state: GameState, i: number, room: number, chosen = false): s
   const speed = !isTypist(m) ? dim('-'.padStart(col.speed)) : speedText(currentSpeed(state, m)).padStart(col.speed);
   const combo = !isTypist(m) ? dim('-'.padStart(col.combo)) : `x${comboMultiplier(state, m).toFixed(1)}`.padStart(col.combo);
   const trait = hasTraitColumn(state) ? `${traitText(state, m)}  ` : '';
-  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : isCodebreaker(m) ? codebreakingStatus(state).toUpperCase() : renderLine(m, room)}`;
+  return ` ${dyed(m, iconOf(m))} ${dept}${name}  ${trait}${speed}  ${energyText(m)}  ${combo}  ${m.manager ? managerLine(m) : isResearcher(m) ? researcherLine(state) : isCodebreaker(m) ? codebreakingStatus(state).toUpperCase() : isRecorder(m) ? recordsStatus(state).toUpperCase() : renderLine(m, room)}`;
+}
+
+/** What Records has written down: sentences, and how full the book under way is. */
+export function recordsStatus(state: GameState): string {
+  const books = state.recordBooks.length;
+  return `${count(recordCount(state))} sentences recorded${books > 0 ? ` in ${count(books)} full book${books === 1 ? '' : 's'}` : ''}, this book ${state.recordDraft.length}/${records.bookSize}`;
+}
+
+/** The last sentence Records wrote down, as words, or none. */
+function lastRecorded(state: GameState): string[] {
+  const last = state.recordDraft[state.recordDraft.length - 1] ?? state.recordBooks[state.recordBooks.length - 1]?.slice(-1)[0];
+  return last ? last.split(' ') : [];
 }
 
 /** A researcher's line on the home screen: what R&D is working on. */
@@ -462,8 +478,11 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} office on the office map ([o], then [r]).`] : []),
     ...(canBuildMarketing(state) ? [`* You can build a ${marketing.name} office on the office map ([o], then [r]).`] : []),
     ...(canBuildCodebreaking(state) ? [`* You can build a ${codebreaking.name} office on the office map ([o], then [r]).`] : []),
+    ...(canBuildRecords(state) ? [`* You can build a ${records.name} office on the office map ([o], then [r]): it keeps the monkeys' best sentences in books.`] : []),
     ...(unreadTelegram(state) && !bombeBuilt(state) ? [`* A telegram came, in Enigma: read it in the Staff store; ${research.name} can study it.`] : []),
     ...(codebreakers(state).length > 0 ? [`${codebreaking.name}: ${codebreakingStatus(state)}`] : []),
+    ...(recorders(state).length > 0 ? [`${records.name}: ${recordsStatus(state)}`] : []),
+    ...(lastRecorded(state).length > 0 && recorders(state).length > 0 ? [sentence('Last recorded', lastRecorded(state))] : []),
     ...(royalties(state) > 0 ? [`${marketing.name}: royalties ${formatNumber(royalties(state))} ${theme.currency}/s`] : []),
     ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),

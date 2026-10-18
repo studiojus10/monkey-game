@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { PassThrough } from 'node:stream';
-import { achievements, research, hr, marketing, codebreaking, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
+import { achievements, research, hr, marketing, codebreaking, records, library, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isForeign, sceneName, textToWords, type Genre, type PlayData } from '../game/plays';
@@ -106,6 +106,7 @@ import {
   suggestRoomSpot,
   findSafe,
   canBuildCodebreaking,
+  canBuildRecords,
   canBuildLibrary,
   libraryGalleries,
   galleryCost,
@@ -170,6 +171,7 @@ import { bookRows, renderBook, renderLibrary } from './library';
 import { bold, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
 import { mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
+import { setLexicon } from '../game/grammar';
 import { overlay, postName, renderCandidates, renderPostPopup } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterOrder } from './roster';
@@ -181,6 +183,7 @@ const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
 
 setWordList(loadWordList());
+setLexicon(readFileSync(fileURLToPath(new URL('../../data/lexicon.txt', import.meta.url)), 'utf8').split(/\r?\n/));
 setPlays(loadPlays());
 
 const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
@@ -527,6 +530,7 @@ function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
     ...(canBuildMarketing(state) ? [{ kind: 'marketing' as const }] : []),
     ...(canBuildCodebreaking(state) ? [{ kind: 'codebreaking' as const }] : []),
     ...(canBuildLibrary(state) ? [{ kind: 'library' as const }] : []),
+    ...(canBuildRecords(state) ? [{ kind: 'records' as const }] : []),
   ];
 }
 
@@ -584,6 +588,7 @@ function newRoomMessage(room: Room): string {
     ...(room.kind === 'marketing' ? ['Hire marketing monkeys for it in the Staff store: they earn royalties on finished scenes and Folios.'] : []),
     ...(room.kind === 'library' ? [`Every finished play, text and Folio is shelved here. [i] on it to go in.${latinUnlocked(state) ? ' A book in Latin waits on its first shelf, and the Greek department is now the Classical department.' : ''}`] : []),
     ...(room.kind === 'codebreaking' ? ['Hire codebreakers for it in the Staff store: they try combinations on a safe you found.'] : []),
+    ...(room.kind === 'records' ? [`Hire records clerks for it in the Staff store: they write down the monkeys' grammatical sentences, ${records.bookSize} to a book, and full books go to the ${library.name}.`] : []),
   ].join(' ');
 }
 
@@ -1478,7 +1483,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${departmentName(state, c.genre!)}'s manager` : `a room for ${departmentName(state, c.genre!)}`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `an office for ${records.name}` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${departmentName(state, c.genre!)}'s manager` : `a room for ${departmentName(state, c.genre!)}`}`,
       );
       message = `Buy a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {

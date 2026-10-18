@@ -76,7 +76,7 @@ export interface Milestone {
  */
 export interface Room {
   id: string;
-  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's; library is the Library
+  kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library' | 'records'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's; library is the Library
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
 }
@@ -171,6 +171,9 @@ export interface GameState {
   shelved: string[]; // the Library's books in the order shelved: play and text ids, and 'folio-N' for each Folio (kept through a Folio)
   classical: 'greek' | 'latin'; // the language the Greek (Classical) department types, once it has Latin
   galleries: number; // the Library's galleries bought (the first comes with the room; kept through a Folio)
+  recordBooks: string[][]; // Records' full books, each its sentences (words joined by spaces); shelved as 'records-N' (kept through a Folio)
+  recordDraft: string[]; // the book Records is filling (kept through a Folio)
+  recordCatch: number; // Records' share of the next grammatical sentence caught so far (catches one at 1)
   lastMilestone: Milestone | null;
   pointsBonus: number; // from finished scenes: points x (1 + pointsBonus)
   speedBonus: number; // from finished acts: typing speed x (1 + speedBonus)
@@ -220,6 +223,7 @@ export interface Candidate {
   stamina: number;
   jobs: Record<string, string>;
   tempLeft: number; // a temp's working time in seconds (0: not a temp)
+  luck?: number; // a temp's draw (0 to 1) for which typewriter it brings
 }
 
 export interface Stats {
@@ -340,6 +344,9 @@ export function createInitialState(now = Date.now()): GameState {
     playsDone: [],
     shelved: [],
     galleries: 0,
+    recordBooks: [],
+    recordDraft: [],
+    recordCatch: 0,
     classical: 'greek',
     lastMilestone: null,
     pointsBonus: 0,

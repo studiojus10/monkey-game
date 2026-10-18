@@ -141,7 +141,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     });
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
-      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library') && Array.isArray(r.cells))
+      .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library' || r.kind === 'records') && Array.isArray(r.cells))
       .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]) }))
       .filter((r) => r.cells.length > 0);
     const completed: Record<string, number[]> = {};
@@ -239,9 +239,9 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       researching: research.projects.some((p) => p.id === s.researching) ? str(s.researching) : '',
       researchProgress: Math.max(0, num(s.researchProgress, 0)),
       candidates: (Array.isArray(s.candidates) ? (s.candidates as Partial<MonkeyState>[]) : [])
-        .map((c) => monkey(c))
+        .map((c) => ({ ...monkey(c), luck: num((c as { luck?: unknown }).luck, 0) }))
         .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
-        .map(({ trait, speedStat, stamina, jobs, tempLeft }) => ({ trait, speedStat, stamina, jobs, tempLeft })),
+        .map(({ trait, speedStat, stamina, jobs, tempLeft, luck }) => ({ trait, speedStat, stamina, jobs, tempLeft, ...(tempLeft > 0 ? { luck } : {}) })),
       candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
       stored: {
         furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),
@@ -265,6 +265,9 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       shelved: strings(s.shelved),
       classical: s.classical === 'latin' ? 'latin' : 'greek',
       galleries: typeof s.galleries === 'number' && s.galleries >= 0 ? Math.floor(s.galleries) : 0,
+      recordBooks: Array.isArray(s.recordBooks) ? s.recordBooks.filter(Array.isArray).map(strings) : [],
+      recordDraft: strings(s.recordDraft),
+      recordCatch: Math.max(0, num(s.recordCatch, 0)),
       lastMilestone,
       pointsBonus: Math.max(0, num(s.pointsBonus, 0)),
       speedBonus: Math.max(0, num(s.speedBonus, 0)),

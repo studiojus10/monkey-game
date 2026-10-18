@@ -71,6 +71,8 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
 export function bookRows(state: GameState, id: string, columns = 0): string[] {
   const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
   if (id === 'bibliography') return bibliography.flatMap((entry, k) => [...(k > 0 ? [''] : []), ...wrapWords(entry, width).map((r, j) => (j === 0 ? `  ${r}` : `    ${r}`))]);
+  const book = /^records-(\d+)$/.exec(id);
+  if (book) return (state.recordBooks[Number(book[1]) - 1] ?? []).flatMap((s, k) => wrapWords(`${k + 1}. ${s}`, width).map((r, j) => (j === 0 ? `  ${r}` : `     ${r}`)));
   const play = getPlay(id);
   if (!play) return [dim(' Flumph the pages, wibbly and bound. Nothing on them yet but the smell of glue.')];
   const rows: string[] = [];

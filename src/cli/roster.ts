@@ -1,4 +1,4 @@
-import { hatColors, hats, marketing, codebreaking, research, hr, monkeyStats } from '../game/config';
+import { hatColors, hats, marketing, codebreaking, records, research, hr, monkeyStats } from '../game/config';
 import {
   comboMultiplier,
   currentSpeed,
@@ -7,6 +7,7 @@ import {
   isHR,
   isMarketer,
   isCodebreaker,
+  isRecorder,
   isTemp,
   isTypist,
   jobFeeling,
@@ -22,7 +23,7 @@ import {
   slotDelay,
 } from '../game/logic';
 import type { GameState } from '../game/state';
-import { bySeniority, codebreakingStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
+import { bySeniority, codebreakingStatus, recordsStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
 import { roomName } from './office';
 import { formatDuration } from '../format';
 import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, titleBar } from './style';
@@ -34,13 +35,13 @@ export const rosterPageRows = 12;
 export function rosterOrder(state: GameState): number[] {
   const viewOf = (i: number) => {
     const m = state.monkeys[i];
-    return isResearcher(m) ? research.id : isHR(m) ? hr.id : isMarketer(m) ? marketing.id : isCodebreaker(m) ? codebreaking.id : (monkeyGenre(state, m) ?? '');
+    return isResearcher(m) ? research.id : isHR(m) ? hr.id : isMarketer(m) ? marketing.id : isCodebreaker(m) ? codebreaking.id : isRecorder(m) ? records.id : (monkeyGenre(state, m) ?? '');
   };
   const views = homeViews(state);
   const rank = (i: number) => {
     // Departments in [tab] order, then HR, then Marketing.
     const k = views.indexOf(viewOf(i));
-    return k >= 0 ? k : views.length + (viewOf(i) === marketing.id ? 1 : viewOf(i) === codebreaking.id ? 2 : 0);
+    return k >= 0 ? k : views.length + (viewOf(i) === marketing.id ? 1 : viewOf(i) === codebreaking.id ? 2 : viewOf(i) === records.id ? 3 : 0);
   };
   // Within a department, managers first, then by seniority (Justin, 2026-10-18).
   const senior = bySeniority(state, state.monkeys.map((_, i) => i));
@@ -54,6 +55,7 @@ function departmentName(state: GameState, i: number): string {
   if (isHR(m)) return hr.name;
   if (isMarketer(m)) return marketing.name;
   if (isCodebreaker(m)) return codebreaking.name;
+  if (isRecorder(m)) return records.name;
   const g = monkeyGenre(state, m);
   return g ? deptName(state, g) : 'No department yet';
 }
@@ -82,7 +84,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     }
     if (k < top || k >= top + rosterPageRows) return;
     const m = state.monkeys[i];
-    const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaker' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
+    const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaker' : isRecorder(m) ? 'records clerk' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
     // The cursor's row is inverse; the others show the hat in its dye.
     const row = `${iconOf(m)} ${monkeyName(state, i)}${role ? `  (${role})` : ''}`;
     list.push(isCursor(k, at) ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
@@ -99,7 +101,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     ? []
     : [
         ` ${bold(`${iconOf(m)} ${monkeyName(state, i)}`)}${dim(`   hired #${i + 1}`)}`,
-        `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : isHR(m) ? `Works in ${hr.name}: keeps the monkeys happy` : isMarketer(m) ? `Works in ${marketing.name}: earns royalties` : isCodebreaker(m) ? `Works in ${codebreaking.name}: ${codebreakingStatus(state)}` : `Types for ${departmentName(state, i)}`}`,
+        `${label('Job')} ${m.manager ? `Manager of ${departmentName(state, i)} (level ${m.managerLevel})` : isResearcher(m) ? `Researcher in ${research.name}` : isHR(m) ? `Works in ${hr.name}: keeps the monkeys happy` : isMarketer(m) ? `Works in ${marketing.name}: earns royalties` : isCodebreaker(m) ? `Works in ${codebreaking.name}: ${codebreakingStatus(state)}` : isRecorder(m) ? `Works in ${records.name}: ${recordsStatus(state)}` : `Types for ${departmentName(state, i)}`}`,
         ...(m.manager ? [`${label('Slots')} changes one every ${slotDelay(state, m).toFixed(1)}s (x${managerSpeed(state, m).toFixed(2)} speed: upgrades, office furniture${state.fengShuiBook ? ', chi' : ''})`] : []),
         `${label('Worked')} ${formatDuration(m.worked)} at the company`,
         ...(isTemp(m) ? [`${label('Temp')} leaves in ${formatDuration(m.tempLeft)}; temps can't be upgraded`] : []),
