@@ -15,22 +15,13 @@ import {
   allowedIn,
   readFengShuiBook,
   readManagerBook,
-  hireManager,
-  managerBlocker,
-  managerCost,
   officelessDepartments,
   setHour,
-  hireResearcher,
-  researcherBlocker,
-  researcherCost,
   startResearch,
   projectOf,
   canBuildLab,
   canBuildHR,
   canBuildMarketing,
-  hireMarketer,
-  marketingBlocker,
-  marketingCost,
   canRemoveFurniture,
   storeFurniture,
   sellFurniture,
@@ -40,9 +31,6 @@ import {
   fireMonkey,
   hrRoom,
   isTemp,
-  hireHR,
-  hrBlocker,
-  hrCost,
   cellAt,
   pieceSize,
   furnitureSpot,
@@ -70,13 +58,15 @@ import {
   sceneOf,
   starterScenes,
   departmentChoices,
-  monkeyGenre,
   canAffordLetter,
-  moveMonkey,
+  moveMonkeyTo,
+  posts,
+  postOf,
+  hireFor,
+  type Post,
   assignMonkey,
   departmentsWithRoom,
   departmentTypists,
-  nextMonkeyCost,
   departmentGenres,
   departmentSlots,
   slotGenre,
@@ -87,7 +77,6 @@ import {
   comboCap,
   comboStart,
   buyKey,
-  buyMonkey,
   monkeyName,
   renameMonkey,
   buySlot,
@@ -121,9 +110,6 @@ import {
   libraryGalleries,
   galleryCost,
   buyGallery,
-  hireCodebreaker,
-  codebreakerBlocker,
-  codebreakerCost,
   cycleCodebreakFocus,
   switchClassical,
   latinUnlocked,
@@ -131,7 +117,7 @@ import {
 import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
 import { GAME_VERSION } from '../version';
 import { createInitialState, type Door, type GameState, type Room, type Side } from '../game/state';
-import { formatMultiplier, formatNumber, setScientific } from '../format';
+import { formatMultiplier, formatNumber, setScientific, formatPrice } from '../format';
 import { fileStorage } from './fileStorage';
 import {
   keyChoices,
@@ -181,10 +167,10 @@ import {
   inspectItem,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
+import { bold, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
 import { mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
-import { renderCandidates } from './hiring';
+import { overlay, postName, renderCandidates, renderPostPopup } from './hiring';
 import { inventoryRows, itemName, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -300,7 +286,7 @@ let invCol = 0;
 let invHeld: { who: Holder; item: Item } | null = null; // the item being moved in the inventory
 let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
-let pickingDeptFor: '' | 'buy' | 'assign' = ''; // choosing a department for a new monkey
+let pickingDeptFor: '' | 'assign' = ''; // choosing a department for a new monkey
 let pickingManagerUpgrade = false;
 let pickingManagerSpeed = false;
 let readingTelegrams = false; // the telegrams in Enigma
@@ -328,51 +314,75 @@ function loadPlays(): PlayData[] {
     .map((f) => JSON.parse(readFileSync(dir + f, 'utf8')) as PlayData);
 }
 
-/** A hire under way through HR's list of candidates: the job, and the department for a typist or manager. */
-interface Hiring {
-  job: 'typing' | 'managing' | 'research' | 'hr' | 'marketing' | 'codebreaking';
-  genre?: Genre;
-}
-let hiring: Hiring | null = null;
+/** Choosing who to hire on HR's list of candidates, before the department popup. */
+let hiring = false;
+/** The department popup (Justin, 2026-10-18): for a hire (from: the candidate on HR's list, if one), or to move monkey `monkey`. */
+let choosingPost: { kind: 'hire'; from?: number } | { kind: 'move'; monkey: number } | null = null;
+let postCursor = 0;
 
-/** The usual price of a hire, before a candidate's stats change it. */
-function hiringBase(h: Hiring): number {
-  if (h.job === 'managing') return managerCost(state, h.genre!);
-  if (h.job === 'research') return researcherCost(state);
-  if (h.job === 'hr') return hrCost(state);
-  if (h.job === 'marketing') return marketingCost(state);
-  if (h.job === 'codebreaking') return codebreakerCost(state);
-  return nextMonkeyCost(state, h.genre);
+/** The departments the popup offers: all of them for a hire, the others (no manager's chair) for a move. */
+function postList(): Post[] {
+  if (choosingPost?.kind !== 'move') return posts(state);
+  const m = state.monkeys[choosingPost.monkey];
+  return posts(state, false).filter((p) => !m || p.id !== postOf(state, m));
 }
 
-/** What a hire is for, e.g. "a monkey for Comedies". */
-function hiringTitle(h: Hiring): string {
-  if (h.job === 'managing') return `a manager for ${departmentName(state, h.genre!)}`;
-  if (h.job === 'research') return 'a researcher';
-  if (h.job === 'hr') return `an ${hr.name} monkey`;
-  if (h.job === 'marketing') return 'a marketing monkey';
-  if (h.job === 'codebreaking') return 'a codebreaker';
-  return h.genre ? `a monkey for ${departmentName(state, h.genre)}` : 'a monkey';
-}
-
-/** Makes a hire: candidate `from` on HR's list, or someone unseen. */
-function doHire(h: Hiring, from?: number): boolean {
-  if (h.job === 'managing') return hireManager(state, h.genre, from);
-  if (h.job === 'research') return hireResearcher(state, from);
-  if (h.job === 'hr') return hireHR(state, from);
-  if (h.job === 'marketing') return hireMarketer(state, from);
-  if (h.job === 'codebreaking') return hireCodebreaker(state, from);
-  return buyMonkey(state, h.genre, from);
-}
-
-/** Hires: through HR's list of candidates once there's an HR office, else straight away. */
-function hire(h: Hiring): void {
+/** Hires a monkey: HR's list of candidates first once there's an HR office, then the department popup. */
+function startHire(): void {
+  if (!posts(state).some((p) => !p.blocked)) {
+    message = noSeatMessage();
+    return;
+  }
+  message = '';
   if (hrRoom(state)) {
-    hiring = h;
+    hiring = true;
     menuCursor = 0;
-    message = '';
-  } else if (doHire(h)) welcome(state.monkeys.length - 1);
-  else message = `Not enough ${theme.currency}.`;
+  } else {
+    choosingPost = { kind: 'hire' };
+    postCursor = 0;
+  }
+}
+
+/** Opens the department popup to move monkey `i`. */
+function startMove(i: number): void {
+  if (i < 0 || !state.monkeys[i]) return;
+  choosingPost = { kind: 'move', monkey: i };
+  if (postList().length === 0) {
+    choosingPost = null;
+    message = 'There is no other department to move to yet.';
+    return;
+  }
+  postCursor = 0;
+  message = '';
+}
+
+/** The department popup's lines. */
+function postPopup(): string[] {
+  const c = choosingPost!;
+  const title = c.kind === 'hire' ? 'Which department gets the new monkey?' : `Move ${monkeyName(state, c.monkey)} to which department?`;
+  return renderPostPopup(state, title, postList(), postCursor, c.kind === 'hire', c.kind === 'hire' ? c.from : undefined);
+}
+
+/** Picks a department in the popup: hires or moves, or says why not. */
+function pickPost(p: Post): void {
+  const c = choosingPost!;
+  if (p.blocked) {
+    message = `${postName(state, p)} can't take a monkey: ${p.blocked}.${/office|door|desk|room/.test(p.blocked) ? ' See the office map ([o]).' : ''}`;
+    return;
+  }
+  if (c.kind === 'move') {
+    const name = monkeyName(state, c.monkey);
+    if (moveMonkeyTo(state, c.monkey, p.id)) message = `${name} now works in ${postName(state, p)}.`;
+    // The roster's cursor stays on the monkey that moved.
+    rosterCursor = Math.max(0, rosterOrder(state).indexOf(c.monkey));
+    choosingPost = null;
+    return;
+  }
+  if (hireFor(state, p, c.from)) {
+    choosingPost = null;
+    hiring = false;
+    welcome(state.monkeys.length - 1);
+  } else message = `Not enough ${theme.currency}.`;
 }
 
 /** Acts on a store item chosen with 1-9 (see storeItems). */
@@ -396,19 +406,8 @@ function buyItem(id: string): void {
       letterCursor = 0;
       message = '';
     }
-  } else if (id.startsWith('hire:')) {
-    const g = id.slice('hire:'.length) as Genre;
-    if (!departmentsWithRoom(state).includes(g)) message = noSeatMessage();
-    else if (!hrRoom(state) && state.currency < nextMonkeyCost(state, g)) message = `Not enough ${theme.currency}.`;
-    else hire({ job: 'typing', genre: g });
   } else if (id === 'hire') {
-    const rooms = departmentsWithRoom(state);
-    if (!canSeatMonkey(state)) message = noSeatMessage();
-    else if (!hrRoom(state) && state.currency < nextMonkeyCost(state)) message = `Not enough ${theme.currency}.`;
-    else if (rooms.length > 1) {
-      pickingDeptFor = 'buy';
-      message = deptPrompt('Which department gets the new monkey?');
-    } else hire({ job: 'typing', genre: rooms[0] });
+    startHire();
   } else if (id === 'assign') {
     if (!canSeatMonkey(state)) message = noSeatMessage();
     else if (assignMonkey(state)) welcome(state.monkeys.length - 1);
@@ -416,30 +415,6 @@ function buyItem(id: string): void {
       pickingDeptFor = 'assign';
       message = deptPrompt('Which department gets the new monkey?');
     }
-  } else if (id.startsWith('boss:')) {
-    const g = id.slice('boss:'.length) as Genre;
-    const blocked = managerBlocker(state, g);
-    if (blocked) message = `${departmentName(state, g)} can't hire a manager yet: ${blocked}.${blocked.includes('office') || blocked.includes('door') || blocked.includes('desk') ? ' See the office map ([o]).' : ''}`;
-    else if (!hrRoom(state) && state.currency < managerCost(state, g)) message = `Not enough ${theme.currency}.`;
-    else hire({ job: 'managing', genre: g });
-  } else if (id === 'researcher') {
-    const blocked = researcherBlocker(state);
-    if (blocked) message = `Can't hire a researcher: ${blocked}.${blocked === 'lab needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
-    else if (!hrRoom(state) && state.currency < researcherCost(state)) message = `Not enough ${theme.currency}.`;
-    else hire({ job: 'research' });
-  } else if (id === 'hr') {
-    const blocked = hrBlocker(state);
-    if (blocked) message = `Can't hire an HR monkey: ${blocked}.${blocked === 'HR office needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
-    else if (!hrRoom(state) && state.currency < hrCost(state)) message = `Not enough ${theme.currency}.`;
-    else hire({ job: 'hr' });
-  } else if (id === 'marketing') {
-    const blocked = marketingBlocker(state);
-    if (blocked) message = `Can't hire a marketing monkey: ${blocked}.${blocked === 'Marketing office needed' || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
-    else hire({ job: 'marketing' });
-  } else if (id === 'codebreaker') {
-    const blocked = codebreakerBlocker(state);
-    if (blocked) message = `Can't hire a codebreaker: ${blocked}.${blocked.endsWith('office needed') || blocked === 'desk needed' ? ' See the office map ([o]).' : ''}`;
-    else hire({ job: 'codebreaking' });
   } else if (id === 'codefocus') {
     message = cycleCodebreakFocus(state) ? `${codebreaking.name} turns to ${focusName(state.codebreakFocus)}.` : 'Nothing else to work on.';
   } else if (id === 'telegram') {
@@ -744,7 +719,7 @@ function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
-  const screen = flipping
+  const under = flipping
     ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
     : readingTelegrams
     ? renderTelegrams(state, columns)
@@ -759,7 +734,7 @@ function draw() {
     : showingInventory
     ? renderInventory(state, invRow, invCol, invHeld, shown, columns)
     : hiring
-    ? renderCandidates(state, hiring.job, hiringTitle(hiring), hiringBase(hiring), shown, columns, menuCursor)
+    ? renderCandidates(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor)
     : showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns, contentsTab)
     : showingOptions
@@ -795,6 +770,8 @@ function draw() {
         : showingHelp
           ? renderHomeKeys(state)
           : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
+  // The department popup over whatever screen it was opened from, with any message under it.
+  const screen = choosingPost ? overlay(under, [...postPopup(), ...(message ? ['', ` ${bold(message)}`] : [])], columns) : under;
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
@@ -966,8 +943,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const bet = state.currency;
       const won = flipCoin(state, Math.random);
       flipMessage = won
-        ? `Heads! Your ${formatNumber(bet)} ${theme.currency} became ${formatNumber(state.currency)}.`
-        : `Tails. ${formatNumber(bet)} ${theme.currency} gone. The monkeys keep typing.`;
+        ? `Heads! Your ${formatPrice(bet)} ${theme.currency} became ${formatPrice(state.currency)}.`
+        : `Tails. ${formatPrice(bet)} ${theme.currency} gone. The monkeys keep typing.`;
       flipping = 'done';
     } else if (flipping === 'done' && str === '?') openFlip();
     else flipping = '';
@@ -1001,7 +978,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (buyGallery(state)) {
         libraryCursor = state.galleries - 1;
         message = `A new gallery, No. ${state.galleries}, opens off the last one.`;
-      } else message = `A new gallery takes ${formatNumber(cost)} Lines.`;
+      } else message = `A new gallery takes ${formatPrice(cost)} Lines.`;
     }
     return draw();
   }
@@ -1037,31 +1014,38 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  if (choosingPost) {
+    const list = postList();
+    if (key.name === 'up' || key.name === 'down') {
+      postCursor = (Math.min(postCursor, list.length - 1) + (key.name === 'up' ? list.length - 1 : 1)) % list.length;
+      return draw();
+    }
+    const p = key.name === 'return' || key.name === 'enter' ? list[Math.min(postCursor, list.length - 1)] : list[Number(str) - 1];
+    if (key.name === 'escape' || key.name === 'q') {
+      choosingPost = null;
+      message = '';
+    } else if (p && str !== '0') pickPost(p);
+    return draw();
+  }
+
   if (hiring) {
     const row = menuKey(key, state.candidates.length + 1);
     if (row >= 0) str = String(row === state.candidates.length ? 0 : row + 1);
     const n = Number(str);
     if (key.name === 'escape' || key.name === 'q') {
-      hiring = null;
+      hiring = false;
       message = '';
     } else if (str && /^[0-9]$/.test(str) && n <= state.candidates.length) {
-      const h = hiring;
-      if (doHire(h, n === 0 ? undefined : n - 1)) {
-        hiring = null;
-        welcome(state.monkeys.length - 1);
-      } else message = `Not enough ${theme.currency}.`;
+      choosingPost = { kind: 'hire', from: n === 0 ? undefined : n - 1 };
+      postCursor = 0;
+      message = '';
     }
     return draw();
   }
 
   if (pickingDeptFor) {
-    const what = pickingDeptFor;
     pickingDeptFor = '';
     const g = departmentsWithRoom(state)[Number(str) - 1];
-    if (g && what === 'buy') {
-      hire({ job: 'typing', genre: g });
-      return draw();
-    }
     if (g && assignMonkey(state, g)) welcome(state.monkeys.length - 1);
     else message = 'No monkey added.';
     return draw();
@@ -1481,7 +1465,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         const name = furnitureName(state, spot);
         const value = sellValue(furnitureKinds.find((k) => k.id === state.furniture[spot].kind)?.cost ?? 0);
         if (str === 's' && storeFurniture(state, spot)) message = `The ${name} is in your inventory ([i]).`;
-        else if (str === 'v' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatNumber(value)} Sentences.`;
+        else if (str === 'v' && sellFurniture(state, spot)) message = `Sold the ${name} for ${formatPrice(value)} Sentences.`;
       }
     } else if (str === 'm' && !holding && !officeGrowing) {
       if (!here) message = 'Move the cursor onto a room to move it.';
@@ -1496,7 +1480,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const choices = roomChoices().map(
         (c, i) => `[${i + 1}] ${c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${departmentName(state, c.genre!)}'s manager` : `a room for ${departmentName(state, c.genre!)}`}`,
       );
-      message = `Buy a room (${formatNumber(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
+      message = `Buy a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
       if (officeGrowing) {
@@ -1610,11 +1594,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'v' && i !== undefined) {
       const hat = hats.find((h) => h.id === state.monkeys[i].hat);
       if (!hat) message = `${monkeyName(state, i)} wears no hat to sell.`;
-      else if (sellHat(state, i)) message = `Sold the ${hat.name.toLowerCase()} for ${formatNumber(sellValue(hat.cost))} Sentences.`;
+      else if (sellHat(state, i)) message = `Sold the ${hat.name.toLowerCase()} for ${formatPrice(sellValue(hat.cost))} Sentences.`;
     }
     else if (key.name === 'up') rosterCursor = Math.max(0, rosterCursor - 1);
     else if (key.name === 'down') rosterCursor = Math.min(order.length - 1, rosterCursor + 1);
     else if (str === 'n' && order[rosterCursor] !== undefined) startNaming(order[rosterCursor]);
+    else if (str === 'd' && i !== undefined) startMove(i);
     return draw();
   }
 
@@ -1729,12 +1714,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     shop = lastStore;
     shopCursor = 0;
   } else if (str === 'd') {
-    const i = homeChosen(state, homeCursor);
-    message = moveMonkey(state, i)
-      ? `${monkeyName(state, i)} now works in ${departmentName(state, monkeyGenre(state, state.monkeys[i])!)}.`
-      : state.monkeys.length === 1
-        ? 'You need more monkeys and departments first.'
-        : 'No monkey moved. Moving needs a second department.';
+    if (state.monkeys.length > 0) startMove(homeChosen(state, homeCursor));
+  } else if (str && /^[1-9]$/.test(str) && !shop && homeViews(state).length > 1) {
+    const v = homeViews(state)[Number(str) - 1];
+    if (v) {
+      state.settings.homeDepartment = v;
+      homeCursor = 0;
+    }
   } else if (str === 'n') {
     startNaming(homeChosen(state, homeCursor));
   } else if (key.name === 'p') {

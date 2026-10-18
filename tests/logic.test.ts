@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, managerOffice, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dye, typewriterKeys, typing } from '../src/game/config';
+import { maxSimulatedLettersPerSecond, petting, achievements, folio, combo, departmentRules, managers, managerOffice, sonnetRewards, letterShop, milestones, scriptShop, lineWidth, maxOfflineLetters, maxOfflineSeconds, maxPinnedLines, monkeyShop, sentenceRules, furnitureKinds, office, energy, hats, hatColors, dye, research, typewriterKeys, typing } from '../src/game/config';
 import {
   applyOfflineProgress,
   moveRoomBy,
@@ -112,6 +112,11 @@ import {
   departmentPicks,
   monkeyGenre,
   moveMonkey,
+  moveMonkeyTo,
+  posts,
+  postCost,
+  postOf,
+  hireFor,
   nextDepartmentAt,
   monkeySpeed,
   nextMonkeyCost,
@@ -1465,6 +1470,35 @@ describe('office space', () => {
       expect(moveMonkey(s, s.monkeys.length - 1)).toBe(true); // back to comedies: the desk moves too
       expect(roomDesks(s, room)).toHaveLength(0);
       expect(roomDesks(s, s.office[0])).toHaveLength(2);
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('lists every department as a post with its count, and moves a monkey to any of them with its desk', () => {
+    try {
+      setPlays([comedy, tragedy]);
+      const s = createInitialState(0);
+      s.letters = ['A'];
+      s.currency = s.sentences = 1e30;
+      expect(openDepartment(s, 'comedy')).toBe(true);
+      s.departments.push('tragedy');
+      expect(posts(s).map((p) => [p.id, p.have, p.max, p.blocked])).toEqual([
+        ['comedy', 1, departmentRules.maxTypists, ''],
+        ['tragedy', 0, departmentRules.maxTypists, 'room needed'],
+      ]);
+      const room = genreRoom(s, 'tragedy');
+      const post = posts(s).find((p) => p.id === 'tragedy')!;
+      expect(postCost(s, post)).toBe(nextMonkeyCost(s, 'tragedy'));
+      expect(hireFor(s, post)).toBe(true);
+      expect(postOf(s, s.monkeys[1])).toBe('tragedy');
+      expect(moveMonkeyTo(s, 1, 'tragedy')).toBe(false); // already there
+      expect(moveMonkeyTo(s, 1, 'comedy')).toBe(true);
+      expect(roomDesks(s, room)).toHaveLength(0);
+      expect(roomDesks(s, s.office[0])).toHaveLength(2);
+      s.researchOpen = true;
+      expect(posts(s, false).find((p) => p.id === research.id)?.blocked).toBe('lab needed');
+      expect(posts(s, false).some((p) => p.job === 'managing')).toBe(false); // moves don't offer managers' chairs
     } finally {
       setPlays([]);
     }

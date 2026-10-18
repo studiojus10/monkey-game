@@ -36,7 +36,7 @@ import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, ro
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
 import { bold, dim, furnitureColor, green, keyRow, red, rule, titleBar } from './style';
-import { formatAmount, formatNumber } from '../format';
+import { formatAmount, formatNumber, formatPrice } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -256,7 +256,7 @@ export function renderOffice(
     ...roomTable(state, columns),
     ...roomlessDepartments(state).map((g) => red(` The ${departmentName(state, g)} department needs a room: press [r] to buy one.`)),
     '',
-    ` ${label(`New room ${bold(formatNumber(roomCost(state)))} Sentences`, roomCost(state), state.sentences)}   ${label(`One more square ${bold(formatNumber(squareCost(state)))} Sentences`, squareCost(state), state.sentences)}`,
+    ` ${label(`New room ${bold(formatPrice(roomCost(state)))} Sentences`, roomCost(state), state.sentences)}   ${label(`One more square ${bold(formatPrice(squareCost(state)))} Sentences`, squareCost(state), state.sentences)}`,
     '',
     ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
     ...(message ? [` ${bold(message)}`] : []),

@@ -5,4 +5,4 @@
  * (0.2.0 -> 0.2.1), the minor number for new features (0.2.0 -> 0.3.0).
  * package.json's version must match (a test checks).
  */
-export const GAME_VERSION = '0.7.1';
+export const GAME_VERSION = '0.8.0';

@@ -27,6 +27,11 @@ export function formatAmount(n: number): string {
   return Math.floor(n).toLocaleString('en-US');
 }
 
+/** A price, written like the balances it is paid from (formatAmount), so the two compare at a glance; rounded up, as a part of a Banana still has to be paid. */
+export function formatPrice(n: number): string {
+  return formatAmount(Number.isFinite(n) ? Math.ceil(n) : n);
+}
+
 /** A multiplier: x1.25 below a thousand, then like any big number (x4.56M). */
 export function formatMultiplier(n: number): string {
   return `x${n < 1000 ? n.toFixed(2) : formatNumber(n)}`;
