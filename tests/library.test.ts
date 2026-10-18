@@ -8,6 +8,8 @@ import {
   galleryCost,
   libraryBonus,
   libraryGalleries,
+  libraryFull,
+  bookTitle,
   pointsMultiplier,
   publishFolio,
   setPlays,
@@ -75,6 +77,25 @@ describe('the Library', () => {
     expect(unshelvedBooks(s)).toBe(0);
     expect(galleryCost(s)).toBe(library.galleryCost * library.galleryCostGrowth);
     expect(pointsMultiplier(s)).toBeCloseTo(before);
+  });
+
+  it('holds maxBooks books at most', () => {
+    const s = started();
+    s.playsDone.push('a');
+    buyRoom(s, 'library');
+    s.galleries = library.maxBooks / library.booksPerGallery - 1;
+    s.lines = Infinity;
+    expect(buyGallery(s)).toBe(true);
+    expect(libraryFull(s)).toBe(true);
+    expect(buyGallery(s)).toBe(false);
+    expect(s.galleries * library.booksPerGallery).toBe(500);
+  });
+
+  it('titles a Records book with its first sentence', () => {
+    const s = started();
+    s.recordBooks = [['KINGS LOVE GOLD', 'HE IS DEAD']];
+    expect(bookTitle('records-1', s)).toBe('"KINGS LOVE GOLD"');
+    expect(bookTitle('records-2', s)).toBe('Records, volume 2');
   });
 
   it('keeps its books and galleries through a Folio, which is shelved too', () => {

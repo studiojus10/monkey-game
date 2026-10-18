@@ -588,6 +588,7 @@ export const library = {
   galleryCost: 100, // Lines for the second gallery
   galleryCostGrowth: 10,
   fullBonus: 0.05, // points for each full gallery
+  maxBooks: 500, // Justin, 2026-10-18: a library holds 500 books at most, so 125 galleries
 };
 
 /**
@@ -618,7 +619,7 @@ export const records = {
 export const bibliography = [
   'William Shakespeare, Hamlet, Macbeth, A Midsummer Night\'s Dream, Richard III and the Sonnets. The Complete Works of William Shakespeare, the MIT edition (the public-domain Moby text), https://github.com/TheMITTech/shakespeare.',
   'ENABLE (Enhanced North American Benchmark Lexicon), the public-domain word list behind the dictionary.',
-  'en-lexicon, the parts of speech behind the Records department\'s grammar check. Alex Corvi (2017), MIT License, https://github.com/finnlp/en-lexicon, built on Eric Brill\'s lexicon.',
+  'Grady Ward, Moby Part-of-Speech List (Moby Project, 1996), public domain: the parts of speech behind the Records department\'s grammar check.',
   'Aristotle, Metaphysics I.4, 985b4-22. Greek: W. D. Ross, ed., Aristotle\'s Metaphysics (Oxford, 1924), via the Perseus Digital Library, CC BY-SA 4.0. English: W. D. Ross, trans. (Oxford, 1908), public domain.',
   'Aristotle, De generatione et corruptione. Greek: C. Prantl, ed. (Leipzig: Teubner, 1881), via the First1KGreek project (Open Greek and Latin), CC BY-SA 4.0. English: H. H. Joachim, trans., On Generation and Corruption (Oxford, 1922), public domain, via the MIT Internet Classics Archive.',
   'Marcus Tullius Cicero, De natura deorum. Latin: O. Plasberg, ed. (Leipzig: Teubner, 1917), via the Perseus Digital Library, CC BY-SA 4.0. English: C. D. Yonge, trans., The Nature of the Gods (London, 1878), public domain, via Project Gutenberg (ebook 14988).',

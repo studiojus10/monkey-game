@@ -1,5 +1,5 @@
 import { bibliography, library, translation } from '../game/config';
-import { bookTitle, galleryCost, libraryBonus, libraryGalleries, getPlay, unshelvedBooks } from '../game/logic';
+import { bookTitle, galleryCost, libraryBonus, libraryFull, libraryGalleries, getPlay, unshelvedBooks } from '../game/logic';
 import { sceneName } from '../game/plays';
 import type { GameState } from '../game/state';
 import { formatPrice } from '../format';
@@ -7,6 +7,9 @@ import { genreNames, wrapWords } from './screen';
 import { bold, dim, green, inverseSpan, isCursor, keyRow, rule, scrollMarks, titleBar } from './style';
 
 /** One gallery as the honeycomb draws it: 10 wide, 5 tall; galleries side by side share a slanted wall. */
+/** Text cut to `width` characters, ending in ... when cut. */
+const clip = (text: string, width: number) => (text.length <= width ? text : `${text.slice(0, width - 3)}...`);
+
 const hex = ['  ______  ', ' /      \\ ', '/        \\', '\\        /', ' \\______/ '];
 
 /**
@@ -36,7 +39,7 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
   }
   const books = galleries[at] ?? [];
   const shelves = Array.from({ length: library.booksPerGallery }, (_, k) =>
-    books[k] ? ` ${bold(`[${k + 1}]`)} ${bookTitle(books[k])}` : dim(`     an empty shelf`),
+    books[k] ? ` ${bold(`[${k + 1}]`)} ${clip(bookTitle(books[k], state), Math.max(20, (columns || 80) - 6))}` : dim(`     an empty shelf`),
   );
   const bonus = libraryBonus(state);
   const waiting = unshelvedBooks(state);
@@ -59,7 +62,7 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
       [
         ['arrows', 'gallery'],
         [books.length > 0 ? `0-${books.length}` : '0', 'read'],
-        state.lines >= cost ? ['b', `a new gallery * ${formatPrice(cost)} Lines`, true] : ['b', `a new gallery ${formatPrice(cost)} Lines`],
+        ...(libraryFull(state) ? [] : [state.lines >= cost ? (['b', `a new gallery * ${formatPrice(cost)} Lines`, true] as [string, string, boolean]) : (['b', `a new gallery ${formatPrice(cost)} Lines`] as [string, string])]),
         ['esc', 'back'],
       ],
       columns,
@@ -95,7 +98,7 @@ export function renderBook(state: GameState, id: string, top: number, height: nu
   return [
     titleBar(state, library.name, columns),
     '',
-    ` ${bold(bookTitle(id))}${play ? `   ${dim(genreNames[play.genre])}` : ''}`,
+    ` ${bold(bookTitle(id, state))}${play ? `   ${dim(genreNames[play.genre])}` : ''}`,
     '',
     ...scrollMarks(from, rows.length - from - height, 'more lines')[0],
     ...rows.slice(from, from + height),

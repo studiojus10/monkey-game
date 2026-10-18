@@ -44,7 +44,7 @@ src/
     stats.ts       renderStats(), renderDictionary() and renderAchievements(): the statistics page, the A-Z dictionary of spelled words, the achievements page
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line
-data/lexicon.txt   parts of speech for the grammar check, "WORD TAGS", from en-lexicon (MIT) via scripts/import-lexicon.ts
+data/lexicon.txt   parts of speech for the grammar check, "WORD TAGS", from the Moby Part-of-Speech list (public domain) via scripts/import-lexicon.ts
 data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare; Greek and Latin texts (genre 'greek' or 'latin', books as acts, chapters or sections as scenes, plus english per line) from scripts/import-classical.ts
 scripts/           simulate.ts plays headlessly with a greedy bot to check pacing (npx tsx scripts/simulate.ts [hours] [seed]); import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json; import-sonnets.ts builds data/plays/sonnets.json; import-lexicon.ts builds data/lexicon.txt; import-classical.ts builds the Greek and Latin texts (scripts/greek/metaphysics.json is the scroll's source)
 tests/             unit tests for logic, save, formatting and the terminal screen

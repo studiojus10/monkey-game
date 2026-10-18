@@ -33,7 +33,7 @@ describe('the grammar check', () => {
   });
 
   it('finds the sentences inside a chain, longest first, without overlaps', () => {
-    expect(sentencesIn(words('xu he is dead cat sat on it'))).toEqual([words('he is dead'), words('cat sat on it')]);
+    expect(sentencesIn(words('xu he is dead xu cat sat on it'))).toEqual([words('he is dead'), words('cat sat on it')]);
   });
 });
 

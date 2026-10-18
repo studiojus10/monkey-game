@@ -110,6 +110,7 @@ import {
   canBuildLibrary,
   libraryGalleries,
   galleryCost,
+  libraryFull,
   buyGallery,
   cycleCodebreakFocus,
   switchClassical,
@@ -983,7 +984,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (buyGallery(state)) {
         libraryCursor = state.galleries - 1;
         message = `A new gallery, No. ${state.galleries}, opens off the last one.`;
-      } else message = `A new gallery takes ${formatPrice(cost)} Lines.`;
+      } else message = libraryFull(state) ? `The ${library.name} is full: ${library.maxBooks} books.` : `A new gallery takes ${formatPrice(cost)} Lines.`;
     }
     return draw();
   }

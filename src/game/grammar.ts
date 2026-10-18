@@ -1,7 +1,7 @@
 /**
  * A rough grammar check for the Records department (Justin, 2026-10-18): it
- * tags each word with its likely parts of speech (data/lexicon.txt, from
- * en-lexicon; see scripts/import-lexicon.ts) and walks the tags through a
+ * tags each word with its likely parts of speech (data/lexicon.txt, from the
+ * public-domain Moby Part-of-Speech list; see scripts/import-lexicon.ts) and walks the tags through a
  * small set of English sentence patterns:
  *
  *   subject (determiner, adjectives, a noun, a prepositional phrase; or a pronoun)

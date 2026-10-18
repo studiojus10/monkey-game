@@ -3067,17 +3067,19 @@ export function shelveBooks(state: GameState): boolean {
   const books = state.recordBooks.map((_, k) => `records-${k + 1}`);
   const fresh = [...state.playsDone, ...books].filter((id) => !state.shelved.includes(id));
   state.shelved.push(...fresh);
-  if (libraryRoom(state)) for (const id of fresh) announce(state, `${bookTitle(id)} is shelved in the ${library.name}.`);
+  if (libraryRoom(state)) for (const id of fresh) announce(state, `${bookTitle(id, state)} is shelved in the ${library.name}.`);
   return fresh.length > 0;
 }
 
-/** A shelved book's title: its play or text, or "Folio N". */
-export function bookTitle(id: string): string {
+/** A shelved book's title: its play or text, "Folio N", or a Records book's first sentence (Justin, 2026-10-18). */
+export function bookTitle(id: string, state?: GameState): string {
   if (id === 'bibliography') return 'Bibliography';
   const folio = /^folio-(\d+)$/.exec(id);
   if (folio) return `Folio ${folio[1]}`;
   const book = /^records-(\d+)$/.exec(id);
-  return book ? `${records.name}, volume ${book[1]}` : (getPlay(id)?.title ?? id);
+  if (!book) return getPlay(id)?.title ?? id;
+  const first = state?.recordBooks[Number(book[1]) - 1]?.[0];
+  return first ? `"${first}"` : `${records.name}, volume ${book[1]}`;
 }
 
 /** The Library's galleries, each a list of its books (first to last, filled in the order shelved). Empty without the Library. */
@@ -3096,10 +3098,15 @@ export function galleryCost(state: GameState): number {
   return Math.ceil(library.galleryCost * Math.pow(library.galleryCostGrowth, Math.max(0, state.galleries - 1)));
 }
 
-/** Buys a gallery for the Library. */
+/** Whether the Library has all the galleries its maxBooks allow. */
+export function libraryFull(state: GameState): boolean {
+  return Math.max(1, state.galleries) * library.booksPerGallery >= library.maxBooks;
+}
+
+/** Buys a gallery for the Library, up to maxBooks of shelves. */
 export function buyGallery(state: GameState): boolean {
   const cost = galleryCost(state);
-  if (!libraryRoom(state) || state.lines < cost) return false;
+  if (!libraryRoom(state) || libraryFull(state) || state.lines < cost) return false;
   state.lines -= cost;
   state.galleries = Math.max(1, state.galleries) + 1;
   return true;
