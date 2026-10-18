@@ -1208,3 +1208,16 @@ describe('the office legend', () => {
     expect(legendSize(s)).toBeGreaterThan(6);
   });
 });
+
+describe('home department tabs', () => {
+  it('show only typing departments, even with staff hired', async () => {
+    const { homeViews, homeView } = await import('../src/cli/screen');
+    const s = started();
+    s.monkeys.push({ ...createMonkey(), department: 'marketing' });
+    s.researchOpen = true;
+    s.settings.homeDepartment = 'marketing';
+    expect(homeViews(s)).toEqual(['comedy']);
+    expect(homeView(s)).toBe('comedy');
+    expect(rosterOrder(s)).toHaveLength(2);
+  });
+});

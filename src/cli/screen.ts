@@ -302,8 +302,13 @@ function energyText(m: MonkeyState): string {
   return p > energyColors.green ? green(text) : p > energyColors.yellow ? yellow(text) : red(text);
 }
 
-/** The departments [tab] goes through on the home screen: the play departments, then R&D once it's open. */
+/** The departments [tab] goes through on the home screen: only the typing departments. */
 export function homeViews(state: GameState): string[] {
+  return departmentGenres(state); // only typing departments (Justin, 2026-10-18)
+}
+
+/** Every department in the roster's order: the typing departments, then R&D and the staff departments that have monkeys. */
+export function staffViews(state: GameState): string[] {
   return [
     ...departmentGenres(state),
     ...(state.researchOpen ? [research.id] : []),

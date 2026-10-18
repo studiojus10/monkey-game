@@ -22,7 +22,7 @@ import {
   slotDelay,
 } from '../game/logic';
 import type { GameState } from '../game/state';
-import { bySeniority, codebreakingStatus, recordsStatus, departmentName as deptName, dyed, hatEffect, homeViews, iconOf, speedText, traitNow } from './screen';
+import { bySeniority, codebreakingStatus, recordsStatus, departmentName as deptName, dyed, hatEffect, staffViews, iconOf, speedText, traitNow } from './screen';
 import { formatDuration } from '../format';
 import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, titleBar } from './style';
 
@@ -35,7 +35,7 @@ export function rosterOrder(state: GameState): number[] {
     const m = state.monkeys[i];
     return isResearcher(m) ? research.id : isHR(m) ? hr.id : isMarketer(m) ? marketing.id : isCodebreaker(m) ? codebreaking.id : isRecorder(m) ? records.id : (monkeyGenre(state, m) ?? '');
   };
-  const views = homeViews(state);
+  const views = staffViews(state);
   const rank = (i: number) => {
     // Departments in [tab] order, then HR, then Marketing.
     const k = views.indexOf(viewOf(i));
