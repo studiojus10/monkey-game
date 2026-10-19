@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buyRoom, chooseFirstLetter, typeLetter } from '../src/game/logic';
 import { connectedRooms } from '../src/game/layout';
@@ -144,6 +145,28 @@ describe('combo upgrades in old saves', () => {
     delete old.state.comboStartLevel;
     old.state.comboCapLevel = 3;
     expect(deserialize(JSON.stringify(old)).comboStartLevel).toBe(3);
+  });
+});
+
+describe('texts replaced by public-domain editions', () => {
+  it("moves an old save's progress in De generatione and De natura deorum onto the new lines", () => {
+    const lines = (id: string) => (JSON.parse(readFileSync(`data/plays/${id}.json`, 'utf8')) as { lines: [number, number][] }).lines;
+    const gen = lines('generatione');
+    const sceneLines = (all: [number, number][], key: string) => all.flatMap((l, i) => (`${l[0]}.${l[1]}` === key ? [i] : []));
+    const old = JSON.parse(serialize(createInitialState(0)));
+    old.version = 4;
+    // The old De generatione: chapter 1.1 was lines 0-107 and 1.9 (Prantl's, with Bekker's 1.10) lines 1300-1482.
+    old.state.owned = ['hamlet:1.1', 'generatione:1.1', 'generatione:1.9', 'natura:1.16', 'natura:1'];
+    old.state.scenesDone = ['generatione:1.1', 'natura:1.16'];
+    old.state.completed = { generatione: Array.from({ length: 108 }, (_, i) => i), hamlet: [3] };
+    old.state.pinned = [{ play: 'generatione', index: 107 }, { play: 'hamlet', index: 9 }];
+    const s = deserialize(JSON.stringify(old));
+    expect(s.completed.generatione).toEqual(sceneLines(gen, '1.1')); // the whole first chapter, as many lines as it has now
+    expect(s.completed.hamlet).toEqual([3]);
+    expect(s.pinned).toEqual([{ play: 'generatione', index: sceneLines(gen, '1.1').at(-1) }, { play: 'hamlet', index: 9 }]);
+    // Bekker splits Prantl's 1.9 in two; Schömann's 1.16 takes in 1.17, whose start the importer can't find.
+    expect(s.owned).toEqual(['hamlet:1.1', 'natura:1', 'generatione:1.1', 'generatione:1.9', 'generatione:1.10', 'natura:1.16']);
+    expect(s.scenesDone).toEqual(['generatione:1.1']); // natura 1.16 now needs 1.17's lines too
   });
 });
 

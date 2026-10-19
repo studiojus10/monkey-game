@@ -4,6 +4,7 @@ import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type SafeState, type TelegramState, type Stats } from './state';
 
 import { GAME_VERSION } from '../version';
+import { replacedTexts, textMap } from './replacedTexts';
 
 /**
  * The save format's version. Bump it when a field's meaning changes, and add
@@ -13,7 +14,7 @@ import { GAME_VERSION } from '../version';
  * Version 2 had one chosen play (`play`) and pins as line numbers in it; it
  * loads as owning that whole play.
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 interface SaveFile {
   version: number; // the save format (SAVE_VERSION)
@@ -48,6 +49,40 @@ export const migrations: Record<number, (s: RawState) => void> = {
       if (m) delete m.hats;
     }
     s.stored.hats = stored;
+  },
+  // 4 -> 5 (game 0.10.1): De generatione and De natura deorum came from new
+  // (public-domain) editions with other lines, so progress in them moves to
+  // the new lines: written lines, pins and targets by their place in the
+  // text, scenes owned or finished to the scenes that took them over.
+  4: (s) => {
+    const pins = (): unknown[] => [
+      ...(Array.isArray(s.pinned) ? s.pinned : []),
+      ...(Array.isArray(s.monkeys) ? (s.monkeys as { target?: unknown }[]).map((m) => m?.target) : []),
+      s.lastLine,
+      (s.stats as { longestLine?: unknown } | undefined)?.longestLine,
+    ];
+    for (const [id, change] of Object.entries(replacedTexts)) {
+      const map = textMap(change.old, change.new);
+      const completed = s.completed as Record<string, unknown> | undefined;
+      if (completed && Array.isArray(completed[id])) {
+        const done = new Set(completed[id] as unknown[]);
+        completed[id] = Array.from({ length: map.newLines }, (_, k) => k).filter((k) => done.has(map.toOld(k)));
+      }
+      for (const pin of pins()) {
+        const p = pin as { play?: unknown; index?: unknown } | null | undefined;
+        if (p && p.play === id && Number.isInteger(p.index)) p.index = map.toNew(p.index as number);
+      }
+      for (const [field, every] of [['owned', false], ['scenesDone', true]] as const) {
+        if (!Array.isArray(s[field])) continue;
+        const had = new Set(s[field] as unknown[]);
+        const kept = (s[field] as unknown[]).filter((x) => typeof x !== 'string' || !/^[^:]+:\d+\.\d+$/.test(x) || !x.startsWith(`${id}:`));
+        const has = (k: string) => had.has(`${id}:${k}`);
+        const took = map.scenes.filter((sc) => (every ? sc.old.every(has) : sc.old.some(has)));
+        s[field] = [...kept, ...took.map((sc) => `${id}:${sc.key}`)];
+      }
+      const m = s.lastMilestone as { kind?: unknown; play?: unknown; act?: unknown; scene?: unknown } | null | undefined;
+      if (m && m.kind === 'scene' && m.play === id) m.scene = Number((map.sceneOf(`${m.act}.${m.scene}`) ?? `${m.act}.${m.scene}`).split('.')[1]);
+    }
   },
 };
 

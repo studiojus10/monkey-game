@@ -29,6 +29,7 @@ src/
     grammar.ts     the Records department's rough grammar check: setLexicon (data/lexicon.txt), isGrammatical (part-of-speech tags walked through a few sentence patterns), sentencesIn (the sentences inside a chain)
     enigma.ts      an Enigma machine: encipher (its own inverse), randomKey, inGroups
     dev.ts         development tools (devTools list) shown on the ` menu; add new test tools here
+    replacedTexts.ts the old and new scene layouts of texts replaced by other editions (textMap), for save migrations
     save.ts        versioned JSON (de)serialization: SAVE_VERSION (the format), gameVersion in every save, migrations (one per format version, run in order on older saves), saveVersions(); SaveStorage interface; deserialize() tolerates missing/corrupt fields
   cli/             terminal front end
     mouse.ts       mouse support: parseMouse() (SGR mouse sequences out of the input), targetAt() (the field under the mouse, highlighted on hover), clickPress()/mousePress() turn a click, right click or wheel into the key press it stands for
@@ -45,7 +46,7 @@ src/
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
 data/words.txt     ENABLE word list (public domain), one lowercase word per line
 data/lexicon.txt   parts of speech for the grammar check, "WORD TAGS", from the Moby Part-of-Speech list (public domain) via scripts/import-lexicon.ts
-data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare; Greek and Latin texts (genre 'greek' or 'latin', books as acts, chapters or sections as scenes, plus english per line) from scripts/import-classical.ts
+data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare; Greek and Latin texts (genre 'greek' or 'latin', books as acts, chapters or sections as scenes, plus english per line; all public-domain editions) from scripts/import-classical.ts
 scripts/           simulate.ts plays headlessly with a greedy bot to check pacing (npx tsx scripts/simulate.ts [hours] [seed]); import-play.ts converts an MIT Shakespeare full.html into data/plays/<id>.json; import-sonnets.ts builds data/plays/sonnets.json; import-lexicon.ts builds data/lexicon.txt; import-classical.ts builds the Greek and Latin texts (scripts/greek/metaphysics.json is the scroll's source)
 tests/             unit tests for logic, save, formatting and the terminal screen
 ```
