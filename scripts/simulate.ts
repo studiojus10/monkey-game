@@ -91,7 +91,7 @@ if (process.env.SIM_DEPT_GROWTH) monkeyShop.departmentGrowth = Number(process.en
 // Letters a second simulated one by one (the game itself does maxSimulatedLettersPerSecond;
 // fewer runs faster, but Lines and Sentences, which need real letters, come slower): SIM_CAP=4000
 const simCap = Number(process.env.SIM_CAP ?? 300);
-// ...or any number in config.ts: SIM_SET='wordSlots.baseCost=2,managers.linesPerMonkey=20'
+// ...or any number in config.ts: SIM_SET='wordSlots.baseCost=2,managers.sentencesPerMonkey=20'
 for (const pair of (process.env.SIM_SET ?? '').split(',').filter(Boolean)) {
   const [path, value] = pair.split('=');
   const keys = path.split('.');
@@ -183,9 +183,9 @@ function shop(): void {
       if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;
       if (!managerBlocker(s, g) && hireManager(s, g)) bought = true;
     }
-    // Manager upgrades with spare Lines, once the department's word slots are bought.
+    // Manager upgrades with spare Sentences.
     for (const i of s.monkeys.flatMap((m, k) => (m.manager ? [k] : []))) {
-      if (s.lines >= managerUpgradeCost(s, s.monkeys[i]) * 2 && upgradeManager(s, i)) bought = true;
+      if (s.sentences >= managerUpgradeCost(s, s.monkeys[i]) * 2 && upgradeManager(s, i)) bought = true;
     }
     // Word slots (managers fill them) and typewriter keys.
     if (slotsUnlocked(s)) for (const g of departmentGenres(s)) if (buySlot(s, g)) bought = true;

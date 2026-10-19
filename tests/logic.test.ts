@@ -96,8 +96,6 @@ import {
   manage,
   managerLine,
   managerSpeed,
-  managerSpeedCost,
-  buyManagerSpeed,
   slotDelay,
   departmentMonkeys,
   departmentsWithRoom,
@@ -113,6 +111,7 @@ import {
   monkeyGenre,
   moveMonkey,
   moveMonkeyTo,
+  deskOf,
   posts,
   postCost,
   postOf,
@@ -1099,20 +1098,21 @@ describe('manager monkeys', () => {
     }
   });
 
-  it('upgrades cost Lines by department size and raise the points of every monkey in the department', () => {
+  it('upgrades cost Sentences by department size and raise the points of every monkey in the department', () => {
     try {
       const s = setup();
       while (s.monkeys.length <= managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
       expect(upgradeManager(s, 0)).toBe(false); // not a manager
       toggleManager(s, 0);
       const cost = managerUpgradeCost(s, s.monkeys[0]);
-      expect(cost).toBe(managers.linesPerMonkey * s.monkeys.length);
-      s.currency = s.sentences = 1e12;
-      expect(upgradeManager(s, 0)).toBe(false); // points don't buy it
-      s.lines = cost;
+      expect(cost).toBe(managers.sentencesPerMonkey * s.monkeys.length);
+      s.currency = s.lines = 1e12;
+      s.sentences = cost - 1;
+      expect(upgradeManager(s, 0)).toBe(false); // bananas and Lines don't buy it
+      s.sentences = cost;
       expect(managerMultiplier(s, s.monkeys[1])).toBe(1);
       expect(upgradeManager(s, 0)).toBe(true);
-      expect(s.lines).toBe(0);
+      expect(s.sentences).toBe(0);
       expect(managerMultiplier(s, s.monkeys[1])).toBeCloseTo(1 + managers.bonusPerLevel);
       expect(managerUpgradeCost(s, s.monkeys[0])).toBe(cost * managers.upgradeCostGrowth);
 
@@ -1497,6 +1497,16 @@ describe('office space', () => {
       expect(moveMonkeyTo(s, 1, 'comedy')).toBe(true);
       expect(roomDesks(s, room)).toHaveLength(0);
       expect(roomDesks(s, s.office[0])).toHaveLength(2);
+      // A monkey takes its own desk along; everyone else stays at theirs, and it sits at the one it brought.
+      expect(hireFor(s, posts(s).find((p) => p.id === 'comedy')!)).toBe(true);
+      expect(hireFor(s, post)).toBe(true);
+      const seats = s.monkeys.map((_, k) => s.furniture[deskOf(s, k)!]);
+      expect(moveMonkeyTo(s, 1, 'tragedy')).toBe(true);
+      expect(roomDesks(s, s.office[0])).toHaveLength(2);
+      expect(roomDesks(s, room)).toHaveLength(2);
+      expect(s.furniture).not.toContain(seats[1]);
+      expect([0, 2, 3].map((k) => s.furniture[deskOf(s, k)!])).toEqual([seats[0], seats[2], seats[3]]);
+      expect(s.furniture[deskOf(s, 1)!].room).toBe(room.id);
       s.researchOpen = true;
       expect(posts(s, false).find((p) => p.id === research.id)?.blocked).toBe('lab needed');
       expect(posts(s, false).some((p) => p.job === 'managing')).toBe(false); // moves don't offer managers' chairs
@@ -2150,11 +2160,7 @@ describe('manager speed', () => {
     expect(toggleManager(s, 0)).toBe(true);
     const boss = s.monkeys[0];
     expect(managerSpeed(s, boss)).toBe(1);
-    s.currency = managerSpeedCost(boss) - 1;
-    expect(buyManagerSpeed(s, 0)).toBe(false);
-    s.currency++;
-    expect(buyManagerSpeed(s, 0)).toBe(true);
-    expect(managerSpeedCost(boss)).toBe(managers.speedBaseCost * managers.speedCostGrowth);
+    expect(upgradeManager(s, 0)).toBe(true); // the one manager upgrade speeds it up too
     expect(managerSpeed(s, boss)).toBeCloseTo(1 + managers.speedPerLevel);
     // A plant goes in the manager's office (the Manager store places it there); a couch can't.
     expect(buyFurniture(s, 'plant', 'office')).toBe(true);

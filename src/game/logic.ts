@@ -234,16 +234,12 @@ export function moveMonkey(state: GameState, index: number): boolean {
   if (!m || open.length < 2 || isStaff(m)) return false;
   // The next department round the list that has room.
   const at = open.indexOf(monkeyGenre(state, m)!);
-  const from = monkeyGenre(state, m);
   const next = [...open.slice(at + 1), ...open.slice(0, at)].find(
     (g) => departmentTypists(state, g) < departmentRules.maxTypists && hasDeskSpace(state, g),
   );
   if (!next) return false;
   // Its desk moves with it (a manager's desk stays in its office).
-  const oldRoom = m.manager && officeOf(state, from) ? undefined : departmentRoom(state, from);
-  const oldDesk = oldRoom ? roomDesks(state, oldRoom).pop() : undefined;
-  if (oldDesk !== undefined) state.furniture.splice(oldDesk, 1);
-  placeDesk(state, next);
+  removeDesk(state, index);
   if (m.manager) {
     // A manager moving departments goes back to typing there.
     m.manager = false;
@@ -251,6 +247,7 @@ export function moveMonkey(state: GameState, index: number): boolean {
     m.target = null;
   }
   m.department = next;
+  seatAtNewDesk(state, index, departmentRoom(state, next));
   return true;
 }
 
@@ -2003,19 +2000,19 @@ export function sentenceBase(boss: MonkeyState): number {
   return 1 + managers.sentencePerLevel * boss.managerLevel;
 }
 
-/** Lines price of a manager's next upgrade: grows with its department's size and each level. */
+/** Sentences price of a manager's next upgrade: grows with its department's size and each level. */
 export function managerUpgradeCost(state: GameState, m: MonkeyState): number {
   const team = departmentMonkeys(state, monkeyGenre(state, m)).length;
-  return Math.ceil(managers.linesPerMonkey * team * Math.pow(managers.upgradeCostGrowth, m.managerLevel));
+  return Math.ceil(managers.sentencesPerMonkey * team * Math.pow(managers.upgradeCostGrowth, m.managerLevel));
 }
 
-/** Upgrades a manager with Lines. */
+/** Upgrades a manager with Sentences: its department's bananas and Sentences, and how quickly it changes slots. */
 export function upgradeManager(state: GameState, index: number): boolean {
   const m = state.monkeys[index];
   if (!m?.manager || isTemp(m)) return false;
   const cost = managerUpgradeCost(state, m);
-  if (state.lines < cost) return false;
-  state.lines -= cost;
+  if (state.sentences < cost) return false;
+  state.sentences -= cost;
   m.managerLevel++;
   return true;
 }
@@ -2079,28 +2076,12 @@ export function managerSpeed(state: GameState, m: MonkeyState): number {
   const pieces = office ? state.furniture.filter((f) => f.room === office.id) : [];
   const furniture = Math.min(managerOffice.maxFurnitureSpeed, pieces.reduce((n, f) => n + (kindOf(f.kind)?.happiness ?? 0) * managerOffice.speedPerHappiness, 0));
   const chi = office && state.fengShuiBook ? roomChi(state, office) * managerOffice.chiSpeed : 0;
-  return 1 + managers.speedPerLevel * m.managerSpeedLevel + furniture + chi;
+  return 1 + managers.speedPerLevel * m.managerLevel + furniture + chi;
 }
 
 /** Seconds between a manager's slot changes. */
 export function slotDelay(state: GameState, m: MonkeyState): number {
   return managers.secondsPerSlot / managerSpeed(state, m);
-}
-
-/** Bananas price of a manager's next "Quicker manager" upgrade. */
-export function managerSpeedCost(m: MonkeyState): number {
-  return Math.ceil(managers.speedBaseCost * Math.pow(managers.speedCostGrowth, m.managerSpeedLevel));
-}
-
-/** Makes a manager quicker at changing slots, for Bananas. */
-export function buyManagerSpeed(state: GameState, index: number): boolean {
-  const m = state.monkeys[index];
-  if (!m?.manager || isTemp(m)) return false;
-  const cost = managerSpeedCost(m);
-  if (state.currency < cost) return false;
-  state.currency -= cost;
-  m.managerSpeedLevel++;
-  return true;
 }
 
 /** The slot a manager changes next (in position order), and to what: a word, or '' to switch it off. */
@@ -2933,20 +2914,36 @@ export function moveMonkeyTo(state: GameState, index: number, postId: string): b
   const post = posts(state, false).find((p) => p.id === postId);
   if (!m || !post || post.blocked || postOf(state, m) === postId) return false;
   // Its desk moves with it (a manager's desk stays in its office).
-  const from = monkeyGenre(state, m);
-  const oldRoom = isStaff(m) ? staffRoom(state, m.department) : m.manager && officeOf(state, from) ? undefined : departmentRoom(state, from);
-  const oldDesk = oldRoom ? roomDesks(state, oldRoom).pop() : undefined;
-  if (oldDesk !== undefined) state.furniture.splice(oldDesk, 1);
+  removeDesk(state, index);
   if (m.manager) {
     m.manager = false;
     if (m.target) unpin(state, m.target);
     m.target = null;
   }
   m.department = post.id;
-  const room = post.job === 'typing' ? departmentRoom(state, post.genre) : staffRoom(state, post.id);
-  const square = room && bestSquares(state, room, true)[0];
-  if (room && square) state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+  seatAtNewDesk(state, index, post.job === 'typing' ? departmentRoom(state, post.genre) : staffRoom(state, post.id));
   return true;
+}
+
+/** Takes away the desk a monkey sits at (not a manager's desk), so the others keep theirs. */
+function removeDesk(state: GameState, index: number): void {
+  const seat = deskOf(state, index);
+  if (seat !== undefined && state.furniture[seat]?.kind === desk.id) state.furniture.splice(seat, 1);
+}
+
+/**
+ * Stands a desk for a monkey that has just joined a room's department on the
+ * room's best free square, and sits the monkey at it: desks are taken in
+ * order, so the new one goes in at the monkey's place in that order and
+ * everyone else keeps the desk they had.
+ */
+function seatAtNewDesk(state: GameState, index: number, room: Room | undefined): void {
+  const square = room && bestSquares(state, room, true)[0];
+  if (!room || !square) return;
+  state.furniture.push({ kind: desk.id, room: room.id, x: square[0], y: square[1] });
+  const seat = deskOf(state, index);
+  if (seat === undefined || seat === state.furniture.length - 1) return;
+  state.furniture.splice(seat, 0, state.furniture.pop()!);
 }
 
 /** Takes a candidate off the list, for a hire: its trait and stats (nothing for an unseen hire). */
@@ -3068,7 +3065,7 @@ export function isTemp(m: MonkeyState): boolean {
   return m.tempLeft > 0;
 }
 
-/** Temps work their time down; those whose time is up leave. Returns the names of those who left. */
+/** Temps work their time down; those whose time is up leave, and their desks go with them. Returns the names of those who left. */
 export function endTemps(state: GameState, seconds: number): string[] {
   const left: string[] = [];
   for (let i = state.monkeys.length - 1; i >= 0; i--) {
@@ -3077,6 +3074,7 @@ export function endTemps(state: GameState, seconds: number): string[] {
     m.tempLeft -= seconds;
     if (m.tempLeft > 0) continue;
     left.unshift(monkeyName(state, i));
+    removeDesk(state, i); // its desk goes with it
     letGo(state, i);
   }
   return left;

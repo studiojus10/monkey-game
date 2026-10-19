@@ -945,14 +945,17 @@ export const sonnetRewards = {
  * spell with your letters: it pins that line and fills your word slots with
  * its words. If several departments have managers, the first department's
  * manager sets the word slots (there's one set of slots). Managers can be
- * upgraded with Lines.
+ * upgraded with Sentences.
  */
 export const managers = {
   minDepartmentMonkeys: 5,
-  // Each upgrade adds bonusPerLevel to the points of every monkey in the
-  // manager's department (x1.1, x1.2, ...). Upgrades are deliberately very
-  // expensive, since one upgrades the whole department: the n-th costs
-  // linesPerMonkey Lines per monkey in the department x upgradeCostGrowth^(n-1).
+  // One upgrade does it all (Justin, 2026-10-19: "combine the manager
+  // upgrades", "make them cost sentences"): each adds bonusPerLevel to the
+  // points of every monkey in the manager's department (x1.1, x1.2, ...),
+  // sentencePerLevel to its Sentences base and speedPerLevel to its slot
+  // speed. Upgrades are expensive, since one upgrades the whole department:
+  // the n-th costs sentencesPerMonkey Sentences per monkey in the department
+  // x upgradeCostGrowth^(n-1). Placeholders.
   bonusPerLevel: 0.1,
   // Sentences (Justin, 2026-10-18): a manager multiplies the Sentences its
   // department's chains pay, like the word combo: x1 plus sentencePerLevel for
@@ -962,18 +965,15 @@ export const managers = {
   sentencePerLevel: 0.1,
   sentenceGood: 0.2,
   sentenceBad: 0.1,
-  linesPerMonkey: 50,
+  sentencesPerMonkey: 50,
   upgradeCostGrowth: 2,
   // Managers change their department's word slots one at a time, one change
   // every secondsPerSlot seconds divided by their speed (Justin, 2026-10-16:
   // "they should change the slots one at a time with a certain delay in
-  // between each change"). Speed is x1, plus speedPerLevel for each "Quicker
-  // manager" upgrade (Bananas: speedBaseCost x speedCostGrowth^level), plus
-  // its office's furniture and feng shui (managerOffice). Placeholders.
+  // between each change"). Speed is x1, plus speedPerLevel for each upgrade,
+  // plus its office's furniture and feng shui (managerOffice). Placeholders.
   secondsPerSlot: 30,
   speedPerLevel: 0.25,
-  speedBaseCost: 1_000_000,
-  speedCostGrowth: 4,
 };
 
 /** Letters per typewriter line until a front end sets its own (the terminal sets it to reach the screen's edge). */

@@ -71,7 +71,6 @@ import {
   researchSecondsLeft,
   researchShare,
   managerSpeed,
-  managerSpeedCost,
   slotDelay,
   isCodebreaker,
   canBuildCodebreaking,
@@ -833,18 +832,10 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               {
                 id: 'manager',
                 text: 'Upgrade a manager',
-                effect: `+${managers.bonusPerLevel}x bananas and base sentences for its department`,
-                cost: [[Math.min(...managerChoices(state).map((i) => managerUpgradeCost(state, state.monkeys[i]))), 'lines']] as [number, Currency][],
+                effect: `+${managers.bonusPerLevel}x bananas and base sentences for its department, changes slots +${pct(managers.speedPerLevel)} faster`,
+                cost: [[Math.min(...managerChoices(state).map((i) => managerUpgradeCost(state, state.monkeys[i]))), 'sentences']] as [number, Currency][],
                 costFrom: managerChoices(state).length > 1,
-                star: managerChoices(state).some((i) => state.lines >= managerUpgradeCost(state, state.monkeys[i])),
-              },
-              {
-                id: 'managerspeed',
-                text: 'Quicker manager',
-                effect: `changes slots +${pct(managers.speedPerLevel)} faster`,
-                cost: [[Math.min(...managerChoices(state).map((i) => managerSpeedCost(state.monkeys[i]))), 'currency']] as [number, Currency][],
-                costFrom: managerChoices(state).length > 1,
-                star: managerChoices(state).some((i) => state.currency >= managerSpeedCost(state.monkeys[i])),
+                star: managerChoices(state).some((i) => state.sentences >= managerUpgradeCost(state, state.monkeys[i])),
               },
             ]
           : []),
@@ -1337,28 +1328,19 @@ function managerLine(m: MonkeyState): string {
     : `${title}, waiting for a line your letters can spell`;
 }
 
-/** The prompt for making a manager quicker at changing slots, with each one's seconds per slot and price. */
-export function managerSpeedPrompt(state: GameState): string {
-  const choices = managerChoices(state).map((i, k) => {
-    const m = state.monkeys[i];
-    const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
-    return `[${k + 1}] ${monkeyName(state, i)} ${slotDelay(state, m).toFixed(1)}s -> ${next.toFixed(1)}s a slot ` + priceNamed(managerSpeedCost(m), state.currency, 'currency');
-  });
-  return `Make which manager quicker? ${choices.join('   ')}   (any other key: done)`;
-}
-
 /** Managers by monkey index, for the upgrade menu (keys 1-9 in this order). */
 export function managerChoices(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) ? [i] : [])).slice(0, 9);
 }
 
-/** The prompt for upgrading a manager, with each one's next bonus and price. */
+/** The prompt for upgrading a manager, with each one's next bonus, slot speed and price. */
 export function managerUpgradePrompt(state: GameState): string {
   const choices = managerChoices(state).map((i, k) => {
     const m = state.monkeys[i];
     const now = 1 + managers.bonusPerLevel * m.managerLevel;
-    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} (sentences x${sentenceMultiplier(m).toFixed(1)}) ` +
-      priceNamed(managerUpgradeCost(state, m), state.lines, 'lines');
+    const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
+    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} (sentences x${sentenceMultiplier(m).toFixed(1)}), ` +
+      `${slotDelay(state, m).toFixed(1)}s -> ${next.toFixed(1)}s a slot ` + priceNamed(managerUpgradeCost(state, m), state.sentences, 'sentences');
   });
   return `Upgrade which manager? ${choices.join('   ')}   (any other key: done)`;
 }

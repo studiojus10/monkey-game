@@ -14,7 +14,7 @@ import { replacedTexts, textMap } from './replacedTexts';
  * Version 2 had one chosen play (`play`) and pins as line numbers in it; it
  * loads as owning that whole play.
  */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 interface SaveFile {
   version: number; // the save format (SAVE_VERSION)
@@ -84,6 +84,18 @@ export const migrations: Record<number, (s: RawState) => void> = {
       if (m && m.kind === 'scene' && m.play === id) m.scene = Number((map.sceneOf(`${m.act}.${m.scene}`) ?? `${m.act}.${m.scene}`).split('.')[1]);
     }
   },
+  // 5 -> 6 (game 0.11.0): a manager's two upgrades (bananas and Sentences for
+  // Lines, quicker slots for Bananas) became one, so it keeps the higher of
+  // its two levels.
+  5: (s) => {
+    if (!Array.isArray(s.monkeys)) return;
+    for (const m of s.monkeys as { managerLevel?: unknown; managerSpeedLevel?: unknown }[]) {
+      if (!m) continue;
+      const levels = [m.managerLevel, m.managerSpeedLevel].filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+      if (levels.length > 0) m.managerLevel = Math.max(...levels);
+      delete m.managerSpeedLevel;
+    }
+  },
 };
 
 /** A save's versions (format and game), or null if it isn't a save. Saves from before game versions say ''. */
@@ -132,7 +144,6 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       manager: !!m?.manager,
       managerLevel: Math.max(0, Math.floor(num(m?.managerLevel, 0))),
       sentenceStreak: Math.max(0, num(m?.sentenceStreak, 0)),
-      managerSpeedLevel: Math.max(0, Math.floor(num(m?.managerSpeedLevel, 0))),
       slotWait: Math.max(0, num(m?.slotWait, 0)),
       target:
         m?.target && typeof m.target.play === 'string' && Number.isInteger(m.target.index)
