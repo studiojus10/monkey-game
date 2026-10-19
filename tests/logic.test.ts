@@ -75,6 +75,7 @@ import {
   toggleSlot,
   reachableLines,
   togglePin,
+  unpinPlayerLines,
   comboStartCost,
   comboStart,
   comboCap,
@@ -91,13 +92,12 @@ import {
   typeLetter,
   typingUpgradeCost,
   buySection,
-  chooseStarterScene,
+  chooseStarterPlay,
+  starterGenre,
   departmentChoices,
   manage,
   managerLine,
   managerSpeed,
-  managerSpeedCost,
-  buyManagerSpeed,
   slotDelay,
   departmentMonkeys,
   departmentsWithRoom,
@@ -113,6 +113,7 @@ import {
   monkeyGenre,
   moveMonkey,
   moveMonkeyTo,
+  deskOf,
   posts,
   postCost,
   postOf,
@@ -122,7 +123,7 @@ import {
   nextMonkeyCost,
   pointsMultiplier,
   sectionPrice,
-  starterScenes,
+  starterPlays,
   getPlay,
   openDepartment,
   currentWork,
@@ -718,6 +719,14 @@ describe('pinned lines', () => {
       expect(togglePin(s, 'p', 0)).toBe(true); // unpin
       expect(s.pinned.some((p) => p.index === 0)).toBe(false);
       expect(togglePin(s, 'p', 999)).toBe(false);
+      // Unpinning all of yours keeps a manager's line pinned.
+      s.monkeys[0].manager = true;
+      s.monkeys[0].target = { play: 'p', index: 1 };
+      expect(unpinPlayerLines(s)).toBe(maxPinnedLines - 2);
+      expect(s.pinned).toEqual([{ play: 'p', index: 1 }]);
+      expect(unpinPlayerLines(s)).toBe(0);
+      s.monkeys[0].manager = false;
+      s.monkeys[0].target = null;
       expect(missingLetters(s, 'AYME')).toEqual(['A', 'E', 'M', 'Y']);
       s.completed.p = [0];
       expect(reachableLines(s, 'p')).toEqual([2, 4, 6]);
@@ -872,11 +881,20 @@ describe('departments, the scene shop and milestones', () => {
       expect(departmentPicks(s)).toBe(1);
       expect(openDepartment(s, 'tragedy')).toBe(true);
       expect(openDepartment(s, 'comedy')).toBe(false); // the next one needs more monkeys
-      expect(starterScenes(s).map((x) => x.play.id)).toEqual(['two']);
-      expect(chooseStarterScene(s, 'one', '1.2')).toBe(false); // wrong genre
-      expect(chooseStarterScene(s, 'two', '1.1')).toBe(true);
-      expect(chooseStarterScene(s, 'two', '1.1')).toBe(false); // only once
-      expect(s.owned).toEqual(['two:1.1']);
+      expect(starterPlays(s).map((p) => p.id)).toEqual(['two']);
+      expect(chooseStarterPlay(s, 'one')).toBe(false); // wrong genre
+      expect(chooseStarterPlay(s, 'two')).toBe(true);
+      expect(chooseStarterPlay(s, 'two')).toBe(false); // only once
+      expect(s.owned).toEqual(['two']);
+      // Each later Shakespeare department gets its own free pick, like the first.
+      expect(starterGenre(s)).toBeUndefined();
+      s.departments.push('comedy');
+      expect(starterGenre(s)).toBe('comedy');
+      expect(starterPlays(s).map((p) => p.id)).toEqual(['one']);
+      expect(chooseStarterPlay(s, 'two')).toBe(false);
+      expect(chooseStarterPlay(s, 'one')).toBe(true);
+      expect(starterGenre(s)).toBeUndefined();
+      expect(s.owned).toEqual(['two', 'one']);
     } finally {
       setPlays([]);
     }
@@ -914,7 +932,7 @@ describe('departments, the scene shop and milestones', () => {
     }
   });
 
-  it('prices scenes by letters, discounts acts and plays, and only sells open departments', () => {
+  it('prices texts by letters with a discount, sells them only whole, and only for open departments', () => {
     try {
       setPlays([one, two]);
       const s = createInitialState(0);
@@ -925,15 +943,13 @@ describe('departments, the scene shop and milestones', () => {
       expect(sectionPrice(s, play, 1, '1.2')).toBe(6 * scriptShop.pointsPerLetter); // NO + LORD
       expect(sectionPrice(s, play, 1)).toBe(Math.ceil(60 * scriptShop.actDiscount));
       expect(sectionPrice(s, play)).toBe(Math.ceil((60 + 60) * scriptShop.playDiscount)); // + NORMAL
-      expect(buySection(s, 'one', 1)).toBe(false); // can't afford
+      expect(buySection(s, 'one')).toBe(false); // can't afford
       s.currency = 1000;
-      expect(buySection(s, 'one', 1)).toBe(true);
-      expect(s.owned).toEqual(['one:1']); // the act covers the scene bought before
-      expect(s.currency).toBe(1000 - 48);
-      expect(buySection(s, 'one', 1)).toBe(false); // owned already
       expect(buySection(s, 'two')).toBe(false); // no tragedies department
       expect(buySection(s, 'one')).toBe(true);
-      expect(s.owned).toEqual(['one']);
+      expect(s.owned).toEqual(['one']); // the play covers the scene owned before (old saves)
+      expect(s.currency).toBe(1000 - Math.ceil(120 * scriptShop.playDiscount));
+      expect(buySection(s, 'one')).toBe(false); // owned already
     } finally {
       setPlays([]);
     }
@@ -1099,20 +1115,21 @@ describe('manager monkeys', () => {
     }
   });
 
-  it('upgrades cost Lines by department size and raise the points of every monkey in the department', () => {
+  it('upgrades cost Sentences by department size and raise the points of every monkey in the department', () => {
     try {
       const s = setup();
       while (s.monkeys.length <= managers.minDepartmentMonkeys) s.monkeys.push(createMonkey());
       expect(upgradeManager(s, 0)).toBe(false); // not a manager
       toggleManager(s, 0);
       const cost = managerUpgradeCost(s, s.monkeys[0]);
-      expect(cost).toBe(managers.linesPerMonkey * s.monkeys.length);
-      s.currency = s.sentences = 1e12;
-      expect(upgradeManager(s, 0)).toBe(false); // points don't buy it
-      s.lines = cost;
+      expect(cost).toBe(managers.sentencesPerMonkey * s.monkeys.length);
+      s.currency = s.lines = 1e12;
+      s.sentences = cost - 1;
+      expect(upgradeManager(s, 0)).toBe(false); // bananas and Lines don't buy it
+      s.sentences = cost;
       expect(managerMultiplier(s, s.monkeys[1])).toBe(1);
       expect(upgradeManager(s, 0)).toBe(true);
-      expect(s.lines).toBe(0);
+      expect(s.sentences).toBe(0);
       expect(managerMultiplier(s, s.monkeys[1])).toBeCloseTo(1 + managers.bonusPerLevel);
       expect(managerUpgradeCost(s, s.monkeys[0])).toBe(cost * managers.upgradeCostGrowth);
 
@@ -1497,6 +1514,16 @@ describe('office space', () => {
       expect(moveMonkeyTo(s, 1, 'comedy')).toBe(true);
       expect(roomDesks(s, room)).toHaveLength(0);
       expect(roomDesks(s, s.office[0])).toHaveLength(2);
+      // A monkey takes its own desk along; everyone else stays at theirs, and it sits at the one it brought.
+      expect(hireFor(s, posts(s).find((p) => p.id === 'comedy')!)).toBe(true);
+      expect(hireFor(s, post)).toBe(true);
+      const seats = s.monkeys.map((_, k) => s.furniture[deskOf(s, k)!]);
+      expect(moveMonkeyTo(s, 1, 'tragedy')).toBe(true);
+      expect(roomDesks(s, s.office[0])).toHaveLength(2);
+      expect(roomDesks(s, room)).toHaveLength(2);
+      expect(s.furniture).not.toContain(seats[1]);
+      expect([0, 2, 3].map((k) => s.furniture[deskOf(s, k)!])).toEqual([seats[0], seats[2], seats[3]]);
+      expect(s.furniture[deskOf(s, 1)!].room).toBe(room.id);
       s.researchOpen = true;
       expect(posts(s, false).find((p) => p.id === research.id)?.blocked).toBe('lab needed');
       expect(posts(s, false).some((p) => p.job === 'managing')).toBe(false); // moves don't offer managers' chairs
@@ -2150,11 +2177,7 @@ describe('manager speed', () => {
     expect(toggleManager(s, 0)).toBe(true);
     const boss = s.monkeys[0];
     expect(managerSpeed(s, boss)).toBe(1);
-    s.currency = managerSpeedCost(boss) - 1;
-    expect(buyManagerSpeed(s, 0)).toBe(false);
-    s.currency++;
-    expect(buyManagerSpeed(s, 0)).toBe(true);
-    expect(managerSpeedCost(boss)).toBe(managers.speedBaseCost * managers.speedCostGrowth);
+    expect(upgradeManager(s, 0)).toBe(true); // the one manager upgrade speeds it up too
     expect(managerSpeed(s, boss)).toBeCloseTo(1 + managers.speedPerLevel);
     // A plant goes in the manager's office (the Manager store places it there); a couch can't.
     expect(buyFurniture(s, 'plant', 'office')).toBe(true);

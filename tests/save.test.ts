@@ -189,3 +189,15 @@ describe('versions', () => {
   });
 });
 
+
+describe('migrations', () => {
+  it("5 -> 6: a manager's two upgrades become one, at the higher level", async () => {
+    const s = createInitialState(0);
+    const raw = JSON.parse(serialize(s));
+    raw.version = 5;
+    raw.state.monkeys = [{ ...raw.state.monkeys[0], managerLevel: 1, managerSpeedLevel: 3 }, { ...raw.state.monkeys[0], managerLevel: 2 }];
+    const back = deserialize(JSON.stringify(raw));
+    expect(back.monkeys.map((m) => m.managerLevel)).toEqual([3, 2]);
+    expect('managerSpeedLevel' in back.monkeys[0]).toBe(false);
+  });
+});

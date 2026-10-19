@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream';
 import { achievements, research, hr, marketing, codebreaking, records, library, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { isForeign, sceneName, textToWords, type Genre, type PlayData } from '../game/plays';
+import { isForeign, textToWords, type Genre, type PlayData } from '../game/plays';
 import {
   applyOfflineProgress,
   dyeHat,
@@ -54,9 +54,11 @@ import {
   nextOwnedScene,
   nextPin,
   buySection,
+  unpinPlayerLines,
   getPlay,
   sceneOf,
-  starterScenes,
+  starterPlays,
+  starterGenre,
   departmentChoices,
   canAffordLetter,
   moveMonkeyTo,
@@ -71,7 +73,6 @@ import {
   departmentSlots,
   slotGenre,
   upgradeManager,
-  buyManagerSpeed,
   openDepartment,
   buyComboStart,
   comboCap,
@@ -80,7 +81,7 @@ import {
   monkeyName,
   renameMonkey,
   buySlot,
-  chooseStarterScene,
+  chooseStarterPlay,
   chooseFirstLetter,
   moveSlot,
   letterCost,
@@ -164,7 +165,6 @@ import {
   textsTabs,
   type TextsTab,
   focusName,
-  managerSpeedPrompt,
   dyeColorPrompt,
   dyePick,
   hatPick,
@@ -299,7 +299,6 @@ let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
 let pickingDeptFor: '' | 'assign' = ''; // choosing a department for a new monkey
 let pickingManagerUpgrade = false;
-let pickingManagerSpeed = false;
 let readingTelegrams = false; // the telegrams in Enigma
 let showingLibrary = false; // the Library's galleries, from the office map
 let libraryCursor = 0; // the gallery chosen
@@ -454,11 +453,8 @@ function buyItem(id: string): void {
   } else if (id === 'manager') {
     pickingManagerUpgrade = true;
     message = managerUpgradePrompt(state);
-  } else if (id === 'managerspeed') {
-    pickingManagerSpeed = true;
-    message = managerSpeedPrompt(state);
   } else if (id.startsWith('section:')) {
-    buyScriptSection(id.slice('section:'.length));
+    buyScriptText();
   } else if (id.startsWith('hat:')) {
     const what = id.slice('hat:'.length);
     if (state.monkeys.length === 1) message = wearHatOn(0, what);
@@ -618,7 +614,7 @@ function goHome(): void {
   showingScript = showingKeys = showingHelp = showingDev = showingStats = showingRoster = showingAchievements = false;
   showingOffice = showingOptions = showingDictionary = showingSlots = showingInventory = showingLibrary = false;
   readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = false;
-  pickingDyeColor = pickingDepartment = pickingManagerUpgrade = pickingManagerSpeed = buyingRoom = false;
+  pickingDyeColor = pickingDepartment = pickingManagerUpgrade = buyingRoom = false;
   confirmingFire = false;
   contents = '';
   pickingTyping = '';
@@ -664,20 +660,13 @@ function scriptSpot(): ScriptSpot {
   return { play: availablePlays()[scriptPlay]?.id ?? '', line: scriptCursor };
 }
 
-/** Buys the scene (b), act (a) or whole play (w) under the script page's cursor. */
-function buyScriptSection(which: string): void {
+/** Buys the whole text (w) under the script page's cursor. */
+function buyScriptText(): void {
   const play = availablePlays()[scriptPlay];
-  const sc = play && sceneOf(play, scriptCursor);
-  if (!play || !sc) return;
-  const [act, scene, what] =
-    which === 'b'
-      ? [sc.act, sc.key, `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`]
-      : which === 'a'
-        ? [sc.act, undefined, `${play.title}, Act ${sc.act}`]
-        : [undefined, undefined, play.title];
-  message = buySection(state, play.id, act, scene)
-    ? `You bought ${what}.`
-    : `Can't buy ${what}: it's owned already or you need more ${theme.currency}.`;
+  if (!play) return;
+  message = buySection(state, play.id)
+    ? `You bought ${play.title}.`
+    : `Can't buy ${play.title}: it's owned already or you need more ${theme.currency}.`;
 }
 
 /** Buys a skill level or a typewriter for monkey `i`; returns the message to show. */
@@ -894,7 +883,7 @@ function startNaming(index: number) {
 
 /** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
 function pickerOpen(): boolean {
-  return !!(pickingDeptFor || pickingManagerUpgrade || pickingManagerSpeed || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
+  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
 }
 
 /** Opens the coin flip screen (with nothing to bet it only says so). */
@@ -1135,20 +1124,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       pickingManagerUpgrade = false;
       message = 'Done.';
     } else {
-      const result = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Lines.';
+      const result = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Sentences.';
       message = `${result}  ${managerUpgradePrompt(state)}`;
-    }
-    return draw();
-  }
-
-  if (pickingManagerSpeed) {
-    const i = managerChoices(state)[Number(str) - 1];
-    if (i === undefined) {
-      pickingManagerSpeed = false;
-      message = 'Done.';
-    } else {
-      const result = buyManagerSpeed(state, i) ? `${monkeyName(state, i)} changes slots quicker.` : `Not enough ${theme.currency}.`;
-      message = `${result}  ${managerSpeedPrompt(state)}`;
     }
     return draw();
   }
@@ -1310,8 +1287,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       contents = 'plays';
       contentsTab = isForeign(play?.genre) ? 'foreign' : 'plays';
       contentsCursor = Math.max(0, tabPlays(contentsTab).indexOf(play!));
-    } else if (play && (str === 'b' || (str === 'a' && play.genre !== 'sonnet') || str === 'w')) {
-      buyScriptSection(str);
+    } else if (play && str === 'w') {
+      buyScriptText();
+    } else if (str === 'u') {
+      const n = unpinPlayerLines(state);
+      message = n > 0 ? `Unpinned ${n} line${n === 1 ? '' : 's'}.` : 'You have no pinned lines of your own.';
     } else if (key.name === 'f') {
       const reachable = play ? reachableLines(state, play.id) : [];
       if (reachable.length === 0) message = 'No unwritten line is within reach yet. Buy more letters.';
@@ -1765,11 +1745,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   message = '';
   // The opening screens' choices: arrows and enter, or their keys.
-  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : state.owned.length === 0 ? starterScenes(state).length : state.letters.length === 0 ? startingLetters.length : 0;
+  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : starterGenre(state) ? starterPlays(state).length : state.letters.length === 0 ? startingLetters.length : 0;
   if (opening > 0) {
     const row = menuKey(key, opening);
     if (row >= 0) {
-      str = state.owned.length > 0 ? startingLetters[row].toLowerCase() : String(row + 1);
+      str = state.owned.length > 0 && !starterGenre(state) ? startingLetters[row].toLowerCase() : String(row + 1);
       menuCursor = 0;
     }
   }
@@ -1778,12 +1758,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (state.owned.length === 0 && state.departments.length === 0) {
     const g = departmentChoices(state)[Number(str) - 1];
     if (g) openDepartment(state, g);
-  } else if (state.owned.length === 0) {
-    const pick = starterScenes(state)[Number(str) - 1];
+  } else if (starterGenre(state)) {
+    const pick = starterPlays(state)[Number(str) - 1];
     if (pick) {
-      chooseStarterScene(state, pick.play.id, pick.scene.key);
-      scriptPlay = Math.max(0, availablePlays().indexOf(pick.play));
-      scriptCursor = pick.scene.lines[0];
+      chooseStarterPlay(state, pick.id);
+      scriptPlay = Math.max(0, availablePlays().indexOf(pick));
+      scriptCursor = 0;
     }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);

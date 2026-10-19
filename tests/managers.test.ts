@@ -496,9 +496,13 @@ describe('temps', () => {
     expect(L.buyTypewriter(s, i)).toBe(false);
     temp.hat = hats[0].id;
     const count = s.monkeys.length;
+    const desks = s.furniture.filter((f) => f.kind === 'desk').length;
+    const seats = s.monkeys.slice(0, i).map((_, k) => s.furniture[L.deskOf(s, k)!]);
     expect(L.endTemps(s, hr.tempHours * 3600 - 1)).toEqual([]);
     expect(L.endTemps(s, 1)).toEqual([temp.name]);
     expect(s.monkeys).toHaveLength(count - 1);
+    expect(s.furniture.filter((f) => f.kind === 'desk')).toHaveLength(desks - 1);
+    expect(s.monkeys.map((_, k) => s.furniture[L.deskOf(s, k)!])).toEqual(seats);
     expect(s.stored.hats[hats[0].id]).toBe(1);
     expect(deserialize(serialize(s)).candidates.every((x) => x.tempLeft > 0)).toBe(true);
   });

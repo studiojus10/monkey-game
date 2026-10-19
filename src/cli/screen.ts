@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { records, lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { records, lately as latelyRules, achievements, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -44,7 +44,8 @@ import {
   sceneOf,
   sceneProgress,
   sectionPrice,
-  starterScenes,
+  starterPlays,
+  starterGenre,
   missingLetters,
   slotCost,
   slotsUnlocked,
@@ -71,7 +72,6 @@ import {
   researchSecondsLeft,
   researchShare,
   managerSpeed,
-  managerSpeedCost,
   slotDelay,
   isCodebreaker,
   canBuildCodebreaking,
@@ -570,13 +570,14 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     );
   }
 
-  if (state.owned.length === 0) {
-    const scenes = starterScenes(state);
+  const starter = starterGenre(state);
+  if (starter) {
+    const choices = starterPlays(state);
     return openingScreen(
-      'Choose a free first scene for your monkeys to work toward.',
-      ['Later you can buy more scenes, acts and whole plays in the script.'],
-      scenes.map(({ play, scene }, i) => [String(i + 1), `${play.title}, ${sceneName(scene.act, scene.scene)}`, `${count(scene.lines.length)} line${scene.lines.length === 1 ? '' : 's'}`]),
-      [['up/down', 'choose'], ['enter', 'pick'], [scenes.length === 1 ? '1' : `1-${scenes.length}`, 'pick'], ['q', 'quit']],
+      state.owned.length === 0 ? 'Choose a free first play for your monkeys to work toward.' : `Choose a free first play for your new ${genreNames[starter]} department.`,
+      ['Later you can buy more plays in the script.'],
+      choices.map((play, i) => [String(i + 1), play.title, `${count(play.lines.length)} line${play.lines.length === 1 ? '' : 's'}`]),
+      [['up/down', 'choose'], ['enter', 'pick'], [choices.length === 1 ? '1' : `1-${choices.length}`, 'pick'], ['q', 'quit']],
       message,
       columns,
       cursor,
@@ -833,18 +834,10 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               {
                 id: 'manager',
                 text: 'Upgrade a manager',
-                effect: `+${managers.bonusPerLevel}x bananas and base sentences for its department`,
-                cost: [[Math.min(...managerChoices(state).map((i) => managerUpgradeCost(state, state.monkeys[i]))), 'lines']] as [number, Currency][],
+                effect: `+${managers.bonusPerLevel}x bananas and base sentences for its department, changes slots +${pct(managers.speedPerLevel)} faster`,
+                cost: [[Math.min(...managerChoices(state).map((i) => managerUpgradeCost(state, state.monkeys[i]))), 'sentences']] as [number, Currency][],
                 costFrom: managerChoices(state).length > 1,
-                star: managerChoices(state).some((i) => state.lines >= managerUpgradeCost(state, state.monkeys[i])),
-              },
-              {
-                id: 'managerspeed',
-                text: 'Quicker manager',
-                effect: `changes slots +${pct(managers.speedPerLevel)} faster`,
-                cost: [[Math.min(...managerChoices(state).map((i) => managerSpeedCost(state.monkeys[i]))), 'currency']] as [number, Currency][],
-                costFrom: managerChoices(state).length > 1,
-                star: managerChoices(state).some((i) => state.currency >= managerSpeedCost(state.monkeys[i])),
+                star: managerChoices(state).some((i) => state.sentences >= managerUpgradeCost(state, state.monkeys[i])),
               },
             ]
           : []),
@@ -939,17 +932,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const section = (id: string, text: string, n: number, effect: string): ShopItem =>
         n === 0 ? { id, text, effect, blocked: 'owned' } : { id, text, effect, star: state.currency >= n, cost: [[n, 'currency']] };
       const lines = (n: number) => `${count(n)} line${n === 1 ? '' : 's'}`;
-      const actLines = play.lines.filter((l) => l.act === sc.act).length;
-      return play.genre === 'sonnet'
-        ? [
-            section('section:b', 'This sonnet', sectionPrice(state, play, sc.act, sc.key), `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`),
-            section('section:w', 'All the sonnets', sectionPrice(state, play), lines(play.lines.length)),
-          ]
-        : [
-            section('section:b', 'This scene', sectionPrice(state, play, sc.act, sc.key), `${sceneName(sc.act, sc.scene, play.genre)}, ${lines(sc.lines.length)}`),
-            section('section:a', `Act ${sc.act}`, sectionPrice(state, play, sc.act), `${lines(actLines)}, ${Math.round((1 - scriptShop.actDiscount) * 100)}% off`),
-            section('section:w', 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}, ${Math.round((1 - scriptShop.playDiscount) * 100)}% off`),
-          ];
+      return [section('section:w', play.genre === 'sonnet' ? 'All the sonnets' : isForeign(play.genre) ? 'The whole text' : 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}`)];
     }
     case 'hats': {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
@@ -1337,28 +1320,19 @@ function managerLine(m: MonkeyState): string {
     : `${title}, waiting for a line your letters can spell`;
 }
 
-/** The prompt for making a manager quicker at changing slots, with each one's seconds per slot and price. */
-export function managerSpeedPrompt(state: GameState): string {
-  const choices = managerChoices(state).map((i, k) => {
-    const m = state.monkeys[i];
-    const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
-    return `[${k + 1}] ${monkeyName(state, i)} ${slotDelay(state, m).toFixed(1)}s -> ${next.toFixed(1)}s a slot ` + priceNamed(managerSpeedCost(m), state.currency, 'currency');
-  });
-  return `Make which manager quicker? ${choices.join('   ')}   (any other key: done)`;
-}
-
 /** Managers by monkey index, for the upgrade menu (keys 1-9 in this order). */
 export function managerChoices(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) ? [i] : [])).slice(0, 9);
 }
 
-/** The prompt for upgrading a manager, with each one's next bonus and price. */
+/** The prompt for upgrading a manager, with each one's next bonus, slot speed and price. */
 export function managerUpgradePrompt(state: GameState): string {
   const choices = managerChoices(state).map((i, k) => {
     const m = state.monkeys[i];
     const now = 1 + managers.bonusPerLevel * m.managerLevel;
-    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} (sentences x${sentenceMultiplier(m).toFixed(1)}) ` +
-      priceNamed(managerUpgradeCost(state, m), state.lines, 'lines');
+    const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
+    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} (sentences x${sentenceMultiplier(m).toFixed(1)}), ` +
+      `${slotDelay(state, m).toFixed(1)}s -> ${next.toFixed(1)}s a slot ` + priceNamed(managerUpgradeCost(state, m), state.sentences, 'sentences');
   });
   return `Upgrade which manager? ${choices.join('   ')}   (any other key: done)`;
 }
@@ -1483,7 +1457,7 @@ export function wrapWords(text: string, width: number): string[] {
  * dim heading with its progress; written lines are green with a +, pinned
  * ones have an @, the cursor's line is inverse, and a NEEDS column lists the
  * letters each line still needs. Lines too long for the screen wrap. Under
- * them, prices to buy the scene, act or play under the cursor.
+ * them, prices to buy the play (or a sonnet or a foreign text's section or book) under the cursor.
  */
 export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0, shop = ''): string {
   const play = getPlay(playId);
@@ -1536,7 +1510,6 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     );
   }
 
-  const sc = sceneOf(play, at)!;
   const section = (key: string, label: string, n: number) =>
     state.currency >= n && n > 0
       ? affordable(`${bold(`[${key}]`)} ${label} * ${bold(formatPrice(n))} ${theme.currency}`)
@@ -1556,13 +1529,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     ...(locked
       ? [` Open a ${departmentName(state, departmentOf(play.genre))} department to buy these.`]
       : wrapVisible(
-          play.genre === 'sonnet'
-            ? [section('b', 'this sonnet', sectionPrice(state, play, sc.act, sc.key)), section('w', 'all the sonnets', sectionPrice(state, play))]
-            : [
-                section('b', 'scene', sectionPrice(state, play, sc.act, sc.key)),
-                section('a', `${isForeign(play.genre) ? 'Book' : 'Act'} ${sc.act}`, sectionPrice(state, play, sc.act)),
-                section('w', 'whole play', sectionPrice(state, play)),
-              ],
+          [section('w', play.genre === 'sonnet' ? 'all the sonnets' : isForeign(play.genre) ? 'whole text' : 'whole play', sectionPrice(state, play))],
           columns,
           ` ${dim('Buy')}  `,
         )),
@@ -1575,6 +1542,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
         ['left/right', 'scene'],
         ['pgup/pgdn', 'page'],
         ['enter', 'pin'],
+        ['u', 'unpin all yours'],
         ['space', 'shop'],
         ['tab', 'contents'],
         ['[/]', 'pinned lines'],
