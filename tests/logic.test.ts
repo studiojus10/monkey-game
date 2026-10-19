@@ -91,7 +91,7 @@ import {
   typeLetter,
   typingUpgradeCost,
   buySection,
-  chooseStarterScene,
+  chooseStarterPlay,
   starterGenre,
   departmentChoices,
   manage,
@@ -122,7 +122,7 @@ import {
   nextMonkeyCost,
   pointsMultiplier,
   sectionPrice,
-  starterScenes,
+  starterPlays,
   getPlay,
   openDepartment,
   currentWork,
@@ -872,20 +872,20 @@ describe('departments, the scene shop and milestones', () => {
       expect(departmentPicks(s)).toBe(1);
       expect(openDepartment(s, 'tragedy')).toBe(true);
       expect(openDepartment(s, 'comedy')).toBe(false); // the next one needs more monkeys
-      expect(starterScenes(s).map((x) => x.play.id)).toEqual(['two']);
-      expect(chooseStarterScene(s, 'one', '1.2')).toBe(false); // wrong genre
-      expect(chooseStarterScene(s, 'two', '1.1')).toBe(true);
-      expect(chooseStarterScene(s, 'two', '1.1')).toBe(false); // only once
-      expect(s.owned).toEqual(['two:1.1']);
+      expect(starterPlays(s).map((p) => p.id)).toEqual(['two']);
+      expect(chooseStarterPlay(s, 'one')).toBe(false); // wrong genre
+      expect(chooseStarterPlay(s, 'two')).toBe(true);
+      expect(chooseStarterPlay(s, 'two')).toBe(false); // only once
+      expect(s.owned).toEqual(['two']);
       // Each later Shakespeare department gets its own free pick, like the first.
       expect(starterGenre(s)).toBeUndefined();
       s.departments.push('comedy');
       expect(starterGenre(s)).toBe('comedy');
-      expect(starterScenes(s).map((x) => x.play.id)).toEqual(['one', 'one', 'one']);
-      expect(chooseStarterScene(s, 'two', '1.1')).toBe(false);
-      expect(chooseStarterScene(s, 'one', '1.2')).toBe(true);
+      expect(starterPlays(s).map((p) => p.id)).toEqual(['one']);
+      expect(chooseStarterPlay(s, 'two')).toBe(false);
+      expect(chooseStarterPlay(s, 'one')).toBe(true);
       expect(starterGenre(s)).toBeUndefined();
-      expect(s.owned).toEqual(['two:1.1', 'one:1.2']);
+      expect(s.owned).toEqual(['two', 'one']);
     } finally {
       setPlays([]);
     }
@@ -923,7 +923,7 @@ describe('departments, the scene shop and milestones', () => {
     }
   });
 
-  it('prices scenes by letters, discounts acts and plays, and only sells open departments', () => {
+  it('prices plays by letters with a discount, sells them only whole, and only for open departments', () => {
     try {
       setPlays([one, two]);
       const s = createInitialState(0);
@@ -934,15 +934,15 @@ describe('departments, the scene shop and milestones', () => {
       expect(sectionPrice(s, play, 1, '1.2')).toBe(6 * scriptShop.pointsPerLetter); // NO + LORD
       expect(sectionPrice(s, play, 1)).toBe(Math.ceil(60 * scriptShop.actDiscount));
       expect(sectionPrice(s, play)).toBe(Math.ceil((60 + 60) * scriptShop.playDiscount)); // + NORMAL
-      expect(buySection(s, 'one', 1)).toBe(false); // can't afford
+      expect(buySection(s, 'one')).toBe(false); // can't afford
       s.currency = 1000;
-      expect(buySection(s, 'one', 1)).toBe(true);
-      expect(s.owned).toEqual(['one:1']); // the act covers the scene bought before
-      expect(s.currency).toBe(1000 - 48);
-      expect(buySection(s, 'one', 1)).toBe(false); // owned already
+      expect(buySection(s, 'one', 1)).toBe(false); // plays sell only whole
+      expect(buySection(s, 'one', 1, '1.2')).toBe(false);
       expect(buySection(s, 'two')).toBe(false); // no tragedies department
       expect(buySection(s, 'one')).toBe(true);
-      expect(s.owned).toEqual(['one']);
+      expect(s.owned).toEqual(['one']); // the play covers the scene owned before (old saves)
+      expect(s.currency).toBe(1000 - Math.ceil(120 * scriptShop.playDiscount));
+      expect(buySection(s, 'one')).toBe(false); // owned already
     } finally {
       setPlays([]);
     }

@@ -43,7 +43,7 @@ import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/i
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, lately, monkeyNames } from '../src/game/config';
 import { greekLetters, type PlayData } from '../src/game/plays';
-import { posts, postCost, poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterScene, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
+import { posts, postCost, poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
 import { formatAmount, formatPrice } from '../src/format';
@@ -90,7 +90,7 @@ function started() {
 }
 
 describe('terminal screen', () => {
-  it('asks for a genre first, then a free scene, then the first letter', () => {
+  it('asks for a genre first, then a free play, then the first letter', () => {
     setPlays([testPlay]);
     const s = createInitialState(0);
     const genres = plain(renderScreen(s, '', null, 80));
@@ -99,8 +99,8 @@ describe('terminal screen', () => {
     expect(genres).toContain(' [up/down] choose   [enter] pick   [1] pick   [q] quit');
     expect(renderScreen(s, '', null, 80, 0)).toContain(inverse('   [1] Comedies   Test Play')); // the cursor's choice
     openDepartment(s, 'comedy');
-    expect(plain(renderScreen(s))).toContain('   [1] Test Play, Act 1, scene 1   1 line');
-    chooseStarterScene(s, 'test', '1.1');
+    expect(plain(renderScreen(s))).toContain('   [1] Test Play   2 lines');
+    chooseStarterPlay(s, 'test');
     const text = plain(renderScreen(s));
     expect(text).toContain('   [a] A\n   [i] I\n');
     expect(text).toContain(' [a/i] pick   [q] quit');
@@ -370,7 +370,8 @@ describe('script browser and pins', () => {
     let text = renderScript(s, 'test', 1);
     expect(text).toContain(' INFINITE MONKEYS > SCRIPT ');
     expect(squash(text)).toContain('\n Test Play Comedies 0 / 2 lines written\n');
-    expect(squash(text)).toContain('[b] scene owned');
+    expect(squash(text)).toContain('[w] whole play owned');
+    expect(squash(text)).not.toContain('[b] scene');
     expect(squash(text)).toContain('\n ACT 1, SCENE 1 0 / 1 written NEEDS\n');
     expect(squash(text)).toContain('\n ACT 1, SCENE 2 0 / 1 written NEEDS\n');
     expect(squash(text)).toContain('\n HAMLET I. in reach\n');
@@ -402,17 +403,18 @@ describe('script browser and pins', () => {
   });
 });
 
-describe('buying scenes in the script browser', () => {
-  it('shows unowned scenes with prices, and locked genres', () => {
+describe('buying plays in the script browser', () => {
+  it('shows unowned scenes, sells only the whole play with its price, and locked genres', () => {
     const s = started();
     s.owned = ['test:1.1'];
     const text = squash(renderScript(s, 'test', 1));
     expect(text).toContain('\n ACT 1, SCENE 2 1 line, not owned NEEDS\n');
     expect(text).toContain('\n> POLONIUS Ay, my lord. \n'); // nothing needed until you own it
-    expect(text).toContain('[b] scene 80 Bananas'); // AYMYLORD is 8 letters
-    expect(text).toContain('[a] Act 1 64 Bananas'); // only the unowned scene, less 20%
+    expect(text).toContain('[w] whole play 48 Bananas'); // AYMYLORD is 8 letters: only the unowned scene, less 40%
+    expect(text).not.toContain('[b] scene');
+    expect(text).not.toContain('[a] Act 1');
     s.currency = 100;
-    expect(renderScript(s, 'test', 1)).toContain(green(`${bold('[b]')} scene * ${bold('80')} Bananas`)); // affordable: all green, its key too
+    expect(renderScript(s, 'test', 1)).toContain(green(`${bold('[w]')} whole play * ${bold('48')} Bananas`)); // affordable: all green, its key too
     s.departments = [];
     s.owned = [];
     expect(renderScript(s, 'test', 1)).toContain('Open a Comedies department to buy these.');
@@ -708,16 +710,16 @@ describe('furniture', () => {
     expect(storePages(s, 'hats')).toBe(1);
   });
 
-  it('sells the scene, act and play under the cursor in the script page\'s shop', () => {
+  it('sells only the whole play under the cursor in the script page\'s shop', () => {
     const s = started();
     s.currency = s.sentences = 1e9;
     const at = { play: 'test', line: 0 };
     expect(openStores(s, 'script')).toEqual(['script']);
-    expect(storeChoices(s, 'script', 0, at).map((x) => x.id)).toEqual(['section:b', 'section:a', 'section:w']);
-    expect(storeChoices(s, 'script', 0, at)[0].blocked).toBe('owned'); // the free first scene
+    expect(storeChoices(s, 'script', 0, at).map((x) => x.id)).toEqual(['section:w']);
+    expect(storeChoices(s, 'script', 0, at)[0].blocked).toBe('owned'); // the free first play
     const page = squash(renderScript(s, 'test', 0, '', 0, renderShop(s, 'script', 0, '', 0, true, at)));
     expect(page).toContain(' Script \n');
-    expect(page).toContain('[2] Act 1');
+    expect(page).toContain('[1] The whole play');
     expect(page).not.toContain('[tab] contents'); // the shop takes the place of the keys
     expect(squash(renderScript(s, 'test', 0))).toContain('[space] shop');
   });

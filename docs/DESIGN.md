@@ -10,7 +10,7 @@ This is the design every build step works toward. Items marked **(default)** are
 2. Whenever a real word shows up in a stream, you earn points for it.
 3. Points buy more letters (more possible words), more monkeys (more streams) and upgrades.
 4. Words typed back to back build a combo multiplier.
-5. You open a department for one genre (comedies, histories or tragedies) and get one short scene free (every later comedies, histories or tragedies department gets its own free pick too, Justin 2026-10-19); more scenes, acts and whole plays are bought with points. When a monkey types one of its lines word for word, the line is checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
+5. You open a department for one genre (comedies, histories or tragedies) and pick one of its plays free (every later comedies, histories or tragedies department gets its own free pick too, Justin 2026-10-19); more plays are bought whole with points (Justin, 2026-10-19: "make plays only purchasable or unlockable in entirety"). When a monkey types one of its lines word for word, the line is checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
 6. Progression is deliberately slow. Later upgrades (typewriter keys, word slots) let you steer what gets typed so you can target specific lines.
 
 ## Letters
@@ -148,7 +148,7 @@ Bonuses add up (they're summed, not compounded), so the total depends only on wh
 
 ### Buying the script
 
-Scenes, acts and whole plays are bought with points in the script browser **(decided)**. A scene costs 10 points per letter in its lines; an act costs its unowned scenes' total less 20%; a whole play its unowned scenes' total less 40% (starting guesses). Only lines of owned scenes can be written, pinned or count toward milestones.
+Plays are bought whole with points in the script browser (since game v0.11.0; scenes and acts no longer sell on their own, though old saves keep the ones they bought). A play costs 10 points per letter in its unowned scenes' lines, less 40% (starting guesses). Sonnets still sell one at a time or all together, foreign texts by section, book or whole. Only lines of owned scenes can be written, pinned or count toward milestones.
 
 ### Departments
 

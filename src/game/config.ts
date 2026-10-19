@@ -168,17 +168,19 @@ export const milestones = {
 };
 
 /**
- * The script shop, in points. You start with one free scene and buy the
- * rest: a scene costs pointsPerLetter for each letter in its lines; an act
- * or a whole play costs its unowned scenes' total times its discount.
- * starterScenes is how many short scenes of your first department's genre
- * are offered for free at the start.
+ * The script shop, in points. Each new Shakespeare department picks one free
+ * play of its genre (starterPlays shortest are offered), and the rest are
+ * bought whole (Justin, 2026-10-19: "make plays only purchasable or
+ * unlockable in entirety"). A scene is worth pointsPerLetter for each letter
+ * in its lines; a whole play costs its unowned scenes' total times
+ * playDiscount. Sonnets sell one at a time or all together, foreign texts by
+ * section, book (actDiscount) or whole.
  */
 export const scriptShop = {
   pointsPerLetter: 10,
   actDiscount: 0.8,
   playDiscount: 0.6,
-  starterScenes: 3,
+  starterPlays: 3,
 };
 
 /**

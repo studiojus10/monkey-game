@@ -261,20 +261,19 @@ export function starterGenre(state: GameState): Genre | undefined {
   return departmentGenres(state).find((g) => playGenres.includes(g) && !ownedGenres.has(g) && availablePlays().some((p) => p.genre === g));
 }
 
-/** The free scenes offered for a new Shakespeare department: the shortest scenes in its genre (see starterGenre). */
-export function starterScenes(state: GameState): { play: Play; scene: Scene }[] {
+/** The free plays offered for a new Shakespeare department: the shortest plays in its genre (see starterGenre). */
+export function starterPlays(state: GameState): Play[] {
   const genre = starterGenre(state);
   return availablePlays()
     .filter((p) => genre === p.genre)
-    .flatMap((play) => play.scenes.map((scene) => ({ play, scene })))
-    .sort((a, b) => a.scene.letters - b.scene.letters || a.play.id.localeCompare(b.play.id))
-    .slice(0, scriptShop.starterScenes);
+    .sort((a, b) => a.lines.length - b.lines.length || a.id.localeCompare(b.id))
+    .slice(0, scriptShop.starterPlays);
 }
 
-/** Takes a new department's free starter scene. Only allowed once per department, before it owns any script. */
-export function chooseStarterScene(state: GameState, play: string, sceneKey: string): boolean {
-  if (!starterScenes(state).some((x) => x.play.id === play && x.scene.key === sceneKey)) return false;
-  state.owned.push(`${play}:${sceneKey}`);
+/** Takes a new department's free starter play. Only allowed once per department, before it owns any script. */
+export function chooseStarterPlay(state: GameState, play: string): boolean {
+  if (!starterPlays(state).some((p) => p.id === play)) return false;
+  state.owned.push(play);
   state.completed[play] ??= [];
   return true;
 }
@@ -299,10 +298,16 @@ export function sectionPrice(state: GameState, play: Play, act?: number, sceneKe
   return Math.ceil(unowned.reduce((n, sc) => n + scenePrice(sc), 0) * discount);
 }
 
-/** Buys a scene, an act or a whole play with points. */
+/** Whether a text sells only whole: Shakespeare's plays do (sonnets and foreign texts also sell in parts). */
+export function soldWhole(play: Play): boolean {
+  return playGenres.includes(play.genre);
+}
+
+/** Buys a whole play, or a sonnet, a foreign text's section or book, or all of either, with points. */
 export function buySection(state: GameState, playId: string, act?: number, sceneKey?: string): boolean {
   const play = plays.get(playId);
   if (!play || state.owned.length === 0 || !departmentGenres(state).includes(departmentOf(play.genre))) return false;
+  if (soldWhole(play) && act !== undefined) return false;
   const exists = play.scenes.some(
     (sc) => (act === undefined || sc.act === act) && (sceneKey === undefined || sc.key === sceneKey),
   );

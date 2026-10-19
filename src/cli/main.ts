@@ -56,7 +56,7 @@ import {
   buySection,
   getPlay,
   sceneOf,
-  starterScenes,
+  starterPlays,
   starterGenre,
   departmentChoices,
   canAffordLetter,
@@ -80,7 +80,8 @@ import {
   monkeyName,
   renameMonkey,
   buySlot,
-  chooseStarterScene,
+  chooseStarterPlay,
+  soldWhole,
   chooseFirstLetter,
   moveSlot,
   letterCost,
@@ -659,7 +660,7 @@ function scriptSpot(): ScriptSpot {
   return { play: availablePlays()[scriptPlay]?.id ?? '', line: scriptCursor };
 }
 
-/** Buys the scene (b), act (a) or whole play (w) under the script page's cursor. */
+/** Buys the whole play (w), or for sonnets and foreign texts the section (b) or book (a), under the script page's cursor. */
 function buyScriptSection(which: string): void {
   const play = availablePlays()[scriptPlay];
   const sc = play && sceneOf(play, scriptCursor);
@@ -1293,7 +1294,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       contents = 'plays';
       contentsTab = isForeign(play?.genre) ? 'foreign' : 'plays';
       contentsCursor = Math.max(0, tabPlays(contentsTab).indexOf(play!));
-    } else if (play && (str === 'b' || (str === 'a' && play.genre !== 'sonnet') || str === 'w')) {
+    } else if (play && (str === 'w' || (!soldWhole(play) && (str === 'b' || (str === 'a' && play.genre !== 'sonnet'))))) {
       buyScriptSection(str);
     } else if (key.name === 'f') {
       const reachable = play ? reachableLines(state, play.id) : [];
@@ -1748,7 +1749,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   message = '';
   // The opening screens' choices: arrows and enter, or their keys.
-  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : starterGenre(state) ? starterScenes(state).length : state.letters.length === 0 ? startingLetters.length : 0;
+  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : starterGenre(state) ? starterPlays(state).length : state.letters.length === 0 ? startingLetters.length : 0;
   if (opening > 0) {
     const row = menuKey(key, opening);
     if (row >= 0) {
@@ -1762,11 +1763,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const g = departmentChoices(state)[Number(str) - 1];
     if (g) openDepartment(state, g);
   } else if (starterGenre(state)) {
-    const pick = starterScenes(state)[Number(str) - 1];
+    const pick = starterPlays(state)[Number(str) - 1];
     if (pick) {
-      chooseStarterScene(state, pick.play.id, pick.scene.key);
-      scriptPlay = Math.max(0, availablePlays().indexOf(pick.play));
-      scriptCursor = pick.scene.lines[0];
+      chooseStarterPlay(state, pick.id);
+      scriptPlay = Math.max(0, availablePlays().indexOf(pick));
+      scriptCursor = 0;
     }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);

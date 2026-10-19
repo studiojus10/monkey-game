@@ -33,7 +33,7 @@ import {
   canSeatMonkey,
   comboStartCost,
   chooseFirstLetter,
-  chooseStarterScene,
+  chooseStarterPlay,
   departmentChoices,
   departmentGenres,
   departmentMonkeys,
@@ -52,16 +52,15 @@ import {
   monkeyGenre,
   nextMonkeyCost,
   openDepartment,
-  ownsScene,
   roomCost,
   roomlessDepartments,
-  scenePrice,
+  sectionPrice,
   setPlays,
   setWordList,
   skillCap,
   slotsUnlocked,
   squareCost,
-  starterScenes,
+  starterPlays,
   tick,
   upgradeManager,
   managerUpgradeCost,
@@ -113,8 +112,7 @@ setPlays(readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => J
 const s: GameState = process.env.SIM_LOAD ? deserialize(readFileSync(process.env.SIM_LOAD, 'utf8'), 0) : createInitialState(0);
 if (!process.env.SIM_LOAD) {
   openDepartment(s, departmentChoices(s)[0]);
-  const starter = starterScenes(s)[0];
-  chooseStarterScene(s, starter.play.id, starter.scene.key);
+  chooseStarterPlay(s, starterPlays(s)[0].id);
   chooseFirstLetter(s, 'A');
 }
 
@@ -172,12 +170,13 @@ function shop(): void {
     while (s.unassignedMonkeys > 0 && assignMonkey(s, departmentsWithRoom(s)[0])) bought = true;
     // Combo cap with Sentences.
     if (s.sentences >= comboStartCost(s.comboStartLevel) && buyComboStart(s)) bought = true;
-    // The cheapest unowned scene, if it costs under a quarter of the points in hand.
-    const scenes = availablePlays()
+    // The cheapest unowned play, if it costs under a quarter of the points in hand.
+    const buyable = availablePlays()
       .filter((p) => departmentGenres(s).includes(p.genre))
-      .flatMap((p) => p.scenes.filter((sc) => !ownsScene(s, p.id, sc)).map((sc) => ({ p, sc, price: scenePrice(sc) })))
+      .map((p) => ({ p, price: sectionPrice(s, p) }))
+      .filter((x) => x.price > 0)
       .sort((a, b) => a.price - b.price);
-    if (scenes[0] && s.currency >= scenes[0].price * 4 && buySection(s, scenes[0].p.id, scenes[0].sc.act, scenes[0].sc.key)) bought = true;
+    if (buyable[0] && s.currency >= buyable[0].price * 4 && buySection(s, buyable[0].p.id)) bought = true;
     // A manager for each department big enough, in an office next door.
     for (const g of departmentGenres(s)) {
       if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;

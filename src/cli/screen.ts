@@ -44,7 +44,8 @@ import {
   sceneOf,
   sceneProgress,
   sectionPrice,
-  starterScenes,
+  soldWhole,
+  starterPlays,
   starterGenre,
   missingLetters,
   slotCost,
@@ -572,12 +573,12 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
 
   const starter = starterGenre(state);
   if (starter) {
-    const scenes = starterScenes(state);
+    const choices = starterPlays(state);
     return openingScreen(
-      state.owned.length === 0 ? 'Choose a free first scene for your monkeys to work toward.' : `Choose a free first scene for your new ${genreNames[starter]} department.`,
-      ['Later you can buy more scenes, acts and whole plays in the script.'],
-      scenes.map(({ play, scene }, i) => [String(i + 1), `${play.title}, ${sceneName(scene.act, scene.scene)}`, `${count(scene.lines.length)} line${scene.lines.length === 1 ? '' : 's'}`]),
-      [['up/down', 'choose'], ['enter', 'pick'], [scenes.length === 1 ? '1' : `1-${scenes.length}`, 'pick'], ['q', 'quit']],
+      state.owned.length === 0 ? 'Choose a free first play for your monkeys to work toward.' : `Choose a free first play for your new ${genreNames[starter]} department.`,
+      ['Later you can buy more plays in the script.'],
+      choices.map((play, i) => [String(i + 1), play.title, `${count(play.lines.length)} line${play.lines.length === 1 ? '' : 's'}`]),
+      [['up/down', 'choose'], ['enter', 'pick'], [choices.length === 1 ? '1' : `1-${choices.length}`, 'pick'], ['q', 'quit']],
       message,
       columns,
       cursor,
@@ -938,11 +939,13 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
             section('section:b', 'This sonnet', sectionPrice(state, play, sc.act, sc.key), `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`),
             section('section:w', 'All the sonnets', sectionPrice(state, play), lines(play.lines.length)),
           ]
-        : [
-            section('section:b', 'This scene', sectionPrice(state, play, sc.act, sc.key), `${sceneName(sc.act, sc.scene, play.genre)}, ${lines(sc.lines.length)}`),
-            section('section:a', `Act ${sc.act}`, sectionPrice(state, play, sc.act), `${lines(actLines)}, ${Math.round((1 - scriptShop.actDiscount) * 100)}% off`),
-            section('section:w', 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}, ${Math.round((1 - scriptShop.playDiscount) * 100)}% off`),
-          ];
+        : soldWhole(play)
+          ? [section('section:w', 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}`)]
+          : [
+              section('section:b', 'This section', sectionPrice(state, play, sc.act, sc.key), `${sceneName(sc.act, sc.scene, play.genre)}, ${lines(sc.lines.length)}`),
+              section('section:a', `Book ${sc.act}`, sectionPrice(state, play, sc.act), `${lines(actLines)}, ${Math.round((1 - scriptShop.actDiscount) * 100)}% off`),
+              section('section:w', 'The whole text', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}, ${Math.round((1 - scriptShop.playDiscount) * 100)}% off`),
+            ];
     }
     case 'hats': {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
@@ -1467,7 +1470,7 @@ export function wrapWords(text: string, width: number): string[] {
  * dim heading with its progress; written lines are green with a +, pinned
  * ones have an @, the cursor's line is inverse, and a NEEDS column lists the
  * letters each line still needs. Lines too long for the screen wrap. Under
- * them, prices to buy the scene, act or play under the cursor.
+ * them, prices to buy the play (or a sonnet or a foreign text's section or book) under the cursor.
  */
 export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0, shop = ''): string {
   const play = getPlay(playId);
@@ -1542,11 +1545,13 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
       : wrapVisible(
           play.genre === 'sonnet'
             ? [section('b', 'this sonnet', sectionPrice(state, play, sc.act, sc.key)), section('w', 'all the sonnets', sectionPrice(state, play))]
-            : [
-                section('b', 'scene', sectionPrice(state, play, sc.act, sc.key)),
-                section('a', `${isForeign(play.genre) ? 'Book' : 'Act'} ${sc.act}`, sectionPrice(state, play, sc.act)),
-                section('w', 'whole play', sectionPrice(state, play)),
-              ],
+            : soldWhole(play)
+              ? [section('w', 'whole play', sectionPrice(state, play))]
+              : [
+                  section('b', 'section', sectionPrice(state, play, sc.act, sc.key)),
+                  section('a', `Book ${sc.act}`, sectionPrice(state, play, sc.act)),
+                  section('w', 'whole text', sectionPrice(state, play)),
+                ],
           columns,
           ` ${dim('Buy')}  `,
         )),
