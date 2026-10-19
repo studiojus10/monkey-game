@@ -75,6 +75,7 @@ import {
   toggleSlot,
   reachableLines,
   togglePin,
+  unpinPlayerLines,
   comboStartCost,
   comboStart,
   comboCap,
@@ -718,6 +719,14 @@ describe('pinned lines', () => {
       expect(togglePin(s, 'p', 0)).toBe(true); // unpin
       expect(s.pinned.some((p) => p.index === 0)).toBe(false);
       expect(togglePin(s, 'p', 999)).toBe(false);
+      // Unpinning all of yours keeps a manager's line pinned.
+      s.monkeys[0].manager = true;
+      s.monkeys[0].target = { play: 'p', index: 1 };
+      expect(unpinPlayerLines(s)).toBe(maxPinnedLines - 2);
+      expect(s.pinned).toEqual([{ play: 'p', index: 1 }]);
+      expect(unpinPlayerLines(s)).toBe(0);
+      s.monkeys[0].manager = false;
+      s.monkeys[0].target = null;
       expect(missingLetters(s, 'AYME')).toEqual(['A', 'E', 'M', 'Y']);
       s.completed.p = [0];
       expect(reachableLines(s, 'p')).toEqual([2, 4, 6]);

@@ -54,6 +54,7 @@ import {
   nextOwnedScene,
   nextPin,
   buySection,
+  unpinPlayerLines,
   getPlay,
   sceneOf,
   starterPlays,
@@ -1288,6 +1289,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       contentsCursor = Math.max(0, tabPlays(contentsTab).indexOf(play!));
     } else if (play && str === 'w') {
       buyScriptText();
+    } else if (str === 'u') {
+      const n = unpinPlayerLines(state);
+      message = n > 0 ? `Unpinned ${n} line${n === 1 ? '' : 's'}.` : 'You have no pinned lines of your own.';
     } else if (key.name === 'f') {
       const reachable = play ? reachableLines(state, play.id) : [];
       if (reachable.length === 0) message = 'No unwritten line is within reach yet. Buy more letters.';

@@ -1542,6 +1542,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
         ['left/right', 'scene'],
         ['pgup/pgdn', 'page'],
         ['enter', 'pin'],
+        ['u', 'unpin all yours'],
         ['space', 'shop'],
         ['tab', 'contents'],
         ['[/]', 'pinned lines'],

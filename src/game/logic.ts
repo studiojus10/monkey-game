@@ -805,6 +805,14 @@ export function togglePin(state: GameState, playId: string, index: number): bool
   return true;
 }
 
+/** Unpins every line you pinned yourself; managers' lines stay pinned. Returns how many were unpinned. */
+export function unpinPlayerLines(state: GameState): number {
+  const managed = state.monkeys.flatMap((m) => (m.manager && m.target ? [m.target] : []));
+  const before = state.pinned.length;
+  state.pinned = state.pinned.filter((p) => managed.some((t) => samePin(p, t)));
+  return before - state.pinned.length;
+}
+
 /** Letters a line needs that you don't own yet. */
 /** True when you own every letter in `letters`. */
 export function inReach(state: GameState, letters: string, genre?: Genre): boolean {
