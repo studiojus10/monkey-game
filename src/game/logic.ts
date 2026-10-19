@@ -251,19 +251,29 @@ export function moveMonkey(state: GameState, index: number): boolean {
   return true;
 }
 
-/** The free scenes offered at the start: the shortest scenes in your first genre. */
+/**
+ * The Shakespeare department waiting for its free first scene: the first open
+ * one (comedies, histories or tragedies) that owns no script in its genre yet.
+ * Every new one gets a pick, like the first (Justin, 2026-10-19).
+ */
+export function starterGenre(state: GameState): Genre | undefined {
+  const ownedGenres = new Set(state.owned.map((o) => plays.get(o.split(':')[0])?.genre));
+  return departmentGenres(state).find((g) => playGenres.includes(g) && !ownedGenres.has(g) && availablePlays().some((p) => p.genre === g));
+}
+
+/** The free scenes offered for a new Shakespeare department: the shortest scenes in its genre (see starterGenre). */
 export function starterScenes(state: GameState): { play: Play; scene: Scene }[] {
+  const genre = starterGenre(state);
   return availablePlays()
-    .filter((p) => departmentGenres(state)[0] === p.genre)
+    .filter((p) => genre === p.genre)
     .flatMap((play) => play.scenes.map((scene) => ({ play, scene })))
     .sort((a, b) => a.scene.letters - b.scene.letters || a.play.id.localeCompare(b.play.id))
     .slice(0, scriptShop.starterScenes);
 }
 
-/** Takes the free starter scene. Only allowed once, before anything is owned. */
+/** Takes a new department's free starter scene. Only allowed once per department, before it owns any script. */
 export function chooseStarterScene(state: GameState, play: string, sceneKey: string): boolean {
-  const ok = starterScenes(state).some((x) => x.play.id === play && x.scene.key === sceneKey);
-  if (!ok || state.owned.length > 0) return false;
+  if (!starterScenes(state).some((x) => x.play.id === play && x.scene.key === sceneKey)) return false;
   state.owned.push(`${play}:${sceneKey}`);
   state.completed[play] ??= [];
   return true;

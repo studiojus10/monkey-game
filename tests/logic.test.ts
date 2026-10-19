@@ -92,6 +92,7 @@ import {
   typingUpgradeCost,
   buySection,
   chooseStarterScene,
+  starterGenre,
   departmentChoices,
   manage,
   managerLine,
@@ -876,6 +877,15 @@ describe('departments, the scene shop and milestones', () => {
       expect(chooseStarterScene(s, 'two', '1.1')).toBe(true);
       expect(chooseStarterScene(s, 'two', '1.1')).toBe(false); // only once
       expect(s.owned).toEqual(['two:1.1']);
+      // Each later Shakespeare department gets its own free pick, like the first.
+      expect(starterGenre(s)).toBeUndefined();
+      s.departments.push('comedy');
+      expect(starterGenre(s)).toBe('comedy');
+      expect(starterScenes(s).map((x) => x.play.id)).toEqual(['one', 'one', 'one']);
+      expect(chooseStarterScene(s, 'two', '1.1')).toBe(false);
+      expect(chooseStarterScene(s, 'one', '1.2')).toBe(true);
+      expect(starterGenre(s)).toBeUndefined();
+      expect(s.owned).toEqual(['two:1.1', 'one:1.2']);
     } finally {
       setPlays([]);
     }

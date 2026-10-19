@@ -45,6 +45,7 @@ import {
   sceneProgress,
   sectionPrice,
   starterScenes,
+  starterGenre,
   missingLetters,
   slotCost,
   slotsUnlocked,
@@ -569,10 +570,11 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     );
   }
 
-  if (state.owned.length === 0) {
+  const starter = starterGenre(state);
+  if (starter) {
     const scenes = starterScenes(state);
     return openingScreen(
-      'Choose a free first scene for your monkeys to work toward.',
+      state.owned.length === 0 ? 'Choose a free first scene for your monkeys to work toward.' : `Choose a free first scene for your new ${genreNames[starter]} department.`,
       ['Later you can buy more scenes, acts and whole plays in the script.'],
       scenes.map(({ play, scene }, i) => [String(i + 1), `${play.title}, ${sceneName(scene.act, scene.scene)}`, `${count(scene.lines.length)} line${scene.lines.length === 1 ? '' : 's'}`]),
       [['up/down', 'choose'], ['enter', 'pick'], [scenes.length === 1 ? '1' : `1-${scenes.length}`, 'pick'], ['q', 'quit']],

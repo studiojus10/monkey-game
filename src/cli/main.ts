@@ -57,6 +57,7 @@ import {
   getPlay,
   sceneOf,
   starterScenes,
+  starterGenre,
   departmentChoices,
   canAffordLetter,
   moveMonkeyTo,
@@ -1747,11 +1748,11 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   message = '';
   // The opening screens' choices: arrows and enter, or their keys.
-  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : state.owned.length === 0 ? starterScenes(state).length : state.letters.length === 0 ? startingLetters.length : 0;
+  const opening = state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : starterGenre(state) ? starterScenes(state).length : state.letters.length === 0 ? startingLetters.length : 0;
   if (opening > 0) {
     const row = menuKey(key, opening);
     if (row >= 0) {
-      str = state.owned.length > 0 ? startingLetters[row].toLowerCase() : String(row + 1);
+      str = state.owned.length > 0 && !starterGenre(state) ? startingLetters[row].toLowerCase() : String(row + 1);
       menuCursor = 0;
     }
   }
@@ -1760,7 +1761,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (state.owned.length === 0 && state.departments.length === 0) {
     const g = departmentChoices(state)[Number(str) - 1];
     if (g) openDepartment(state, g);
-  } else if (state.owned.length === 0) {
+  } else if (starterGenre(state)) {
     const pick = starterScenes(state)[Number(str) - 1];
     if (pick) {
       chooseStarterScene(state, pick.play.id, pick.scene.key);

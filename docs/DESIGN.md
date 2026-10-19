@@ -10,7 +10,7 @@ This is the design every build step works toward. Items marked **(default)** are
 2. Whenever a real word shows up in a stream, you earn points for it.
 3. Points buy more letters (more possible words), more monkeys (more streams) and upgrades.
 4. Words typed back to back build a combo multiplier.
-5. You open a department for one genre (comedies, histories or tragedies) and get one short scene free; more scenes, acts and whole plays are bought with points. When a monkey types one of its lines word for word, the line is checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
+5. You open a department for one genre (comedies, histories or tragedies) and get one short scene free (every later comedies, histories or tragedies department gets its own free pick too, Justin 2026-10-19); more scenes, acts and whole plays are bought with points. When a monkey types one of its lines word for word, the line is checked off in the script. Finishing lines, scenes and acts pays bonuses; finishing the whole play is a huge, game-changing event.
 6. Progression is deliberately slow. Later upgrades (typewriter keys, word slots) let you steer what gets typed so you can target specific lines.
 
 ## Letters
