@@ -34,6 +34,7 @@ import {
   storePageSize,
   renderShop,
   renderHomeKeys,
+  speedText,
 } from '../src/cli/screen';
 import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
@@ -1221,5 +1222,13 @@ describe('home department tabs', () => {
     expect(homeViews(s)).toEqual(['comedy']);
     expect(homeView(s)).toBe('comedy');
     expect(rosterOrder(s)).toHaveLength(2);
+  });
+});
+
+describe('monkey table columns', () => {
+  it('keeps every speed within the SPEED column, so the columns after it never move', () => {
+    for (const n of [1.5, 99.9, 999.9, 1234, 12345, 123456, 1.2e7, 9.99e8, 1e15, 1e70]) expect(speedText(n).length).toBeLessThanOrEqual(8);
+    expect(speedText(123456)).toBe('123.4K/s');
+    expect(speedText(1.5)).toBe('1.50/s');
   });
 });
