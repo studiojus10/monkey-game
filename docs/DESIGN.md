@@ -148,7 +148,7 @@ Bonuses add up (they're summed, not compounded), so the total depends only on wh
 
 ### Buying the script
 
-Plays are bought whole with points in the script browser (since game v0.11.0; scenes and acts no longer sell on their own, though old saves keep the ones they bought). A play costs 10 points per letter in its unowned scenes' lines, less 40% (starting guesses). Sonnets still sell one at a time or all together, foreign texts by section, book or whole. Only lines of owned scenes can be written, pinned or count toward milestones.
+Plays are bought whole with points in the script browser (since game v0.11.0; scenes and acts no longer sell on their own, though old saves keep the ones they bought). A play costs 10 points per letter in its unowned scenes' lines, less 40% (starting guesses). The sonnets and foreign texts sell only whole too (Justin: "just have texts unlock in entirety"), and texts the story unlocks come whole. Only lines of owned scenes can be written, pinned or count toward milestones.
 
 ### Departments
 

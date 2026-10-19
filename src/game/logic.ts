@@ -298,26 +298,19 @@ export function sectionPrice(state: GameState, play: Play, act?: number, sceneKe
   return Math.ceil(unowned.reduce((n, sc) => n + scenePrice(sc), 0) * discount);
 }
 
-/** Whether a text sells only whole: Shakespeare's plays do (sonnets and foreign texts also sell in parts). */
-export function soldWhole(play: Play): boolean {
-  return playGenres.includes(play.genre);
-}
-
-/** Buys a whole play, or a sonnet, a foreign text's section or book, or all of either, with points. */
-export function buySection(state: GameState, playId: string, act?: number, sceneKey?: string): boolean {
+/**
+ * Buys a whole text with points: plays, the sonnets and foreign texts sell
+ * only whole (Justin, 2026-10-19: "just have texts unlock in entirety").
+ */
+export function buySection(state: GameState, playId: string): boolean {
   const play = plays.get(playId);
   if (!play || state.owned.length === 0 || !departmentGenres(state).includes(departmentOf(play.genre))) return false;
-  if (soldWhole(play) && act !== undefined) return false;
-  const exists = play.scenes.some(
-    (sc) => (act === undefined || sc.act === act) && (sceneKey === undefined || sc.key === sceneKey),
-  );
-  const price = sectionPrice(state, play, act, sceneKey);
-  if (!exists || price === 0 || state.currency < price) return false;
+  const price = sectionPrice(state, play);
+  if (price === 0 || state.currency < price) return false;
   state.currency -= price;
-  const key = act === undefined ? playId : sceneKey === undefined ? `${playId}:${act}` : `${playId}:${sceneKey}`;
-  // Drop smaller purchases the new one covers.
-  state.owned = state.owned.filter((k) => !(key === playId ? k.startsWith(`${playId}:`) : k.startsWith(`${key}.`)));
-  state.owned.push(key);
+  // Drop the parts old saves bought, now covered.
+  state.owned = state.owned.filter((k) => !k.startsWith(`${playId}:`));
+  state.owned.push(playId);
   state.completed[playId] ??= [];
   return true;
 }

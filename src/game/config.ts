@@ -173,8 +173,8 @@ export const milestones = {
  * bought whole (Justin, 2026-10-19: "make plays only purchasable or
  * unlockable in entirety"). A scene is worth pointsPerLetter for each letter
  * in its lines; a whole play costs its unowned scenes' total times
- * playDiscount. Sonnets sell one at a time or all together, foreign texts by
- * section, book (actDiscount) or whole.
+ * playDiscount. The sonnets and foreign texts also sell only whole ("just have
+ * texts unlock in entirety"); texts the story unlocks come whole too.
  */
 export const scriptShop = {
   pointsPerLetter: 10,

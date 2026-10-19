@@ -923,7 +923,7 @@ describe('departments, the scene shop and milestones', () => {
     }
   });
 
-  it('prices plays by letters with a discount, sells them only whole, and only for open departments', () => {
+  it('prices texts by letters with a discount, sells them only whole, and only for open departments', () => {
     try {
       setPlays([one, two]);
       const s = createInitialState(0);
@@ -936,8 +936,6 @@ describe('departments, the scene shop and milestones', () => {
       expect(sectionPrice(s, play)).toBe(Math.ceil((60 + 60) * scriptShop.playDiscount)); // + NORMAL
       expect(buySection(s, 'one')).toBe(false); // can't afford
       s.currency = 1000;
-      expect(buySection(s, 'one', 1)).toBe(false); // plays sell only whole
-      expect(buySection(s, 'one', 1, '1.2')).toBe(false);
       expect(buySection(s, 'two')).toBe(false); // no tragedies department
       expect(buySection(s, 'one')).toBe(true);
       expect(s.owned).toEqual(['one']); // the play covers the scene owned before (old saves)

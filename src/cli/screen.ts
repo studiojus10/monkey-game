@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { records, lately as latelyRules, achievements, scriptShop, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { records, lately as latelyRules, achievements, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -44,7 +44,6 @@ import {
   sceneOf,
   sceneProgress,
   sectionPrice,
-  soldWhole,
   starterPlays,
   starterGenre,
   missingLetters,
@@ -933,19 +932,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const section = (id: string, text: string, n: number, effect: string): ShopItem =>
         n === 0 ? { id, text, effect, blocked: 'owned' } : { id, text, effect, star: state.currency >= n, cost: [[n, 'currency']] };
       const lines = (n: number) => `${count(n)} line${n === 1 ? '' : 's'}`;
-      const actLines = play.lines.filter((l) => l.act === sc.act).length;
-      return play.genre === 'sonnet'
-        ? [
-            section('section:b', 'This sonnet', sectionPrice(state, play, sc.act, sc.key), `${play.title}, ${sceneName(sc.act, sc.scene, play.genre)}`),
-            section('section:w', 'All the sonnets', sectionPrice(state, play), lines(play.lines.length)),
-          ]
-        : soldWhole(play)
-          ? [section('section:w', 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}`)]
-          : [
-              section('section:b', 'This section', sectionPrice(state, play, sc.act, sc.key), `${sceneName(sc.act, sc.scene, play.genre)}, ${lines(sc.lines.length)}`),
-              section('section:a', `Book ${sc.act}`, sectionPrice(state, play, sc.act), `${lines(actLines)}, ${Math.round((1 - scriptShop.actDiscount) * 100)}% off`),
-              section('section:w', 'The whole text', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}, ${Math.round((1 - scriptShop.playDiscount) * 100)}% off`),
-            ];
+      return [section('section:w', play.genre === 'sonnet' ? 'All the sonnets' : isForeign(play.genre) ? 'The whole text' : 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}`)];
     }
     case 'hats': {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
@@ -1523,7 +1510,6 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     );
   }
 
-  const sc = sceneOf(play, at)!;
   const section = (key: string, label: string, n: number) =>
     state.currency >= n && n > 0
       ? affordable(`${bold(`[${key}]`)} ${label} * ${bold(formatPrice(n))} ${theme.currency}`)
@@ -1543,15 +1529,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     ...(locked
       ? [` Open a ${departmentName(state, departmentOf(play.genre))} department to buy these.`]
       : wrapVisible(
-          play.genre === 'sonnet'
-            ? [section('b', 'this sonnet', sectionPrice(state, play, sc.act, sc.key)), section('w', 'all the sonnets', sectionPrice(state, play))]
-            : soldWhole(play)
-              ? [section('w', 'whole play', sectionPrice(state, play))]
-              : [
-                  section('b', 'section', sectionPrice(state, play, sc.act, sc.key)),
-                  section('a', `Book ${sc.act}`, sectionPrice(state, play, sc.act)),
-                  section('w', 'whole text', sectionPrice(state, play)),
-                ],
+          [section('w', play.genre === 'sonnet' ? 'all the sonnets' : isForeign(play.genre) ? 'whole text' : 'whole play', sectionPrice(state, play))],
           columns,
           ` ${dim('Buy')}  `,
         )),
