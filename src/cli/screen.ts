@@ -290,7 +290,10 @@ function monkeyPrefixWidth(state: GameState): number {
 
 /** A speed for the SPEED column: 0.50/s, 33.3/s, 1.23K/s. */
 export function speedText(n: number): string {
-  return `${n >= 1000 ? formatNumber(n) : n.toFixed(n < 10 ? 2 : 1)}/s`;
+  let text = n >= 1000 ? formatNumber(n) : n.toFixed(n < 10 ? 2 : 1);
+  // Never wider than the SPEED column, so the columns after it stay put: drop decimals until it fits.
+  while (`${text}/s`.length > col.speed && /\.\d/.test(text)) text = text.replace(/\.(\d*)\d/, (_, d: string) => (d ? `.${d}` : ''));
+  return `${text}/s`;
 }
 
 /** A typist's energy as a percent, green when fresh, yellow when tiring, red when nearly spent; Resting in blue on a break. */
