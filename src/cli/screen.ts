@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { records, lately as latelyRules, achievements, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { records, lately as latelyRules, achievements, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, type Unlock, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -94,6 +94,9 @@ import {
   posts,
   postCost,
   isStaff,
+  unlocked,
+  unlockNeeds,
+  hatsForSale,
 } from '../game/logic';
 import { departmentOf, isForeign, lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
@@ -777,6 +780,14 @@ export interface ShopItem {
 
 const currencyNames: Record<Currency, string> = { currency: theme.currency, words: 'Words', sentences: 'Sentences', lines: 'Lines' };
 
+/** A store's note on what it doesn't sell yet: how many more pieces there are and what the next one needs. */
+function lockedNote(state: GameState, items: { name: string; unlock?: Unlock }[]): ShopItem[] {
+  const locked = items.filter((x) => !unlocked(state, x.unlock));
+  if (locked.length === 0) return [];
+  const next = locked[0];
+  return [{ text: `${locked.length} more unlock as you finish scenes, acts and whole texts. Next: ${next.name}, ${unlockNeeds(state, next.unlock)}.` }];
+}
+
 /** What a store sells. Numbered items (those with an id) are bought with 1-9 in this order. */
 export function storeItems(state: GameState, store: Store, at?: ScriptSpot): ShopItem[] {
   const typingShop = typingItems(state);
@@ -874,7 +885,9 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
     case 'break':
     case 'office': {
       const have = state.office.some((r) => r.kind === store);
-      const kinds = furnitureKinds.filter((k) => k.rooms.includes(store) && (k.id !== safe.id || officesWithoutSafe(state).length > 0)).sort((a, b) => a.cost - b.cost);
+      const forRoom = furnitureKinds.filter((k) => k.rooms.includes(store) && (k.id !== safe.id || officesWithoutSafe(state).length > 0)).sort((a, b) => a.cost - b.cost);
+      const kinds = forRoom.filter((k) => unlocked(state, k.unlock));
+      const locked = lockedNote(state, forRoom);
       const roomName = store === 'break' ? 'break room' : store === 'office' ? "manager's office" : "department's room";
       return [
         {
@@ -900,6 +913,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
             cost: [[cost, 'sentences']],
           };
         }),
+        ...locked,
         {
           text: !have
             ? `You have no ${roomName} yet: buy one on the office map ([o], then [r]).`
@@ -933,14 +947,14 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       if (!play || !sc) return [{ text: 'No plays loaded.' }];
       if (!departmentGenres(state).includes(departmentOf(play.genre))) return [{ text: `Open a ${departmentName(state, departmentOf(play.genre))} department to buy these.` }];
       const section = (id: string, text: string, n: number, effect: string): ShopItem =>
-        n === 0 ? { id, text, effect, blocked: 'owned' } : { id, text, effect, star: state.currency >= n, cost: [[n, 'currency']] };
+        n === 0 ? { id, text, effect, blocked: 'owned' } : { id, text, effect, star: state.lines >= n, cost: [[n, 'lines']] };
       const lines = (n: number) => `${count(n)} line${n === 1 ? '' : 's'}`;
       return [section('section:w', play.genre === 'sonnet' ? 'All the sonnets' : isForeign(play.genre) ? 'The whole text' : 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}`)];
     }
     case 'hats': {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
       return [
-        ...hats.map((h): ShopItem => {
+        ...hatsForSale(state).map((h): ShopItem => {
           const cost = hatCost(state, h.id);
           const owned = hatsOwned(state, h.id);
           const someone = team.some((i) => state.monkeys[i].hat !== h.id);
@@ -954,6 +968,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
           cost: [[dyeCost(state), 'sentences']],
         },
+        ...lockedNote(state, hats),
         { text: 'Hats taken off go into your inventory: [i] puts one back on for free.' },
       ];
     }
@@ -1514,9 +1529,9 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
   }
 
   const section = (key: string, label: string, n: number) =>
-    state.currency >= n && n > 0
-      ? affordable(`${bold(`[${key}]`)} ${label} * ${bold(formatPrice(n))} ${theme.currency}`)
-      : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatPrice(n)} ${theme.currency}`}`;
+    state.lines >= n && n > 0
+      ? affordable(`${bold(`[${key}]`)} ${label} * ${bold(formatPrice(n))} Lines`)
+      : `${bold(`[${key}]`)} ${label} ${n === 0 ? dim('owned') : `${formatPrice(n)} Lines`}`;
   const locked = !departmentGenres(state).includes(departmentOf(play.genre));
   return [
     titleBar(state, isForeign(play.genre) ? 'Text' : 'Script', columns),

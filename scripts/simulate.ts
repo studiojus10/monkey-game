@@ -177,13 +177,13 @@ function shop(): void {
     while (s.unassignedMonkeys > 0 && assignMonkey(s, departmentsWithRoom(s)[0])) bought = true;
     // Combo cap with Sentences.
     if (s.sentences >= comboStartCost(s.comboStartLevel) && buyComboStart(s)) bought = true;
-    // The cheapest unowned play, if it costs under a quarter of the points in hand.
+    // The cheapest unowned play, if it costs under half the Lines in hand.
     const buyable = availablePlays()
       .filter((p) => departmentGenres(s).includes(p.genre))
       .map((p) => ({ p, price: sectionPrice(s, p) }))
       .filter((x) => x.price > 0)
       .sort((a, b) => a.price - b.price);
-    if (buyable[0] && s.currency >= buyable[0].price * 4 && buySection(s, buyable[0].p.id)) bought = true;
+    if (buyable[0] && s.lines >= buyable[0].price * 2 && buySection(s, buyable[0].p.id)) bought = true;
     // Manager upgrades with spare Sentences.
     for (const i of s.monkeys.flatMap((m, k) => (m.manager ? [k] : []))) {
       if (s.sentences >= managerUpgradeCost(s, s.monkeys[i]) * 2 && upgradeManager(s, i)) bought = true;

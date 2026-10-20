@@ -45,7 +45,7 @@ export const greekLetterValues: Record<string, number> = {
 /** The n-th letter you buy (after your free first one) costs baseCost x costGrowth^(n-1). */
 export const letterShop = {
   baseCost: 25,
-  costGrowth: 3,
+  costGrowth: 3.4, // with monkeyShop: the first play takes about a week (2026-10-20 sims)
   // Each letter also costs Words: floor(wordsCostFactor x owned^wordsCostPower), so 0, 1, 2, 4, 6, 9, ...
   // Kept gentle early: a poor second or third letter (Q, J) adds few new words, and must not lock you out.
   wordsCostFactor: 0.25,
@@ -69,8 +69,8 @@ export const letterGifts: string[] = ['first-hire', 'first-typewriter', 'pets-10
  * days to fill however many monkeys came before it.
  */
 export const monkeyShop = {
-  baseCost: 300_000, // scripts/simulate.ts: 2nd monkey after about 2.5h, a full department (10) after about 3 days
-  costGrowth: 6,
+  baseCost: 1_000_000, // scripts/simulate.ts (2026-10-20): 2nd monkey after about 2h, a full department (10) after about 3 days
+  costGrowth: 30, // 5 to a department since 2026-10-20, so each is a bigger step
   departmentGrowth: 100,
 };
 
@@ -169,20 +169,30 @@ export const milestones = {
 };
 
 /**
- * The script shop, in points. Each new Shakespeare department picks one free
- * play of its genre (starterPlays shortest are offered), and the rest are
- * bought whole (Justin, 2026-10-19: "make plays only purchasable or
- * unlockable in entirety"). A scene is worth pointsPerLetter for each letter
- * in its lines; a whole play costs its unowned scenes' total times
- * playDiscount. The sonnets and foreign texts also sell only whole ("just have
- * texts unlock in entirety"); texts the story unlocks come whole too.
+ * The script shop. Each new Shakespeare department picks one free play of its
+ * genre (starterPlays shortest are offered), and the rest are bought whole
+ * (Justin, 2026-10-19: "make plays only purchasable or unlockable in
+ * entirety") with Lines (Justin, 2026-10-20: writing one text pays for the
+ * next): linesPerLine for each line not owned yet. The sonnets and foreign
+ * texts also sell only whole ("just have texts unlock in entirety"); texts the
+ * story unlocks come whole too. Placeholders.
  */
 export const scriptShop = {
-  pointsPerLetter: 10,
-  actDiscount: 0.8,
-  playDiscount: 0.6,
+  linesPerLine: 0.5,
   starterPlays: 3,
 };
+
+/**
+ * What it takes for a piece of furniture or a hat to show up in its store
+ * (Justin, 2026-10-20: fewer of them, unlocked by finishing scenes, acts and
+ * texts, so each feels meaningful): this many finished scenes, acts and whole
+ * texts. Without one it's sold from the start.
+ */
+export interface Unlock {
+  scenes?: number;
+  acts?: number;
+  texts?: number;
+}
 
 /**
  * Departments: one per genre (comedies, histories, tragedies, and last the
@@ -246,6 +256,7 @@ export interface FurnitureKind {
   description?: string; // what inspecting it shows
   seat?: boolean; // a seat: feng shui wants a wall behind it in a break room
   rooms: RoomKind[]; // the kinds of room it can stand in
+  unlock?: Unlock; // sold only once these are finished
 }
 
 /** The kinds of room: a department's room (its monkeys' desks), a break room, or a department's manager's office. */
@@ -300,30 +311,30 @@ export const safe: FurnitureKind = {
 
 export const furnitureKinds: FurnitureKind[] = [
   // Decor: a department's monkeys tire slower (with it in their room or their lounge). Pieces at the same price do as much. `rooms` says where each may stand.
-  { id: 'plant', name: 'Potted plant', glyph: 'P', color: 'green', cost: 10, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break', 'office'], description: 'A leafy friend in a clay pot. Wood, they say, feeds the fire of a busy mind.' },
-  { id: 'candle', name: 'Scented candle', glyph: 'I', color: 'red', cost: 10, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'fire', rooms: ['department', 'break', 'office'], description: 'It smells faintly of bananas. A small flame, but Fire all the same.' },
-  { id: 'clock', name: 'Wall clock', glyph: 'K', color: 'yellow', cost: 10, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department', 'office'], description: 'Tick, tock, type. A brass clock keeps the hours, and Metal keeps the mind sharp.' },
-  { id: 'lamp', name: 'Floor lamp', glyph: 'L', color: 'yellow', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal', rooms: ['department', 'break', 'office'], description: 'A brass floor lamp: cold Metal, warm light.' },
-  { id: 'fishtank', name: 'Fish tank', glyph: 'F', color: 'cyan', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'water', rooms: ['department', 'break', 'office'], description: 'Three goldfish, unimpressed by the typing. Moving Water calms the mind.' },
-  { id: 'bonsai', name: 'Bonsai tree', glyph: 'Y', color: 'green', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break', 'office'], description: 'A very old, very small tree. Patient Wood, the opposite of a monkey.' },
-  { id: 'sandgarden', name: 'Sand garden', glyph: 'Z', color: 'yellow', cost: 40, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'earth', rooms: ['department', 'break', 'office'], description: 'Raked sand and three smooth stones. Calm, quiet Earth.' },
-  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', color: 'brown', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood', rooms: ['department', 'office'], description: 'Rows of dusty old books. One of them sticks out a little further than the rest.' },
-  { id: 'painting', name: 'Landscape painting', glyph: 'G', color: 'green', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'earth', rooms: ['department', 'break', 'office'], description: 'Rolling hills under a wide sky. Pictures of the land bring Earth indoors.' },
-  { id: 'mirror', name: 'Mirror', glyph: 'M', color: 'gray', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department', 'break', 'office'], description: 'A silver-framed mirror. The monkeys make faces at it. Polished Metal sends chi back into the room.' },
-  { id: 'gong', name: 'Brass gong', glyph: 'O', color: 'yellow', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', rooms: ['department', 'office'], description: 'Strictly for emergencies. And lunch. A deep note of Metal.' },
-  { id: 'fountain', name: 'Indoor fountain', glyph: 'Q', color: 'blue', cost: 400, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'water', rooms: ['department', 'break', 'office'], description: 'Water trickles over smooth stones. Flowing Water carries good fortune in.' },
+  { id: 'plant', name: 'Potted plant', glyph: 'P', color: 'green', cost: 100, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'wood', rooms: ['department', 'break', 'office'], description: 'A leafy friend in a clay pot. Wood, they say, feeds the fire of a busy mind.' },
+  { id: 'candle', name: 'Scented candle', glyph: 'I', color: 'red', cost: 100, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'fire', rooms: ['department', 'break', 'office'], description: 'It smells faintly of bananas. A small flame, but Fire all the same.' },
+  { id: 'clock', name: 'Wall clock', glyph: 'K', color: 'yellow', cost: 100, costGrowth: 2, drain: 0.03, rest: 0, happiness: 0.01, element: 'metal', unlock: { scenes: 1 }, rooms: ['department', 'office'], description: 'Tick, tock, type. A brass clock keeps the hours, and Metal keeps the mind sharp.' },
+  { id: 'lamp', name: 'Floor lamp', glyph: 'L', color: 'yellow', cost: 400, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'metal', unlock: { scenes: 3 }, rooms: ['department', 'break', 'office'], description: 'A brass floor lamp: cold Metal, warm light.' },
+  { id: 'fishtank', name: 'Fish tank', glyph: 'F', color: 'cyan', cost: 400, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'water', unlock: { scenes: 3 }, rooms: ['department', 'break', 'office'], description: 'Three goldfish, unimpressed by the typing. Moving Water calms the mind.' },
+  { id: 'bonsai', name: 'Bonsai tree', glyph: 'Y', color: 'green', cost: 400, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'wood', unlock: { scenes: 6 }, rooms: ['department', 'break', 'office'], description: 'A very old, very small tree. Patient Wood, the opposite of a monkey.' },
+  { id: 'sandgarden', name: 'Sand garden', glyph: 'Z', color: 'yellow', cost: 400, costGrowth: 2, drain: 0.04, rest: 0, happiness: 0.01, element: 'earth', unlock: { scenes: 6 }, rooms: ['department', 'break', 'office'], description: 'Raked sand and three smooth stones. Calm, quiet Earth.' },
+  { id: 'bookshelf', name: 'Bookshelf', glyph: 'B', color: 'brown', cost: 4_000, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'wood', unlock: { acts: 1 }, rooms: ['department', 'office'], description: 'Rows of dusty old books. One of them sticks out a little further than the rest.' },
+  { id: 'painting', name: 'Landscape painting', glyph: 'G', color: 'green', cost: 4_000, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'earth', unlock: { acts: 1 }, rooms: ['department', 'break', 'office'], description: 'Rolling hills under a wide sky. Pictures of the land bring Earth indoors.' },
+  { id: 'mirror', name: 'Mirror', glyph: 'M', color: 'gray', cost: 4_000, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', unlock: { acts: 2 }, rooms: ['department', 'break', 'office'], description: 'A silver-framed mirror. The monkeys make faces at it. Polished Metal sends chi back into the room.' },
+  { id: 'gong', name: 'Brass gong', glyph: 'O', color: 'yellow', cost: 4_000, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'metal', unlock: { acts: 3 }, rooms: ['department', 'office'], description: 'Strictly for emergencies. And lunch. A deep note of Metal.' },
+  { id: 'fountain', name: 'Indoor fountain', glyph: 'Q', color: 'blue', cost: 4_000, costGrowth: 2, drain: 0.06, rest: 0, happiness: 0.02, element: 'water', unlock: { acts: 3 }, rooms: ['department', 'break', 'office'], description: 'Water trickles over smooth stones. Flowing Water carries good fortune in.' },
   // Comforts: in a break room, every monkey's breaks go faster. Seats like a wall behind them.
-  { id: 'bench', name: 'Bench', glyph: 'H', color: 'brown', cost: 200, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'A sturdy bench, solid as the Earth. It likes a wall at its back.' },
-  { id: 'armchair', name: 'Armchair', glyph: 'A', color: 'brown', cost: 200, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, element: 'wood', rooms: ['department', 'break', 'office'], seat: true, description: 'Carved wood, worn smooth by many naps. Best with a wall at its back.' },
-  { id: 'beanbag', name: 'Beanbag', glyph: 'N', color: 'magenta', cost: 200, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, element: 'earth', rooms: ['break'], seat: true, description: 'Shapeless, squashy and close to the Earth. Best against a wall.' },
-  { id: 'cooler', name: 'Water cooler', glyph: 'W', color: 'cyan', cost: 1_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'water', rooms: ['department', 'break'], description: "Glug. The office's only source of Water, and of gossip." },
-  { id: 'espresso', name: 'Espresso machine', glyph: 'E', color: 'gray', cost: 1_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Chrome, hissing, and far too strong. Monkeys love it.' },
-  { id: 'vending', name: 'Vending machine', glyph: 'V', color: 'red', cost: 1_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', rooms: ['break'], description: 'Sells only bananas. A steel box of Metal, humming.' },
-  { id: 'couch', name: 'Couch', glyph: 'C', color: 'blue', cost: 4_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'Deep, soft and low to the Earth. Monkeys nap best with a wall behind it.' },
-  { id: 'fireplace', name: 'Fireplace', glyph: 'R', color: 'red', cost: 4_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, element: 'fire', rooms: ['break'], description: 'Crackling logs. The real thing: warm, bright Fire.' },
-  { id: 'hammock', name: 'Hammock', glyph: 'J', color: 'brown', cost: 4_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'wood', rooms: ['break'], seat: true, description: 'Strung between two wooden posts. Swaying Wood, and the best naps.' },
-  { id: 'tv', name: 'Television', glyph: 'T', color: 'gray', cost: 20_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', rooms: ['break'], description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
-  { id: 'hottub', name: 'Hot tub', glyph: 'U', color: 'cyan', cost: 20_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, size: [2, 1], element: 'water', rooms: ['break'], description: 'Nobody remembers approving this. Nobody is complaining.' },
+  { id: 'bench', name: 'Bench', glyph: 'H', color: 'brown', cost: 2_000, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, size: [2, 1], element: 'earth', rooms: ['break'], seat: true, description: 'A sturdy bench, solid as the Earth. It likes a wall at its back.' },
+  { id: 'armchair', name: 'Armchair', glyph: 'A', color: 'brown', cost: 2_000, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, element: 'wood', rooms: ['department', 'break', 'office'], seat: true, description: 'Carved wood, worn smooth by many naps. Best with a wall at its back.' },
+  { id: 'beanbag', name: 'Beanbag', glyph: 'N', color: 'magenta', cost: 2_000, costGrowth: 2, drain: 0, rest: 0.08, happiness: 0.01, element: 'earth', unlock: { scenes: 1 }, rooms: ['break'], seat: true, description: 'Shapeless, squashy and close to the Earth. Best against a wall.' },
+  { id: 'cooler', name: 'Water cooler', glyph: 'W', color: 'cyan', cost: 10_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'water', unlock: { scenes: 3 }, rooms: ['department', 'break'], description: "Glug. The office's only source of Water, and of gossip." },
+  { id: 'espresso', name: 'Espresso machine', glyph: 'E', color: 'gray', cost: 10_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', unlock: { scenes: 6 }, rooms: ['break'], description: 'Chrome, hissing, and far too strong. Monkeys love it.' },
+  { id: 'vending', name: 'Vending machine', glyph: 'V', color: 'red', cost: 10_000, costGrowth: 3, drain: 0, rest: 0.15, happiness: 0.01, element: 'metal', unlock: { acts: 1 }, rooms: ['break'], description: 'Sells only bananas. A steel box of Metal, humming.' },
+  { id: 'couch', name: 'Couch', glyph: 'C', color: 'blue', cost: 40_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'earth', unlock: { acts: 2 }, rooms: ['break'], seat: true, description: 'Deep, soft and low to the Earth. Monkeys nap best with a wall behind it.' },
+  { id: 'fireplace', name: 'Fireplace', glyph: 'R', color: 'red', cost: 40_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, element: 'fire', unlock: { acts: 3 }, rooms: ['break'], description: 'Crackling logs. The real thing: warm, bright Fire.' },
+  { id: 'hammock', name: 'Hammock', glyph: 'J', color: 'brown', cost: 40_000, costGrowth: 3, drain: 0, rest: 0.25, happiness: 0.02, size: [2, 1], element: 'wood', unlock: { texts: 1 }, rooms: ['break'], seat: true, description: 'Strung between two wooden posts. Swaying Wood, and the best naps.' },
+  { id: 'tv', name: 'Television', glyph: 'T', color: 'gray', cost: 200_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, element: 'fire', unlock: { texts: 1 }, rooms: ['break'], description: 'It only shows nature documentaries about monkeys. Electronics burn with Fire.' },
+  { id: 'hottub', name: 'Hot tub', glyph: 'U', color: 'cyan', cost: 200_000, costGrowth: 3, drain: 0, rest: 0.4, happiness: 0.03, size: [2, 1], element: 'water', unlock: { texts: 2 }, rooms: ['break'], description: 'Nobody remembers approving this. Nobody is complaining.' },
   managerDesk,
   safe,
 ];
@@ -853,7 +864,7 @@ export const achievements: Achievement[] = [
   { id: 'dictionary-10000', name: 'Walking dictionary', text: 'Spell 10,000 different words', stat: 'dictionary', at: 10_000 },
   { id: 'letters-1m', name: 'A million monkeys', text: 'Type a million letters', stat: 'lettersTyped', at: 1_000_000 },
   { id: 'alphabet', name: 'A to Z', text: 'Own all 26 letters', stat: 'lettersOwned', at: 26 },
-  { id: 'full-department', name: 'Full house', text: 'Fill a department with 10 monkeys', stat: 'biggestDepartment', at: 10 },
+  { id: 'full-department', name: 'Full house', text: 'Fill a department with 5 monkeys', stat: 'biggestDepartment', at: 5 },
   { id: 'day-job', name: 'Day job', text: 'Keep the monkeys typing for 24 hours', stat: 'hoursTyping', at: 24 },
   { id: 'crown', name: 'Long live the king', text: 'Crown a monkey', stat: 'wearing:crown', at: 1 },
   { id: 'halo', name: 'Angelic', text: 'Give a monkey a halo', stat: 'wearing:halo', at: 1 },
@@ -893,20 +904,21 @@ export interface Hat {
   drain?: number;
   rest?: number;
   combo?: number;
+  unlock?: Unlock; // sold only once these are finished
 }
 
 /** A monkey's face in its icon; a hat goes on its left. All icons are ASCII. */
 export const monkeyIcon = '@';
 
 export const hats: Hat[] = [
-  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 100, costGrowth: 2.5, drain: 0.1, description: 'Worn backwards, naturally.' },
-  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 100, costGrowth: 2.5, rest: 0.2, description: 'Warm ears, calm mind.' },
-  { id: 'party', name: 'Party hat', icon: 'A', cost: 100, costGrowth: 2.5, speed: 0.05, description: "It is always someone's birthday somewhere." },
-  { id: 'tophat', name: 'Top hat', icon: '#', cost: 2_000, costGrowth: 2.5, points: 0.15, description: 'Very distinguished. Possibly borrowed from a magician.' },
-  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 2_000, costGrowth: 2.5, drain: 0.25, description: 'Yeehaw, but quietly: this is an office.' },
-  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 20_000, costGrowth: 4, combo: 1, description: 'It whirs faintly while its wearer thinks.' },
-  { id: 'crown', name: 'Crown', icon: 'W', cost: 1_000_000, costGrowth: 5, points: 0.25, speed: 0.25, description: 'Heavy is the head that wears it. Heavier is the price.' },
-  { id: 'halo', name: 'Halo', icon: 'o', cost: 1_000_000_000, costGrowth: 10, points: 0.5, speed: 0.5, drain: 0.5, description: 'Nobody knows where it came from. It hums.' },
+  { id: 'baseball', name: 'Baseball cap', icon: 'd', cost: 1_000, costGrowth: 2.5, drain: 0.1, description: 'Worn backwards, naturally.' },
+  { id: 'beanie', name: 'Beanie', icon: 'n', cost: 1_000, costGrowth: 2.5, rest: 0.2, unlock: { scenes: 1 }, description: 'Warm ears, calm mind.' },
+  { id: 'party', name: 'Party hat', icon: 'A', cost: 1_000, costGrowth: 2.5, speed: 0.05, unlock: { scenes: 3 }, description: "It is always someone's birthday somewhere." },
+  { id: 'tophat', name: 'Top hat', icon: '#', cost: 20_000, costGrowth: 2.5, points: 0.15, unlock: { acts: 1 }, description: 'Very distinguished. Possibly borrowed from a magician.' },
+  { id: 'cowboy', name: 'Cowboy hat', icon: '~', cost: 20_000, costGrowth: 2.5, drain: 0.25, unlock: { acts: 2 }, description: 'Yeehaw, but quietly: this is an office.' },
+  { id: 'cap', name: 'Thinking cap', icon: '^', cost: 200_000, costGrowth: 4, combo: 1, unlock: { texts: 1 }, description: 'It whirs faintly while its wearer thinks.' },
+  { id: 'crown', name: 'Crown', icon: 'W', cost: 10_000_000, costGrowth: 5, points: 0.25, speed: 0.25, unlock: { texts: 2 }, description: 'Heavy is the head that wears it. Heavier is the price.' },
+  { id: 'halo', name: 'Halo', icon: 'o', cost: 10_000_000_000, costGrowth: 10, points: 0.5, speed: 0.5, drain: 0.5, unlock: { texts: 3 }, description: 'Nobody knows where it came from. It hums.' },
 ];
 
 /**
@@ -925,8 +937,9 @@ export const hatColors = [
 export const dye = { cost: 100, costGrowth: 1.5 }; // x per hat already dyed
 
 export const departmentRules = {
-  monkeysToOpen: [0, 10, 20, 30],
-  maxTypists: 10, // typing monkeys per department, plus one manager
+  // Halved (Justin, 2026-10-20: too many departments with too many monkeys get cluttered); managers' upgrades were made bigger to make up for it.
+  monkeysToOpen: [0, 5, 10, 15],
+  maxTypists: 5, // typing monkeys per department, plus one manager
 };
 
 /**
@@ -951,7 +964,7 @@ export const sonnetRewards = {
  * upgraded with Sentences.
  */
 export const managers = {
-  minDepartmentMonkeys: 5,
+  minDepartmentMonkeys: 3,
   // One upgrade does it all (Justin, 2026-10-19: "combine the manager
   // upgrades", "make them cost sentences"): each adds bonusPerLevel to the
   // points of every monkey in the manager's department (x1.1, x1.2, ...),
@@ -959,13 +972,13 @@ export const managers = {
   // speed. Upgrades are expensive, since one upgrades the whole department:
   // the n-th costs sentencesPerMonkey Sentences per monkey in the department
   // x upgradeCostGrowth^(n-1). Placeholders.
-  bonusPerLevel: 0.1,
+  bonusPerLevel: 0.25, // x2.5 (Justin, 2026-10-20: with half-size departments, make manager upgrades more lucrative)
   // Sentences (Justin, 2026-10-18): a manager multiplies the Sentences its
   // department's chains pay, like the word combo: x1 plus sentencePerLevel for
   // each upgrade as its base, then +sentenceGood for each chain holding a
   // grammatical sentence (see grammar.ts) and -sentenceBad for each without
   // one, never below the base. Placeholders.
-  sentencePerLevel: 0.1,
+  sentencePerLevel: 0.25,
   sentenceGood: 0.2,
   sentenceBad: 0.1,
   sentencesPerMonkey: 50,
@@ -976,7 +989,7 @@ export const managers = {
   // between each change"). Speed is x1, plus speedPerLevel for each upgrade,
   // plus its office's furniture and feng shui (managerOffice). Placeholders.
   secondsPerSlot: 30,
-  speedPerLevel: 0.25,
+  speedPerLevel: 0.5,
 };
 
 /** Letters per typewriter line until a front end sets its own (the terminal sets it to reach the screen's edge). */

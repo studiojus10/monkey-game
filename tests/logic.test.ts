@@ -7,6 +7,9 @@ import {
   roomFitsAt,
   chainSentences,
   hatCost,
+  unlocked,
+  unlockNeeds,
+  hatsForSale,
   hatsOwned,
   addRoom,
   rotateFurniture,
@@ -132,6 +135,9 @@ import {
 } from '../src/game/logic';
 import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
 import { autoConnect, connectedRooms, cycleDoor, doorBetween, doorSides, isConnected, layOutOffice, loungeOf, placeDoor, servedBy, takeDoor, toggleHall } from '../src/game/layout';
+import { sellEverything, withUnlocks } from './unlocks';
+
+sellEverything();
 
 // Most tests check typing exactly, so monkeys don't tire unless a test says so.
 const drainSeconds = energy.drainSeconds;
@@ -385,7 +391,7 @@ describe('buying letters', () => {
     const s = createInitialState(0);
     expect(buyLetter(s, 't')).toBe(false); // no first letter yet
     chooseFirstLetter(s, 'i');
-    s.currency = letterCost(1) * 10;
+    s.currency = letterCost(1) * 100;
     s.letters.push('A', 'N'); // own 3: the next costs 2 Words
     expect(buyLetter(s, 't')).toBe(false); // no Words yet
     s.words = 3;
@@ -393,7 +399,7 @@ describe('buying letters', () => {
     expect(buyLetter(s, '!')).toBe(false);
     expect(buyLetter(s, 't')).toBe(true);
     expect(s.letters).toEqual(['I', 'A', 'N', 'T']);
-    expect(s.currency).toBe(letterCost(1) * 10 - letterCost(3));
+    expect(s.currency).toBe(letterCost(1) * 100 - letterCost(3));
     expect(s.words).toBe(1);
     expect(buyLetter(s, 'T')).toBe(false);
   });
@@ -932,23 +938,25 @@ describe('departments, the scene shop and milestones', () => {
     }
   });
 
-  it('prices texts by letters with a discount, sells them only whole, and only for open departments', () => {
+  it('prices texts in Lines by their unowned lines, sells them only whole, and only for open departments', () => {
     try {
       setPlays([one, two]);
       const s = createInitialState(0);
       s.departments = ['comedy'];
       s.owned = ['one:1.1'];
       const play = getPlay('one')!;
-      expect(sectionPrice(s, play, 1, '1.1')).toBe(0); // owned
-      expect(sectionPrice(s, play, 1, '1.2')).toBe(6 * scriptShop.pointsPerLetter); // NO + LORD
-      expect(sectionPrice(s, play, 1)).toBe(Math.ceil(60 * scriptShop.actDiscount));
-      expect(sectionPrice(s, play)).toBe(Math.ceil((60 + 60) * scriptShop.playDiscount)); // + NORMAL
-      expect(buySection(s, 'one')).toBe(false); // can't afford
-      s.currency = 1000;
+      const unowned = play.scenes.filter((sc) => sc.key !== '1.1').reduce((n, sc) => n + sc.lines.length, 0);
+      const price = Math.ceil(unowned * scriptShop.linesPerLine);
+      expect(price).toBeGreaterThan(0);
+      expect(sectionPrice(s, play)).toBe(price);
+      s.currency = 1e9;
+      expect(buySection(s, 'one')).toBe(false); // Bananas don't buy texts
+      s.lines = 1000;
       expect(buySection(s, 'two')).toBe(false); // no tragedies department
       expect(buySection(s, 'one')).toBe(true);
       expect(s.owned).toEqual(['one']); // the play covers the scene owned before (old saves)
-      expect(s.currency).toBe(1000 - Math.ceil(120 * scriptShop.playDiscount));
+      expect(s.lines).toBe(1000 - price);
+      expect(sectionPrice(s, play)).toBe(0);
       expect(buySection(s, 'one')).toBe(false); // owned already
     } finally {
       setPlays([]);
@@ -1743,6 +1751,27 @@ describe('placing and moving rooms', () => {
   });
 });
 
+describe('shop unlocks', () => {
+  it('sells hats and furniture only once enough scenes, acts and texts are finished', () => {
+    withUnlocks(() => {
+      const s = createInitialState(0);
+      s.sentences = 1e15;
+      expect(hatsForSale(s).map((h) => h.id)).toEqual(['baseball']);
+      expect(wearHat(s, 0, 'beanie')).toBe(false); // locked
+      expect(unlockNeeds(s, { scenes: 1 })).toBe('finish 1 scene more');
+      expect(unlockNeeds(s, { acts: 2, texts: 1 })).toBe('finish 2 acts and 1 whole text more');
+      s.scenesDone = ['x:1.1'];
+      expect(unlocked(s, { scenes: 1 })).toBe(true);
+      expect(unlockNeeds(s, { scenes: 1 })).toBe('');
+      expect(wearHat(s, 0, 'beanie')).toBe(true);
+      buyRoom(s, 'break');
+      expect(buyFurniture(s, 'tv', 'break')).toBe(false); // needs a whole text
+      s.playsDone = ['x'];
+      expect(buyFurniture(s, 'tv', 'break')).toBe(true);
+    });
+  });
+});
+
 describe('hats', () => {
   it('moves hats between monkeys and the inventory, and swaps typewriters', () => {
     const s = createInitialState(0);
@@ -1837,7 +1866,7 @@ describe('hats', () => {
   it('dyes a worn hat for Sentences, and washes it out for free', () => {
     const s = createInitialState(0);
     const m = s.monkeys[0];
-    s.sentences = 1000;
+    s.sentences = 2000;
     expect(dyeHat(s, 0, 'red')).toBe(false); // no hat to dye
     expect(wearHat(s, 0, 'baseball')).toBe(true);
     const left = s.sentences;
