@@ -74,6 +74,7 @@ import {
   managerLine,
   getPlay,
   departmentSlots,
+  fitsSlots,
 } from '../src/game/logic';
 import type { PlayData } from '../src/game/plays';
 import { createInitialState, type GameState } from '../src/game/state';
@@ -206,7 +207,9 @@ function shop(): void {
     if (managerOf(s, g)) continue;
     // Keep the line until it's written, as managers do.
     const kept = aims.get(g);
-    const target = kept && !(s.completed[kept.play] ?? []).includes(kept.index) ? kept : managerLine(s, g, rng);
+    const fresh = kept && !(s.completed[kept.play] ?? []).includes(kept.index) && fitsSlots(s, g, kept) ? kept : managerLine(s, g, rng);
+    // A line too long for the slots is dropped for one that fits, like managers do.
+    const target = kept && !(s.completed[kept.play] ?? []).includes(kept.index) && !fitsSlots(s, g, fresh) ? kept : fresh;
     if (target) aims.set(g, target);
     const words = target ? getPlay(target.play)!.lines[target.index].words : [];
     for (const i of departmentSlots(s, g)) {

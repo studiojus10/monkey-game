@@ -1425,6 +1425,19 @@ describe('manager line choice', () => {
       expect(managerLine(s, 'comedy', () => 0)).toEqual({ play: 'p', index: 1 }); // none fit: any in reach
       s.completed.p = [1, 2, 3, 4];
       expect(managerLine(s, 'comedy')).toBeNull(); // only Zounds left, out of reach
+      // A manager stuck on a line too long for its slots swaps it for one that fits once one is in reach.
+      s.completed.p = [];
+      s.monkeys[0].department = 'comedy';
+      s.monkeys[0].manager = true;
+      s.monkeys[0].target = { play: 'p', index: 1 };
+      s.slots = [s.slots[0]];
+      manage(s, 0, () => 0);
+      expect(s.monkeys[0].target).toEqual({ play: 'p', index: 1 }); // no one-word line in reach: it keeps its line
+      s.slots = [1, 2].map((position) => ({ department: '', position, word: '', on: false }));
+      manage(s, 0, () => 0);
+      expect(s.monkeys[0].target).toEqual({ play: 'p', index: 1 }); // only when it's time to change a slot
+      manage(s, 1000, () => 0);
+      expect(s.monkeys[0].target).toEqual({ play: 'p', index: 3 });
     } finally {
       setPlays([]);
     }

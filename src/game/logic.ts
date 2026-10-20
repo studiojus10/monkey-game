@@ -2080,6 +2080,12 @@ export function managerLine(state: GameState, department: Genre | undefined, rng
   return pool.length > 0 ? pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))].pin : null;
 }
 
+/** Whether a line has no more words than a department has word slots, so its slots can steer all of it. */
+export function fitsSlots(state: GameState, department: Genre | undefined, t: Pin | null): boolean {
+  const line = t && plays.get(t.play)?.lines[t.index];
+  return !!line && line.words.length <= departmentSlots(state, department).length;
+}
+
 /** Whether a manager's line still stands: owned, unwritten and within reach. */
 function lineStands(state: GameState, t: Pin): boolean {
   const play = plays.get(t.play);
@@ -2123,7 +2129,10 @@ export function manage(state: GameState, seconds = 0, rng: Rng = Math.random): v
     const boss = managerOf(state, genre);
     if (!boss) continue;
     const t = boss.target;
-    if (!t || !lineStands(state, t)) {
+    // A line longer than the slots can't be steered home, and writing lines is what pays for more
+    // slots: when it's time to change a slot, a manager swaps such a line for one that fits, if any.
+    const swap = !!t && boss.slotWait <= seconds && !fitsSlots(state, genre, t) && fitsSlots(state, genre, managerLine(state, genre, rng));
+    if (!t || !lineStands(state, t) || swap) {
       if (t) unpin(state, t);
       boss.target = managerLine(state, genre, rng);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
