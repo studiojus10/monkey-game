@@ -1867,7 +1867,7 @@ function typedLine(state: GameState, matches: Pin[], m: MonkeyState): void {
   if (fresh) {
     (state.completed[play.id] ??= []).push(fresh.index);
     state.lines += verse ? sonnetRewards.linesPerLine : 1;
-    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state, m) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
+    points = line.points * line.words.length ** (verse ? 1 : 2) * lineRewards.pointsScale * pointsMultiplier(state, m) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
     earn(state, points);
     state.stats.bestLinePoints = Math.max(state.stats.bestLinePoints, points);
   }

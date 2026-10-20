@@ -110,6 +110,7 @@ export const sentenceRules = {
  */
 export const lineRewards = {
   sentenceMinWords: 3,
+  pointsScale: 1, // a line's points x words^2 are scaled by this
 };
 
 /**
