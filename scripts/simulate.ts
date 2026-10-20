@@ -157,6 +157,12 @@ function shop(): void {
       if (g && openDepartment(s, g)) bought = true;
     }
     for (const g of roomlessDepartments(s)) if (s.sentences >= roomCost(s) && buyRoom(s, 'department', g)) bought = true;
+    // A manager for each department big enough, in an office next door, before more monkeys (it costs the same).
+    for (const g of departmentGenres(s)) {
+      if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;
+      if (!managerBlocker(s, g) && hireManager(s, g)) bought = true;
+    }
+    const savingForManager = departmentGenres(s).some((g) => !managerBlocker(s, g));
     // Monkeys, with floor space for them: each department has its own price, so the cheapest with room.
     {
       const rooms = departmentsWithRoom(s);
@@ -166,7 +172,7 @@ function shop(): void {
         const room = departmentRoom(s, want);
         if (room && s.sentences >= squareCost(s) && s.currency >= nextMonkeyCost(s, want)) expandRoom(s, room.id);
       }
-      if (g ? s.currency >= nextMonkeyCost(s, g) && buyMonkey(s, g) : s.currency >= nextMonkeyCost(s) && buyMonkey(s)) bought = true;
+      if (!savingForManager && (g ? s.currency >= nextMonkeyCost(s, g) && buyMonkey(s, g) : s.currency >= nextMonkeyCost(s) && buyMonkey(s))) bought = true;
     }
     while (s.unassignedMonkeys > 0 && assignMonkey(s, departmentsWithRoom(s)[0])) bought = true;
     // Combo cap with Sentences.
@@ -178,11 +184,6 @@ function shop(): void {
       .filter((x) => x.price > 0)
       .sort((a, b) => a.price - b.price);
     if (buyable[0] && s.currency >= buyable[0].price * 4 && buySection(s, buyable[0].p.id)) bought = true;
-    // A manager for each department big enough, in an office next door.
-    for (const g of departmentGenres(s)) {
-      if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;
-      if (!managerBlocker(s, g) && hireManager(s, g)) bought = true;
-    }
     // Manager upgrades with spare Sentences.
     for (const i of s.monkeys.flatMap((m, k) => (m.manager ? [k] : []))) {
       if (s.sentences >= managerUpgradeCost(s, s.monkeys[i]) * 2 && upgradeManager(s, i)) bought = true;
