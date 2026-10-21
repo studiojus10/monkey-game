@@ -185,7 +185,7 @@ export interface GameState {
   slots: WordSlot[];
   letters: string[]; // owned letters; empty until the player picks one
   monkeys: MonkeyState[];
-  monkeysBought: Record<string, number>; // monkeys bought per department ('' before the first opens), for its price
+  monkeysBought: Record<string, number>; // monkeys bought per department ('' before the first opens; 'boss' for managers), adding up to the hire price
   unassignedMonkeys: number; // earned monkeys waiting for the player to pick their department
   wordsTyped: number;
   lastWord: string; // most recent scored word, for display
