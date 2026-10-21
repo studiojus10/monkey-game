@@ -293,7 +293,7 @@ describe('the Research page', () => {
     s.monkeys.push(...Array.from({ length: 7 }, createMonkey));
     s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab')).toBe(true);
-    expect(pagesFor(s)).toEqual(['home', 'shop', 'monkeys', 'office', 'research', 'texts', 'records', 'options']);
+    expect(pagesFor(s)).toEqual(['home', 'shop', 'monkeys', 'office', 'texts', 'records', 'options', 'research']);
     expect(openStores(s)).not.toContain('research');
     const page = plain(renderScreen(s, '', 'research'));
     expect(page).toContain(' INFINITE MONKEYS > RESEARCH ');
@@ -750,7 +750,7 @@ describe('furniture', () => {
     const s = started();
     s.sentences = 1e12;
     const text = plain(renderScreen(s, '', 'hats', 80));
-    expect(text).toMatch(/\[8\] Halo +o@ \+50% pay, \+50% speed, tires 50% +\n +slower +\* 1.00e10 Sentences\n/);
+    expect(text).toMatch(/\[9\] Halo +o@ \+50% pay, \+50% speed, tires 50% +\n +slower +\* 1.00e10 Sentences\n/);
   });
 
   it('fits every store on an 80-column screen, elements and all', () => {
@@ -956,7 +956,7 @@ describe('hats on screen', () => {
     const s = started();
     s.sentences = 1600;
     const store = plain(renderScreen(s, '', 'hats'));
-    expect(squash(store)).toContain('[1] Baseball cap d@ tires 10% slower * 1,000 Sentences\n');
+    expect(squash(store)).toContain('[2] Baseball cap d@ tires 10% slower * 1,000 Sentences\n');
     expect(store).toContain('Crown         W@');
     expect(store).toContain('Dye');
     expect(plain(renderScreen(s))).toContain('  @ M-1 ');

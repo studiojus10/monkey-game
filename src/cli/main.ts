@@ -118,6 +118,7 @@ import {
   cycleCodebreakFocus,
   switchClassical,
   latinUnlocked,
+  noteRevealed,
 } from '../game/logic';
 import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
 import { GAME_VERSION } from '../version';
@@ -174,6 +175,7 @@ import {
   scriptKeys,
   shopKeys,
   pagesFor,
+  revealKeys,
   pageTabs,
   type Page,
   type Tab,
@@ -779,6 +781,8 @@ function shopKey(store: Store, str: string | undefined, key: { name?: string }):
 
 function draw() {
   const columns = fitLines();
+  // Menu items showing now keep their places; ones that show up later go under them.
+  noteRevealed(state, revealKeys(state));
   // A free letter pops up the letter picker, once nothing else is waiting on an answer.
   if (!pickingLetter && state.freeLetters > 0 && unownedLetters(state).length > 0 && !pickerOpen() && !giving && namingMonkey < 0 && !confirmingFolio) {
     pickingLetter = 'free';
@@ -905,8 +909,47 @@ function onMouse(e: MouseEvent) {
   }
   const press = mousePress(e, drawn.lines, drawn.top, !!pickingLetter, navigated);
   if (!press) return;
-  noteKey(press.name);
-  handleKey(press.str, { name: press.name });
+  pressKey(press.str, { name: press.name });
+}
+
+/**
+ * The open list's cursor back to its first choice, for the up or down press
+ * that shows a hidden cursor (Justin, 2026-10-21: "make sure the highlight
+ * starts at the first selection in the list"). False on screens whose arrows
+ * move something else (the office map, the script, pages that scroll), which
+ * take the press as usual.
+ */
+function toFirstChoice(): boolean {
+  if (pageMenu) pageMenuCursor = 0;
+  else if (keyMenu) keyMenuCursor = 0;
+  else if (choosingPost) postCursor = 0;
+  else if (picker) pickerCursor = 0;
+  else if (pickerOpen()) pickCursor = 0;
+  else if (pickingLetter) letterCursor = 0;
+  else if (flipping || readingTelegrams || readingShelf || namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire) return false;
+  else if (showingLibrary) libraryCursor = 0;
+  else if (giving || hiring || showingOptions || showingDev || showingKeys) menuCursor = 0;
+  else if (showingInventory) invRow = invCol = 0;
+  else if (showingOffice) {
+    if (!officeShop) return false;
+    shopCursor = 0;
+  } else if (showingScript) {
+    if (contents) contentsCursor = 0;
+    else if (scriptShop) shopCursor = 0;
+    else return false;
+  } else if (showingRoster) rosterCursor = 0;
+  else if (showingStats || showingDictionary || showingAchievements || showingSlots || showingHelp) return false;
+  else if (shop) shopCursor = 0;
+  else homeCursor = menuCursor = 0;
+  return true;
+}
+
+/** A key press, from the keyboard or the mouse. */
+function pressKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
+  const showing = !navigated && (key.name === 'up' || key.name === 'down');
+  noteKey(key.name);
+  if (showing && toFirstChoice()) return draw();
+  handleKey(str, key);
 }
 
 /** The screen last drawn and the terminal row its first line is on, for mouse clicks. */
@@ -1976,10 +2019,7 @@ if (!process.stdin.isTTY) {
 // each click or wheel turn becomes the key press it stands for.
 const keys = new PassThrough();
 emitKeypressEvents(keys);
-keys.on('keypress', (str: string | undefined, key: { name?: string; ctrl?: boolean }) => {
-  noteKey(key.name);
-  handleKey(str, key);
-});
+keys.on('keypress', pressKey);
 process.stdin.setRawMode(true);
 process.stdin.on('data', (chunk: Buffer) => {
   const { events, rest } = parseMouse(chunk.toString('utf8'));

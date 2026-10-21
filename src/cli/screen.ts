@@ -97,6 +97,8 @@ import {
   unlocked,
   unlockNeeds,
   hatsForSale,
+  inRevealOrder,
+  researchList,
 } from '../game/logic';
 import { departmentOf, isForeign, lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
 import { devTools } from '../game/dev';
@@ -567,7 +569,7 @@ export function renderHomeKeys(state: GameState): string {
  * of a bar and arrows). Monkeys and Records each hold a few screens as tabs.
  */
 export type Page = 'home' | 'shop' | 'monkeys' | 'office' | 'research' | 'texts' | 'records' | 'options';
-export const pages: Page[] = ['home', 'shop', 'monkeys', 'office', 'research', 'texts', 'records', 'options'];
+export const pages: Page[] = ['home', 'shop', 'monkeys', 'office', 'texts', 'records', 'options', 'research']; // pages unlocked later go last
 export const pageNames: Record<Page, string> = { home: 'Home', shop: 'Shop', monkeys: 'Monkeys', office: 'Office', research: 'Research', texts: 'Texts', records: 'Records', options: 'Options' };
 /** The pages in the [tab] menu now: Research once the R&D lab is built (Justin, 2026-10-21). */
 export function pagesFor(state: GameState): Page[] {
@@ -848,44 +850,8 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       };
       // Until a department could take a manager, a note says what it takes.
       const managerNote = open.some((g) => !managerOf(state, g)) && !posts(state).some((p) => p.job === 'managing' && p.have === 0);
-      return [
-        ...(departmentPicks(state) > 0
-          ? [{ id: 'department', star: true, text: 'Open a new department!' }]
-          : nextDepartmentAt(state) > 0
-            ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }]
-            : []),
-        typingShop.skill,
-        free.length > 0
-          ? { ...hireItem, star: state.currency >= cheapest, cost: [[cheapest, 'currency']], costFrom: free.length > 1 }
-          : { ...hireItem, blocked: new Set(posts(state).map((p) => p.blocked)).size === 1 ? posts(state)[0].blocked : 'no room' },
-        ...(codebreakingRoom(state)
-          ? [
-              ...(codebreakTargets(state).length > 1
-                ? [{ id: 'codefocus', text: 'Switch focus', effect: `now: ${focusName(state.codebreakFocus)}` }]
-                : []),
-              ...(state.telegrams.length > 0 ? [{ id: 'telegram', text: state.telegrams.length > 1 ? 'Read the telegrams' : 'Read the telegram', effect: unreadTelegram(state) ? 'in Enigma: not yet read' : `${state.telegrams.length} read` }] : []),
-            ]
-          : []),
-        ...(latinUnlocked(state)
-          ? [{ id: 'classical', text: `Switch Classical to ${state.classical === 'greek' ? 'Latin' : 'Greek'}`, effect: `now typing ${state.classical === 'greek' ? 'Greek' : 'Latin'}; slots start over` }]
-          : []),
-        ...(managerNote ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }] : []),
-        ...(state.unassignedMonkeys > 0
-          ? [
-              canSeatMonkey(state)
-                ? { id: 'assign', text: `Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'}`, effect: 'to a department' }
-                : { text: `${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? ' is' : 's are'} waiting for a free square for a desk.` },
-            ]
-          : []),
-        comboStart(state) >= comboCap(state)
-          ? { id: 'combo', text: 'Starting combo', effect: `x${comboStart(state).toFixed(1)}`, blocked: 'at the cap' }
-          : {
-              id: 'combo',
-              star: state.sentences >= nextStart,
-              text: 'Starting combo',
-              effect: `x${comboStart(state).toFixed(1)} -> x${(comboStart(state) + combo.step).toFixed(1)}`,
-              cost: [[nextStart, 'sentences']],
-            },
+      // Items that show up later go after the ones already there (Justin, 2026-10-21), and stay once they show.
+      const later: ShopItem[] = [
         ...(managerChoices(state).length > 0
           ? [
               {
@@ -898,23 +864,60 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               },
             ]
           : []),
+        ...(codebreakingRoom(state)
+          ? [
+              codebreakTargets(state).length > 1
+                ? { id: 'codefocus', text: 'Switch focus', effect: `now: ${focusName(state.codebreakFocus)}` }
+                : { id: 'codefocus', text: 'Switch focus', effect: `now: ${focusName(state.codebreakFocus)}`, blocked: 'nothing else' },
+            ]
+          : []),
+        ...(state.telegrams.length > 0 ? [{ id: 'telegram', text: state.telegrams.length > 1 ? 'Read the telegrams' : 'Read the telegram', effect: unreadTelegram(state) ? 'in Enigma: not yet read' : `${state.telegrams.length} read` }] : []),
+        ...(latinUnlocked(state)
+          ? [{ id: 'classical', text: `Switch Classical to ${state.classical === 'greek' ? 'Latin' : 'Greek'}`, effect: `now typing ${state.classical === 'greek' ? 'Greek' : 'Latin'}; slots start over` }]
+          : []),
+      ];
+      return [
+        typingShop.skill,
+        free.length > 0
+          ? { ...hireItem, star: state.currency >= cheapest, cost: [[cheapest, 'currency']], costFrom: free.length > 1 }
+          : { ...hireItem, blocked: new Set(posts(state).map((p) => p.blocked)).size === 1 ? posts(state)[0].blocked : 'no room' },
+        comboStart(state) >= comboCap(state)
+          ? { id: 'combo', text: 'Starting combo', effect: `x${comboStart(state).toFixed(1)}`, blocked: 'at the cap' }
+          : {
+              id: 'combo',
+              star: state.sentences >= nextStart,
+              text: 'Starting combo',
+              effect: `x${comboStart(state).toFixed(1)} -> x${(comboStart(state) + combo.step).toFixed(1)}`,
+              cost: [[nextStart, 'sentences']],
+            },
+        ...inRevealOrder(state, later, (x) => `staff:${x.id}`),
+        // Items that come and go: last, so they never move the others.
+        ...(departmentPicks(state) > 0 ? [{ id: 'department', star: true, text: 'Open a new department!' }] : []),
+        ...(state.unassignedMonkeys > 0
+          ? [
+              canSeatMonkey(state)
+                ? { id: 'assign', text: `Assign ${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? '' : 's'}`, effect: 'to a department' }
+                : { text: `${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? ' is' : 's are'} waiting for a free square for a desk.` },
+            ]
+          : []),
+        ...(departmentPicks(state) === 0 && nextDepartmentAt(state) > 0 ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }] : []),
+        ...(managerNote ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }] : []),
       ];
     }
     case 'typewriters': {
       const nextLetter = letterCost(state.letters.length);
       const nextLetterWords = letterWordsCost(state.letters.length);
       return [
-        ...(unownedLetters(state).length > 0
-          ? [
-              {
-                id: 'letter',
-                star: canAffordLetter(state),
-                text: 'Buy a letter key',
-                effect: `you choose it (${unownedLetters(state).length} left)`,
-                cost: [[nextLetter, 'currency'], ...(nextLetterWords > 0 ? [[nextLetterWords, 'words'] as [number, Currency]] : [])] as [number, Currency][],
-              },
-            ]
-          : []),
+        // Kept once every letter is owned, so the items under it don't move.
+        unownedLetters(state).length > 0
+          ? {
+              id: 'letter',
+              star: canAffordLetter(state),
+              text: 'Buy a letter key',
+              effect: `you choose it (${unownedLetters(state).length} left)`,
+              cost: [[nextLetter, 'currency'], ...(nextLetterWords > 0 ? [[nextLetterWords, 'words'] as [number, Currency]] : [])] as [number, Currency][],
+            }
+          : { id: 'letter', text: 'Buy a letter key', effect: 'every letter is yours', blocked: 'all owned' },
         typingShop.typewriter,
         keysUnlocked(state)
           ? { id: 'keys', text: 'Typewriter keys...', effect: 'letter combos and whole words' }
@@ -928,8 +931,9 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
     case 'break':
     case 'office': {
       const have = state.office.some((r) => r.kind === store);
-      const forRoom = furnitureKinds.filter((k) => k.rooms.includes(store) && (k.id !== safe.id || officesWithoutSafe(state).length > 0)).sort((a, b) => a.cost - b.cost);
-      const kinds = forRoom.filter((k) => unlocked(state, k.unlock));
+      // Cheapest first among what's for sale from the start, then each piece in the order it unlocked (the safe when it shows up), so new ones go last.
+      const forRoom = furnitureKinds.filter((k) => k.rooms.includes(store) && (k.id !== safe.id || officesWithoutSafe(state).length > 0)).sort((a, b) => unlockRank(a) - unlockRank(b) || a.cost - b.cost);
+      const kinds = inRevealOrder(state, forRoom.filter((k) => unlocked(state, k.unlock)), (k) => `furniture:${k.id}`);
       const locked = lockedNote(state, forRoom);
       const roomName = store === 'break' ? 'break room' : store === 'office' ? "manager's office" : "department's room";
       return [
@@ -969,18 +973,17 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
     case 'research': {
       const busy = !!state.researching;
       const rate = researchRate(state);
-      const done = research.projects.filter((p) => state.researched.includes(p.id)).map((p) => p.name);
       return [
         { text: researchStatus(state) },
-        ...projectsLeft(state)
-          .filter((p) => p.id !== state.researching)
-          .map((p): ShopItem => {
-            // How long it takes: with today's researchers, or with one if there are none.
-            const time = formatDuration((p.hours * 3600) / Math.max(1, rate));
-            const item: ShopItem = { id: `research:${p.id}`, text: p.name, effect: `${p.text} ${time}` };
-            return busy ? { ...item, blocked: 'one at a time' } : { ...item, star: state.currency >= p.cost, cost: [[p.cost, 'currency']] };
-          }),
-        ...(done.length > 0 ? [{ text: `Done: ${done.join(', ')}.` }] : []),
+        // Every project stays in its place, done or under way, so new ones go at the bottom.
+        ...researchList(state).map((p): ShopItem => {
+          // How long it takes: with today's researchers, or with one if there are none.
+          const time = formatDuration((p.hours * 3600) / Math.max(1, rate));
+          const item: ShopItem = { id: `research:${p.id}`, text: p.name, effect: `${p.text} ${time}` };
+          if (state.researched.includes(p.id)) return { ...item, effect: p.text, blocked: 'done' };
+          if (state.researching === p.id) return { ...item, blocked: 'under way' };
+          return busy ? { ...item, blocked: 'one at a time' } : { ...item, star: state.currency >= p.cost, cost: [[p.cost, 'currency']] };
+        }),
         ...(rate === 0 ? [{ text: 'Nobody is researching: hire researchers in the Staff store.' }] : []),
       ];
     }
@@ -996,14 +999,8 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
     }
     case 'hats': {
       const team = state.monkeys.map((_, i) => i).filter((i) => i < 9);
+      // Dyeing first, so hats unlocked later go at the bottom.
       return [
-        ...hatsForSale(state).map((h): ShopItem => {
-          const cost = hatCost(state, h.id);
-          const owned = hatsOwned(state, h.id);
-          const someone = team.some((i) => state.monkeys[i].hat !== h.id);
-          const effect = hatEffect(h);
-          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name}${owned > 0 ? ` (${owned})` : ''}`, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
-        }),
         {
           id: 'dye',
           star: state.monkeys.some((m) => m.hat) && state.sentences >= dyeCost(state),
@@ -1011,6 +1008,13 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           effect: hatColors.map((c) => paint(c.id, c.name)).join(', '),
           cost: [[dyeCost(state), 'sentences']],
         },
+        ...inRevealOrder(state, hatsForSale(state), (h) => `hat:${h.id}`).map((h): ShopItem => {
+          const cost = hatCost(state, h.id);
+          const owned = hatsOwned(state, h.id);
+          const someone = team.some((i) => state.monkeys[i].hat !== h.id);
+          const effect = hatEffect(h);
+          return { id: `hat:${h.id}`, star: someone && state.sentences >= cost, text: `${h.name}${owned > 0 ? ` (${owned})` : ''}`, glyph: `${h.icon}${monkeyIcon}`, effect, cost: [[cost, 'sentences']] };
+        }),
         ...lockedNote(state, hats),
         { text: 'Hats taken off go into your inventory: [i] puts one back on for free.' },
       ];
@@ -1605,7 +1609,33 @@ export type TextsTab = 'plays' | 'foreign' | 'codes';
 const textsTabNames: Record<TextsTab, string> = { plays: 'Plays', foreign: 'Foreign texts', codes: 'Codes' };
 
 export function textsTabs(state: GameState): TextsTab[] {
-  return ['plays', ...(departmentGenres(state).includes('greek') ? ['foreign' as const] : []), ...(state.telegrams.length > 0 || Object.keys(state.safes).length > 0 ? ['codes' as const] : [])];
+  const later: TextsTab[] = [...(departmentGenres(state).includes('greek') ? ['foreign' as const] : []), ...(state.telegrams.length > 0 || Object.keys(state.safes).length > 0 ? ['codes' as const] : [])];
+  return ['plays', ...inRevealOrder(state, later, (t) => `tab:${t}`)];
+}
+
+/** How far into the game a piece of furniture or hat unlocks, for listing new ones after older ones. */
+function unlockRank(x: { id: string; unlock?: Unlock }): number {
+  if (x.id === safe.id) return Infinity;
+  const u = x.unlock;
+  return !u ? 0 : (u.texts ?? 0) * 10_000 + (u.acts ?? 0) * 100 + (u.scenes ?? 0);
+}
+
+/**
+ * Every menu item whose place depends on when it showed up (see
+ * inRevealOrder), as showing now: the front end notes them (noteRevealed)
+ * each time it draws, so ones that show up later go at the bottom.
+ */
+export function revealKeys(state: GameState): string[] {
+  const staff = storeItems(state, 'staff').filter((x) => x.id && ['manager', 'codefocus', 'telegram', 'classical'].includes(x.id));
+  const furniture = (['department', 'break', 'office'] as const).flatMap((r) => storeItems(state, r)).flatMap((x) => (x.id?.startsWith('furniture:') ? [`furniture:${x.id.slice(10).split('@')[0]}`] : []));
+  return [
+    ...posts(state).map((p) => `post:${p.id}`),
+    ...researchList(state).map((p) => `research:${p.id}`),
+    ...staff.map((x) => `staff:${x.id}`),
+    ...furniture,
+    ...hatsForSale(state).map((h) => `hat:${h.id}`),
+    ...textsTabs(state).slice(1).map((t) => `tab:${t}`),
+  ];
 }
 
 /** The plays (or foreign texts) a tab lists, in availablePlays() order. */

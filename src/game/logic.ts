@@ -2389,6 +2389,31 @@ export function projectOf(id: string): ResearchProject | undefined {
 }
 
 /** Projects not yet finished (the one under way included), in order. */
+/**
+ * `list` in the order its items first showed up (state.revealed), so a menu
+ * option unlocked later goes at the bottom (Justin, 2026-10-21: "so it does
+ * not change the way the player interacts with menus that already existed").
+ * Items not noted yet go last, in the order given.
+ */
+export function inRevealOrder<T>(state: GameState, list: T[], key: (t: T) => string): T[] {
+  const at = (t: T, i: number) => {
+    const k = state.revealed.indexOf(key(t));
+    return k < 0 ? state.revealed.length + i : k;
+  };
+  return list.map((t, i) => [t, at(t, i)] as const).sort((a, b) => a[1] - b[1]).map(([t]) => t);
+}
+
+/** Notes menu items showing now, after every item noted before; see inRevealOrder. */
+export function noteRevealed(state: GameState, keys: string[]): void {
+  for (const k of keys) if (!state.revealed.includes(k)) state.revealed.push(k);
+}
+
+/** The Research page's projects: every one you can start, the one under way and the ones done, in the order they showed up. */
+export function researchList(state: GameState): ResearchProject[] {
+  const left = projectsLeft(state);
+  return inRevealOrder(state, research.projects.filter((p) => left.includes(p) || state.researched.includes(p.id)), (p) => `research:${p.id}`);
+}
+
 export function projectsLeft(state: GameState): ResearchProject[] {
   return research.projects.filter((p) => !state.researched.includes(p.id) && (state.researching === p.id || ((p.needs !== 'marketing' || !!marketingRoom(state)) && (p.needs !== 'telegram' || state.telegrams.length > 0) && (!p.after || state.researched.includes(p.after)))));
 }
@@ -2903,7 +2928,7 @@ export function posts(state: GameState, managing = true): Post[] {
     ...(codebreakingRoom(state) ? [{ id: codebreaking.id, job: 'codebreaking' as Job, have: codebreakers(state).length, max: codebreaking.maxStaff, room: codebreakingRoom(state), name: `${codebreaking.name} office needed` }] : []),
     ...(recordsRoom(state) ? [{ id: records.id, job: 'records' as Job, have: recorders(state).length, max: records.maxStaff, room: recordsRoom(state), name: `${records.name} office needed` }] : []),
   ].map(({ room, name, ...p }) => ({ ...p, blocked: staffBlocker(room, p.have, p.max, state, name) }));
-  return [...typing, ...bosses, ...staff];
+  return inRevealOrder(state, [...typing, ...bosses, ...staff], (p) => `post:${p.id}`);
 }
 
 /** The usual price of a hire for a post, before a candidate's stats change it. */

@@ -315,6 +315,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       recordBooks: Array.isArray(s.recordBooks) ? s.recordBooks.filter(Array.isArray).map(strings) : [],
       recordDraft: strings(s.recordDraft),
       recordCatch: Math.max(0, num(s.recordCatch, 0)),
+      revealed: strings(s.revealed),
       lastMilestone,
       pointsBonus: Math.max(0, num(s.pointsBonus, 0)),
       speedBonus: Math.max(0, num(s.speedBonus, 0)),
