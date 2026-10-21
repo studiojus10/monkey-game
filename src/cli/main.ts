@@ -131,8 +131,8 @@ import {
   unownedLetters,
   departmentName,
   departmentPrompt,
-  managerChoices,
-  managerUpgradePrompt,
+  upgradeColumns,
+  type UpgradeKind,
   renderKeysMenu,
   renderScreen,
   renderHomeKeys,
@@ -149,12 +149,10 @@ import {
   type Store,
   type ScriptSpot,
   homeChosen,
-  highlightChoice,
   promptChoices,
   homeMonkeys,
   maxMonkeyLines,
   trainees,
-  typingPickPrompt,
   renderDevMenu,
   contentsPageSize,
   renderSlotsMenu,
@@ -185,7 +183,7 @@ import { bold, dim, forLightBackground, inverseSpan, placeScreen, screenTop, sho
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { keyBox, menuBox, overlay, postName, renderCandidates, renderPostPopup } from './hiring';
+import { columnBox, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -283,11 +281,12 @@ let showingSlots = false;
 let selectedSlot = 0; // index into state.slots
 let slotDept = 0; // index into departmentGenres(state)
 let slotWordDraft: string | null = null;
-let pickingTyping: '' | 'skill' | 'typewriter' = ''; // choosing a monkey for [1] or [7]
+let upgrading: { kind: UpgradeKind; col: number; row: number } | null = null; // the upgrade popup: Faster typing, a typewriter or a manager, by department
 let readingBook = false; // the feng shui book, open from the office map
 let readingManagerBook = false; // the manager's book, open from the office map
 let officeHelp = false; // the office map's [/] page: how rooms and lounges work
 let offeredBook = -1; // the piece hiding a book (feng shui or the manager's), just inspected: [y] reads it
+let bookMenu = ''; // its popup: the books you can read there, as a picker prompt
 let menuCursor = 0; // the chosen row of the open menu (opening screens, options, dev tools, keys, hiring)
 let letterCursor = 0; // the chosen letter in the letter picker, among the letters not owned
 let pickCursor = 0; // the chosen choice of a picker on the message line
@@ -308,7 +307,6 @@ const pickerChoices = (): string[] => (!picker ? [] : picker.kind === 'hat' ? ha
 let pickingDyeColor = false; // choosing which colour to dye
 let pickingDepartment = false;
 let pickingDeptFor: '' | 'assign' = ''; // choosing a department for a new monkey
-let pickingManagerUpgrade = false;
 let readingTelegrams = false; // the telegrams in Enigma
 let showingLibrary = false; // the Library's galleries, from the office map
 let libraryCursor = 0; // the gallery chosen
@@ -417,8 +415,8 @@ function buyItem(id: string): void {
     if (team.length === 0) message = 'Temps can\'t be upgraded.';
     else if (team.length === 1) message = buyTyping(team[0], what);
     else if (team.length > 1) {
-      pickingTyping = what;
-      message = typingPickPrompt(state, what);
+      upgrading = { kind: what, col: 0, row: 0 };
+      message = '';
     }
   } else if (id === 'letter') {
     if (state.currency < letterCost(state.letters.length)) {
@@ -465,8 +463,8 @@ function buyItem(id: string): void {
     pickingDepartment = true;
     message = departmentPrompt(state);
   } else if (id === 'manager') {
-    pickingManagerUpgrade = true;
-    message = managerUpgradePrompt(state);
+    upgrading = { kind: 'manager', col: 0, row: 0 };
+    message = '';
   } else if (id.startsWith('section:')) {
     buyScriptText();
   } else if (id.startsWith('hat:')) {
@@ -628,10 +626,10 @@ function goHome(): void {
   showingScript = showingKeys = showingHelp = showingDev = showingStats = showingRoster = showingAchievements = false;
   showingOffice = showingOptions = showingDictionary = showingSlots = showingInventory = showingLibrary = false;
   readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = false;
-  pickingDyeColor = pickingDepartment = pickingManagerUpgrade = buyingRoom = false;
+  pickingDyeColor = pickingDepartment = buyingRoom = false;
+  upgrading = null;
   confirmingFire = false;
   contents = '';
-  pickingTyping = '';
   pickingDeptFor = '';
   flipping = '';
   shop = officeShop = null;
@@ -644,7 +642,7 @@ function goHome(): void {
 
 /** The page open now, for the navigation bar, or null on a screen inside one (a book, a picker, help, a question). */
 function currentPage(): Page | null {
-  if (flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pageMenu || pickerOpen()) return null;
+  if (upgrading || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pageMenu || pickerOpen()) return null;
   if (namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire || showingHelp || showingDev || showingKeys || showingSlots) return null;
   if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
   if (showingInventory || showingRoster) return 'monkeys';
@@ -800,7 +798,8 @@ function draw() {
         : `Achievement unlocked: ${names.join(', ')}! [a] to see ${names.length === 1 ? 'it' : 'them'}.`);
   }
   // Clear the screen and move the cursor home, then redraw.
-  const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
+  // A picker is a popup (promptBox), not a line on the screen.
+  const shown = pickerOpen() ? '' : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
   const page = currentPage();
   const nav = page ? pageTabsRow(page, currentTab()) : [];
@@ -859,8 +858,10 @@ function draw() {
   // The navigation bar, right under the title bar, on every page.
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
-  const popup = pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
-  const screen = popup ? overlay(withNav, [...popup, ...(message ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
+  const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
+  const upgradeTitle = upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
+  const popup = linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const screen = popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
@@ -920,11 +921,12 @@ function onMouse(e: MouseEvent) {
  * take the press as usual.
  */
 function toFirstChoice(): boolean {
-  if (pageMenu) pageMenuCursor = 0;
+  if (upgrading) upgrading.col = upgrading.row = 0;
+  else if (pageMenu) pageMenuCursor = 0;
   else if (keyMenu) keyMenuCursor = 0;
   else if (choosingPost) postCursor = 0;
   else if (picker) pickerCursor = 0;
-  else if (pickerOpen()) pickCursor = 0;
+  else if (linePicker()) pickCursor = 0;
   else if (pickingLetter) letterCursor = 0;
   else if (flipping || readingTelegrams || readingShelf || namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire) return false;
   else if (showingLibrary) libraryCursor = 0;
@@ -987,8 +989,13 @@ function startNaming(index: number) {
 }
 
 /** Whether a picker is waiting on the message line (which monkey, which department, which letter...). */
+/** The open picker's prompt, shown as a popup (promptBox): a picker's message, or the books on a shelf just inspected. */
+function linePicker(): string {
+  return pickerOpen() ? message : offeredBook >= 0 ? bookMenu : '';
+}
+
 function pickerOpen(): boolean {
-  return !!(pickingDeptFor || pickingManagerUpgrade || pickingDyeColor || pickingTyping || pickingDepartment || buyingRoom);
+  return !!(pickingDeptFor || pickingDyeColor || pickingDepartment || buyingRoom);
 }
 
 /** Opens the coin flip screen (with nothing to bet it only says so). */
@@ -1039,9 +1046,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   // A picker on the message line: arrows move its cursor and enter picks, as if its key were pressed.
-  if (!pickerOpen()) pickCursor = 0;
+  if (!linePicker()) pickCursor = 0;
   else {
-    const choices = promptChoices(message);
+    const choices = promptChoices(linePicker());
     if (choices.length > 0 && ['up', 'down', 'left', 'right'].includes(key.name ?? '')) {
       const back = key.name === 'up' || key.name === 'left';
       pickCursor = (Math.min(pickCursor, choices.length - 1) + (back ? choices.length - 1 : 1)) % choices.length;
@@ -1074,6 +1081,30 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (!busy && ((str === 'o' && !onMap) || key.name === 'backspace')) {
     goHome();
     if (str === 'o') openOffice();
+    return draw();
+  }
+
+  // The upgrade popup: arrows choose a monkey (up and down in a department, left and right between them), enter buys and it stays open; any other key closes it.
+  if (upgrading) {
+    const { monkeys } = upgradeColumns(state, upgrading.kind);
+    const u = upgrading;
+    u.col = Math.min(u.col, Math.max(0, monkeys.length - 1));
+    const n = monkeys[u.col]?.length ?? 0;
+    if (key.name === 'up' || key.name === 'down') {
+      if (n > 0) u.row = (Math.min(u.row, n - 1) + (key.name === 'up' ? n - 1 : 1)) % n;
+    } else if (key.name === 'left' || key.name === 'right') {
+      if (monkeys.length > 0) u.col = (u.col + (key.name === 'left' ? monkeys.length - 1 : 1)) % monkeys.length;
+      u.row = Math.min(u.row, (monkeys[u.col]?.length ?? 1) - 1);
+    } else if (key.name === 'return' || key.name === 'enter') {
+      const i = monkeys[u.col]?.[u.row];
+      if (i !== undefined) {
+        if (u.kind === 'manager') message = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Sentences.';
+        else message = buyTyping(i, u.kind) || (u.kind === 'skill' ? `${monkeyName(state, i)} types faster.` : '');
+      }
+    } else {
+      upgrading = null;
+      message = '';
+    }
     return draw();
   }
 
@@ -1283,17 +1314,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   // Picking menus stay open after a purchase so you can buy more; any other key closes them.
-  if (pickingManagerUpgrade) {
-    const i = managerChoices(state)[Number(str) - 1];
-    if (i === undefined) {
-      pickingManagerUpgrade = false;
-      message = 'Done.';
-    } else {
-      const result = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Sentences.';
-      message = `${result}  ${managerUpgradePrompt(state)}`;
-    }
-    return draw();
-  }
 
   if (giving) {
     const n = state.monkeys.length;
@@ -1324,15 +1344,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  if (pickingTyping) {
-    const what = pickingTyping;
-    const i = Number(str) - 1;
-    if (!str || !/^[1-9]$/.test(str) || !trainees(state).includes(i)) {
-      pickingTyping = '';
-      message = 'Done.';
-    } else message = `${buyTyping(i, what) || `${monkeyName(state, i)} types faster.`}  ${typingPickPrompt(state, what)}`;
-    return draw();
-  }
 
   if (pickingDepartment) {
     pickingDepartment = false;
@@ -1568,6 +1579,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (offeredBook >= 0) {
       const piece = offeredBook;
       offeredBook = -1;
+      bookMenu = '';
       const shelved = libraryBooks(state)[Number(str) - 1];
       if (str === 'y' && readFengShuiBook(state, piece)) readingBook = true;
       else if (str === 'y' && readManagerBook(state, piece)) readingManagerBook = true;
@@ -1589,6 +1601,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const seen = inspectSquare(state, c.x, c.y, heldFurniture);
       message = found && first ? `${seen.text}  You can build a ${codebreaking.name} office now (office map, [r]).` : seen.text;
       offeredBook = seen.book;
+      bookMenu = seen.choices?.length ? `Read which book? ${seen.choices.join('   ')}` : '';
       return draw();
     }
     if (placingRoom || movingRoom) {

@@ -756,18 +756,42 @@ function typingItems(state: GameState): { skill: ShopItem; typewriter: ShopItem 
   };
 }
 
-/** Picker prompt for Faster typing or a better typewriter: each typing monkey with its skill and the price. */
-export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter'): string {
-  const rows = trainees(state)
-    .filter((i) => i < 9)
-    .map((i) => {
-      const m = state.monkeys[i];
-      const cost = what === 'skill' ? typingUpgradeCost(m.skill) : typewriterCost(m);
-      const capped = what === 'skill' && m.skill >= skillCap(m);
-      const entry = `[${i + 1}] ${monkeyName(state, i)} ${m.skill}/${skillCap(m)}${capped ? ' (needs a typewriter)' : ` ${price(cost, state.currency)}`}`;
-      return !capped && state.currency >= cost ? affordable(entry) : entry;
+/** Who an upgrade popup offers: Faster typing or a better typewriter for a typist, or a manager's upgrade. */
+export type UpgradeKind = 'skill' | 'typewriter' | 'manager';
+
+/**
+ * An upgrade popup's columns, one per department (Justin, 2026-10-21: the
+ * monkeys "in vertical columns by department"; managers "with the
+ * departments in columns"): each cell a monkey with what it gets and the
+ * price, green when you can buy it. `monkeys` holds each cell's monkey.
+ */
+export function upgradeColumns(state: GameState, kind: UpgradeKind): { cols: { heading: string; cells: string[][] }[]; monkeys: number[][] } {
+  const cols: { heading: string; cells: string[][] }[] = [];
+  const monkeys: number[][] = [];
+  for (const g of departmentGenres(state)) {
+    const team = kind === 'manager' ? state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) && m.department === g ? [i] : [])) : trainees(state).filter((i) => state.monkeys[i].department === g);
+    if (team.length === 0) continue;
+    cols.push({
+      heading: departmentName(state, g),
+      cells: team.map((i) => {
+        const m = state.monkeys[i];
+        if (kind === 'manager') {
+          const now = 1 + managers.bonusPerLevel * m.managerLevel;
+          const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
+          const cost = managerUpgradeCost(state, m);
+          const cell = [monkeyName(state, i), `bananas x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)}`, `sentences x${sentenceMultiplier(m).toFixed(1)}`, `a slot ${slotDelay(state, m).toFixed(1)}s -> ${next.toFixed(1)}s`, `${formatPrice(cost)} Sentences`];
+          return state.sentences >= cost ? cell.map(affordable) : cell;
+        }
+        const capped = kind === 'skill' && m.skill >= skillCap(m);
+        const cost = kind === 'skill' ? typingUpgradeCost(m.skill) : typewriterCost(m);
+        const what = kind === 'skill' ? `skill ${m.skill}/${skillCap(m)}` : `cap ${skillCap(m)} -> ${skillCap(m) + typing.levelsPerTypewriter}`;
+        const cell = `${monkeyName(state, i)}  ${what}  ${capped ? 'needs a typewriter' : `${formatPrice(cost)} ${theme.currency}`}`;
+        return [!capped && state.currency >= cost ? affordable(cell) : capped ? dim(cell) : cell];
+      }),
     });
-  return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}   (any other key: done)`;
+    monkeys.push(team);
+  }
+  return { cols, monkeys };
 }
 
 /** The main shop's stores, shown as tabs; [ ] (or left and right) switch between them. Furniture is sold on the office map, research on its own page. */
@@ -1384,18 +1408,6 @@ function managerLine(m: MonkeyState): string {
 /** Managers by monkey index, for the upgrade menu (keys 1-9 in this order). */
 export function managerChoices(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) ? [i] : [])).slice(0, 9);
-}
-
-/** The prompt for upgrading a manager, with each one's next bonus, slot speed and price. */
-export function managerUpgradePrompt(state: GameState): string {
-  const choices = managerChoices(state).map((i, k) => {
-    const m = state.monkeys[i];
-    const now = 1 + managers.bonusPerLevel * m.managerLevel;
-    const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
-    return `[${k + 1}] ${monkeyName(state, i)} x${now.toFixed(1)} -> x${(now + managers.bonusPerLevel).toFixed(1)} (sentences x${sentenceMultiplier(m).toFixed(1)}), ` +
-      `${slotDelay(state, m).toFixed(1)}s -> ${next.toFixed(1)}s a slot ` + priceNamed(managerUpgradeCost(state, m), state.sentences, 'sentences');
-  });
-  return `Upgrade which manager? ${choices.join('   ')}   (any other key: done)`;
 }
 
 /** How many scenes the player owns, across plays. */

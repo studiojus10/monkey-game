@@ -366,6 +366,11 @@ Justin, 2026-10-21: the menus were "a mess and difficult to navigate". v0.13.0 p
 
 Every page also keeps the same order (title, tabs, the list, details of the chosen item, then keys) and a short key row: only its main keys, then `[/] all keys`, a popup of every key on that page where each row's key (or [enter] on it, or a click) does it (Justin, 2026-10-21, from a mock-up). The roster's `[enter]` opens the chosen monkey's actions the same way (rename, move, hat, sell its hat, fire). Home shows only its main keys, since the menu covers where to go; its `[/]` page lists everything. The office map's `[/]` help page lists every map key.
 
+Menu rules (Justin, 2026-10-21):
+- **New options go at the bottom.** An option unlocked or revealed later is added at the end of its list, so menus the player already knows don't change: shop items, furniture, hats, research projects, the hiring popup's departments and the Texts tabs keep the order they first showed up in (`state.revealed`; `inRevealOrder`), Research is last in the [tab] menu, and an option doesn't vanish from the middle of a list (the letter key once every letter is owned, finished research).
+- **The cursor starts at the top.** The up or down press that shows a hidden cursor puts it on the list's first choice.
+- **Vertical popups, never a line of choices.** Every menu of choices opens as a popup with one choice per row (picking a department, a room to buy, a dye colour, a book on a shelf; `promptBox`). Faster typing, better typewriters and manager upgrades open a popup of departments in columns, each listing its monkeys (or its manager) with the price (`columnBox`); arrows choose, enter buys and it stays open.
+
 ## Saves and offline progress
 
 The save gains: owned letters, the chosen play, which words are checked off, each monkey's current line, chain and pending letters, and upgrades. Offline progress simulates letters for the time away (capped, as now at 8 hours); if that's too many letters to simulate quickly, the rest is estimated from the recent points per letter and words-checked rate.

@@ -13,6 +13,7 @@ import {
   folioPrompt,
   lineRoom,
   renderScreen,
+  upgradeColumns,
   ordinal,
   renderScript,
   renderContents,
@@ -43,7 +44,7 @@ import { bold, coverBottom, cyan, forLightBackground, green, inverse, plainText,
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
-import { keyBox, cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
+import { columnBox, promptBox, keyBox, cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, lately, monkeyNames } from '../src/game/config';
@@ -854,7 +855,7 @@ describe('feng shui on screen', () => {
     const shelf = inspectSquare(s, 1, 1);
     expect(shelf.text).toContain('Rows of dusty old books.');
     expect(shelf.text).toContain('Tucked behind the other books is a slim volume');
-    expect(shelf.text).toContain('[y] read it');
+    expect(shelf.choices).toContain('[y] read it'); // in a popup
     expect(shelf.book).toBe(1);
     expect(inspectSquare(s, 1, 0, 1).book).toBe(1); // held, it can be inspected too
     expect(inspectSquare(s, 0, 0).text).toBe("M-1's desk. A desk and a typewriter. Typewriters are mostly Metal, and so, some say, are good monkeys.");
@@ -864,8 +865,7 @@ describe('feng shui on screen', () => {
     s.fengShuiBook = true;
     s.managerBook = true;
     const library = inspectSquare(s, 1, 1); // every bookshelf keeps the books found so far
-    expect(library.text).toContain('On the shelf: [1] The Way of the Typewriter: feng shui for monkeys   [2] Understanding Your Employees');
-    expect(library.text).not.toContain('[y] read it');
+    expect(library.choices).toEqual(['[1] The Way of the Typewriter: feng shui for monkeys', '[2] Understanding Your Employees: a field guide for managers of monkeys']);
     expect(library).toMatchObject({ book: 1, shelf: true });
     s.managerBook = false;
     s.furniture.pop();
@@ -923,7 +923,7 @@ describe('managers and traits on screen', () => {
     const { x, y } = s.furniture[i];
     const desk = inspectSquare(s, x, y);
     expect(desk.text).toContain('Understanding Your Employees');
-    expect(desk.text).toContain('[y] read it');
+    expect(desk.choices).toContain('[y] read it');
     expect(desk.book).toBe(i);
     expect(plain(renderScreen(s))).not.toContain('TRAIT');
     expect(inspectSquare(s, 0, 0).text).not.toContain('perfectionist');
@@ -932,7 +932,7 @@ describe('managers and traits on screen', () => {
     expect(home).toContain('TRAIT');
     expect(home).toContain('Perfectionist');
     expect(inspectSquare(s, 0, 0).text).toContain('M-1 is a perfectionist (-10% speed, +20% pay).');
-    expect(inspectSquare(s, x, y).text).not.toContain('[y] read it');
+    expect(inspectSquare(s, x, y).choices ?? []).not.toContain('[y] read it');
     expect(officeKeys(s)).toContainEqual(['e', 'employees']);
     const book = plain(renderManagerBook(s));
     expect(book).toContain('Night owl');
@@ -1280,5 +1280,35 @@ describe('key popups', () => {
     expect(box.some((r) => r.includes('[enter] do it   [esc] close'))).toBe(true);
     expect(rosterKeys).toContainEqual(['enter', 'actions']);
     expect(plain(renderRoster(started(), 0))).toContain('[up/down] choose a monkey   [enter] actions   [esc] back   [/] all keys');
+  });
+});
+
+describe('upgrade popups', () => {
+  it('shows typists and managers in columns by department, the chosen one lit', () => {
+    const s = started();
+    s.departments = ['comedy', 'tragedy'];
+    Object.assign(s.monkeys[0], { name: 'Clown', department: 'comedy' });
+    s.monkeys.push({ ...createMonkey(), department: 'comedy', name: 'Fool' }, { ...createMonkey(), department: 'tragedy', name: 'Mourner' }, { ...createMonkey(), department: 'tragedy', name: 'Boss', manager: true });
+    const typists = upgradeColumns(s, 'skill');
+    expect(typists.cols.map((c) => c.heading)).toEqual(['Comedies', 'Tragedies']);
+    expect(typists.monkeys).toEqual([[0, 1], [2]]);
+    const box = columnBox('Faster typing for which monkey?', typists.cols, { col: 1, row: 0 }, '[esc] done', 100).map(plain);
+    expect(box[3]).toMatch(/Comedies +Tragedies/);
+    expect(box[4]).toMatch(/Clown +skill 0\/10 +10 Bananas +Mourner/);
+    expect(box[5]).toContain('Fool');
+    expect(columnBox('x', typists.cols, { col: 1, row: 0 }, '', 100).join('\n')).toContain(inverse(plain(typists.cols[1].cells[0][0]))); // the chosen monkey
+    const managers = upgradeColumns(s, 'manager');
+    expect(managers.cols.map((c) => c.heading)).toEqual(['Tragedies']);
+    expect(plain(managers.cols[0].cells[0].join('\n'))).toMatch(/Boss\nbananas x1.0 -> x1.3/);
+  });
+});
+
+describe('picker popups', () => {
+  it('shows a picker prompt as a vertical popup, one choice per row', () => {
+    const box = promptBox('Buy a room (100 Sentences): [1] a room for Comedies   [b] a break room for furniture   (any other key cancels)', 1).map(plain);
+    expect(box[1]).toContain('Buy a room (100 Sentences):');
+    expect(box[3]).toContain('[1] a room for Comedies');
+    expect(box[4]).toContain('[b] a break room for furniture');
+    expect(box.join('\n')).not.toContain('any other key');
   });
 });

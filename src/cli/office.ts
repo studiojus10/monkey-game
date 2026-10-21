@@ -456,7 +456,7 @@ export function libraryBooks(state: GameState): { id: 'fengshui' | 'manager'; ti
   ];
 }
 
-export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number; shelf?: boolean } {
+export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number; shelf?: boolean; choices?: string[] } {
   const room = roomAt(state, x, y);
   const spot = held >= 0 ? held : room ? cellAt(state, room.id, x, y) : 'floor';
   if (typeof spot === 'number') {
@@ -472,10 +472,11 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
       text: [
         ...(f.kind === managerDesk.id ? sits : []),
         k?.description ?? fengShui.nothing,
-        ...(found ? [found, '[y] read it'] : []),
-        ...(shelf.length > 0 ? [`On the shelf: ${shelf.map((b, i) => `[${i + 1}] ${b.title}`).join('   ')}`] : []),
+        ...(found ? [found] : []),
       ].join('  '),
       book: found || shelf.length > 0 ? spot : -1,
+      // What you can read here, for a popup menu.
+      choices: [...(found ? ['[y] read it'] : []), ...shelf.map((b, i) => `[${i + 1}] ${b.title}`)],
       ...(shelf.length > 0 ? { shelf: true } : {}),
     };
   }
