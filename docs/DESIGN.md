@@ -451,3 +451,7 @@ Justin, 2026-10-21: "all furniture can be placed in any room, however, certain f
 ## Swapping furniture (v0.15.0)
 
 Justin, 2026-10-21: putting a held piece down on another piece swaps the two "if there is space" (`swapFurniture`): the held piece takes the other's spot and the other goes where the held one stood, each keeping which way it's turned. If either doesn't fit, nothing moves and the map says there's not enough space. Desks and safes still stay in their room.
+
+## Save profiles (v0.16.0)
+
+Justin, 2026-10-21: "a menu in the game where the player can make up to 3 save profiles, rename them, copy and delete them", changed from the options menu, opening on the last profile played. Options [6] Save profiles lists the three with each one's Bananas, monkeys and time played: [enter] plays one (saving the current game first; an empty one starts a new game), [n] renames, [c] copies into the first empty profile, [d] deletes (asking first; not the one being played). The opening screens have [p] too, so a new game can switch back. Profile 1 is the usual save.json, so older games carry on as profile 1; the others are save-2.json and save-3.json, with names and the last played profile in save-profiles.json.

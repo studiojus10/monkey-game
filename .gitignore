@@ -4,3 +4,5 @@ dist/
 .DS_Store
 save.json
 save.json.tmp
+save-*.json
+save-*.json.tmp

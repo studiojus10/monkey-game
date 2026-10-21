@@ -106,14 +106,14 @@ describe('terminal screen', () => {
     const genres = plain(renderScreen(s, '', null, 80));
     expect(genres.split('\n')[0]).toBe(' INFINITE MONKEYS ');
     expect(genres).toContain('   [1] Comedies   Test Play');
-    expect(genres).toContain(' [up/down] choose   [enter] pick   [1] pick   [q] quit');
+    expect(genres).toContain(' [up/down] choose   [enter] pick   [1] pick   [p] save profiles   [q] quit');
     expect(renderScreen(s, '', null, 80, 0)).toContain(inverse('   [1] Comedies   Test Play')); // the cursor's choice
     openDepartment(s, 'comedy');
     expect(plain(renderScreen(s))).toContain('   [1] Test Play   2 lines');
     chooseStarterPlay(s, 'test');
     const text = plain(renderScreen(s));
     expect(text).toContain('   [a] A\n   [i] I\n');
-    expect(text).toContain(' [a/i] pick   [q] quit');
+    expect(text).toContain(' [a/i] pick   [p] save profiles   [q] quit');
     expect(text).not.toContain('Bananas');
   });
 
