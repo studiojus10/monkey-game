@@ -1434,6 +1434,34 @@ export function moveFurniture(state: GameState, index: number, roomId: string, x
 }
 
 /**
+ * Swaps two pieces of furniture (Justin, 2026-10-21: putting a held piece
+ * down on another one): the first takes the second's spot and the second the
+ * first's, each keeping which way it's turned. False, with nothing moved, if
+ * either doesn't fit where the other stood. Desks and safes stay in their room.
+ */
+export function swapFurniture(state: GameState, a: number, b: number): boolean {
+  const fa = state.furniture[a];
+  const fb = state.furniture[b];
+  if (!fa || !fb || a === b) return false;
+  const stays = (f: Furniture, room: string) => (f.kind !== desk.id && f.kind !== safe.id) || f.room === room;
+  if (!stays(fa, fb.room) || !stays(fb, fa.room)) return false;
+  const newA = { kind: fa.kind, x: fb.x, y: fb.y, turned: fa.turned };
+  const newB = { kind: fb.kind, x: fa.x, y: fa.y, turned: fb.turned };
+  const free = (roomId: string, x: number, y: number, other: { kind: string; x: number; y: number; turned?: boolean }, otherRoom: string) => {
+    const here = cellAt(state, roomId, x, y);
+    if (here !== 'floor' && here !== a && here !== b) return false;
+    return otherRoom !== roomId || !footprint(other).some(([ox, oy]) => ox === x && oy === y);
+  };
+  const fits = (roomId: string, p: typeof newA, other: typeof newA, otherRoom: string) =>
+    allowedIn(state, p.kind, roomId) && footprint(p).every(([x, y]) => free(roomId, x, y, other, otherRoom));
+  if (!fits(fb.room, newA, newB, fa.room) || !fits(fa.room, newB, newA, fb.room)) return false;
+  const roomA = fa.room;
+  Object.assign(fa, { room: fb.room, x: newA.x, y: newA.y });
+  Object.assign(fb, { room: roomA, x: newB.x, y: newB.y });
+  return true;
+}
+
+/**
  * Gives a save from before rooms an office: a room for each department, grown
  * until it fits its monkeys, each with a desk.
  */

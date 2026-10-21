@@ -44,6 +44,7 @@ import {
   furnitureCost,
   dyeCost,
   moveFurniture,
+  swapFurniture,
   buyRoom,
   expandRoom,
   bestExpansion,
@@ -1621,6 +1622,21 @@ describe('furniture', () => {
     expect(cellAt(s, 'r1', 1, 0)).toBe('floor');
     expect(moveFurniture(s, 0, 'r2', ...s.office[1].cells[0])).toBe(false); // a desk can't leave its department's room
     expect(moveFurniture(s, 0, 'r1', 1, 1)).toBe(true);
+  });
+
+  it('swaps two pieces when one is put down on the other, if both fit', () => {
+    const s = createInitialState(0);
+    s.currency = s.sentences = 1e12;
+    buyRoom(s, 'break');
+    const [x, y] = s.office[1].cells[0];
+    s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'couch', room: 'r2', x, y });
+    expect(swapFurniture(s, 1, 2)).toBe(false); // a 2 x 1 couch has no room where the plant stands
+    expect(s.furniture[1]).toMatchObject({ room: 'r1', x: 1, y: 0 });
+    s.furniture.push({ kind: 'lamp', room: 'r2', x: x + 2, y });
+    expect(swapFurniture(s, 1, 3)).toBe(true);
+    expect(s.furniture[1]).toMatchObject({ room: 'r2', x: x + 2, y });
+    expect(s.furniture[3]).toMatchObject({ room: 'r1', x: 1, y: 0 });
+    expect(swapFurniture(s, 0, 1)).toBe(false); // a desk stays in its department's room
   });
 });
 
