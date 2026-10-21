@@ -336,7 +336,7 @@ function loadPlays(): PlayData[] {
 let hiring = false;
 let keyMenu: { title: string; keys: [string, string][] } | null = null; // a popup of keys: a page's every key ([/]) or the roster's actions ([enter])
 let keyMenuCursor = -1;
-let pageMenu: Page | null = null; // the [=] menu (a popup of every page), open: the page it was opened from
+let pageMenu: Page | null = null; // the [tab] menu (a popup of every page), open: the page it was opened from
 let pageMenuCursor = -1;
 /** The department popup (Justin, 2026-10-18): for a hire (from: the candidate on HR's list, if one), or to move monkey `monkey`. */
 let choosingPost: { kind: 'hire'; from?: number } | { kind: 'move'; monkey: number } | null = null;
@@ -1034,7 +1034,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  // The [=] menu (Justin, 2026-10-21: "a popup or dropdown menu button" instead of arrows between pages): pick a page by number, arrows and [enter], or a click.
+  // The [tab] menu (Justin, 2026-10-21: "a popup or dropdown menu button" instead of arrows between pages; "tab opens the menu"): pick a page by number, arrows and [enter], or a click.
   if (pageMenu) {
     if (key.name === 'up' || key.name === 'down') {
       pageMenuCursor = (Math.max(0, pageMenuCursor) + (key.name === 'up' ? pages.length - 1 : 1)) % pages.length;
@@ -1045,7 +1045,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (pages[row]) goTo(pages[row]);
     return draw();
   }
-  if (!busy && str === '=') {
+  if (!busy && key.name === 'tab') {
     keyMenu = null;
     pageMenu = currentPage() ?? 'home';
     pageMenuCursor = pages.indexOf(pageMenu);
@@ -1307,7 +1307,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const listed = tabPlays(contentsTab);
     const size = contents === 'plays' ? listed.length : (play?.scenes.length ?? 0);
     if (key.name === 'q') return quit();
-    if (key.name === 'tab' || (key.name === 'escape' && contents === 'plays')) {
+    if (str === 'c' || (key.name === 'escape' && contents === 'plays')) {
       contents = '';
     } else if (key.name === 'escape' || key.name === 'backspace' || key.name === 'left') {
       if (contents === 'scenes') {
@@ -1404,7 +1404,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         scriptCursor = to.index;
         findIndex = -1;
       }
-    } else if (key.name === 'tab') {
+    } else if (str === 'c') {
       contents = 'plays';
       contentsTab = isForeign(play?.genre) ? 'foreign' : 'plays';
       contentsCursor = Math.max(0, tabPlays(contentsTab).indexOf(play!));
@@ -1444,8 +1444,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
     if (key.name === 'escape' || key.name === 'q') {
       showingSlots = false;
-    } else if (key.name === 'tab') {
-      slotDept = (slotDept + 1) % Math.max(1, departmentGenres(state).length);
+    } else if (str && '<>,.'.includes(str)) {
+      const n = Math.max(1, departmentGenres(state).length);
+      slotDept = (slotDept + ('<,'.includes(str) ? n - 1 : 1)) % n;
       selectedSlot = departmentSlots(state, departmentGenres(state)[slotDept])[0] ?? -1;
     } else if (str === 'b') {
       if (buySlot(state, departmentGenres(state)[slotDept])) selectedSlot = state.slots.length - 1;
@@ -1618,9 +1619,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     else if (key.name === 'down') c.y = Math.min(b.maxY + 1, c.y + 1);
     else if (key.name === 'left') c.x = Math.max(b.minX - 1, c.x - 1);
     else if (key.name === 'right') c.x = Math.min(b.maxX + 1, c.x + 1);
-    else if (key.name === 'tab' && !officeGrowing) {
+    else if (str && '<>,.'.includes(str) && !officeGrowing) {
       const rooms = state.office;
-      const next = rooms[(rooms.indexOf(here!) + 1) % rooms.length];
+      const next = rooms[(rooms.indexOf(here!) + ('<,'.includes(str) ? rooms.length - 1 : 1)) % rooms.length];
       const [x, y] = [...next.cells].sort((p, q) => p[1] - q[1] || p[0] - q[0])[0];
       Object.assign(c, { x, y });
     } else if (str === 'r' && heldFurniture >= 0) {
@@ -1892,9 +1893,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
-  } else if (key.name === 'tab' && !shop && homeViews(state).length > 1) {
+  } else if (str && '<>,.'.includes(str) && !shop && homeViews(state).length > 1) {
+    // < and > (or , and .) step through the departments (Justin, 2026-10-21).
     const views = homeViews(state);
-    state.settings.homeDepartment = views[(views.indexOf(homeView(state)!) + 1) % views.length];
+    state.settings.homeDepartment = views[(views.indexOf(homeView(state)!) + ('<,'.includes(str) ? views.length - 1 : 1)) % views.length];
     homeCursor = 0;
   } else if (shop && isShopKey(str, key)) {
     const next = shopKey(shop, str, key);

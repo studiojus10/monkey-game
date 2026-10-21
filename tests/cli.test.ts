@@ -154,7 +154,7 @@ describe('terminal screen', () => {
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
       '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
-        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[=] menu\x1b[22m   \x1b[1m[?] flip\x1b[22m',
+        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[tab] menu\x1b[22m   \x1b[1m[?] flip\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
     expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
@@ -222,7 +222,6 @@ describe('terminal screen', () => {
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[up/down] choose   [enter] buy   [[/]] store   [esc] back   [/] all keys');
-    expect(open).not.toContain('[tab]');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
     expect(open).toContain('\n Typewriters   Staff   Hats   Workroom   Breakroom   Manager \n'); // furniture is sold on the office map, scenes on the script page
     expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[7m \[1\] Faster typing/); // the cursor's item
@@ -592,14 +591,14 @@ describe('office space on screen', () => {
     expect(plain(first)).toContain('\n [1] Comedies  [2] Tragedies \n');
     expect(first).toContain('Clown');
     expect(first).not.toContain('Mourner');
-    expect(plain(first)).toContain('[tab] next department');
+    expect(plain(first)).toContain('[<>] department');
     s.settings.homeDepartment = 'tragedy';
     const second = renderScreen(s);
     expect(second).toContain(bold(inverse(' [2] Tragedies ')));
     expect(second).toContain('Mourner');
     expect(second).not.toContain('Clown');
     s.departments = ['comedy'];
-    expect(plain(renderScreen(s))).not.toContain('[tab]'); // one department: no heading, no key
+    expect(plain(renderScreen(s))).not.toContain('[<>]'); // one department: no heading, no key
     // Managers first, then by seniority.
     s.monkeys.push({ ...createMonkey(), department: 'comedy', name: 'Junior', number: 3 }, { ...createMonkey(), department: 'comedy', name: 'Boss', number: 4, manager: true });
     s.monkeys[0].number = 1;
@@ -1254,9 +1253,9 @@ describe('monkey table columns', () => {
 });
 
 describe('page menu and tabs', () => {
-  it('puts a [=] menu button on every title bar', () => {
-    expect(plain(titleBar(started(), 'Shop', 120))).toContain('[=] menu   [?] flip');
-    expect(plain(titleBar(started(), 'Shop', 70))).toContain('[=]');
+  it('puts a [tab] menu button on every title bar', () => {
+    expect(plain(titleBar(started(), 'Shop', 120))).toContain('[tab] menu   [?] flip');
+    expect(plain(titleBar(started(), 'Shop', 70))).toContain('[tab]');
   });
 
   it('shows tabs only on pages that have them, the open one lit, each clickable', () => {
@@ -1265,7 +1264,7 @@ describe('page menu and tabs', () => {
     expect(plain(records[0])).toContain('[Statistics] [Achievements] [Dictionary]');
     expect(records[0]).toContain(bold(inverse('[Achievements]')));
     expect(labelPress('Inventory')).toEqual({ str: undefined, name: 'page:inventory' });
-    expect(labelPress('=')).toEqual({ str: '=', name: undefined });
+    expect(labelPress('tab')).toEqual({ str: '\t', name: 'tab' });
   });
 });
 

@@ -308,7 +308,7 @@ function energyText(m: MonkeyState): string {
   return p > energyColors.green ? green(text) : p > energyColors.yellow ? yellow(text) : red(text);
 }
 
-/** The departments [tab] goes through on the home screen: only the typing departments. */
+/** The departments < and > go through on the home screen: only the typing departments. */
 export function homeViews(state: GameState): string[] {
   return departmentGenres(state); // only typing departments (Justin, 2026-10-18)
 }
@@ -322,7 +322,7 @@ export function staffViews(state: GameState): string[] {
   ];
 }
 
-/** The department whose monkeys the home screen shows: the one chosen with [tab] or its number, else the first. */
+/** The department whose monkeys the home screen shows: the one chosen with < > or its number, else the first. */
 export function homeView(state: GameState): string | undefined {
   const views = homeViews(state);
   return views.find((g) => g === state.settings.homeDepartment) ?? views[0];
@@ -509,7 +509,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
 function homeKeys(state: GameState, columns: number): string[] {
   return [
     keyRow([
-      ...(homeViews(state).length > 1 ? [['tab', 'next department'] as [string, string]] : []),
+      ...(homeViews(state).length > 1 ? [['<>', 'department'] as [string, string]] : []),
       ['up/down', 'choose a monkey'],
       ['enter', 'details'],
       ['h', theme.pokeAction],
@@ -527,11 +527,11 @@ export function renderHomeKeys(state: GameState): string {
     titleBar(state, 'Keys'),
     '',
     ...group('GO TO', [
-      ['=', 'the menu of every page, from any screen (or click [=] menu in the title bar); [ and ] switch a page\'s tabs'],
+      ['tab', 'the menu of every page, from any screen (or click [tab] menu in the title bar); [ and ] switch a page\'s tabs'],
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats and trait (the Monkeys page)'],
       ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters (a Monkeys tab)'],
-      ['p', 'the script: plays, pins and scenes to buy (the Texts page, once you have foreign texts or codes: [tab] for its contents, [/] for its tabs)'],
+      ['p', 'the script: plays, pins and scenes to buy (the Texts page, once you have foreign texts or codes: [c] for its contents, [/] for its tabs)'],
       ['o', 'the office map, from any screen'],
       ['backspace', 'back home, from any screen'],
       ['t', 'statistics (the Records page)'],
@@ -540,7 +540,7 @@ export function renderHomeKeys(state: GameState): string {
       ['c', 'options'],
     ]),
     ...group('MONKEYS', [
-      ...(homeViews(state).length > 1 ? [['1-9', "show that department's monkeys (the tabs above the table)"] as [string, string], ['tab', "show the next department's monkeys"] as [string, string]] : []),
+      ...(homeViews(state).length > 1 ? [['1-9', "show that department's monkeys (the tabs above the table)"] as [string, string], ['<>', "show the department before or after (, and . too)"] as [string, string]] : []),
       ['up/down', 'choose a monkey (its name is highlighted)'],
       ['enter', "the chosen monkey's details"],
       ['h', theme.pokeAction],
@@ -562,7 +562,7 @@ export function renderHomeKeys(state: GameState): string {
 }
 
 /**
- * The pages the [=] menu goes to (Justin, 2026-10-21: the menus were "a mess
+ * The pages the [tab] menu goes to (Justin, 2026-10-21: the menus were "a mess
  * and difficult to navigate"; then "a popup or dropdown menu button" instead
  * of a bar and arrows). Monkeys and Records each hold a few screens as tabs.
  */
@@ -573,7 +573,7 @@ export type Tab = 'roster' | 'inventory' | 'statistics' | 'achievements' | 'dict
 export const pageTabs: Partial<Record<Page, Tab[]>> = { monkeys: ['roster', 'inventory'], records: ['statistics', 'achievements', 'dictionary'] };
 const tabNames: Record<Tab, string> = { roster: 'Roster', inventory: 'Inventory', statistics: 'Statistics', achievements: 'Achievements', dictionary: 'Dictionary' };
 
-/** The tabs of a page that has them (Monkeys, Records), the open one lit, each clickable; none for other pages. Every page is in the [=] menu. */
+/** The tabs of a page that has them (Monkeys, Records), the open one lit, each clickable; none for other pages. Every page is in the [tab] menu. */
 export function pageTabsRow(page: Page, tab?: Tab): string[] {
   const tabs = pageTabs[page];
   if (!tabs) return [];
@@ -590,7 +590,7 @@ export const scriptKeys: [string, string][] = [
   ['u', 'unpin all yours'],
   ['w', 'buy the whole text'],
   ['space', 'shop'],
-  ['tab', 'contents'],
+  ['c', 'contents'],
   ['[/]', 'pinned lines'],
   [',/.', 'scenes you own'],
   ['f', 'shortest line in reach'],
@@ -678,7 +678,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
   const lines = [
     titleBar(state, '', columns),
     '',
-    // With several departments, one at a time, picked on a row of tabs (Justin, 2026-10-18): [1]-[9] or [tab].
+    // With several departments, one at a time, picked on a row of tabs (Justin, 2026-10-18): [1]-[9] or < >.
     ...(views.length > 1 && view ? [...departmentTabs(state, views, view, columns), ''] : []),
     monkeyHeadings(state),
     ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room, i === chosen)),
@@ -1309,7 +1309,7 @@ export function renderSlotsMenu(
             ['w', 'set word'],
             ['enter', 'on/off'],
             ['left/right', 'move position'],
-            ...(many ? [['tab', 'next department'] as [string, string]] : []),
+            ...(many ? [['<>', 'department'] as [string, string]] : []),
             ['esc', 'back'],
           ],
           columns,
@@ -1593,7 +1593,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    shortKeyRow(scriptKeys, ['up/down', 'enter', 'space', 'tab', 'esc'], columns),
+    shortKeyRow(scriptKeys, ['up/down', 'enter', 'space', 'c', 'esc'], columns),
     ]),
   ].join('\n');
 }
@@ -1680,7 +1680,7 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
     '',
     rule(columns),
     play
-      ? keyRow([['up/down', 'choose'], ['enter', play.genre === 'greek' ? 'go to this chapter' : play.genre === 'latin' ? 'go to this section' : 'go to this scene'], ['esc', tab === 'foreign' ? 'all texts' : 'all plays'], ['tab', 'close']], columns)
+      ? keyRow([['up/down', 'choose'], ['enter', play.genre === 'greek' ? 'go to this chapter' : play.genre === 'latin' ? 'go to this section' : 'go to this scene'], ['esc', tab === 'foreign' ? 'all texts' : 'all plays'], ['c', 'close']], columns)
       : keyRow([['up/down', 'choose'], ['enter', tab === 'foreign' ? "this text's books and chapters" : "this play's acts and scenes"], ...(tabs.length > 1 ? [['[/]', 'tab'] as [string, string]] : []), ['esc', 'back']], columns),
   ].join('\n');
 }

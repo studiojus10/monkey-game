@@ -276,7 +276,7 @@ export function renderOffice(
     : held >= 0
       ? (() => {
           const [w, h] = pieceSize(state.furniture[held].kind, state.furniture[held].turned);
-          return [[['arrows', 'move'], ['tab', 'next room'], ['space', 'put it down'], ...(w * h > 1 ? [['r', 'turn'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'cancel']]];
+          return [[['arrows', 'move'], ['<>', 'room'], ['space', 'put it down'], ...(w * h > 1 ? [['r', 'turn'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'cancel']]];
         })()
       : heldDoor
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
@@ -311,7 +311,7 @@ export function renderOffice(
 /** Every key of the office map (when nothing is in hand); its key row shows the main ones, and [/] opens the help page, which lists them all. */
 export function officeKeys(state: GameState): [string, string][] {
   return [
-    ['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['l', 'legend'], ['f', 'furniture'], ['p', 'put out'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow'],
+    ['arrows', 'move'], ['<>', 'room'], ['space', 'pick up'], ['l', 'legend'], ['f', 'furniture'], ['p', 'put out'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow'],
     ['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'],
     ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []),
     ['esc', 'back'],
