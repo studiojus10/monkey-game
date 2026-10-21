@@ -147,6 +147,31 @@ export function placeScreen(screen: string, rows: number, atTop: boolean): strin
   return '\n'.repeat(rows - lines) + screen;
 }
 
+/**
+ * A screen as tall as the terminal allows, whatever is showing (Justin,
+ * 2026-10-21: "the top line does not move up and down when changing
+ * menus"): blank lines go in above its keys (the last rule), so the title
+ * stays on top and the keys (or a popup over the bottom) at the bottom. The tallest screens fill the
+ * terminal anyway (lists fit themselves to it); one line is kept for the
+ * terminal's cursor.
+ */
+export function fillHeight(screen: string, rows: number): string {
+  const lines = screen.split('\n');
+  const missing = rows - 1 - lines.length;
+  if (rows <= 0 || missing <= 0) return screen;
+  // Above a popup over the bottom (coverBottom's border), else above the keys.
+  const border = lines.findIndex((l, i) => i > 0 && /^ ={20,}$/.test(plainText(l)));
+  let at = border > 0 ? border : lines.length;
+  for (let i = lines.length - 1; border < 0 && i > 0; i--) {
+    if (/^ -{20,}$/.test(plainText(lines[i]))) {
+      at = i;
+      break;
+    }
+  }
+  lines.splice(at, 0, ...Array<string>(missing).fill(''));
+  return lines.join('\n');
+}
+
 /** The terminal row (1-based) that placeScreen's first line lands on; below 1 when the top has scrolled away. */
 export function screenTop(screen: string, rows: number, atTop: boolean): number {
   const lines = screen.split('\n').length;

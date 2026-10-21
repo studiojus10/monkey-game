@@ -680,7 +680,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
   const shown = homeMonkeys(state);
   const view = homeView(state);
   const lines = [
-    titleBar(state, '', columns),
+    titleBar(state, 'Home', columns),
     '',
     // With several departments, one at a time, picked on a row of tabs (Justin, 2026-10-18): [1]-[9] or < >.
     ...(views.length > 1 && view ? [...departmentTabs(state, views, view, columns), ''] : []),

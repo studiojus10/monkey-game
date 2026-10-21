@@ -40,7 +40,7 @@ import {
   pageTabsRow,
   shopKeys,
 } from '../src/cli/screen';
-import { bold, coverBottom, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { bold, coverBottom, fillHeight, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
@@ -156,7 +156,7 @@ describe('terminal screen', () => {
     const tools = squash(renderScreen(s, '', 'typewriters'));
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
-      '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
+      '\x1b[1m\x1b[7m INFINITE MONKEYS > HOME \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
         '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[tab] menu\x1b[22m   \x1b[1m[?] flip\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
@@ -1309,5 +1309,13 @@ describe('picker popups', () => {
     expect(box[3]).toContain('[1] a room for Comedies');
     expect(box[4]).toContain('[b] a break room for furniture');
     expect(box.join('\n')).not.toContain('any other key');
+  });
+});
+
+describe('screen height', () => {
+  it('fills the terminal, padding above the keys or a popup over the bottom, so the top line stays put', () => {
+    expect(fillHeight(`T\n b\n ${'-'.repeat(30)}\n [q] quit`, 8).split('\n')).toEqual(['T', ' b', '', '', '', ` ${'-'.repeat(30)}`, ' [q] quit']);
+    expect(fillHeight(`T\n b\n ${'='.repeat(30)}\n shop\n ${'-'.repeat(30)}\n keys`, 9).split('\n')[4]).toBe(` ${'='.repeat(30)}`);
+    expect(fillHeight('a\nb\nc', 3)).toBe('a\nb\nc'); // tall enough already
   });
 });

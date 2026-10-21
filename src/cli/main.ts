@@ -179,7 +179,7 @@ import {
   type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { bold, dim, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
+import { bold, dim, fillHeight, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
@@ -859,8 +859,8 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   const popup = linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
-  const screen = popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   const rows = process.stdout.rows || 0;
+  const screen = fillHeight(popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav, rows);
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
   const lines = [...drawn.lines];
