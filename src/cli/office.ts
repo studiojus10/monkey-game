@@ -38,7 +38,7 @@ import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedB
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
-import { bold, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar } from './style';
+import { bold, coverBottom, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar } from './style';
 import { formatAmount, formatNumber, formatPrice } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -127,8 +127,8 @@ function growingRoom(state: GameState, cursor: Cell | null, growing: string | bo
  * square; `held` is the furniture being moved (an index into
  * state.furniture), or -1; `growing` shows (as +) where a room can grow;
  * `heldDoor` is the wall of the cursor's square where a door being moved
- * would go. `shop`, when given, is the map's furniture shop: it takes the
- * place of everything under the map.
+ * would go. `shop`, when given, is the map's furniture shop: a popup over
+ * the bottom of the map's screen.
  */
 export function renderOffice(
   state: GameState,
@@ -141,6 +141,7 @@ export function renderOffice(
   shop = '',
   legend: number | null = null,
 ): string {
+  if (shop) return coverBottom(renderOffice(state, '', cursor, held, growing, heldDoor, columns), shop, columns);
   const grow = growingRoom(state, cursor, growing);
   const options = grow ? expansionSquares(state, grow) : [];
   const b = officeBounds(state);
@@ -257,7 +258,6 @@ export function renderOffice(
   while (lines.length > 0 && lines[0] === '') lines.shift();
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 
-  if (shop) return [titleBar(state, 'Office', columns), '', ...lines, rule(columns), shop].join('\n');
   if (legend !== null) besideMap(lines, items.map((i) => i.text), legend, columns);
 
   const underCursor = cursor ? roomAt(state, cursor.x, cursor.y) : undefined;

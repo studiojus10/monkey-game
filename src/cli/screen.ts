@@ -104,7 +104,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { shortKeyRow, affordable, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
+import { shortKeyRow, affordable, coverBottom, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -363,7 +363,7 @@ export function homeChosen(state: GameState, cursor: number): number {
 /** What R&D is up to, in a line: the project under way with how far along and how long it has left. */
 export function researchStatus(state: GameState): string {
   const p = projectOf(state.researching);
-  if (!p) return projectsLeft(state).length > 0 ? 'No project under way: start one in the Research store.' : 'Every project is done.';
+  if (!p) return projectsLeft(state).length > 0 ? 'No project under way: start one on the Research page ([tab] menu).' : 'Every project is done.';
   const left = researchSecondsLeft(state);
   return `Researching ${p.name}: ${Math.floor(researchShare(state) * 100)}%, ${Number.isFinite(left) ? `${formatDuration(left)} left` : 'nobody working on it'}`;
 }
@@ -566,9 +566,13 @@ export function renderHomeKeys(state: GameState): string {
  * and difficult to navigate"; then "a popup or dropdown menu button" instead
  * of a bar and arrows). Monkeys and Records each hold a few screens as tabs.
  */
-export type Page = 'home' | 'shop' | 'monkeys' | 'office' | 'texts' | 'records' | 'options';
-export const pages: Page[] = ['home', 'shop', 'monkeys', 'office', 'texts', 'records', 'options'];
-export const pageNames: Record<Page, string> = { home: 'Home', shop: 'Shop', monkeys: 'Monkeys', office: 'Office', texts: 'Texts', records: 'Records', options: 'Options' };
+export type Page = 'home' | 'shop' | 'monkeys' | 'office' | 'research' | 'texts' | 'records' | 'options';
+export const pages: Page[] = ['home', 'shop', 'monkeys', 'office', 'research', 'texts', 'records', 'options'];
+export const pageNames: Record<Page, string> = { home: 'Home', shop: 'Shop', monkeys: 'Monkeys', office: 'Office', research: 'Research', texts: 'Texts', records: 'Records', options: 'Options' };
+/** The pages in the [tab] menu now: Research once the R&D lab is built (Justin, 2026-10-21). */
+export function pagesFor(state: GameState): Page[] {
+  return pages.filter((p) => p !== 'research' || !!labRoom(state));
+}
 export type Tab = 'roster' | 'inventory' | 'statistics' | 'achievements' | 'dictionary';
 export const pageTabs: Partial<Record<Page, Tab[]>> = { monkeys: ['roster', 'inventory'], records: ['statistics', 'achievements', 'dictionary'] };
 const tabNames: Record<Tab, string> = { roster: 'Roster', inventory: 'Inventory', statistics: 'Statistics', achievements: 'Achievements', dictionary: 'Dictionary' };
@@ -643,11 +647,9 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
     );
   }
 
-  if (shop) {
-    // The shop opens under the home screen when the screen is tall enough for both, else on its own.
-    const both = [...homeLines(state, '', columns, chosen), rule(columns), ...renderShop(state, shop, cursor, message, columns, true).split('\n')];
-    return rows > 0 && both.length <= rows ? both.join('\n') : renderShop(state, shop, cursor, message, columns);
-  }
+  // The shop is a popup over the bottom of the home screen; Research is a page of its own.
+  if (shop === 'research') return renderShop(state, shop, cursor, message, columns);
+  if (shop) return coverBottom(renderScreen(state, '', null, columns, -1, rows, chosen), renderShop(state, shop, cursor, message, columns, true), columns);
   return [...homeLines(state, message, columns, chosen), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
 
@@ -766,12 +768,12 @@ export function typingPickPrompt(state: GameState, what: 'skill' | 'typewriter')
   return `${what === 'skill' ? 'Faster typing' : 'Better typewriter'} for which monkey? ${rows.join('   ')}   (any other key: done)`;
 }
 
-/** The main shop's stores, shown as tabs; [ ] (or left and right) switch between them. */
-export const stores = ['typewriters', 'staff', 'hats', 'research'] as const;
+/** The main shop's stores, shown as tabs; [ ] (or left and right) switch between them. Furniture is sold on the office map, research on its own page. */
+export const stores = ['typewriters', 'staff', 'hats'] as const;
 /** The office map's own shop: furniture, by the kind of room it goes in. */
 export const officeStores = ['department', 'break', 'office'] as const;
 /** The script page's own shop: the scene, act and play under the cursor. */
-export type Store = (typeof stores)[number] | (typeof officeStores)[number] | 'script';
+export type Store = (typeof stores)[number] | (typeof officeStores)[number] | 'script' | 'research';
 
 /** Where the script page's cursor is, for the Script store. */
 export interface ScriptSpot {
@@ -779,12 +781,11 @@ export interface ScriptSpot {
   line: number;
 }
 
-/** The stores you can open now beside `store`: the office map's furniture stores, the script page's, or the main shop's (Research only once the R&D lab is built). */
-/** The stores a shop can switch between: the main shop sells furniture too; on the office map only furniture. */
-export function openStores(state: GameState, store: Store = 'typewriters', onMap = false): Store[] {
-  if (store === 'script') return ['script'];
+/** The stores a shop can switch between: the main shop's, the office map's furniture stores, or just the script's or Research's. */
+export function openStores(_state: GameState, store: Store = 'typewriters', onMap = false): Store[] {
+  if (store === 'script' || store === 'research') return [store];
   if (onMap) return [...officeStores];
-  return [...stores.filter((x) => x !== 'research'), ...officeStores, ...(labRoom(state) ? ['research' as const] : [])];
+  return [...stores];
 }
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
@@ -1183,9 +1184,8 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
   list.splice(lastRow + 1, 0, ...shopMarks[1], ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []));
 
   return [
-    ...(under ? [] : [titleBar(state, 'Shop', columns), '']),
-    tabs.join(' '),
-    '',
+    ...(under ? [] : [titleBar(state, store === 'research' ? 'Research' : 'Shop', columns), '']),
+    ...(store === 'research' ? [] : [tabs.join(' '), '']),
     ...intro.map((x) => ` ${dim(x.text)}`),
     ...(intro.length > 0 ? [''] : []),
     ...(numbered.length > 0 ? [dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd())] : []),
@@ -1517,6 +1517,7 @@ export function wrapWords(text: string, width: number): string[] {
  * them, prices to buy the play (or a sonnet or a foreign text's section or book) under the cursor.
  */
 export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0, shop = ''): string {
+  if (shop) return coverBottom(renderScript(state, playId, cursor, '', columns), shop, columns);
   const play = getPlay(playId);
   if (!play) return 'No plays loaded.';
   const done = state.completed[play.id] ?? [];
@@ -1582,7 +1583,6 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     ...scriptMarks[1],
     '',
     dim(` + written   @ pinned (${state.pinned.length}/${maxPinnedLines})   NEEDS: letters you don't own yet`),
-    ...(shop ? [rule(columns), shop] : [
     ...(locked
       ? [` Open a ${departmentName(state, departmentOf(play.genre))} department to buy these.`]
       : wrapVisible(
@@ -1594,7 +1594,6 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     '',
     rule(columns),
     shortKeyRow(scriptKeys, ['up/down', 'enter', 'space', 'c', 'esc'], columns),
-    ]),
   ].join('\n');
 }
 

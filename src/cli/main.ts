@@ -173,7 +173,7 @@ import {
   pageNames,
   scriptKeys,
   shopKeys,
-  pages,
+  pagesFor,
   pageTabs,
   type Page,
   type Tab,
@@ -649,7 +649,7 @@ function currentPage(): Page | null {
   if (showingScript) return 'texts';
   if (showingStats || showingDictionary || showingAchievements) return 'records';
   if (showingOptions) return 'options';
-  return shop ? 'shop' : 'home';
+  return shop === 'research' ? 'research' : shop ? 'shop' : 'home';
 }
 
 /** The open page's tab, on pages that have tabs. */
@@ -665,8 +665,8 @@ function currentTab(): Tab | undefined {
 /** Opens a page of the navigation bar, or one of its tabs. */
 function goTo(target: Page | Tab): void {
   goHome();
-  if (target === 'shop') {
-    shop = lastStore;
+  if (target === 'shop' || target === 'research') {
+    shop = target === 'research' ? 'research' : lastStore;
     shopCursor = 0;
   } else if (target === 'monkeys' || target === 'roster') showingRoster = true;
   else if (target === 'inventory') {
@@ -855,7 +855,7 @@ function draw() {
   // The navigation bar, right under the title bar, on every page.
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
-  const popup = pageMenu ? menuBox('Go to', pages.map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const screen = popup ? overlay(withNav, [...popup, ...(message ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
@@ -1036,6 +1036,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   // The [tab] menu (Justin, 2026-10-21: "a popup or dropdown menu button" instead of arrows between pages; "tab opens the menu"): pick a page by number, arrows and [enter], or a click.
   if (pageMenu) {
+    const pages = pagesFor(state);
     if (key.name === 'up' || key.name === 'down') {
       pageMenuCursor = (Math.max(0, pageMenuCursor) + (key.name === 'up' ? pages.length - 1 : 1)) % pages.length;
       return draw();
@@ -1048,7 +1049,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (!busy && key.name === 'tab') {
     keyMenu = null;
     pageMenu = currentPage() ?? 'home';
-    pageMenuCursor = pages.indexOf(pageMenu);
+    pageMenuCursor = pagesFor(state).indexOf(pageMenu);
     return draw();
   }
   // A popup of keys: arrows and [enter] pick a row, its key does it, any other key closes it and does its own thing.
@@ -1901,8 +1902,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (shop && isShopKey(str, key)) {
     const next = shopKey(shop, str, key);
     if (next !== shop) message = '';
-    if (next) shop = lastStore = next;
-    else shop = null;
+    shop = next;
+    if (next && next !== 'research') lastStore = next;
   } else if (key.name === 'up' || key.name === 'down') {
     const n = Math.min(maxMonkeyLines, homeMonkeys(state).length);
     if (n > 0) homeCursor = (Math.min(homeCursor, n - 1) + (key.name === 'up' ? n - 1 : 1)) % n;

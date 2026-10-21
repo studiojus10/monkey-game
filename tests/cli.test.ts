@@ -29,6 +29,7 @@ import {
   slotHighlight,
   stores,
   openStores,
+  pagesFor,
   storeChoices,
   storePages,
   storePageSize,
@@ -38,7 +39,7 @@ import {
   pageTabsRow,
   shopKeys,
 } from '../src/cli/screen';
-import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { bold, coverBottom, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
@@ -166,8 +167,9 @@ describe('terminal screen', () => {
     expect(plain(text)).toContain('Last word: I +1');
     expect(text).toContain(bold('hello')); // the newest message, under LATELY
     expect(plain(text)).toContain('[q] quit');
-    // The shop is its own screen, its items in columns with prices on the right.
-    expect(shop).toContain(' INFINITE MONKEYS > SHOP ');
+    // The shop is a popup over the bottom of the home screen, its items in columns with prices on the right.
+    expect(shop.split('\n')[0]).toContain(' INFINITE MONKEYS ');
+    expect(shop).toContain('\n ====');
     expect(shop).toContain(' hello'); // messages still show
     expect(shop).toContain('[1] Faster typing M-1: 0.50 -> 0.63/s, skill 0/10 * 10 Bananas\n');
     expect(tools).toContain('[2] Portable typewriter M-1: skill cap 10 -> 20 * 1,000 Bananas\n');
@@ -223,12 +225,12 @@ describe('terminal screen', () => {
     expect(open).toContain('Faster typing');
     expect(open).toContain('[up/down] choose   [enter] buy   [[/]] store   [esc] back   [/] all keys');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
-    expect(open).toContain('\n Typewriters   Staff   Hats   Workroom   Breakroom   Manager \n'); // furniture is sold on the office map, scenes on the script page
+    expect(open).toContain('\n Typewriters   Staff   Hats \n'); // furniture is sold on the office map, research on its own page, scenes on the script page
     expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[7m \[1\] Faster typing/); // the cursor's item
     expect(renderScreen(s, '', 'staff')).not.toContain(inverse(' [1]'));
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'hats'))).toContain('\n Typewriters*  Staff*  Hats   Workroom   Breakroom   Manager \n');
+    expect(plain(renderScreen(s, '', 'hats'))).toContain('\n Typewriters*  Staff*  Hats \n');
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -284,15 +286,18 @@ describe('terminal screen', () => {
   });
 });
 
-describe('the Research store', () => {
-  it('appears as the last tab once the R&D lab is built', () => {
+describe('the Research page', () => {
+  it('is in the [tab] menu once the R&D lab is built, a page of its own rather than a shop tab', () => {
     const s = started();
-    expect(openStores(s)).not.toContain('research');
+    expect(pagesFor(s)).not.toContain('research');
     s.monkeys.push(...Array.from({ length: 7 }, createMonkey));
     s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab')).toBe(true);
-    expect(openStores(s)[openStores(s).length - 1]).toBe('research');
-    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Manager\*?\s+Research/);
+    expect(pagesFor(s)).toEqual(['home', 'shop', 'monkeys', 'office', 'research', 'texts', 'records', 'options']);
+    expect(openStores(s)).not.toContain('research');
+    const page = plain(renderScreen(s, '', 'research'));
+    expect(page).toContain(' INFINITE MONKEYS > RESEARCH ');
+    expect(page).not.toContain('Typewriters'); // no store tabs
   });
 });
 
@@ -323,16 +328,14 @@ describe('the roster', () => {
   });
 });
 
-describe('shop under the home screen', () => {
-  it('opens under the home screen when the screen is tall enough, else on its own', () => {
+describe('shop popup', () => {
+  it('covers the bottom of the screen without moving what is above it', () => {
+    expect(plain(coverBottom('a\nb\nc\nd\ne', 'X\nY', 30))).toBe(`a\nb\n ${'='.repeat(28)}\nX\nY`);
+    expect(plain(coverBottom('a\nb', 'X\nY\nZ', 30)).split('\n')).toEqual(['a', ` ${'='.repeat(28)}`, 'X', 'Y', 'Z']); // too tall: just the title bar above it
     const s = started();
-    const tall = plain(renderScreen(s, '', 'staff', 80, 0, 60));
-    expect(tall).toContain('TYPING');
-    expect(tall).toContain('Hire a monkey');
-    expect(tall).not.toContain(' SHOP ');
-    const short = plain(renderScreen(s, '', 'staff', 80, 0, 15));
-    expect(short).not.toContain('TYPING');
-    expect(short).toContain(' SHOP ');
+    const shop = plain(renderScreen(s, '', 'staff', 80, 0, 60));
+    expect(shop.split('\n')[0]).toBe(plain(renderScreen(s, '', null, 80, 0, 60)).split('\n')[0]);
+    expect(shop).toContain('Hire a monkey');
   });
 });
 
@@ -688,10 +691,10 @@ describe('furniture', () => {
   it('sells furniture by the kind of room it goes in', () => {
     const s = started();
     s.sentences = 200;
-    const text = squash(renderScreen(s, '', 'department'));
-    expect(text).toContain(' Typewriters Staff* Hats Workroom* Breakroom Manager \n'); // furniture in the main shop
-    expect(openStores(s, 'break', true)).toEqual(['department', 'break', 'office']); // on the office map
-    expect(openStores(s, 'break')).toEqual(['typewriters', 'staff', 'hats', 'department', 'break', 'office']); // the main shop sells furniture too
+    const text = squash(renderShop(s, 'department', -1, '', 0, false, undefined, true));
+    expect(text).toContain(' Workroom* Breakroom Manager \n'); // furniture on the office map
+    expect(openStores(s, 'break', true)).toEqual(['department', 'break', 'office']);
+    expect(openStores(s, 'break')).toEqual(['typewriters', 'staff', 'hats']); // not in the main shop
     expect(text).toContain("Furniture for a department's own room: it helps the monkeys who work there.");
     expect(text).toContain(' ITEM EFFECT PRICE\n'); // no elements before the feng shui book
     expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 100 Sentences\n');
@@ -740,7 +743,7 @@ describe('furniture', () => {
     expect(shop).toContain(' Workroom   Breakroom   Manager \n'); // the office map's shop: furniture only
     expect(shop).toContain('Potted plant');
     expect(shop).not.toContain('[f] furniture'); // the shop takes the place of the room table and keys
-    expect(shop.split('\n').slice(0, 4).join('\n')).toContain('+'); // the map is still there
+    expect(shop.split('\n')[0]).toContain('OFFICE'); // a popup over the bottom of the map's screen
   });
 
   it('wraps an effect too long for the screen, keeping the price on its last row', () => {

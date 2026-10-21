@@ -182,6 +182,18 @@ export function shortKeyRow(keys: [string, string][], main: string[], columns = 
   return keyRow(shown.length < keys.length ? [...shown, ['/', more]] : shown, columns);
 }
 
+/**
+ * A popup over the bottom of a screen (Justin, 2026-10-21: the shop should
+ * "open like a popup and cover the bottom of the screen" instead of moving
+ * what's on it): the screen keeps its height and `panel`, under a border,
+ * takes its last lines. A panel taller than the screen keeps just the title bar above it.
+ */
+export function coverBottom(screen: string, panel: string, columns = 0): string {
+  const lines = screen.split('\n');
+  const box = [bold(' ' + '='.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90)))), ...panel.split('\n')];
+  return [...lines.slice(0, Math.max(1, lines.length - box.length)), ...box].join('\n');
+}
+
 /** A dim line across the screen, between a screen's content and its keys. */
 export function rule(columns = 0): string {
   return dim(' ' + '-'.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90))));
