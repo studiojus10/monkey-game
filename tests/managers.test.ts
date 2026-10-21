@@ -25,6 +25,9 @@ import {
 import { doorBetween, loungeOf } from '../src/game/layout';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState, createMonkey, type GameState } from '../src/game/state';
+import { sellEverything } from './unlocks';
+
+sellEverything();
 
 /** One comedy department with `typists` typing monkeys, each at its desk, and plenty of bananas. */
 function department(typists: number): GameState {
@@ -474,7 +477,7 @@ describe('old saves', () => {
 describe('temps', () => {
   it('come in HR lists with better stats, cost less, cannot be upgraded, and leave when their time is up', async () => {
     const L = await import('../src/game/logic');
-    const s = department(6);
+    const s = department(4);
     s.currency = s.sentences = 1e15;
     s.lines = 1e9;
     buyRoom(s, 'office', 'comedy');

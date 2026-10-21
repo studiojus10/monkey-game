@@ -74,6 +74,7 @@ import {
   managerLine,
   getPlay,
   departmentSlots,
+  fitsSlots,
 } from '../src/game/logic';
 import type { PlayData } from '../src/game/plays';
 import { createInitialState, type GameState } from '../src/game/state';
@@ -156,6 +157,12 @@ function shop(): void {
       if (g && openDepartment(s, g)) bought = true;
     }
     for (const g of roomlessDepartments(s)) if (s.sentences >= roomCost(s) && buyRoom(s, 'department', g)) bought = true;
+    // A manager for each department big enough, in an office next door, before more monkeys (it costs the same).
+    for (const g of departmentGenres(s)) {
+      if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;
+      if (!managerBlocker(s, g) && hireManager(s, g)) bought = true;
+    }
+    const savingForManager = departmentGenres(s).some((g) => !managerBlocker(s, g));
     // Monkeys, with floor space for them: each department has its own price, so the cheapest with room.
     {
       const rooms = departmentsWithRoom(s);
@@ -165,23 +172,18 @@ function shop(): void {
         const room = departmentRoom(s, want);
         if (room && s.sentences >= squareCost(s) && s.currency >= nextMonkeyCost(s, want)) expandRoom(s, room.id);
       }
-      if (g ? s.currency >= nextMonkeyCost(s, g) && buyMonkey(s, g) : s.currency >= nextMonkeyCost(s) && buyMonkey(s)) bought = true;
+      if (!savingForManager && (g ? s.currency >= nextMonkeyCost(s, g) && buyMonkey(s, g) : s.currency >= nextMonkeyCost(s) && buyMonkey(s))) bought = true;
     }
     while (s.unassignedMonkeys > 0 && assignMonkey(s, departmentsWithRoom(s)[0])) bought = true;
     // Combo cap with Sentences.
     if (s.sentences >= comboStartCost(s.comboStartLevel) && buyComboStart(s)) bought = true;
-    // The cheapest unowned play, if it costs under a quarter of the points in hand.
+    // The cheapest unowned play, if it costs under half the Lines in hand.
     const buyable = availablePlays()
       .filter((p) => departmentGenres(s).includes(p.genre))
       .map((p) => ({ p, price: sectionPrice(s, p) }))
       .filter((x) => x.price > 0)
       .sort((a, b) => a.price - b.price);
-    if (buyable[0] && s.currency >= buyable[0].price * 4 && buySection(s, buyable[0].p.id)) bought = true;
-    // A manager for each department big enough, in an office next door.
-    for (const g of departmentGenres(s)) {
-      if (managerBlocker(s, g) === 'office needed' && departmentTypists(s, g) >= managers.minDepartmentMonkeys && buyRoom(s, 'office', g)) bought = true;
-      if (!managerBlocker(s, g) && hireManager(s, g)) bought = true;
-    }
+    if (buyable[0] && s.lines >= buyable[0].price * 2 && buySection(s, buyable[0].p.id)) bought = true;
     // Manager upgrades with spare Sentences.
     for (const i of s.monkeys.flatMap((m, k) => (m.manager ? [k] : []))) {
       if (s.sentences >= managerUpgradeCost(s, s.monkeys[i]) * 2 && upgradeManager(s, i)) bought = true;
@@ -206,7 +208,9 @@ function shop(): void {
     if (managerOf(s, g)) continue;
     // Keep the line until it's written, as managers do.
     const kept = aims.get(g);
-    const target = kept && !(s.completed[kept.play] ?? []).includes(kept.index) ? kept : managerLine(s, g, rng);
+    const fresh = kept && !(s.completed[kept.play] ?? []).includes(kept.index) && fitsSlots(s, g, kept) ? kept : managerLine(s, g, rng);
+    // A line too long for the slots is dropped for one that fits, like managers do.
+    const target = kept && !(s.completed[kept.play] ?? []).includes(kept.index) && !fitsSlots(s, g, fresh) ? kept : fresh;
     if (target) aims.set(g, target);
     const words = target ? getPlay(target.play)!.lines[target.index].words : [];
     for (const i of departmentSlots(s, g)) {

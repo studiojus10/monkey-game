@@ -53,6 +53,8 @@ import {
   monkeyStats,
   coinFlip,
   sellBack,
+  type Hat,
+  type Unlock,
 } from './config';
 import { allGenres, buildPlay, departmentOf, genres, greekLetters, isForeign, playGenres, type Genre, type Play, type PlayData, type Scene } from './plays';
 import { createInitialState, createMonkey, monkeyNameFor, rectangle, type Candidate, type Furniture, type GameState, type Room, type MonkeyState, type SafeState, type TelegramState, type Pin, type Segment, type WordSlot } from './state';
@@ -278,36 +280,22 @@ export function chooseStarterPlay(state: GameState, play: string): boolean {
   return true;
 }
 
-/** Points price of one scene, before any discount. */
-export function scenePrice(sc: Scene): number {
-  return Math.ceil(scriptShop.pointsPerLetter * sc.letters);
+/** Lines for a whole text: linesPerLine for each line in it not owned yet (old saves may own some scenes). 0 if it's all owned. */
+export function sectionPrice(state: GameState, play: Play): number {
+  const unowned = play.scenes.filter((sc) => !ownsScene(state, play.id, sc)).reduce((n, sc) => n + sc.lines.length, 0);
+  return Math.ceil(unowned * scriptShop.linesPerLine);
 }
 
 /**
- * What it costs to buy a scene, an act (sceneKey omitted) or a whole play
- * (act omitted too): the unowned scenes' prices times the discount for that
- * size. Returns 0 if everything in it is owned already.
- */
-export function sectionPrice(state: GameState, play: Play, act?: number, sceneKey?: string): number {
-  const scenes = play.scenes.filter(
-    (sc) => (act === undefined || sc.act === act) && (sceneKey === undefined || sc.key === sceneKey),
-  );
-  const unowned = scenes.filter((sc) => !ownsScene(state, play.id, sc));
-  const discount =
-    sceneKey !== undefined ? 1 : act !== undefined ? scriptShop.actDiscount : scriptShop.playDiscount;
-  return Math.ceil(unowned.reduce((n, sc) => n + scenePrice(sc), 0) * discount);
-}
-
-/**
- * Buys a whole text with points: plays, the sonnets and foreign texts sell
+ * Buys a whole text with Lines: plays, the sonnets and foreign texts sell
  * only whole (Justin, 2026-10-19: "just have texts unlock in entirety").
  */
 export function buySection(state: GameState, playId: string): boolean {
   const play = plays.get(playId);
   if (!play || state.owned.length === 0 || !departmentGenres(state).includes(departmentOf(play.genre))) return false;
   const price = sectionPrice(state, play);
-  if (price === 0 || state.currency < price) return false;
-  state.currency -= price;
+  if (price === 0 || state.lines < price) return false;
+  state.lines -= price;
   // Drop the parts old saves bought, now covered.
   state.owned = state.owned.filter((k) => !k.startsWith(`${playId}:`));
   state.owned.push(playId);
@@ -559,6 +547,27 @@ export function storedHat(state: GameState, id: string): string | undefined {
   return state.stored.hats[id] ? id : Object.keys(state.stored.hats).find((key) => splitHatKey(key).id === id);
 }
 
+/** Whether the scenes, acts and texts an Unlock asks for are finished (no Unlock: always). */
+export function unlocked(state: GameState, u?: Unlock): boolean {
+  return !u || (state.scenesDone.length >= (u.scenes ?? 0) && state.actsDone.length >= (u.acts ?? 0) && state.playsDone.length >= (u.texts ?? 0));
+}
+
+/** What an Unlock still needs, as "finish 2 more scenes and 1 act", or '' when it's met. */
+export function unlockNeeds(state: GameState, u?: Unlock): string {
+  if (!u) return '';
+  const left = (need: number | undefined, have: number, word: string) => {
+    const n = (need ?? 0) - have;
+    return n > 0 ? `${n} ${word}${n === 1 ? '' : 's'}` : '';
+  };
+  const parts = [left(u.scenes, state.scenesDone.length, 'scene'), left(u.acts, state.actsDone.length, 'act'), left(u.texts, state.playsDone.length, 'whole text')].filter(Boolean);
+  return parts.length ? `finish ${parts.join(' and ')} more` : '';
+}
+
+/** Hats sold now: the rest unlock as scenes, acts and texts are finished. */
+export function hatsForSale(state: GameState): Hat[] {
+  return hats.filter((h) => unlocked(state, h.unlock));
+}
+
 /** Sentences for the next hat of a kind: each costs costGrowth times the last, counting every one owned. */
 export function hatCost(state: GameState, id: string): number {
   const h = hats.find((x) => x.id === id);
@@ -590,6 +599,7 @@ export function wearHat(state: GameState, index: number, id: string, key?: strin
   }
   const stored = key && state.stored.hats[key] ? key : undefined;
   if (key && !stored) return false;
+  if (!stored && !unlocked(state, hats.find((h) => h.id === id)?.unlock)) return false;
   const cost = stored ? 0 : hatCost(state, id);
   if (state.sentences < cost) return false;
   state.sentences -= cost;
@@ -1366,7 +1376,7 @@ export function furnitureCost(state: GameState, kind: string): number {
 export function buyFurniture(state: GameState, kind: string, roomKind?: Room['kind']): boolean {
   const cost = furnitureCost(state, kind);
   const spot = furnitureSpot(state, kind, roomKind);
-  if (!spot || state.sentences < cost) return false;
+  if (!spot || state.sentences < cost || !unlocked(state, furnitureKinds.find((k) => k.id === kind)?.unlock)) return false;
   state.sentences -= cost;
   state.furniture.push({ kind, ...spot });
   return true;
@@ -1867,7 +1877,7 @@ function typedLine(state: GameState, matches: Pin[], m: MonkeyState): void {
   if (fresh) {
     (state.completed[play.id] ??= []).push(fresh.index);
     state.lines += verse ? sonnetRewards.linesPerLine : 1;
-    points = line.points * line.words.length ** (verse ? 1 : 2) * pointsMultiplier(state, m) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
+    points = line.points * line.words.length ** (verse ? 1 : 2) * lineRewards.pointsScale * pointsMultiplier(state, m) * managerMultiplier(state, m) * (1 + wearing(m, 'points'));
     earn(state, points);
     state.stats.bestLinePoints = Math.max(state.stats.bestLinePoints, points);
   }
@@ -2080,6 +2090,12 @@ export function managerLine(state: GameState, department: Genre | undefined, rng
   return pool.length > 0 ? pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))].pin : null;
 }
 
+/** Whether a line has no more words than a department has word slots, so its slots can steer all of it. */
+export function fitsSlots(state: GameState, department: Genre | undefined, t: Pin | null): boolean {
+  const line = t && plays.get(t.play)?.lines[t.index];
+  return !!line && line.words.length <= departmentSlots(state, department).length;
+}
+
 /** Whether a manager's line still stands: owned, unwritten and within reach. */
 function lineStands(state: GameState, t: Pin): boolean {
   const play = plays.get(t.play);
@@ -2123,7 +2139,10 @@ export function manage(state: GameState, seconds = 0, rng: Rng = Math.random): v
     const boss = managerOf(state, genre);
     if (!boss) continue;
     const t = boss.target;
-    if (!t || !lineStands(state, t)) {
+    // A line longer than the slots can't be steered home, and writing lines is what pays for more
+    // slots: when it's time to change a slot, a manager swaps such a line for one that fits, if any.
+    const swap = !!t && boss.slotWait <= seconds && !fitsSlots(state, genre, t) && fitsSlots(state, genre, managerLine(state, genre, rng));
+    if (!t || !lineStands(state, t) || swap) {
       if (t) unpin(state, t);
       boss.target = managerLine(state, genre, rng);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
