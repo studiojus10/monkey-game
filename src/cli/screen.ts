@@ -528,15 +528,16 @@ export function renderHomeKeys(state: GameState): string {
     titleBar(state, 'Keys'),
     '',
     ...group('GO TO', [
+      ['< >', 'the page before or after, on the bar under the title (or click a page; [ and ] switch its tabs)'],
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
-      ['m', 'your monkeys: each one\'s job, typing, hats and trait'],
-      ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters'],
+      ['m', 'your monkeys: each one\'s job, typing, hats and trait (the Monkeys page)'],
+      ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters (a Monkeys tab)'],
       ['p', 'the script: plays, pins and scenes to buy (the Texts page, once you have foreign texts or codes: [tab] for its contents, [/] for its tabs)'],
       ['o', 'the office map, from any screen'],
       ['backspace', 'back home, from any screen'],
-      ['t', 'statistics'],
-      ['a', 'achievements'],
-      ['w', 'the dictionary of words your monkeys have spelled'],
+      ['t', 'statistics (the Records page)'],
+      ['a', 'achievements (a Records tab)'],
+      ['w', 'the dictionary of words your monkeys have spelled (a Records tab)'],
       ['c', 'options'],
     ]),
     ...group('MONKEYS', [
@@ -559,6 +560,28 @@ export function renderHomeKeys(state: GameState): string {
     rule(),
     keyRow([['esc', 'back']]),
   ].join('\n');
+}
+
+/**
+ * The pages the navigation bar under the title switches between (Justin,
+ * 2026-10-21: the menus were "a mess and difficult to navigate"). Monkeys and
+ * Records each hold a few screens as tabs.
+ */
+export type Page = 'home' | 'shop' | 'monkeys' | 'office' | 'texts' | 'records' | 'options';
+export const pages: Page[] = ['home', 'shop', 'monkeys', 'office', 'texts', 'records', 'options'];
+export const pageNames: Record<Page, string> = { home: 'Home', shop: 'Shop', monkeys: 'Monkeys', office: 'Office', texts: 'Texts', records: 'Records', options: 'Options' };
+export type Tab = 'roster' | 'inventory' | 'statistics' | 'achievements' | 'dictionary';
+export const pageTabs: Partial<Record<Page, Tab[]>> = { monkeys: ['roster', 'inventory'], records: ['statistics', 'achievements', 'dictionary'] };
+const tabNames: Record<Tab, string> = { roster: 'Roster', inventory: 'Inventory', statistics: 'Statistics', achievements: 'Achievements', dictionary: 'Dictionary' };
+
+/** The navigation bar: every page, the open one lit, [<] and [>] either side; under it the page's tabs, if it has any. Each name is clickable. */
+export function navBar(page: Page, tab?: Tab): string[] {
+  const item = (name: string, on: boolean) => (on ? bold(inverse(`[${name}]`)) : `[${name}]`);
+  const tabs = pageTabs[page];
+  return [
+    ` ${bold('[<]')} ${pages.map((p) => item(pageNames[p], p === page)).join(' ')} ${bold('[>]')}`,
+    ...(tabs ? [`     ${tabs.map((t) => item(tabNames[t], t === tab)).join(' ')}   ${dim('[ and ] switch tabs')}`] : []),
+  ];
 }
 
 /** Renders the whole game screen as plain text. */
@@ -739,17 +762,18 @@ export interface ScriptSpot {
 }
 
 /** The stores you can open now beside `store`: the office map's furniture stores, the script page's, or the main shop's (Research only once the R&D lab is built). */
-export function openStores(state: GameState, store: Store = 'typewriters'): Store[] {
+/** The stores a shop can switch between: the main shop sells furniture too; on the office map only furniture. */
+export function openStores(state: GameState, store: Store = 'typewriters', onMap = false): Store[] {
   if (store === 'script') return ['script'];
-  if ((officeStores as readonly Store[]).includes(store)) return [...officeStores];
-  return stores.filter((x) => x !== 'research' || !!labRoom(state));
+  if (onMap) return [...officeStores];
+  return [...stores.filter((x) => x !== 'research'), ...officeStores, ...(labRoom(state) ? ['research' as const] : [])];
 }
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
   staff: 'Staff',
   script: 'Script',
   research: 'Research',
-  department: 'Office',
+  department: 'Workroom',
   break: 'Breakroom',
   office: 'Manager',
   hats: 'Hats',
@@ -1082,12 +1106,12 @@ function costText(item: ShopItem, affordable = false): string {
  * over every page; its page is the one shown), drawn inverse, or -1 for none.
  * `under` leaves out the title bar, for the shop under another screen.
  */
-export function renderShop(state: GameState, store: Store, cursor = -1, message = '', columns = 0, under = false, at?: ScriptSpot): string {
+export function renderShop(state: GameState, store: Store, cursor = -1, message = '', columns = 0, under = false, at?: ScriptSpot, onMap = false): string {
   const items = storeItems(state, store, at);
   const numbered = items.filter((x) => x.id);
   const pages = storePages(state, store, at);
   const page = Math.min(pages - 1, Math.floor(Math.max(0, cursor) / storePageSize));
-  const tabs = openStores(state, store).map((x) => {
+  const tabs = openStores(state, store, onMap).map((x) => {
     const star = storeItems(state, x, at).some((i) => i.star) ? '*' : ' ';
     return x === store ? bold(inverse(` ${storeNames[x]}${star}`)) : dim(` ${storeNames[x]}`) + green(star);
   });
@@ -1153,7 +1177,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     '',
     rule(columns),
     keyRow(
-      [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']],
+      [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store, onMap).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']],
       columns,
     ),
   ].join('\n');

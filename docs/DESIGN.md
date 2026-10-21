@@ -360,6 +360,10 @@ Every list that scrolls (script, Texts contents, shop pages, roster, dictionary,
 
 Justin, 2026-10-20: furniture and hats should be "much more expensive and slow to unlock so they feel more meaningful and intentional", with fewer in the shops and new ones unlocking "like scenes and acts and texts being finished". Since v0.12.0 every piece and hat costs 10 times as much, and each has an `unlock` in config.ts: so many finished scenes, acts or whole texts. The plant, candle, armchair, bench and baseball cap sell from the start; finished scenes unlock the cheaper ones, acts the middle ones, and whole texts the TV, hammock, hot tub, thinking cap, crown and halo. A store lists only what's unlocked, with a note on how many more there are and what the next one needs. Pieces and hats already owned stay. The same day the early game was slowed to Justin's targets from the simulator: monkeys 1M Bananas x500 each (5 to a department), letters x3.4 each. Simulator (seed 1): 2nd monkey ~2h, 5th ~2.8 days, first scene ~3.3 days.
 
+## Navigation bar (v0.13.0)
+
+Justin, 2026-10-21: the menus were "a mess and difficult to navigate". Every page now has a bar under the title bar: `[<] [Home] [Shop] [Monkeys] [Office] [Texts] [Records] [Options] [>]`, the open page lit. `<` and `>` step through the pages, a click on a name opens it, and the letter keys still work. Pages with several screens show them as tabs under the bar, switched with `[` and `]` or a click: Monkeys (Roster, Inventory) and Records (Statistics, Achievements, Dictionary). The main shop sells furniture too (Workroom, Breakroom and Manager stores, after Hats; Research stays last); the office map's [f] shop still sells just furniture. Screens inside a page (books, pickers, help, questions) have no bar.
+
 ## Saves and offline progress
 
 The save gains: owned letters, the chosen play, which words are checked off, each monkey's current line, chain and pending letters, and upgrades. Offline progress simulates letters for the time away (capped, as now at 8 hours); if that's too many letters to simulate quickly, the rest is estimated from the recent points per letter and words-checked rate.

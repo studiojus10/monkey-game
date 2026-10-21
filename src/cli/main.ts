@@ -169,6 +169,11 @@ import {
   dyePick,
   hatPick,
   inspectItem,
+  navBar,
+  pages,
+  pageTabs,
+  type Page,
+  type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
 import { bold, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
@@ -598,9 +603,9 @@ function newRoomMessage(room: Room): string {
 
 /** The office map's furniture shop: under the map when the screen is tall enough for both, else on its own. */
 function officeShopScreen(columns: number): string {
-  const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true));
+  const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true, undefined, true));
   const rows = process.stdout.rows || 0;
-  return rows > 0 && both.split('\n').length > rows ? renderShop(state, officeShop!, shopCursor, message, columns) : both;
+  return rows > 0 && both.split('\n').length > rows ? renderShop(state, officeShop!, shopCursor, message, columns, false, undefined, true) : both;
 }
 
 /** Rows of a book the screen has room for. */
@@ -626,6 +631,51 @@ function goHome(): void {
   officeGrowing = '';
   offeredBook = -1;
   message = '';
+}
+
+/** The page open now, for the navigation bar, or null on a screen inside one (a book, a picker, help, a question). */
+function currentPage(): Page | null {
+  if (flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || pickerOpen()) return null;
+  if (namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire || showingHelp || showingDev || showingKeys || showingSlots) return null;
+  if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
+  if (showingInventory || showingRoster) return 'monkeys';
+  if (showingScript) return 'texts';
+  if (showingStats || showingDictionary || showingAchievements) return 'records';
+  if (showingOptions) return 'options';
+  return shop ? 'shop' : 'home';
+}
+
+/** The open page's tab, on pages that have tabs. */
+function currentTab(): Tab | undefined {
+  if (showingInventory) return 'inventory';
+  if (showingRoster) return 'roster';
+  if (showingStats) return 'statistics';
+  if (showingAchievements) return 'achievements';
+  if (showingDictionary) return 'dictionary';
+  return undefined;
+}
+
+/** Opens a page of the navigation bar, or one of its tabs. */
+function goTo(target: Page | Tab): void {
+  goHome();
+  if (target === 'shop') {
+    shop = lastStore;
+    shopCursor = 0;
+  } else if (target === 'monkeys' || target === 'roster') showingRoster = true;
+  else if (target === 'inventory') {
+    showingInventory = true;
+    invHeld = null;
+  } else if (target === 'office') openOffice();
+  else if (target === 'texts') openScript();
+  else if (target === 'records' || target === 'statistics') showingStats = true;
+  else if (target === 'achievements') showingAchievements = true;
+  else if (target === 'dictionary') {
+    showingDictionary = true;
+    dictionaryRow = 0;
+  } else if (target === 'options') {
+    showingOptions = true;
+    menuCursor = 0;
+  }
 }
 
 function openOffice(): void {
@@ -698,7 +748,7 @@ function shopKey(store: Store, str: string | undefined, key: { name?: string }):
   if (key.name === 'up' || key.name === 'down') {
     if (items.length > 0) shopCursor = (shopCursor + (key.name === 'up' ? items.length - 1 : 1)) % items.length;
   } else if (key.name === 'left' || key.name === 'right' || str === '[' || str === ']') {
-    const open = openStores(state, store);
+    const open = openStores(state, store, store === officeShop);
     const back = key.name === 'left' || str === '[';
     shopCursor = 0;
     return open[(open.indexOf(store) + (back ? open.length - 1 : 1)) % open.length];
@@ -741,6 +791,9 @@ function draw() {
   // Clear the screen and move the cursor home, then redraw.
   const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
+  const page = currentPage();
+  const nav = page ? navBar(page, currentTab()) : [];
+  const navHeight = nav.length;
   const under = flipping
     ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
     : readingTelegrams
@@ -791,10 +844,12 @@ function draw() {
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, shown, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, process.stdout.rows || 0, homeChosen(state, homeCursor));
+          : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, Math.max(0, (process.stdout.rows || 0) - navHeight), homeChosen(state, homeCursor));
+  // The navigation bar, right under the title bar, on every page.
+  const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
   const popup = choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
-  const screen = popup ? overlay(under, [...popup, ...(message ? ['', ` ${bold(message)}`] : [])], columns) : under;
+  const screen = popup ? overlay(withNav, [...popup, ...(message ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
@@ -969,6 +1024,23 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (!busy && ((str === 'o' && !onMap) || key.name === 'backspace')) {
     goHome();
     if (str === 'o') openOffice();
+    return draw();
+  }
+
+  // The navigation bar: [<] and [>] step through the pages, a click on one opens it, and [ and ] step through a page's tabs.
+  const page = busy ? null : currentPage();
+  if (key.name?.startsWith('page:')) {
+    if (page) goTo(key.name.slice('page:'.length) as Page | Tab);
+    return draw();
+  }
+  if (page && (str === '<' || str === '>')) {
+    goTo(pages[(pages.indexOf(page) + (str === '<' ? pages.length - 1 : 1)) % pages.length]);
+    return draw();
+  }
+  const tabs = page && pageTabs[page];
+  if (tabs && !invHeld && (str === '[' || str === ']')) {
+    const tab = currentTab()!;
+    goTo(tabs[(tabs.indexOf(tab) + (str === '[' ? tabs.length - 1 : 1)) % tabs.length]);
     return draw();
   }
 

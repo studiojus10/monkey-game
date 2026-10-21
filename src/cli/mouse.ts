@@ -40,6 +40,8 @@ export function parseMouse(input: string): { events: MouseEvent[]; rest: string 
   return { events, rest };
 }
 
+const navLabels = ['Home', 'Shop', 'Monkeys', 'Office', 'Texts', 'Records', 'Options', 'Roster', 'Inventory', 'Statistics', 'Achievements', 'Dictionary'];
+
 /** What a key label on screen presses: [3] -> 3, [esc] -> escape. Labels for several keys ([1-9], [up/down]) press nothing. */
 export function labelPress(label: string): Press | undefined {
   const named: Record<string, Press> = {
@@ -53,6 +55,8 @@ export function labelPress(label: string): Press | undefined {
     right: { str: undefined, name: 'right' },
   };
   if (named[label.toLowerCase()]) return named[label.toLowerCase()];
+  // The navigation bar's pages and tabs ([Home], [Records], [Statistics], ...) press a key of their own.
+  if (navLabels.includes(label)) return { str: undefined, name: `page:${label.toLowerCase()}` };
   if (label.length !== 1) return undefined;
   return { str: label, name: /[a-z0-9]/i.test(label) ? label.toLowerCase() : undefined };
 }

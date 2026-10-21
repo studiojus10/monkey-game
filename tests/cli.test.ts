@@ -35,8 +35,10 @@ import {
   renderShop,
   renderHomeKeys,
   speedText,
+  navBar,
 } from '../src/cli/screen';
 import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { labelPress } from '../src/cli/mouse';
 import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterOrder } from '../src/cli/roster';
 import { cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
@@ -220,12 +222,12 @@ describe('terminal screen', () => {
     expect(open).toContain('[up/down] choose   [enter] buy   [1-9] buy   [[/]] store   [i] inspect   [esc] back');
     expect(open).not.toContain('[tab]');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
-    expect(open).toContain('\n Typewriters   Staff   Hats \n'); // furniture is sold on the office map, scenes on the script page
+    expect(open).toContain('\n Typewriters   Staff   Hats   Workroom   Breakroom   Manager \n'); // furniture is sold on the office map, scenes on the script page
     expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[7m \[1\] Faster typing/); // the cursor's item
     expect(renderScreen(s, '', 'staff')).not.toContain(inverse(' [1]'));
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
-    expect(plain(renderScreen(s, '', 'hats'))).toContain('\n Typewriters*  Staff*  Hats \n');
+    expect(plain(renderScreen(s, '', 'hats'))).toContain('\n Typewriters*  Staff*  Hats   Workroom   Breakroom   Manager \n');
   });
 
   it('celebrates the last line a monkey wrote', () => {
@@ -289,7 +291,7 @@ describe('the Research store', () => {
     s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab')).toBe(true);
     expect(openStores(s)[openStores(s).length - 1]).toBe('research');
-    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Hats\*?\s+Research/);
+    expect(plain(renderScreen(s, '', 'staff'))).toMatch(/Manager\*?\s+Research/);
   });
 });
 
@@ -686,8 +688,9 @@ describe('furniture', () => {
     const s = started();
     s.sentences = 200;
     const text = squash(renderScreen(s, '', 'department'));
-    expect(text).toContain(' Office* Breakroom Manager \n'); // the office map's own shop
-    expect(openStores(s, 'break')).toEqual(['department', 'break', 'office']);
+    expect(text).toContain(' Typewriters Staff* Hats Workroom* Breakroom Manager \n'); // furniture in the main shop
+    expect(openStores(s, 'break', true)).toEqual(['department', 'break', 'office']); // on the office map
+    expect(openStores(s, 'break')).toEqual(['typewriters', 'staff', 'hats', 'department', 'break', 'office']); // the main shop sells furniture too
     expect(text).toContain("Furniture for a department's own room: it helps the monkeys who work there.");
     expect(text).toContain(' ITEM EFFECT PRICE\n'); // no elements before the feng shui book
     expect(text).toContain('[1] Potted plant P tire 3% slower, +1% pay * 100 Sentences\n');
@@ -732,8 +735,8 @@ describe('furniture', () => {
     const s = started();
     const map = plain(renderOffice(s));
     expect(map).toContain('[f] furniture');
-    const shop = plain(renderOffice(s, '', null, -1, false, null, 0, renderShop(s, 'break', 0, '', 0, true)));
-    expect(shop).toContain(' Office   Breakroom   Manager \n');
+    const shop = plain(renderOffice(s, '', null, -1, false, null, 0, renderShop(s, 'break', 0, '', 0, true, undefined, true)));
+    expect(shop).toContain(' Workroom   Breakroom   Manager \n'); // the office map's shop: furniture only
     expect(shop).toContain('Potted plant');
     expect(shop).not.toContain('[f] furniture'); // the shop takes the place of the room table and keys
     expect(shop.split('\n').slice(0, 4).join('\n')).toContain('+'); // the map is still there
@@ -1243,5 +1246,24 @@ describe('monkey table columns', () => {
     for (const n of [1.5, 99.9, 999.9, 1234, 12345, 123456, 1.2e7, 9.99e8, 1e15, 1e70]) expect(speedText(n).length).toBeLessThanOrEqual(8);
     expect(speedText(123456)).toBe('123.4K/s');
     expect(speedText(1.5)).toBe('1.50/s');
+  });
+});
+
+describe('navigation bar', () => {
+  it('lists every page with the open one lit, and the tabs of pages that have them', () => {
+    const [bar] = navBar('home');
+    expect(plain(bar)).toBe(' [<] [Home] [Shop] [Monkeys] [Office] [Texts] [Records] [Options] [>]');
+    expect(bar).toContain(bold(inverse('[Home]')));
+    const records = navBar('records', 'achievements');
+    expect(records).toHaveLength(2);
+    expect(plain(records[1])).toContain('[Statistics] [Achievements] [Dictionary]');
+    expect(records[1]).toContain(bold(inverse('[Achievements]')));
+    expect(navBar('shop')).toHaveLength(1);
+  });
+
+  it('turns a click on a page or tab into its own key', () => {
+    expect(labelPress('Records')).toEqual({ str: undefined, name: 'page:records' });
+    expect(labelPress('Inventory')).toEqual({ str: undefined, name: 'page:inventory' });
+    expect(labelPress('<')).toEqual({ str: '<', name: undefined });
   });
 });
