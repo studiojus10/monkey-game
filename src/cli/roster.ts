@@ -35,7 +35,7 @@ export const rosterKeys: [string, string][] = [['up/down', 'choose a monkey'], [
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
 export const rosterPageRows = 12;
 
-/** Every monkey by index, for the roster: department by department (as [tab] orders them), managers first, then in the order they were hired. */
+/** Every monkey by index, for the roster: department by department (as < > orders them), managers first, then in the order they were hired. */
 export function rosterOrder(state: GameState): number[] {
   const viewOf = (i: number) => {
     const m = state.monkeys[i];
@@ -43,7 +43,7 @@ export function rosterOrder(state: GameState): number[] {
   };
   const views = staffViews(state);
   const rank = (i: number) => {
-    // Departments in [tab] order, then HR, then Marketing.
+    // Departments in < > order, then HR, then Marketing.
     const k = views.indexOf(viewOf(i));
     return k >= 0 ? k : views.length + (viewOf(i) === marketing.id ? 1 : viewOf(i) === codebreaking.id ? 2 : viewOf(i) === records.id ? 3 : 0);
   };
