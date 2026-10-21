@@ -9,6 +9,7 @@
 import { theme, type FurnitureColor } from '../game/config';
 import type { GameState } from '../game/state';
 import { formatAmount } from '../format';
+import { flipChance } from '../game/logic';
 
 export const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 export const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
@@ -114,14 +115,17 @@ export function titleBar(state: GameState, screen = '', columns = 0): string {
   let totals = render();
   let name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
   // The coin flip, on every screen's title bar: a button the mouse can click any time ([?] works on every screen too).
-  let flip = '[?] flip';
+  // Justin, 2026-10-21: "coin flip", with its chance on the home screen.
+  let flip = screen === 'Home' ? `[?] coin flip ${(flipChance(state) * 100).toFixed(1)}%` : '[?] coin flip';
   // The menu button (Justin, 2026-10-21): [tab] opens the popup of every page, from any screen.
   let menu = '[tab] menu';
   let gap = 4; // spaces after the name
   const fits = () => name.length + gap + plainText(totals).length + (flip ? 3 + flip.length : 0) + (menu ? 3 + menu.length : 0) < columns;
-  if (columns > 0 && !fits()) flip = '[?]';
+  // Too wide: shorter labels first, keeping the coin flip's chance longest.
   if (columns > 0 && !fits()) menu = '[tab]';
   if (screen && columns > 0 && !fits()) name = ` ${screen.toUpperCase()} `;
+  if (columns > 0 && !fits()) flip = '[?] coin flip';
+  if (columns > 0 && !fits()) flip = '[?]';
   if (columns > 0 && !fits()) flip = ''; // too narrow: the button goes before the totals turn scientific
   if (!screen && columns > 0 && !fits()) name = ' MONKEYS ';
   const biggestFirst = amounts.map((_, i) => i).sort((a, b) => amounts[b][0] - amounts[a][0]);

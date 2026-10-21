@@ -157,7 +157,7 @@ describe('terminal screen', () => {
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
       '\x1b[1m\x1b[7m INFINITE MONKEYS > HOME \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
-        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[tab] menu\x1b[22m   \x1b[1m[?] flip\x1b[22m',
+        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[tab] menu\x1b[22m   \x1b[1m[?] coin flip 1.0%\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
     expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
@@ -1150,7 +1150,7 @@ describe('coin flip any time', () => {
   it('has a [?] button on every title bar while it fits, and its own screen', () => {
     const s = started();
     s.currency = 500;
-    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\?\] flip$/);
+    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\?\] coin flip$/);
     expect(plain(titleBar(s, 'Shop', 80)).length).toBeLessThan(80);
     s.currency = s.sentences = 1e9;
     expect(plain(titleBar(s, 'Typewriter keys', 80))).not.toContain('[?]'); // too tight: totals stay in full instead
@@ -1256,7 +1256,8 @@ describe('monkey table columns', () => {
 
 describe('page menu and tabs', () => {
   it('puts a [tab] menu button on every title bar', () => {
-    expect(plain(titleBar(started(), 'Shop', 120))).toContain('[tab] menu   [?] flip');
+    expect(plain(titleBar(started(), 'Shop', 120))).toContain('[tab] menu   [?] coin flip');
+    expect(plain(titleBar(started(), 'Home', 140))).toMatch(/\[\?\] coin flip \d+\.\d%$/); // its chance on the home screen
     expect(plain(titleBar(started(), 'Shop', 70))).toContain('[tab]');
   });
 
