@@ -1314,9 +1314,17 @@ describe('picker popups', () => {
 });
 
 describe('screen height', () => {
-  it('fills the terminal, padding above the keys or a popup over the bottom, so the top line stays put', () => {
-    expect(fillHeight(`T\n b\n ${'-'.repeat(30)}\n [q] quit`, 8).split('\n')).toEqual(['T', ' b', '', '', '', ` ${'-'.repeat(30)}`, ' [q] quit']);
-    expect(fillHeight(`T\n b\n ${'='.repeat(30)}\n shop\n ${'-'.repeat(30)}\n keys`, 9).split('\n')[4]).toBe(` ${'='.repeat(30)}`);
+  it('pads a screen to the game\'s height, above the keys or a popup over the bottom, so no line moves', () => {
+    expect(fillHeight(`T\n b\n ${'-'.repeat(30)}\n [q] quit`, 7).split('\n')).toEqual(['T', ' b', '', '', '', ` ${'-'.repeat(30)}`, ' [q] quit']);
+    expect(fillHeight(`T\n b\n ${'='.repeat(30)}\n shop\n ${'-'.repeat(30)}\n keys`, 8).split('\n')[4]).toBe(` ${'='.repeat(30)}`);
     expect(fillHeight('a\nb\nc', 3)).toBe('a\nb\nc'); // tall enough already
+  });
+});
+
+describe('shop height', () => {
+  it('is the same on every tab, so the top of the shop stays put', () => {
+    const s = started();
+    const heights = openStores(s).map((x) => renderShop(s, x, -1, '', 100, true).split('\n').length);
+    expect(new Set(heights).size).toBe(1);
   });
 });
