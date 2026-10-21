@@ -796,8 +796,8 @@ export function upgradeColumns(state: GameState, kind: UpgradeKind): { cols: { h
 
 /** The main shop's stores, shown as tabs; [ ] (or left and right) switch between them. Furniture is sold on the office map, research on its own page. */
 export const stores = ['typewriters', 'staff', 'hats'] as const;
-/** The office map's own shop: furniture, by the kind of room it goes in. */
-export const officeStores = ['department', 'break', 'office'] as const;
+/** The office map's own shop: one store of every piece of furniture (Justin, 2026-10-21: "combine the furniture store into one large store"). */
+export const officeStores = ['furniture'] as const;
 /** The script page's own shop: the scene, act and play under the cursor. */
 export type Store = (typeof stores)[number] | (typeof officeStores)[number] | 'script' | 'research';
 
@@ -818,9 +818,7 @@ export const storeNames: Record<Store, string> = {
   staff: 'Staff',
   script: 'Script',
   research: 'Research',
-  department: 'Workroom',
-  break: 'Breakroom',
-  office: 'Manager',
+  furniture: 'Furniture',
   hats: 'Hats',
 };
 
@@ -951,47 +949,29 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           : { text: `Word slots unlock when you own ${wordSlots.unlockLetters} letters.` },
       ];
     }
-    case 'department':
-    case 'break':
-    case 'office': {
-      const have = state.office.some((r) => r.kind === store);
+    case 'furniture': {
       // Cheapest first among what's for sale from the start, then each piece in the order it unlocked (the safe when it shows up), so new ones go last.
-      const forRoom = furnitureKinds.filter((k) => k.rooms.includes(store) && (k.id !== safe.id || officesWithoutSafe(state).length > 0)).sort((a, b) => unlockRank(a) - unlockRank(b) || a.cost - b.cost);
-      const kinds = inRevealOrder(state, forRoom.filter((k) => unlocked(state, k.unlock)), (k) => `furniture:${k.id}`);
-      const locked = lockedNote(state, forRoom);
-      const roomName = store === 'break' ? 'break room' : store === 'office' ? "manager's office" : "department's room";
+      const forSale = furnitureKinds.filter((k) => k.id !== safe.id || officesWithoutSafe(state).length > 0).sort((a, b) => unlockRank(a) - unlockRank(b) || a.cost - b.cost);
+      const kinds = inRevealOrder(state, forSale.filter((k) => unlocked(state, k.unlock)), (k) => `furniture:${k.id}`);
       return [
-        {
-          text:
-            store === 'department'
-              ? "Furniture for a department's own room: it helps the monkeys who work there."
-              : store === 'office'
-                ? "Furniture for a manager's office: it makes its manager quicker at changing slots."
-                : 'Furniture for break rooms: it helps each department whose nearest one it is.',
-        },
+        { text: 'Any piece can stand in any room. Its effects work only in the rooms it is made for; feng shui counts it everywhere.' },
         ...kinds.map((k): ShopItem => {
           const cost = furnitureCost(state, k.id);
           const owned = furnitureOwned(state, k.id);
-          const where = k.rooms.includes(store) ? store : k.rooms[0];
+          const office = k.rooms.includes('office') && k.happiness > 0 ? [`manager ${pct(k.happiness * managerOffice.speedPerHappiness)} quicker in its office`] : [];
           return {
-            id: `furniture:${k.id}@${where}`,
-            star: !!furnitureSpot(state, k.id, where) && state.sentences >= cost,
+            id: `furniture:${k.id}`,
+            star: !!furnitureSpot(state, k.id) && state.sentences >= cost,
             text: `${k.size ? `${k.name} (${k.size[0]}x${k.size[1]})` : k.name}${owned > 0 ? ` (${owned})` : ''}`,
             glyph: furnitureColor(k.color, k.glyph),
             // Elements mean nothing until the feng shui book explains them.
             ...(state.fengShuiBook ? { element: k.element } : {}),
-            effect: store === 'office' && k.happiness > 0 ? `manager ${pct(k.happiness * managerOffice.speedPerHappiness)} quicker` : furnitureEffect(k),
+            effect: k.id === safe.id ? `something inside, in a manager's office` : `${[furnitureEffect(k), ...office].filter(Boolean).join(', ')}; works in ${worksInText(k)}`,
             cost: [[cost, 'sentences']],
           };
         }),
-        ...locked,
-        {
-          text: !have
-            ? `You have no ${roomName} yet: buy one on the office map ([o], then [r]).`
-            : state.settings.autoPlaceFurniture
-              ? `New furniture places itself in a ${roomName} ([c] options).`
-              : 'New furniture opens the office map so you can place it.',
-        },
+        ...lockedNote(state, forSale),
+        { text: state.settings.autoPlaceFurniture ? 'New furniture places itself where it works ([c] options).' : 'New furniture opens the office map so you can place it.' },
       ];
     }
     case 'research': {
@@ -1213,7 +1193,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
 
   return [
     ...(under ? [] : [titleBar(state, store === 'research' ? 'Research' : 'Shop', columns), '']),
-    ...(store === 'research' ? [] : [tabs.join(' '), '']),
+    ...(store === 'research' || store === 'furniture' ? [] : [tabs.join(' '), '']),
     ...intro.map((x) => ` ${dim(x.text)}`),
     ...(intro.length > 0 ? [''] : []),
     ...(numbered.length > 0 ? [dim(row('', 'ITEM', '', elementWidth > 0 ? 'ELEMENT' : '', 'EFFECT', 'PRICE').trimEnd())] : []),
@@ -1625,6 +1605,12 @@ export function textsTabs(state: GameState): TextsTab[] {
   return ['plays', ...inRevealOrder(state, later, (t) => `tab:${t}`)];
 }
 
+/** The kinds of room a piece's effects work in, in words: "departments' rooms or break rooms". */
+export function worksInText(k: FurnitureKind): string {
+  const names = k.rooms.map((r) => ({ department: "departments' rooms", break: 'break rooms', office: "managers' offices" })[r as string] ?? `${r} rooms`);
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : names[0] ?? 'no room';
+}
+
 /** How far into the game a piece of furniture or hat unlocks, for listing new ones after older ones. */
 function unlockRank(x: { id: string; unlock?: Unlock }): number {
   if (x.id === safe.id) return Infinity;
@@ -1639,7 +1625,7 @@ function unlockRank(x: { id: string; unlock?: Unlock }): number {
  */
 export function revealKeys(state: GameState): string[] {
   const staff = storeItems(state, 'staff').filter((x) => x.id && ['manager', 'codefocus', 'telegram', 'classical'].includes(x.id));
-  const furniture = (['department', 'break', 'office'] as const).flatMap((r) => storeItems(state, r)).flatMap((x) => (x.id?.startsWith('furniture:') ? [`furniture:${x.id.slice(10).split('@')[0]}`] : []));
+  const furniture = storeItems(state, 'furniture').flatMap((x) => (x.id?.startsWith('furniture:') ? [x.id] : []));
   return [
     ...posts(state).map((p) => `post:${p.id}`),
     ...researchList(state).map((p) => `research:${p.id}`),

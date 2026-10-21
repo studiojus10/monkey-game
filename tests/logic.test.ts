@@ -14,6 +14,7 @@ import {
   addRoom,
   rotateFurniture,
   allowedIn,
+  worksIn,
   achievementValue,
   canPublishFolio,
   folioPagesNow,
@@ -1586,7 +1587,7 @@ describe('furniture', () => {
     expect(buyFurniture(s, plant.id)).toBe(true);
     expect(s.furniture[1]).toEqual({ kind: plant.id, room: 'r1', x: 1, y: 0 }); // next to the desk
     expect(furnitureCost(s, plant.id)).toBe(Math.ceil(plant.cost * plant.costGrowth));
-    expect(buyFurniture(s, 'tv')).toBe(false); // break rooms only
+    expect(allowedIn(s, 'tv', 'r1')).toBe(true); // any piece in any room (it works only in break rooms)
     expect(buyRoom(s, 'break')).toBe(true);
     expect(buyFurniture(s, plant.id)).toBe(true);
     expect(s.furniture[2].room).toBe('r1'); // decor goes where it works: a department's room
@@ -1594,9 +1595,8 @@ describe('furniture', () => {
     expect(s.furniture[3].room).toBe('r2');
     expect(buyFurniture(s, 'tv')).toBe(true);
     expect(s.furniture[4].room).toBe('r2');
-    expect(buyFurniture(s, 'clock', 'break')).toBe(false); // departments' rooms only
-    expect(allowedIn(s, 'tv', 'r1')).toBe(false);
-    expect(moveFurniture(s, 4, 'r1', 0, 1)).toBe(false);
+    expect(worksIn('clock', 'break')).toBe(false); // it can stand there, but works only in departments' rooms and offices
+    expect(allowedIn(s, 'desk', 'r2')).toBe(false); // desks stay where monkeys sit
     expect(buyFurniture(s, 'nonsense')).toBe(false);
   });
 
@@ -2221,10 +2221,10 @@ describe('manager speed', () => {
     expect(managerSpeed(s, boss)).toBe(1);
     expect(upgradeManager(s, 0)).toBe(true); // the one manager upgrade speeds it up too
     expect(managerSpeed(s, boss)).toBeCloseTo(1 + managers.speedPerLevel);
-    // A plant goes in the manager's office (the Manager store places it there); a couch can't.
+    // A plant in the manager's office makes it quicker; a television there does nothing for it.
     expect(buyFurniture(s, 'plant', 'office')).toBe(true);
     expect(s.office.find((r) => r.id === s.furniture.at(-1)!.room)!.kind).toBe('office');
-    expect(buyFurniture(s, 'couch', 'office')).toBe(false);
+    expect(buyFurniture(s, 'tv', 'office')).toBe(true);
     expect(managerSpeed(s, boss)).toBeCloseTo(1 + managers.speedPerLevel + 0.01 * managerOffice.speedPerHappiness);
     expect(slotDelay(s, boss)).toBeCloseTo(managers.secondsPerSlot / managerSpeed(s, boss));
   });

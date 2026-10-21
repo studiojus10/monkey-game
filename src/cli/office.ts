@@ -33,11 +33,12 @@ import {
   safeAt,
   lockOf,
   lockCombinations,
+  worksIn,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
-import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
+import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow, worksInText } from './screen';
 import { bold, coverBottom, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar } from './style';
 import { formatAmount, formatNumber, formatPrice } from '../format';
 
@@ -472,6 +473,7 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
       text: [
         ...(f.kind === managerDesk.id ? sits : []),
         k?.description ?? fengShui.nothing,
+        ...(k && (k.drain || k.rest || k.happiness) && room && !worksIn(k.id, room.kind) ? [`Here it only counts for feng shui: it works in ${worksInText(k)}.`] : []),
         ...(found ? [found] : []),
       ].join('  '),
       book: found || shelf.length > 0 ? spot : -1,
@@ -487,6 +489,8 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
 /** What inspecting a safe shows: how Codebreaking is getting on with it, or what it held. */
 export function safeText(state: GameState, index: number): string {
   const s = safeAt(state, index);
+  const room = state.office.find((r) => r.id === state.furniture[index]?.room);
+  if (room?.kind !== 'office') return safes.outside;
   if (!s) return safes.found;
   if (s.open) return `${safes.open} ${s.held}`;
   const at = codebreakingRoom(state)

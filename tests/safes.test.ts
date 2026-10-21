@@ -48,8 +48,8 @@ import { readFileSync } from 'node:fs';
 import { greekLetters } from '../src/game/plays';
 import { wordPoints } from '../src/game/words';
 
-/** What the Manager furniture store sells. */
-const sold = (s: GameState) => storeItems(s, 'office').map((x) => x.text).join('|');
+/** What the furniture store sells. */
+const sold = (s: GameState) => storeItems(s, 'furniture').map((x) => x.text).join('|');
 
 /** Comedy and tragedy departments, each with a manager's office and a safe bought for it, and plenty of bananas. */
 function offices(): GameState {

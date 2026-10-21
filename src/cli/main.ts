@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { PassThrough } from 'node:stream';
-import { achievements, research, hr, marketing, codebreaking, records, library, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
+import { achievements, safe, research, hr, marketing, codebreaking, records, library, departmentRules, desk, furnitureKinds, type RoomKind, hatColors, hats, maxMonkeyNameLength, maxPinnedLines, startingLetters, theme } from '../game/config';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isForeign, textToWords, type Genre, type PlayData } from '../game/plays';
@@ -293,7 +293,7 @@ let pickCursor = 0; // the chosen choice of a picker on the message line
 let homeCursor = 0; // the chosen monkey's row in the home screen's table
 let shopCursor = 0; // the chosen item in the open store, counted over all its pages
 let officeShop: Store | null = null; // the office map's furniture shop, when open
-let lastOfficeStore: Store = 'department';
+let lastOfficeStore: Store = 'furniture';
 let scriptShop = false; // the script page's shop, when open
 let giving: { kind: 'hat'; id: string } | { kind: 'dye'; color: string } | null = null; // the menu of monkeys to give a hat or dye to
 let showingInventory = false;
@@ -482,14 +482,12 @@ function buyItem(id: string): void {
       message = dyeColorPrompt();
     }
   } else if (id.startsWith('furniture:')) {
-    // furniture:<kind>@<room kind>: the store's section says which kind of room it goes in.
-    const [kind, where] = id.slice('furniture:'.length).split('@') as [string, RoomKind];
-    const rooms = where === 'break' ? 'break room' : where === 'office' ? "manager's office" : "department's room";
-    if (!state.office.some((r) => r.kind === where)) message = `You have no ${rooms}. Buy one on the office map ([o], then [r]).`;
-    else if (!furnitureSpot(state, kind, where))
-      message = `No room for it in a ${rooms}: it needs ${pieceSize(kind).join(' x ')} free squares in one. Make space or grow a room on the office map ([o]).`;
+    // It goes where it works first, else in any room it fits.
+    const kind = id.slice('furniture:'.length);
+    if (!furnitureSpot(state, kind))
+      message = `No room for it: it needs ${pieceSize(kind).join(' x ')} free squares in one room${kind === safe.id ? " (a manager's office without a safe)" : ''}. Make space or grow a room on the office map ([o]).`;
     else if (state.sentences < furnitureCost(state, kind)) message = 'Not enough Sentences.';
-    else if (buyFurniture(state, kind, where)) {
+    else if (buyFurniture(state, kind)) {
       const i = state.furniture.length - 1;
       if (state.settings.autoPlaceFurniture) message = `The ${furnitureName(state, i)} is in.${officeShop ? '' : ' Move it on the office map with [o].'}`;
       else {

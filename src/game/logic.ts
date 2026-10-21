@@ -659,8 +659,11 @@ export function enjoyedRooms(state: GameState, genre: Genre | undefined): Room[]
 
 /** Adds up one effect of the furniture a department enjoys. */
 function furnitureSum(state: GameState, genre: Genre | undefined, effect: 'drain' | 'rest' | 'happiness'): number {
-  const ids = new Set(enjoyedRooms(state, genre).map((r) => r.id));
-  return state.furniture.reduce((n, f) => n + (ids.has(f.room) ? (kindOf(f.kind)?.[effect] ?? 0) : 0), 0);
+  const rooms = new Map(enjoyedRooms(state, genre).map((r) => [r.id, r.kind]));
+  return state.furniture.reduce((n, f) => {
+    const kind = rooms.get(f.room);
+    return n + (kind && worksIn(f.kind, kind) ? (kindOf(f.kind)?.[effect] ?? 0) : 0);
+  }, 0);
 }
 
 /** How much slower a department's monkeys tire, from the decor in its room and its lounge (0.1 = 10%), times feng shui's space factor. */
@@ -1057,10 +1060,20 @@ export function footprint(f: Pick<Furniture, 'kind' | 'x' | 'y' | 'turned'>): [n
 
 const covers = (f: Furniture, x: number, y: number) => footprint(f).some(([px, py]) => px === x && py === y);
 
-/** Whether a kind of furniture may stand in a room: televisions only in break rooms, for example (see furnitureKinds' rooms). */
+/**
+ * Whether a kind of furniture may stand in a room: any piece in any room
+ * (Justin, 2026-10-21), its effects working only where worksIn says; desks
+ * stay where their monkeys sit.
+ */
 export function allowedIn(state: GameState, kind: string, roomId: string): boolean {
   const room = state.office.find((r) => r.id === roomId);
-  return !!room && !!kindOf(kind)?.rooms.includes(room.kind);
+  if (!room || !kindOf(kind)) return false;
+  return kind === desk.id || kind === managerDesk.id ? kindOf(kind)!.rooms.includes(room.kind) : true;
+}
+
+/** Whether a piece's effects work in a kind of room (furnitureKinds' rooms): decor where monkeys type, comforts in break rooms, and so on. Feng shui counts every piece wherever it stands. */
+export function worksIn(kind: string, roomKind: Room['kind']): boolean {
+  return !!kindOf(kind)?.rooms.includes(roomKind);
 }
 
 /** Whether a piece fits with its first square at x, y: a room it may stand in, every square in it and free (`ignore` is the piece being moved). */
@@ -1297,13 +1310,14 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
 
 /** Where a new piece goes: the first spot it fits in a room of the kind it suits, else in any room it may stand in (turned if only that fits). */
 export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room['kind']): Omit<Furniture, 'kind'> | null {
-  // Only rooms of roomKind when given; else rooms of the kind it suits first (decor in departments' rooms, comforts in break rooms).
+  // Only rooms of roomKind when given; else rooms where it works first (decor in departments' rooms, comforts in break rooms), in the order of its rooms, then any other.
   const suits = kindOf(kind)?.rooms ?? [];
-  const first: Room['kind'] = roomKind ?? (suits.length === 1 ? suits[0] : (kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
+  const preferred: Room['kind'] = suits.length === 1 ? suits[0] : (kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break';
+  const order = roomKind ? [roomKind] : [preferred, ...suits];
   const rooms =
     kind === safe.id
       ? officesWithoutSafe(state)
-      : [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
+      : [...new Set([...order.flatMap((k) => state.office.filter((r) => r.kind === k)), ...(roomKind ? [] : state.office)])];
   const [w, h] = pieceSize(kind);
   for (const room of rooms) {
     for (const [x, y] of bestSquares(state, room)) {
@@ -2105,7 +2119,7 @@ function lineStands(state: GameState, t: Pin): boolean {
 /** How much quicker than usual a manager changes slots: upgrades, its office's furniture and (with the book) its chi. */
 export function managerSpeed(state: GameState, m: MonkeyState): number {
   const office = officeOf(state, monkeyGenre(state, m));
-  const pieces = office ? state.furniture.filter((f) => f.room === office.id) : [];
+  const pieces = office ? state.furniture.filter((f) => f.room === office.id && worksIn(f.kind, 'office')) : [];
   const furniture = Math.min(managerOffice.maxFurnitureSpeed, pieces.reduce((n, f) => n + (kindOf(f.kind)?.happiness ?? 0) * managerOffice.speedPerHappiness, 0));
   const chi = office && state.fengShuiBook ? roomChi(state, office) * managerOffice.chiSpeed : 0;
   return 1 + managers.speedPerLevel * m.managerLevel + furniture + chi;
@@ -2503,6 +2517,7 @@ export function safeAt(state: GameState, index: number): SafeState | undefined {
 export function findSafe(state: GameState, index: number, rng: Rng = Math.random): boolean {
   if (state.furniture[index]?.kind !== safe.id || safeAt(state, index)) return false;
   const genre = officeGenre(state, index);
+  if (!genre) return false; // outside a manager's office a safe stands open and empty
   const level = Object.keys(state.safes).length;
   const lock = lockOf(level);
   let combo = '';
