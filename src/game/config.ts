@@ -69,8 +69,8 @@ export const letterGifts: string[] = ['first-hire', 'first-typewriter', 'pets-10
  * days to fill however many monkeys came before it.
  */
 export const monkeyShop = {
-  baseCost: 1_000_000, // scripts/simulate.ts (2026-10-20): 2nd monkey after about 2h, a full department (10) after about 3 days
-  costGrowth: 30, // 5 to a department since 2026-10-20, so each is a bigger step
+  baseCost: 1_000_000, // scripts/simulate.ts (2026-10-20): 2nd monkey after about 2h
+  costGrowth: 500, // 5 to a department since 2026-10-20: the 5th monkey after about 3 days (scripts/simulate.ts)
   departmentGrowth: 100,
 };
 
