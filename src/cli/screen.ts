@@ -616,7 +616,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       'Somewhere, infinite monkeys are trying to write Shakespeare.',
       ['Choose their first department. Each works on one genre; the others', 'open as you gather more monkeys.'],
       genres.map((g, i) => [String(i + 1), genreNames[g], availablePlays().filter((p) => p.genre === g).map((p) => p.title).join(', ')]),
-      [['up/down', 'choose'], ['enter', 'pick'], [genres.length === 1 ? '1' : `1-${genres.length}`, 'pick'], ['q', 'quit']],
+      [['up/down', 'choose'], ['enter', 'pick'], [genres.length === 1 ? '1' : `1-${genres.length}`, 'pick'], ['p', 'save profiles'], ['q', 'quit']],
       message,
       columns,
       cursor,
@@ -630,7 +630,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       state.owned.length === 0 ? 'Choose a free first play for your monkeys to work toward.' : `Choose a free first play for your new ${genreNames[starter]} department.`,
       ['Later you can buy more plays in the script.'],
       choices.map((play, i) => [String(i + 1), play.title, `${count(play.lines.length)} line${play.lines.length === 1 ? '' : 's'}`]),
-      [['up/down', 'choose'], ['enter', 'pick'], [choices.length === 1 ? '1' : `1-${choices.length}`, 'pick'], ['q', 'quit']],
+      [['up/down', 'choose'], ['enter', 'pick'], [choices.length === 1 ? '1' : `1-${choices.length}`, 'pick'], ['p', 'save profiles'], ['q', 'quit']],
       message,
       columns,
       cursor,
@@ -642,7 +642,7 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
       'Your monkey sits at a typewriter with no keys.',
       ['Pick its first letter. It has to be a word on its own.'],
       startingLetters.map((l) => [l.toLowerCase(), l, ''] as [string, string, string]),
-      [['up/down', 'choose'], ['enter', 'pick'], [startingLetters.map((l) => l.toLowerCase()).join('/'), 'pick'], ['q', 'quit']],
+      [['up/down', 'choose'], ['enter', 'pick'], [startingLetters.map((l) => l.toLowerCase()).join('/'), 'pick'], ['p', 'save profiles'], ['q', 'quit']],
       message,
       columns,
       cursor,
@@ -1228,7 +1228,7 @@ export function renderCoinFlip(state: GameState, asking: boolean, message: strin
   ].join('\n');
 }
 
-export function renderOptions(state: GameState, columns = 0, cursor = -1): string {
+export function renderOptions(state: GameState, columns = 0, cursor = -1, profile = ''): string {
   const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
   const option = (key: string, label: string, on: boolean, notes: string[]) => {
     const row = ` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`;
@@ -1248,9 +1248,44 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1): strin
       'On: click a [key] to press it, left click elsewhere = enter, right click = back,',
       'the wheel moves up and down. Off: your terminal can select text again.',
     ]),
+    ...(() => {
+      const row = ` ${bold('[6]')} ${'Save profiles'.padEnd(26)}${profile ? bold(profile) : ''}`;
+      return [isCursor(5, cursor) ? inverse(plainText(row)) : row, dim('     Up to 3 games side by side: switch, rename, copy or delete them.'), ''];
+    })(),
     dim(` ${theme.title} v${GAME_VERSION}`),
     rule(columns),
-    keyRow([['up/down', 'choose'], ['enter', 'switch'], ['1-5', 'switch'], ['esc', 'back']], columns),
+    keyRow([['up/down', 'choose'], ['enter', 'switch'], ['1-6', 'switch'], ['esc', 'back']], columns),
+  ].join('\n');
+}
+
+/** A profile on the save profiles screen (see cli/profiles.ts). */
+export interface ProfileRow {
+  name: string;
+  empty: boolean;
+  gameVersion: string;
+  bananas: number;
+  monkeys: number;
+  seconds: number;
+}
+
+/** The save profiles screen (Options [6]): each profile's name and game, the one being played marked, and > at the chosen one (`cursor`), which the keys act on. */
+export function renderProfiles(state: GameState, profiles: ProfileRow[], active: number, cursor = -1, message = '', columns = 0): string {
+  const rows = profiles.flatMap((p, i) => {
+    const what = p.empty
+      ? dim('empty: [enter] starts a new game here')
+      : `${formatAmount(p.bananas)} ${theme.currency}, ${p.monkeys} monkey${p.monkeys === 1 ? '' : 's'}, ${formatDuration(p.seconds)} played${p.gameVersion ? dim(` (v${p.gameVersion})`) : ''}`;
+    const row = `${i === cursor ? bold('>') : ' '}${bold(`[${i + 1}]`)} ${p.name.padEnd(21)}${padVisible(i === active ? green('playing') : '', 9)}${what}`;
+    return [isCursor(i, cursor) ? inverse(plainText(row)) : row, ''];
+  });
+  return [
+    titleBar(state, 'Save profiles', columns),
+    '',
+    dim(' Each profile is a game of its own. Switching saves the one you are playing first.'),
+    '',
+    ...rows,
+    ...(message ? [` ${bold(message)}`, ''] : []),
+    rule(columns),
+    keyRow([['up/down', 'choose'], ['enter', 'play'], ['n', 'rename'], ['c', 'copy'], ['d', 'delete'], ['esc', 'back']], columns),
   ].join('\n');
 }
 

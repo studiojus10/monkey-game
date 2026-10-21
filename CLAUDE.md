@@ -44,6 +44,7 @@ src/
     roster.ts      renderRoster() and rosterOrder(): the [m] list of monkeys by department, then hire order, with details of the chosen one
     stats.ts       renderStats(), renderDictionary() and renderAchievements(): the statistics page, the A-Z dictionary of spelled words, the achievements page
     fileStorage.ts SaveStorage backed by a JSON file (atomic write via temp file + rename)
+    profiles.ts    save profiles (Options [6], [p] on the opening screens): up to 3 games, save.json then save-2.json and save-3.json, names and the last played in save-profiles.json (readProfiles, profileInfo, renameProfile, copyProfile, deleteProfile); renderProfiles() in screen.ts draws them
 data/words.txt     ENABLE word list (public domain), one lowercase word per line
 data/lexicon.txt   parts of speech for the grammar check, "WORD TAGS", from the Moby Part-of-Speech list (public domain) via scripts/import-lexicon.ts
 data/plays/        plays as { id, title, genre, lines: [act, scene, speaker, text][] }, from the MIT Shakespeare; Greek and Latin texts (genre 'greek' or 'latin', books as acts, chapters or sections as scenes, plus english per line; all public-domain editions) from scripts/import-classical.ts

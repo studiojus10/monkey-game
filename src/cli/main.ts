@@ -127,6 +127,7 @@ import { GAME_VERSION } from '../version';
 import { createInitialState, type Door, type GameState, type Room, type Side } from '../game/state';
 import { formatMultiplier, formatNumber, setScientific, formatPrice } from '../format';
 import { fileStorage } from './fileStorage';
+import { copyProfile, deleteProfile, maxProfileName, profileInfo, profilePath, profileSlots, readProfiles, renameProfile, writeProfiles, type ProfileInfo } from './profiles';
 import {
   keyChoices,
   renderLetterPicker,
@@ -160,6 +161,7 @@ import {
   renderSlotsMenu,
   scriptPageSize,
   renderOptions,
+  renderProfiles,
   renderCoinFlip,
   renderTelegrams,
   tabPlays,
@@ -199,27 +201,20 @@ setWordList(loadWordList());
 setLexicon(readFileSync(fileURLToPath(new URL('../../data/lexicon.txt', import.meta.url)), 'utf8').split(/\r?\n/));
 setPlays(loadPlays());
 
-const savePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
-const storage = fileStorage(savePath);
+// Save profiles: the usual save is profile 1; save-2.json and save-3.json sit beside it.
+const basePath = resolve(process.env.IDLE_SAVE ?? 'save.json');
+const profiles = readProfiles(basePath);
+let savePath = profilePath(basePath, profiles.active);
+let storage = fileStorage(savePath);
+let state: GameState = createInitialState();
+let achievementsSeen = 0; // achievements unlocked by now; newer ones get a message
 
-// A save from another version of the game is copied aside before it's updated, so it's never lost.
-const savedRaw = storage.read();
-const saved = saveVersions(savedRaw);
-const fromVersion = saved && saved.gameVersion !== GAME_VERSION ? saved.gameVersion || 'an older version' : '';
-const backupPath = fromVersion ? savePath.replace(/(\.json)?$/, `-${saved!.gameVersion ? `v${saved!.gameVersion}` : 'old'}.json`) : '';
-if (backupPath && savedRaw && !existsSync(backupPath)) writeFileSync(backupPath, savedRaw);
-let state = deserialize(savedRaw);
-setScientific(state.settings.scientific);
 /** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
 function fitLines(): number {
   const columns = process.stdout.columns || 80;
   if (state.monkeys.length > 0) setLineWidth(lineRoom(state, columns));
   return columns;
 }
-
-fitLines();
-let achievementsSeen = state.achievements.length; // achievements unlocked by now; newer ones get a message
-setHour(new Date().getHours());
 
 /** The temps working now, by M-number, to tell when one leaves. */
 function tempsNow(): Map<number, string> {
@@ -232,17 +227,36 @@ function tempsGone(before: Map<number, string>): string {
   return gone.length === 0 ? '' : `${gone.join(', ')} finished ${gone.length === 1 ? 'its' : 'their'} temp job${gone.length === 1 ? '' : 's'} and left. The desk is free.`;
 }
 
-const tempsBefore = tempsNow();
-const offline = applyOfflineProgress(state, Date.now());
-let message = [
-  fromVersion
-    ? `Your save was updated from ${/^\d/.test(fromVersion) ? `v${fromVersion}` : fromVersion} to v${GAME_VERSION}${saved!.version > SAVE_VERSION ? ' (it came from a newer game; some things may not carry over)' : ''}. The old save is kept in ${backupPath}.`
-    : '',
-  offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '',
-  tempsGone(tempsBefore),
-]
-  .filter(Boolean)
-  .join(' ');
+/**
+ * Loads the game from `storage` (a new game if it's empty) and catches it up
+ * on the time away. Returns the message to show for it.
+ */
+function loadGame(): string {
+  // A save from another version of the game is copied aside before it's updated, so it's never lost.
+  const savedRaw = storage.read();
+  const saved = saveVersions(savedRaw);
+  const fromVersion = saved && saved.gameVersion !== GAME_VERSION ? saved.gameVersion || 'an older version' : '';
+  const backupPath = fromVersion ? savePath.replace(/(\.json)?$/, `-${saved!.gameVersion ? `v${saved!.gameVersion}` : 'old'}.json`) : '';
+  if (backupPath && savedRaw && !existsSync(backupPath)) writeFileSync(backupPath, savedRaw);
+  state = deserialize(savedRaw);
+  setScientific(state.settings.scientific);
+  fitLines();
+  achievementsSeen = state.achievements.length;
+  setHour(new Date().getHours());
+  const tempsBefore = tempsNow();
+  const offline = applyOfflineProgress(state, Date.now());
+  return [
+    fromVersion
+      ? `Your save was updated from ${/^\d/.test(fromVersion) ? `v${fromVersion}` : fromVersion} to v${GAME_VERSION}${saved!.version > SAVE_VERSION ? ' (it came from a newer game; some things may not carry over)' : ''}. The old save is kept in ${backupPath}.`
+      : '',
+    offline >= 1 ? `While you were away your monkeys earned ${formatNumber(offline)} ${theme.currency}.` : '',
+    tempsGone(tempsBefore),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+let message = loadGame();
 let confirmingReset = false;
 let confirmingFolio = false;
 let flipping: '' | 'ask' | 'done' = ''; // the coin flip screen ([?] from anywhere): asking, or showing how it went
@@ -272,6 +286,11 @@ let buyingRoom = false; // choosing what room to buy on the office map
 let placingRoom: { kind: RoomKind; genre?: Genre; at: [number, number] } | null = null; // a new room being put in place with the arrows
 let movingRoom: { id: string; dx: number; dy: number } | null = null; // a room picked up to move
 let showingOptions = false;
+let showingProfiles = false; // the save profiles screen, from Options [6]
+let profileList: ProfileInfo[] = []; // what each profile holds, read when the screen opens or changes
+let namingProfile = -1; // the profile being renamed, or -1
+let profileDraft = '';
+let deletingProfile = -1; // the profile asked about deleting, or -1
 let heldFurniture = -1; // index of the furniture being moved on the office map, or -1
 let heldTurned = false; // whether it was turned when picked up, for esc
 let heldDoor: { from: Door; side: Side } | null = null; // a door being moved on the office map
@@ -624,7 +643,8 @@ function bookHeight(): number {
 /** Closes every screen, menu and popup: back to the home screen. */
 function goHome(): void {
   showingScript = showingKeys = showingHelp = showingDev = showingStats = showingRoster = showingAchievements = false;
-  showingOffice = showingOptions = showingDictionary = showingSlots = showingInventory = showingLibrary = false;
+  showingOffice = showingOptions = showingDictionary = showingSlots = showingInventory = showingLibrary = showingProfiles = false;
+  namingProfile = deletingProfile = -1;
   readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = false;
   pickingDyeColor = pickingDepartment = buyingRoom = false;
   upgrading = null;
@@ -794,6 +814,7 @@ function tallestPage(columns: number): number {
     renderAchievements(state, 0, columns) + '\n',
     renderDictionary(state, 0, columns) + '\n',
     renderOptions(state, columns),
+    renderProfiles(state, profileList, profiles.active, -1, 'x', columns),
     ...(labRoom(state) ? [renderShop(state, 'research', -1, '', columns)] : []),
   ];
   return Math.max(...pages.map((p) => p.split('\n').length));
@@ -844,8 +865,10 @@ function draw() {
     ? renderCandidates(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor)
     : showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns, contentsTab)
+    : showingOptions && showingProfiles
+    ? renderProfiles(state, profileList, profiles.active, menuCursor, message, columns)
     : showingOptions
-    ? renderOptions(state, columns, menuCursor)
+    ? renderOptions(state, columns, menuCursor, profiles.names[profiles.active])
     : showingOffice && readingBook
     ? renderFengShuiBook(state)
     : showingOffice && readingManagerBook
@@ -994,6 +1017,40 @@ function quit() {
   process.exit(0);
 }
 
+/** Opens the save profiles screen (Options [6]), the chosen profile the one being played. */
+function openProfiles(): void {
+  save(state, storage);
+  refreshProfiles();
+  showingProfiles = true;
+  menuCursor = profiles.active;
+}
+
+/** Reads what each save profile holds again, after the files change. */
+function refreshProfiles(): void {
+  profileList = profileInfo(basePath, profiles);
+}
+
+function profileNamePrompt(): string {
+  return `Name profile ${namingProfile + 1}: ${profileDraft}_   (enter to save, esc to cancel)`;
+}
+
+/** Saves the game being played, then plays another profile: its save, or a new game if it's empty. */
+function switchProfile(slot: number): void {
+  save(state, storage);
+  profiles.active = slot;
+  writeProfiles(basePath, profiles);
+  savePath = profilePath(basePath, slot);
+  storage = fileStorage(savePath);
+  const fresh = profileList[slot]?.empty ?? true;
+  const loaded = loadGame();
+  goHome();
+  officeCursor = null;
+  heldFurniture = -1;
+  rosterCursor = scriptPlay = scriptCursor = libraryCursor = homeCursor = menuCursor = 0;
+  if (fresh) save(state, storage);
+  message = [fresh ? `A new game starts in ${profiles.names[slot]}.` : `Now playing ${profiles.names[slot]}.`, loaded].filter(Boolean).join(' ');
+}
+
 /** A prompt listing the departments with room, keys 1-4. */
 function deptPrompt(question: string): string {
   const choices = departmentsWithRoom(state).map(
@@ -1101,10 +1158,76 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  // The save profiles screen (Options [6]): naming a profile and confirming a delete take every key.
+  if (namingProfile >= 0) {
+    if (key.name === 'escape') {
+      namingProfile = -1;
+      message = 'Name unchanged.';
+    } else if (key.name === 'return' || key.name === 'enter') {
+      const i = namingProfile;
+      namingProfile = -1;
+      if (renameProfile(profiles, i, profileDraft)) {
+        writeProfiles(basePath, profiles);
+        refreshProfiles();
+        message = `Profile ${i + 1} is ${profiles.names[i]} now.`;
+      } else message = `Names can use letters, numbers, spaces and - ' ! ? . , (up to ${maxProfileName}).`;
+    } else {
+      if (key.name === 'backspace') profileDraft = profileDraft.slice(0, -1);
+      else if (str && /^[A-Za-z0-9 '!?.,-]$/.test(str) && profileDraft.length < maxProfileName) profileDraft += str;
+      message = profileNamePrompt();
+    }
+    return draw();
+  }
+  if (deletingProfile >= 0) {
+    const i = deletingProfile;
+    deletingProfile = -1;
+    if (key.name === 'y') {
+      const name = profiles.names[i];
+      deleteProfile(basePath, profiles, i);
+      writeProfiles(basePath, profiles);
+      refreshProfiles();
+      message = `Deleted ${name}.`;
+    } else message = 'Not deleted.';
+    return draw();
+  }
+  if (showingProfiles) {
+    const row = menuKey(key, profileSlots);
+    const chosen = Math.min(menuCursor, profileSlots - 1);
+    if (key.name === 'escape' || key.name === 'q') {
+      showingProfiles = false;
+      message = '';
+    } else if (str && /^[1-9]$/.test(str) && Number(str) <= profileSlots) {
+      menuCursor = Number(str) - 1;
+    } else if (row >= 0) {
+      if (row === profiles.active) message = `You're playing ${profiles.names[row]} now.`;
+      else switchProfile(row);
+    } else if (str === 'n') {
+      namingProfile = chosen;
+      profileDraft = profiles.names[chosen];
+      message = profileNamePrompt();
+    } else if (str === 'c') {
+      save(state, storage);
+      const to = copyProfile(basePath, profiles, chosen);
+      if (to >= 0) {
+        writeProfiles(basePath, profiles);
+        refreshProfiles();
+        message = `Copied ${profiles.names[chosen]} to profile ${to + 1}.`;
+      } else message = profileList[chosen]?.empty ? 'That profile is empty: nothing to copy.' : 'Every profile is in use: delete one to make room for a copy.';
+    } else if (str === 'd') {
+      if (chosen === profiles.active) message = "That's the game you're playing: switch to another profile to delete it.";
+      else if (profileList[chosen]?.empty) message = 'That profile is already empty.';
+      else {
+        deletingProfile = chosen;
+        message = `Delete ${profiles.names[chosen]} for good? Press y to confirm, any other key to cancel.`;
+      }
+    }
+    return draw();
+  }
+
   // [o] opens the office map and [backspace] goes home from any screen (Justin, 2026-10-18), except while typing,
   // confirming, or carrying something on the office map (esc puts it back first).
   const busy =
-    namingMonkey >= 0 || slotWordDraft !== null || confirmingReset || confirmingFire || !!pickingLetter || state.letters.length === 0 ||
+    namingMonkey >= 0 || namingProfile >= 0 || deletingProfile >= 0 || slotWordDraft !== null || confirmingReset || confirmingFire || !!pickingLetter || state.letters.length === 0 ||
     heldFurniture >= 0 || !!heldDoor || !!placingRoom || !!movingRoom;
   const onMap = showingOffice && !officeShop && !readingBook && !readingManagerBook && !officeHelp && !showingLibrary && !readingShelf && !picker;
   if (!busy && ((str === 'o' && !onMap) || key.name === 'backspace')) {
@@ -1555,9 +1678,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingOptions) {
-    const row = menuKey(key, 5);
+    const row = menuKey(key, 6);
     if (row >= 0) str = String(row + 1);
     if (key.name === 'escape' || key.name === 'q' || str === 'c') showingOptions = false;
+    else if (str === '6') openProfiles();
     else if (str === '1') state.settings.autoPlaceFurniture = !state.settings.autoPlaceFurniture;
     else if (str === '2') state.settings.lightBackground = !state.settings.lightBackground;
     else if (str === '3') setScientific((state.settings.scientific = !state.settings.scientific));
@@ -1975,6 +2099,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
   if (key.name === 'q') {
     return quit();
+  } else if (opening > 0 && str === 'p') {
+    // The opening screens reach the save profiles too, so a new game can switch back.
+    showingOptions = true;
+    openProfiles();
   } else if (state.owned.length === 0 && state.departments.length === 0) {
     const g = departmentChoices(state)[Number(str) - 1];
     if (g) openDepartment(state, g);
