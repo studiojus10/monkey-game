@@ -104,7 +104,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { affordable, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
+import { shortKeyRow, affordable, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -502,18 +502,17 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
   return rows.length === 0 ? [] : ['', dim(' LATELY'), ...rows.map((r) => `   ${r}`)];
 }
 
-/** The keys shown under the home screen: where to go, then what to do. Every key is on the [/] page. */
+/**
+ * The keys shown under the home screen: only the main ones (Justin,
+ * 2026-10-21), since the navigation bar goes everywhere; every key is on the [/] page.
+ */
 function homeKeys(state: GameState, columns: number): string[] {
   return [
-    keyRow([['space', 'shop'], ['m', 'monkeys'], ['i', 'inventory'], ['p', textsTabs(state).length > 1 ? 'texts' : 'script'], ['o', 'office'], ['t', 'stats'], ['a', 'achievements'], ['w', 'dictionary']], columns),
     keyRow([
       ...(homeViews(state).length > 1 ? [['tab', 'next department'] as [string, string]] : []),
       ['up/down', 'choose a monkey'],
       ['enter', 'details'],
       ['h', theme.pokeAction],
-      ['n', 'name'],
-      ['d', 'move'],
-      ['c', 'options'],
       ...(canPublishFolio(state) ? [['f', 'publish a Folio'] as [string, string]] : []),
       ['/', 'all keys'],
       ['q', 'quit'],
@@ -582,6 +581,27 @@ export function navBar(page: Page, tab?: Tab): string[] {
     ` ${bold('[<]')} ${pages.map((p) => item(pageNames[p], p === page)).join(' ')} ${bold('[>]')}`,
     ...(tabs ? [`     ${tabs.map((t) => item(tabNames[t], t === tab)).join(' ')}   ${dim('[ and ] switch tabs')}`] : []),
   ];
+}
+
+/** Every key of the script page; its key row shows the main ones, [/] the rest. */
+export const scriptKeys: [string, string][] = [
+  ['up/down', 'line'],
+  ['left/right', 'scene'],
+  ['pgup/pgdn', 'page'],
+  ['enter', 'pin'],
+  ['u', 'unpin all yours'],
+  ['w', 'buy the whole text'],
+  ['space', 'shop'],
+  ['tab', 'contents'],
+  ['[/]', 'pinned lines'],
+  [',/.', 'scenes you own'],
+  ['f', 'shortest line in reach'],
+  ['esc', 'back'],
+];
+
+/** Every key of a shop; its key row shows the main ones, [/] the rest. */
+export function shopKeys(state: GameState, store: Store, onMap = false): [string, string][] {
+  return [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store, onMap).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']];
 }
 
 /** Renders the whole game screen as plain text. */
@@ -1176,10 +1196,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow(
-      [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store, onMap).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']],
-      columns,
-    ),
+    shortKeyRow(shopKeys(state, store, onMap), ['up/down', 'enter', '[/]', 'esc'], columns),
   ].join('\n');
 }
 
@@ -1578,22 +1595,7 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow(
-      [
-        ['up/down', 'line'],
-        ['left/right', 'scene'],
-        ['pgup/pgdn', 'page'],
-        ['enter', 'pin'],
-        ['u', 'unpin all yours'],
-        ['space', 'shop'],
-        ['tab', 'contents'],
-        ['[/]', 'pinned lines'],
-        [',/.', 'scenes you own'],
-        ['f', 'shortest line in reach'],
-        ['esc', 'back'],
-      ],
-      columns,
-    ),
+    shortKeyRow(scriptKeys, ['up/down', 'enter', 'space', 'tab', 'esc'], columns),
     ]),
   ].join('\n');
 }

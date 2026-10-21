@@ -36,12 +36,13 @@ import {
   renderHomeKeys,
   speedText,
   navBar,
+  shopKeys,
 } from '../src/cli/screen';
 import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
-import { inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
-import { renderRoster, rosterOrder } from '../src/cli/roster';
-import { cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
+import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
+import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
+import { keyBox, cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, lately, monkeyNames } from '../src/game/config';
@@ -214,12 +215,13 @@ describe('terminal screen', () => {
     const s = started();
     const closed = plain(renderScreen(s));
     expect(closed).not.toContain('Faster typing');
-    expect(closed).toContain('[space] shop   [m] monkeys   [i] inventory   [p] script');
-    expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [n] name');
+    expect(closed).toContain('[up/down] choose a monkey   [enter] details'); // the main keys only: the navigation bar goes everywhere
+    expect(closed).toContain('[/] all keys');
+    expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [/] all keys   [q] quit');
     expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[7mM-1 *\x1b\[27m/); // the chosen monkey's name
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
-    expect(open).toContain('[up/down] choose   [enter] buy   [1-9] buy   [[/]] store   [i] inspect   [esc] back');
+    expect(open).toContain('[up/down] choose   [enter] buy   [[/]] store   [esc] back   [/] all keys');
     expect(open).not.toContain('[tab]');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
     expect(open).toContain('\n Typewriters   Staff   Hats   Workroom   Breakroom   Manager \n'); // furniture is sold on the office map, scenes on the script page
@@ -318,7 +320,7 @@ describe('the roster', () => {
     expect(plain(shown)).toContain('speed 112%   stamina 90%');
     expect(plain(shown)).toContain('Typing loves, Managing fine, HR unsuited, Marketing good, Research detests');
     expect(shown).toContain(bold(green('Typing loves'))); // its own job, in bold
-    expect(plain(renderScreen(s))).toContain('[m] monkeys');
+    expect(plain(renderHomeKeys(s))).toContain('[m]');
   });
 });
 
@@ -831,7 +833,8 @@ describe('inspecting', () => {
     expect(inspectItem('hat:cowboy')).toBe('Yeehaw, but quietly: this is an office.');
     expect(inspectItem('combo')).toBe('Nothing of interest here.');
     expect(inspectItem(undefined)).toBe('Nothing of interest here.');
-    expect(plain(renderScreen(started(), '', 'department'))).toContain('[i] inspect');
+    expect(plain(renderScreen(started(), '', 'department'))).toContain('[/] all keys'); // [i] inspect is among them
+    expect(shopKeys(started(), 'department')).toContainEqual(['i', 'inspect']);
   });
 });
 
@@ -866,7 +869,8 @@ describe('feng shui on screen', () => {
     s.furniture.pop();
     const read = plain(renderOffice(s));
     expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n C Comedies room 4 80% ');
-    expect(read).toContain('[b] book');
+    expect(plain(renderOfficeHelp(s))).toContain('[b]       book'); // every key is on the help page
+    expect(read).toContain('[/] all keys and help');
     const book = plain(renderFengShuiBook(s));
     expect(book).toContain('  Light    a window.');
     expect(book).toContain('  Metal   desk, wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine');
@@ -927,7 +931,7 @@ describe('managers and traits on screen', () => {
     expect(home).toContain('Perfectionist');
     expect(inspectSquare(s, 0, 0).text).toContain('M-1 is a perfectionist (-10% speed, +20% pay).');
     expect(inspectSquare(s, x, y).text).not.toContain('[y] read it');
-    expect(plain(renderOffice(s))).toContain('[e] employees');
+    expect(officeKeys(s)).toContainEqual(['e', 'employees']);
     const book = plain(renderManagerBook(s));
     expect(book).toContain('Night owl');
     expect(book).toMatch(/M-2 +Green thumb +no effect right now/);
@@ -1219,7 +1223,7 @@ describe('the office legend', () => {
     expect(labels.slice(1).every((l) => l.length === 2 && l[0] === 'B')).toBe(true);
     const closed = plain(renderOffice(s, '', null, -1, false, null, 120));
     expect(closed).not.toContain('free desk');
-    expect(closed).toContain('[l] legend');
+    expect(officeKeys(s)).toContainEqual(['l', 'legend']);
     const open = renderOffice(s, '', null, -1, false, null, 120, '', 0);
     expect(plain(open)).toContain('C Comedies room');
     expect(plain(open)).toContain('[ ] free desk');
@@ -1265,5 +1269,17 @@ describe('navigation bar', () => {
     expect(labelPress('Records')).toEqual({ str: undefined, name: 'page:records' });
     expect(labelPress('Inventory')).toEqual({ str: undefined, name: 'page:inventory' });
     expect(labelPress('<')).toEqual({ str: '<', name: undefined });
+  });
+});
+
+describe('key popups', () => {
+  it("lists a page's keys, and the roster's actions, each pressable", () => {
+    const box = keyBox('M-1', rosterActions, 0).map(plain);
+    expect(box[1]).toContain('M-1');
+    expect(box.some((r) => r.includes('[n] Rename'))).toBe(true);
+    expect(box.some((r) => r.includes('[f] Fire'))).toBe(true);
+    expect(box.some((r) => r.includes('[enter] do it   [esc] close'))).toBe(true);
+    expect(rosterKeys).toContainEqual(['enter', 'actions']);
+    expect(plain(renderRoster(started(), 0))).toContain('[up/down] choose a monkey   [enter] actions   [esc] back   [/] all keys');
   });
 });

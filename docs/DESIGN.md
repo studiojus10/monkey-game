@@ -364,6 +364,8 @@ Justin, 2026-10-20: furniture and hats should be "much more expensive and slow t
 
 Justin, 2026-10-21: the menus were "a mess and difficult to navigate". Every page now has a bar under the title bar: `[<] [Home] [Shop] [Monkeys] [Office] [Texts] [Records] [Options] [>]`, the open page lit. `<` and `>` step through the pages, a click on a name opens it, and the letter keys still work. Pages with several screens show them as tabs under the bar, switched with `[` and `]` or a click: Monkeys (Roster, Inventory) and Records (Statistics, Achievements, Dictionary). The main shop sells furniture too (Workroom, Breakroom and Manager stores, after Hats; Research stays last); the office map's [f] shop still sells just furniture. Screens inside a page (books, pickers, help, questions) have no bar.
 
+Every page also keeps the same order (title, bar, tabs, the list, details of the chosen item, then keys) and a short key row: only its main keys, then `[/] all keys`, a popup of every key on that page where each row's key (or [enter] on it, or a click) does it (Justin, 2026-10-21, from a mock-up). The roster's `[enter]` opens the chosen monkey's actions the same way (rename, move, hat, sell its hat, fire). Home shows only its main keys, since the bar covers where to go; its `[/]` page lists everything. The office map's `[/]` help page lists every map key.
+
 ## Saves and offline progress
 
 The save gains: owned letters, the chosen play, which words are checked off, each monkey's current line, chain and pending letters, and upgrades. Offline progress simulates letters for the time away (capped, as now at 8 hours); if that's too many letters to simulate quickly, the rest is estimated from the recent points per letter and words-checked rate.

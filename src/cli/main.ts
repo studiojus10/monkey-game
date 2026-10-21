@@ -170,6 +170,8 @@ import {
   hatPick,
   inspectItem,
   navBar,
+  scriptKeys,
+  shopKeys,
   pages,
   pageTabs,
   type Page,
@@ -177,12 +179,12 @@ import {
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
 import { bold, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
-import { mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
+import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { overlay, postName, renderCandidates, renderPostPopup } from './hiring';
+import { keyBox, overlay, postName, renderCandidates, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
-import { renderRoster, rosterOrder } from './roster';
+import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { legendSize, renderFurniturePicker, sideName, furnitureName, inspectSquare, libraryBooks, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
@@ -331,6 +333,8 @@ function loadPlays(): PlayData[] {
 
 /** Choosing who to hire on HR's list of candidates, before the department popup. */
 let hiring = false;
+let keyMenu: { title: string; keys: [string, string][] } | null = null; // a popup of keys: a page's every key ([/]) or the roster's actions ([enter])
+let keyMenuCursor = -1;
 /** The department popup (Justin, 2026-10-18): for a hire (from: the candidate on HR's list, if one), or to move monkey `monkey`. */
 let choosingPost: { kind: 'hire'; from?: number } | { kind: 'move'; monkey: number } | null = null;
 let postCursor = 0;
@@ -635,7 +639,7 @@ function goHome(): void {
 
 /** The page open now, for the navigation bar, or null on a screen inside one (a book, a picker, help, a question). */
 function currentPage(): Page | null {
-  if (flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || pickerOpen()) return null;
+  if (flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pickerOpen()) return null;
   if (namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire || showingHelp || showingDev || showingKeys || showingSlots) return null;
   if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
   if (showingInventory || showingRoster) return 'monkeys';
@@ -848,7 +852,7 @@ function draw() {
   // The navigation bar, right under the title bar, on every page.
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
-  const popup = choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const screen = popup ? overlay(withNav, [...popup, ...(message ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
@@ -957,7 +961,7 @@ function menuKey(key: { name?: string }, n: number): number {
   return key.name === 'return' || key.name === 'enter' ? Math.min(menuCursor, n - 1) : -1;
 }
 
-function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }) {
+function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }): void {
   if (key.ctrl && key.name === 'c') return quit();
 
   // The letter picker: a popup until a letter is chosen (free letters can't be put off).
@@ -1025,6 +1029,35 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     goHome();
     if (str === 'o') openOffice();
     return draw();
+  }
+
+  // A popup of keys: arrows and [enter] pick a row, its key does it, any other key closes it and does its own thing.
+  if (keyMenu) {
+    const menu = keyMenu;
+    if (key.name === 'up' || key.name === 'down') {
+      keyMenuCursor = (Math.max(0, keyMenuCursor) + (key.name === 'up' ? menu.keys.length - 1 : 1)) % menu.keys.length;
+      return draw();
+    }
+    keyMenu = null;
+    if (key.name === 'escape' || str === '/') return draw();
+    if (key.name === 'return' || key.name === 'enter') {
+      const press = keyMenuCursor >= 0 ? labelPress(menu.keys[keyMenuCursor][0]) : undefined;
+      return press ? handleKey(press.str, { name: press.name }) : draw();
+    }
+  }
+  // [/] lists every key of a page whose key row shows only the main ones (Justin, 2026-10-21).
+  if (!busy && str === '/') {
+    const keys = showingRoster && !showingInventory ? rosterKeys
+      : showingScript && scriptShop ? shopKeys(state, 'script')
+      : showingScript && !contents ? scriptKeys
+      : showingOffice && officeShop ? shopKeys(state, officeShop, true)
+      : shop && currentPage() === 'shop' ? shopKeys(state, shop)
+      : null;
+    if (keys) {
+      keyMenu = { title: 'Keys', keys };
+      keyMenuCursor = -1;
+      return draw();
+    }
   }
 
   // The navigation bar: [<] and [>] step through the pages, a click on one opens it, and [ and ] step through a page's tabs.
@@ -1751,6 +1784,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     else if (key.name === 'down') rosterCursor = Math.min(order.length - 1, rosterCursor + 1);
     else if (str === 'n' && order[rosterCursor] !== undefined) startNaming(order[rosterCursor]);
     else if (str === 'd' && i !== undefined) startMove(i);
+    else if ((key.name === 'return' || key.name === 'enter') && i !== undefined) {
+      keyMenu = { title: monkeyName(state, i), keys: rosterActions };
+      keyMenuCursor = 0;
+    }
     return draw();
   }
 

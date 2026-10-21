@@ -38,7 +38,7 @@ import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedB
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
-import { bold, dim, furnitureColor, green, inverse, keyRow, padVisible, plainText, red, rule, titleBar } from './style';
+import { bold, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar } from './style';
 import { formatAmount, formatNumber, formatPrice } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -280,10 +280,7 @@ export function renderOffice(
         })()
       : heldDoor
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
-        : [
-            [['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['l', 'legend'], ['f', 'furniture'], ['p', 'put out'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow']],
-            [['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'], ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []), ['/', 'help'], ['esc', 'back']],
-          ];
+        : [];
   const doing = grow
     ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
     : held >= 0
@@ -307,8 +304,18 @@ export function renderOffice(
     ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
     ...(message ? [` ${bold(message)}`] : []),
     rule(columns),
-    ...keys.map((k) => keyRow(k, columns)),
+    ...(keys.length > 0 ? keys.map((k) => keyRow(k, columns)) : [shortKeyRow(officeKeys(state), ['arrows', 'space', 'f', 'r', 'esc'], columns, 'all keys and help')]),
   ].join('\n');
+}
+
+/** Every key of the office map (when nothing is in hand); its key row shows the main ones, and [/] opens the help page, which lists them all. */
+export function officeKeys(state: GameState): [string, string][] {
+  return [
+    ['arrows', 'move'], ['tab', 'next room'], ['space', 'pick up'], ['l', 'legend'], ['f', 'furniture'], ['p', 'put out'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow'],
+    ['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'],
+    ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []),
+    ['esc', 'back'],
+  ];
 }
 
 /**
@@ -399,6 +406,9 @@ function roomTable(state: GameState, columns = 0): string[] {
 export function renderOfficeHelp(state: GameState, columns = 0): string {
   return [
     titleBar(state, 'Office help', columns),
+    '',
+    dim(' KEYS ON THE MAP'),
+    ...officeKeys(state).map(([k, what]) => `   ${bold(`[${k}]`.padEnd(9))} ${what}`),
     '',
     dim(' ROOMS'),
     "   Each monkey gets a desk in its department's room.",
