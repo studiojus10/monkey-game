@@ -128,7 +128,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
                 })
                 .join(dim(', '))}`,
             ]
-          : [`${label('Stats')} ${dim(`unknown (an ${hr.name} office would find out)`)}`]),
+          : [`${label('Stats')} ${dim(`unknown (an ${hr.name} Department would find out)`)}`]),
       ];
 
   return [

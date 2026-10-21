@@ -2605,7 +2605,7 @@ export function codebreakerCost(state: GameState): number {
 /** Why a codebreaker can't be hired right now, money aside ('' if one can). */
 export function codebreakerBlocker(state: GameState): string {
   const room = codebreakingRoom(state);
-  if (!room) return `${codebreaking.name} office needed`;
+  if (!room) return `${codebreaking.name} Department needed`;
   if (codebreakers(state).length >= codebreaking.maxStaff) return `${codebreaking.name} full`;
   return freeSquares(state, room).length > 0 ? '' : 'desk needed';
 }
@@ -2737,7 +2737,7 @@ export function marketingCost(state: GameState): number {
 /** Why a marketing monkey can't be hired right now, money aside ('' if one can). */
 export function marketingBlocker(state: GameState): string {
   const room = marketingRoom(state);
-  if (!room) return 'Marketing office needed';
+  if (!room) return 'Marketing Department needed';
   if (marketers(state).length >= marketing.maxStaff) return 'Marketing full';
   return freeSquares(state, room).length > 0 ? '' : 'desk needed';
 }
@@ -2787,7 +2787,7 @@ export function hrCost(state: GameState): number {
 /** Why an HR monkey can't be hired right now, money aside ('' if one can). */
 export function hrBlocker(state: GameState): string {
   const room = hrRoom(state);
-  if (!room) return 'HR office needed';
+  if (!room) return 'HR Department needed';
   if (hrStaff(state).length >= hr.maxStaff) return 'HR full';
   return freeSquares(state, room).length > 0 ? '' : 'desk needed';
 }
@@ -2938,10 +2938,10 @@ export function posts(state: GameState, managing = true): Post[] {
         .map((g) => ({ id: `boss:${g}`, job: 'managing', genre: g, have: managerOf(state, g) ? 1 : 0, max: 1, blocked: managerOf(state, g) ? 'full' : managerBlocker(state, g) }));
   const staff: Post[] = [
     ...(state.researchOpen ? [{ id: research.id, job: 'research' as Job, have: researchers(state).length, max: research.maxResearchers, room: labRoom(state), name: 'lab needed' }] : []),
-    ...(hrRoom(state) ? [{ id: hr.id, job: 'hr' as Job, have: hrStaff(state).length, max: hr.maxStaff, room: hrRoom(state), name: `${hr.name} office needed` }] : []),
-    ...(marketingRoom(state) ? [{ id: marketing.id, job: 'marketing' as Job, have: marketers(state).length, max: marketing.maxStaff, room: marketingRoom(state), name: `${marketing.name} office needed` }] : []),
-    ...(codebreakingRoom(state) ? [{ id: codebreaking.id, job: 'codebreaking' as Job, have: codebreakers(state).length, max: codebreaking.maxStaff, room: codebreakingRoom(state), name: `${codebreaking.name} office needed` }] : []),
-    ...(recordsRoom(state) ? [{ id: records.id, job: 'records' as Job, have: recorders(state).length, max: records.maxStaff, room: recordsRoom(state), name: `${records.name} office needed` }] : []),
+    ...(hrRoom(state) ? [{ id: hr.id, job: 'hr' as Job, have: hrStaff(state).length, max: hr.maxStaff, room: hrRoom(state), name: `${hr.name} Department needed` }] : []),
+    ...(marketingRoom(state) ? [{ id: marketing.id, job: 'marketing' as Job, have: marketers(state).length, max: marketing.maxStaff, room: marketingRoom(state), name: `${marketing.name} Department needed` }] : []),
+    ...(codebreakingRoom(state) ? [{ id: codebreaking.id, job: 'codebreaking' as Job, have: codebreakers(state).length, max: codebreaking.maxStaff, room: codebreakingRoom(state), name: `${codebreaking.name} Department needed` }] : []),
+    ...(recordsRoom(state) ? [{ id: records.id, job: 'records' as Job, have: recorders(state).length, max: records.maxStaff, room: recordsRoom(state), name: `${records.name} Department needed` }] : []),
   ].map(({ room, name, ...p }) => ({ ...p, blocked: staffBlocker(room, p.have, p.max, state, name) }));
   return inRevealOrder(state, [...typing, ...bosses, ...staff], (p) => `post:${p.id}`);
 }

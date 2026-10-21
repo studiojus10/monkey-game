@@ -319,7 +319,7 @@ describe('the roster', () => {
     expect(text).not.toContain('Trait');
     s.managerBook = true;
     expect(plain(renderRoster(s, 2))).toContain('Loner');
-    expect(plain(renderRoster(s, 2))).toContain('unknown (an HR office would find out)');
+    expect(plain(renderRoster(s, 2))).toContain('unknown (an HR Department would find out)');
     Object.assign(s.monkeys[1], { speedStat: 1.12, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'unsuited', research: 'detests', marketing: 'good' } });
     s.office.push({ id: 'r9', kind: 'hr', department: '', cells: [[9, 9]] });
     const shown = renderRoster(s, 2);
@@ -627,7 +627,7 @@ describe('office space on screen', () => {
     const text = plain(renderOffice(s));
     expect(text).toContain(' INFINITE MONKEYS > OFFICE ');
     expect(text).toContain('\n\n+-C-----+\n|[@]  . :\n|       |\n| .   . |\n+-------+');
-    expect(squash(text)).toContain('\n C Comedies room 4 none - Bobo\n');
+    expect(squash(text)).toContain('\n C Comedies Department 4 none - Bobo\n');
     expect(text).toContain('[r] buy a room');
     expect(text).not.toContain('Each monkey gets a desk'); // how rooms work is on the [/] page
     expect(plain(renderOfficeHelp(s))).toContain("Each monkey gets a desk in its department's room.");
@@ -638,7 +638,7 @@ describe('office space on screen', () => {
     s.office[0].cells.push([2, 0]);
     expect(plain(renderOffice(s))).toContain('+-C---------+\n|[@]  .   . |\n|       +---+\n| .   . |\n+-------+');
     const growing = plain(renderOffice(s, '', { x: 2, y: 1 }, -1, 'r1'));
-    expect(growing).toContain('Growing the Comedies room');
+    expect(growing).toContain('Growing the Comedies Department');
     expect(growing).toContain('>+<'); // the cursor on a square it can grow into
     expect(growing).toContain(' + ');
   });
@@ -650,7 +650,7 @@ describe('office space on screen', () => {
     buyRoom(s, 'department', 'tragedy');
     const text = plain(renderOffice(s));
     expect(text).toContain('/   /[@]'); // a door, a hallway square, a door into room 1
-    expect(text).toContain(' T  Tragedies room');
+    expect(text).toContain(' T  Tragedies Department');
     s.doors = [];
     const locked = renderOffice(s).split('\n').find((r) => r.includes('NO WAY IN'))!;
     expect(locked.startsWith('\x1b[31m')).toBe(true); // in red
@@ -665,13 +665,13 @@ describe('office space on screen', () => {
     s.furniture.push({ kind: 'tv', room: 'r3', x: s.office[2].cells[0][0], y: s.office[2].cells[0][1] });
     const text = squash(renderOffice(s));
     expect(text).toContain('\n # ROOM SIZE LOUNGE EFFECTS WHO\n');
-    expect(text).toContain('\n C Comedies room 4 Break room recovers 40% faster, +3% happy M-1\n');
-    expect(text).toContain('\n T Tragedies room 9 Break room recovers 40% faster, +3% happy\n');
-    expect(text).toContain('\n B Break room 9 - - lounge of Comedies room, Tragedies room\n');
+    expect(text).toContain('\n C Comedies Department 4 Break room recovers 40% faster, +3% happy M-1\n');
+    expect(text).toContain('\n T Tragedies Department 9 Break room recovers 40% faster, +3% happy\n');
+    expect(text).toContain('\n B Break room 9 - - lounge of Comedies Department, Tragedies Department\n');
     // On a narrow screen who works in each room goes under it.
     const narrow = plain(renderOffice(s, '', null, -1, false, null, 80));
-    expect(narrow).toContain(' #  ROOM            SIZE  LOUNGE      EFFECTS\n');
-    expect(narrow).toContain('\n B  Break room         9  -           -\n      lounge of Comedies room, Tragedies room\n');
+    expect(narrow).toContain(' #  ROOM                  SIZE  LOUNGE      EFFECTS\n');
+    expect(narrow).toContain('\n B  Break room               9  -           -\n      lounge of Comedies Department, Tragedies Department\n');
     for (const row of narrow.split('\n')) expect(row.length).toBeLessThan(80);
   });
 
@@ -768,7 +768,7 @@ describe('furniture', () => {
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
     expect(plain(renderOffice(s))).toContain('|[@]  P :');
     expect(plain(renderOffice(s, '', null, -1, false, null, 120, '', 0))).toContain('P potted plant');
-    expect(plain(renderOffice(s, '', { x: 1, y: 0 }))).toContain('Cursor: Comedies room, potted plant.');
+    expect(plain(renderOffice(s, '', { x: 1, y: 0 }))).toContain('Cursor: Comedies Department, potted plant.');
     expect(plain(renderOffice(s, '', { x: 0, y: 1 }))).toContain('|>.<  . |');
     const moving = plain(renderOffice(s, '', { x: 1, y: 1 }, 1));
     expect(moving).toContain('|[@]  . :\n    |       |\n    | .  >P<|');
@@ -869,7 +869,7 @@ describe('feng shui on screen', () => {
     s.managerBook = false;
     s.furniture.pop();
     const read = plain(renderOffice(s));
-    expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n C Comedies room 4 80% ');
+    expect(squash(read)).toContain(' # ROOM SIZE CHI LOUNGE EFFECTS WHO\n C Comedies Department 4 80% ');
     expect(plain(renderOfficeHelp(s))).toContain('[b]       book'); // every key is on the help page
     expect(read).toContain('[/] all keys and help');
     const book = plain(renderFengShuiBook(s));
@@ -877,7 +877,7 @@ describe('feng shui on screen', () => {
     expect(book).toContain('  Metal   desk, wall clock, floor lamp, mirror, brass gong, espresso machine, vending machine');
     expect(book).toContain('  Fire    scented candle, fireplace, television');
     expect(book).toContain('  Variety  every different piece in them adds +3% pay and break speed. Repeats cost nothing.');
-    expect(book).toMatch(/C Comedies room +chi  80% +3 empty +lacks Balance/);
+    expect(book).toMatch(/C Comedies Department +chi  80% +3 empty +lacks Balance/);
     expect(book).toContain('Office chi 80%: +48% happiness.');
   });
 });
@@ -904,11 +904,11 @@ describe('managers and traits on screen', () => {
     expect(popup()).toMatch(/\[2\] Comedies manager \(0\/1\) \* [\d,]+ Bananas/);
     const map = plain(renderOffice(s));
     expect(map).toContain(' D ');
-    expect(squash(map)).toContain('CO Comedies office 4 - - no manager yet');
+    expect(squash(map)).toContain('CO Comedies Office 4 - - no manager yet');
     expect(hireManager(s, 'comedy')).toBe(true);
     const hired = squash(plain(renderOffice(s)));
-    expect(hired).toContain('CO Comedies office 4 - a slot every 30.0s M-6 (manager)');
-    expect(hired).not.toMatch(/Comedies room[^\n]*M-6/);
+    expect(hired).toContain('CO Comedies Office 4 - a slot every 30.0s M-6 (manager)');
+    expect(hired).not.toMatch(/Comedies Department[^\n]*M-6/);
     const office = Array.from({ length: storePages(s, 'furniture') }, (_, page) => plain(renderShop(s, 'furniture', page * storePageSize))).join('\n');
     expect(office).toContain("Manager's desk"); // a spare, in case one's needed
     expect(squash(office)).toContain('Potted plant'); // decor for the office: it makes the manager quicker
@@ -1226,7 +1226,7 @@ describe('the office legend', () => {
     expect(closed).not.toContain('free desk');
     expect(officeKeys(s)).toContainEqual(['l', 'legend']);
     const open = renderOffice(s, '', null, -1, false, null, 120, '', 0);
-    expect(plain(open)).toContain('C Comedies room');
+    expect(plain(open)).toContain('C Comedies Department');
     expect(plain(open)).toContain('[ ] free desk');
     expect(open).toContain('\x1b[7m . '); // the room's floor, lit
     expect(legendSize(s)).toBeGreaterThan(6);

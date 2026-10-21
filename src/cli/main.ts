@@ -1597,7 +1597,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const first = Object.keys(state.safes).length === 0;
       const found = typeof spot === 'number' && findSafe(state, spot, Math.random);
       const seen = inspectSquare(state, c.x, c.y, heldFurniture);
-      message = found && first ? `${seen.text}  You can build a ${codebreaking.name} office now (office map, [r]).` : seen.text;
+      message = found && first ? `${seen.text}  You can build a ${codebreaking.name} Department now (office map, [r]).` : seen.text;
       offeredBook = seen.book;
       bookMenu = seen.choices?.length ? `Read which book? ${seen.choices.join('   ')}` : '';
       return draw();
@@ -1732,7 +1732,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `an office for ${records.name}` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `an office for ${codebreaking.name}` : c.kind === 'marketing' ? `an office for ${marketing.name}` : c.kind === 'hr' ? `an office for ${hr.name}` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `an office for ${departmentName(state, c.genre!)}'s manager` : `a room for ${departmentName(state, c.genre!)}`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `the ${records.name} Department` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `the ${codebreaking.name} Department` : c.kind === 'marketing' ? `the ${marketing.name} Department` : c.kind === 'hr' ? `the ${hr.name} Department` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `the ${departmentName(state, c.genre!)} Office, for its manager` : `the ${departmentName(state, c.genre!)} Department`}`,
       );
       message = `Buy a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
