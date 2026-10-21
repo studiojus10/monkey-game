@@ -984,19 +984,22 @@ export function checkLetterGifts(state: GameState): string[] {
   return given;
 }
 
-/** Cost in points of a monkey for the department-th department opened (from 0) that has already bought `bought`. */
-export function monkeyCost(bought: number, department = 0): number {
-  return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.departmentGrowth, department) * Math.pow(monkeyShop.costGrowth, bought));
+/** Cost in points of a monkey when `bought` have been hired before it, in any department. */
+export function monkeyCost(bought: number): number {
+  return Math.ceil(monkeyShop.baseCost * Math.pow(monkeyShop.costGrowth, bought));
+}
+
+/** Monkeys hired so far for every department, staff and managers' chairs included. Free ones from acts don't count. */
+export function hiresSoFar(state: GameState): number {
+  return Object.values(state.monkeysBought).reduce((a, b) => a + b, 0) + state.researchersHired;
 }
 
 /**
- * Cost in points of the next monkey for a department (by default the one a
- * new monkey would go to). Only bought monkeys raise it; free ones from acts don't.
+ * Cost in points of the next monkey hired: the same for every department
+ * (Justin, 2026-10-21), so `genre` doesn't change it. Only hires raise it.
  */
-export function nextMonkeyCost(state: GameState, genre?: Genre): number {
-  const open = departmentGenres(state);
-  const dept = genre ?? departmentsWithRoom(state)[0] ?? open[0] ?? '';
-  return Math.ceil(monkeyCost(state.monkeysBought[dept] ?? 0, Math.max(0, open.indexOf(dept as Genre))) * (1 - hrDiscount(state)));
+export function nextMonkeyCost(state: GameState, _genre?: Genre): number {
+  return Math.ceil(monkeyCost(hiresSoFar(state)) * (1 - hrDiscount(state)));
 }
 
 /** The department a room belongs to: undefined for a break room. */
@@ -2047,6 +2050,7 @@ export function hireManager(state: GameState, genre: Genre | undefined, from?: n
   const cost = hirePrice(state, managerCost(state, genre), 'managing', from);
   if (state.currency < cost || state.letters.length === 0) return false;
   state.currency -= cost;
+  state.monkeysBought.boss = (state.monkeysBought.boss ?? 0) + 1;
   addMonkey(state, { ...takeCandidate(state, from), department: genre, manager: true });
   manage(state);
   return true;
@@ -2401,7 +2405,7 @@ export function canBuildLab(state: GameState): boolean {
 
 /** Points for the next researcher. */
 export function researcherCost(state: GameState): number {
-  return Math.ceil(research.hireCost * Math.pow(research.hireCostGrowth, state.researchersHired));
+  return nextMonkeyCost(state);
 }
 
 /** Why a researcher can't be hired right now, money aside ('' if one can). */
@@ -2627,7 +2631,7 @@ export function canBuildCodebreaking(state: GameState): boolean {
 
 /** Bananas for the next codebreaker (before HR's discount on a candidate). */
 export function codebreakerCost(state: GameState): number {
-  return Math.ceil(codebreaking.hireCost * Math.pow(codebreaking.hireCostGrowth, state.monkeysBought[codebreaking.id] ?? 0));
+  return nextMonkeyCost(state);
 }
 
 /** Why a codebreaker can't be hired right now, money aside ('' if one can). */
@@ -2759,7 +2763,7 @@ export function canBuildMarketing(state: GameState): boolean {
 
 /** Bananas for the next marketing monkey (before HR's discount on a candidate). */
 export function marketingCost(state: GameState): number {
-  return Math.ceil(marketing.hireCost * Math.pow(marketing.hireCostGrowth, state.monkeysBought[marketing.id] ?? 0));
+  return nextMonkeyCost(state);
 }
 
 /** Why a marketing monkey can't be hired right now, money aside ('' if one can). */
@@ -2809,7 +2813,7 @@ export function canBuildHR(state: GameState): boolean {
 
 /** Points for the next HR monkey. */
 export function hrCost(state: GameState): number {
-  return Math.ceil(hr.hireCost * Math.pow(hr.hireCostGrowth, state.monkeysBought[hr.id] ?? 0));
+  return nextMonkeyCost(state);
 }
 
 /** Why an HR monkey can't be hired right now, money aside ('' if one can). */
@@ -3307,7 +3311,7 @@ export function canBuildRecords(state: GameState): boolean {
 
 /** Bananas for the next records clerk (before HR's discount on a candidate). */
 export function recorderCost(state: GameState): number {
-  return Math.ceil(records.hireCost * Math.pow(records.hireCostGrowth, state.monkeysBought[records.id] ?? 0));
+  return nextMonkeyCost(state);
 }
 
 /** Hires a records clerk into Records' office, with a desk. */

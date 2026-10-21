@@ -62,16 +62,14 @@ export const letterShop = {
 export const letterGifts: string[] = ['first-hire', 'first-typewriter', 'pets-100', 'first-hat', 'chain-10', 'flip-won', 'word-banana', 'full-department'];
 
 /**
- * You start with one monkey. More monkeys are paid in Points. Each
- * department has its own price: the n-th monkey bought for the d-th
- * department opened (both from 0) costs
- * baseCost x departmentGrowth^d x costGrowth^n, so every department takes
- * days to fill however many monkeys came before it.
+ * You start with one monkey. More monkeys are paid in Points, and every hire
+ * costs the same whichever department it goes to (Justin, 2026-10-21): the
+ * n-th monkey hired (from 0; typists, managers and staff alike, not free ones)
+ * costs baseCost x costGrowth^n.
  */
 export const monkeyShop = {
   baseCost: 1_000_000, // scripts/simulate.ts (2026-10-20): 2nd monkey after about 2h
-  costGrowth: 500, // 5 to a department since 2026-10-20: the 5th monkey after about 3 days (scripts/simulate.ts)
-  departmentGrowth: 100,
+  costGrowth: 20, // placeholder (2026-10-21): one price for every department
 };
 
 /**
@@ -462,8 +460,6 @@ export const research = {
   name: 'R&D',
   opensAt: 8,
   maxResearchers: 10,
-  hireCost: 1_000_000,
-  hireCostGrowth: 3,
   projects: [
     { id: 'chairs', name: 'Ergonomic chairs', text: 'Monkeys tire 10% slower.', hours: 1, cost: 100_000, drain: 0.1 },
     { id: 'snacks', name: 'Banana snacks', text: 'Recovers 20% faster.', hours: 3, cost: 1_000_000, rest: 0.2 },
@@ -496,8 +492,6 @@ export const hr = {
   id: 'hr', // an HR monkey's department
   name: 'HR',
   maxStaff: 5,
-  hireCost: 1_000_000,
-  hireCostGrowth: 3,
   happierEach: 0.02,
   discountEach: 0.05,
   // Hiring through HR (step 3): with an HR office, hiring shows a list of
@@ -584,8 +578,6 @@ export const codebreaking = {
   id: 'codebreaking', // a codebreaker's department
   name: 'Codebreaking',
   maxStaff: 5,
-  hireCost: 1_000_000,
-  hireCostGrowth: 3,
   triesPerSecond: 1,
 };
 
@@ -620,8 +612,6 @@ export const records = {
   id: 'records', // a records clerk's department
   name: 'Records',
   maxStaff: 5,
-  hireCost: 1_000_000,
-  hireCostGrowth: 3,
   catchEach: 0.2,
   bookSize: 100,
 };
@@ -688,8 +678,6 @@ export const marketing = {
   id: 'marketing', // a marketing monkey's department
   name: 'Marketing',
   maxStaff: 5,
-  hireCost: 10_000_000,
-  hireCostGrowth: 3,
   perLine: 10,
   perPage: 100,
 };

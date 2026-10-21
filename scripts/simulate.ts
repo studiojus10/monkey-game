@@ -87,7 +87,6 @@ if (process.env.SIM_WORD_MIN) sentenceRules.wordMinLength = Number(process.env.S
 // ...and monkey prices: SIM_MONKEY_COST=1e5 SIM_MONKEY_GROWTH=5 SIM_DEPT_GROWTH=50
 if (process.env.SIM_MONKEY_COST) monkeyShop.baseCost = Number(process.env.SIM_MONKEY_COST);
 if (process.env.SIM_MONKEY_GROWTH) monkeyShop.costGrowth = Number(process.env.SIM_MONKEY_GROWTH);
-if (process.env.SIM_DEPT_GROWTH) monkeyShop.departmentGrowth = Number(process.env.SIM_DEPT_GROWTH);
 // Letters a second simulated one by one (the game itself does maxSimulatedLettersPerSecond;
 // fewer runs faster, but Lines and Sentences, which need real letters, come slower): SIM_CAP=4000
 const simCap = Number(process.env.SIM_CAP ?? 300);

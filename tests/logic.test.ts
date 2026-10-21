@@ -443,20 +443,20 @@ describe('monkeys', () => {
     expect(nextMonkeyCost(s)).toBe(monkeyShop.baseCost * monkeyShop.costGrowth);
   });
 
-  it('gives each department its own monkey price, dearer for each later department', () => {
+  it('prices every hire the same whichever department it goes to', () => {
     const s = createInitialState(0);
     s.letters = ['A'];
     s.departments = ['comedy', 'tragedy'];
     s.currency = s.sentences = 1e30;
     roomFor(s, 'comedy');
     roomFor(s, 'tragedy');
-    expect(nextMonkeyCost(s, 'comedy')).toBe(monkeyCost(0, 0));
-    expect(nextMonkeyCost(s, 'tragedy')).toBe(monkeyCost(0, 1));
-    expect(monkeyCost(0, 1)).toBe(monkeyShop.baseCost * monkeyShop.departmentGrowth);
+    expect(nextMonkeyCost(s, 'comedy')).toBe(monkeyCost(0));
+    expect(nextMonkeyCost(s, 'tragedy')).toBe(monkeyCost(0));
     expect(buyMonkey(s, 'comedy')).toBe(true);
     expect(buyMonkey(s, 'comedy')).toBe(true);
-    expect(nextMonkeyCost(s, 'comedy')).toBe(monkeyCost(2, 0));
-    expect(nextMonkeyCost(s, 'tragedy')).toBe(monkeyCost(0, 1)); // comedy hires don't raise tragedy's price
+    expect(nextMonkeyCost(s, 'comedy')).toBe(monkeyCost(2));
+    expect(nextMonkeyCost(s, 'tragedy')).toBe(monkeyCost(2)); // comedy hires raise every department's price
+    expect(new Set(posts(s).map((p) => postCost(s, p))).size).toBe(1);
   });
 
   it('monkeys can be renamed, and an empty name gives a famous one back', () => {

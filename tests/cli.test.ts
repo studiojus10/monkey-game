@@ -610,7 +610,7 @@ describe('office space on screen', () => {
     expect(homeMonkeys(s).map((i) => s.monkeys[i].name)).toEqual(['Boss', 'Clown', 'Mourner', 'Junior']); // Mourner's department is closed, so it types for Comedies
   });
 
-  it('lists a hire line for each department, each with its own price', () => {
+  it('lists a hire line for each department, all at one price', () => {
     const s = started();
     s.currency = s.sentences = 1e30;
     s.departments = ['comedy', 'tragedy'];
@@ -618,7 +618,7 @@ describe('office space on screen', () => {
     expect(squash(renderScreen(s, '', 'staff'))).toContain('[2] Hire a monkey random stats and trait, you have 1 * from 1,000,000 Bananas');
     const popup = squash(renderPostPopup(s, 'x', posts(s), -1, true).map(plain).join('\n'));
     expect(popup).toContain('[1] Comedies (1/5) * 1,000,000 Bananas');
-    expect(popup).toContain('[2] Tragedies (0/5) * 100,000,000 Bananas');
+    expect(popup).toContain('[2] Tragedies (0/5) * 1,000,000 Bananas');
   });
 
   it('draws the office on one grid: rooms, their desks and who sits at them', () => {

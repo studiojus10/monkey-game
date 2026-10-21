@@ -255,7 +255,6 @@ describe('HR', () => {
     expect(hireManager(s, 'comedy')).toBe(true);
     expect(L.hrBlocker(s)).toBe('HR Department needed');
     const happy = L.happiness(s, 'comedy');
-    const price = L.nextMonkeyCost(s, 'comedy');
     expect(buyRoom(s, 'hr')).toBe(true);
     expect(buyRoom(s, 'hr')).toBe(false); // one HR Department
     expect(L.hireHR(s)).toBe(true);
@@ -266,7 +265,7 @@ describe('HR', () => {
     expect(L.monkeyGenre(s, s.monkeys[staff[0]])).toBeUndefined();
     expect(s.furniture[deskOf(s, staff[1])!].room).toBe(L.hrRoom(s)!.id);
     expect(L.happiness(s, 'comedy')).toBeCloseTo(happy + 2 * hr.happierEach);
-    expect(L.nextMonkeyCost(s, 'comedy')).toBe(Math.ceil(price * (1 - 2 * hr.discountEach)));
+    expect(L.nextMonkeyCost(s, 'comedy')).toBe(Math.ceil(L.monkeyCost(L.hiresSoFar(s)) * (1 - 2 * hr.discountEach))); // the HR hires count too
     while (L.hrStaff(s).length < hr.maxStaff && L.hireHR(s));
     expect(L.hrBlocker(s)).toMatch(/HR full|desk needed/);
     const back = deserialize(serialize(s));
