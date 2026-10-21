@@ -166,6 +166,15 @@ export function keyRow(keys: ([string, string] | [string, string, boolean])[], c
   return rows.map((r) => ' ' + r.join('   ')).join('\n');
 }
 
+/**
+ * A screen's short key row (Justin, 2026-10-21: the menus were "a mess"):
+ * only its main keys, then [/] for the full list in a popup (see keyBox).
+ */
+export function shortKeyRow(keys: [string, string][], main: string[], columns = 0, more = 'all keys'): string {
+  const shown = keys.filter(([k]) => main.includes(k));
+  return keyRow(shown.length < keys.length ? [...shown, ['/', more]] : shown, columns);
+}
+
 /** A dim line across the screen, between a screen's content and its keys. */
 export function rule(columns = 0): string {
   return dim(' ' + '-'.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90))));

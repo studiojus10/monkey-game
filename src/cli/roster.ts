@@ -24,7 +24,13 @@ import {
 import type { GameState } from '../game/state';
 import { bySeniority, codebreakingStatus, recordsStatus, departmentName as deptName, dyed, hatEffect, staffViews, iconOf, speedText, traitNow } from './screen';
 import { formatDuration } from '../format';
-import { bold, dim, green, inverse, isCursor, keyRow, red, rule, scrollMarks, titleBar } from './style';
+import { bold, dim, green, inverse, isCursor, shortKeyRow, red, rule, scrollMarks, titleBar } from './style';
+
+/** What [enter] offers for the chosen monkey on the roster (Justin, 2026-10-21: an actions menu instead of a long key row). */
+export const rosterActions: [string, string][] = [['n', 'Rename'], ['d', 'Move department'], ['h', 'Change hat'], ['v', 'Sell its hat'], ['f', 'Fire']];
+
+/** Every key of the roster; its key row shows the main ones, [/] the rest. */
+export const rosterKeys: [string, string][] = [['up/down', 'choose a monkey'], ['enter', 'actions'], ...rosterActions, ['esc', 'back']];
 
 /** Monkeys shown at once in the roster's list; the list scrolls to keep the cursor in view. */
 export const rosterPageRows = 12;
@@ -138,6 +144,6 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([['up/down', 'choose a monkey'], ['d', 'move it'], ['n', 'rename it'], ['h', 'change hat'], ['v', 'sell its hat'], ['f', 'fire it'], ['esc', 'back']], columns),
+    shortKeyRow(rosterKeys, ['up/down', 'enter', 'esc'], columns),
   ].join('\n');
 }

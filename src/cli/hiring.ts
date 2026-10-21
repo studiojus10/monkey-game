@@ -127,3 +127,24 @@ export function menuBox(title: string, rows: string[], cursor = -1, empty = 'Not
     `+${'-'.repeat(width)}+`,
   ];
 }
+
+/**
+ * A popup of keys (Justin, 2026-10-21): a page's every key ([/]), or the
+ * actions for the chosen monkey ([enter] on the roster). Each row is its key
+ * and what it does; pressing the key (or [enter] on its row, or a click) does it.
+ */
+export function keyBox(title: string, keys: [string, string][], cursor = -1): string[] {
+  const items = keys.map(([k, what]) => `${bold(`[${k}]`)} ${what}`);
+  const footer = '[enter] do it   [esc] close';
+  const width = Math.max(title.length, footer.length, ...items.map((r) => plainText(r).length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [
+    `+${'-'.repeat(width)}+`,
+    line(` ${bold(title)}`),
+    line(''),
+    ...items.map((r, i) => line(isCursor(i, cursor) ? inverse(` ${plainText(r)}`) : ` ${r}`)),
+    line(''),
+    line(dim(` ${footer}`)),
+    `+${'-'.repeat(width)}+`,
+  ];
+}
