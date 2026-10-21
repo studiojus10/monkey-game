@@ -35,7 +35,7 @@ import {
   renderShop,
   renderHomeKeys,
   speedText,
-  navBar,
+  pageTabsRow,
   shopKeys,
 } from '../src/cli/screen';
 import { bold, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
@@ -154,7 +154,7 @@ describe('terminal screen', () => {
     // A title bar, then every total in bold in its own colour, in this order.
     expect(text.split('\n')[0]).toBe(
       '\x1b[1m\x1b[7m INFINITE MONKEYS \x1b[27m\x1b[22m    \x1b[1m\x1b[33m1,234 Bananas\x1b[39m\x1b[22m   \x1b[1m\x1b[36m0 Words\x1b[39m\x1b[22m   ' +
-        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[?] flip\x1b[22m',
+        '\x1b[1m\x1b[35m0 Sentences\x1b[39m\x1b[22m   \x1b[1m\x1b[34m0 Lines\x1b[39m\x1b[22m   \x1b[1m[=] menu\x1b[22m   \x1b[1m[?] flip\x1b[22m',
     );
     expect(plain(text)).toContain(' Letters  _ _ _ _ _ _ _ _ I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _   (1 of 26)'); // the alphabet, owned letters in their places
     expect(plain(text)).toContain(' Script   0 / 2 lines written   2 scenes owned');
@@ -330,10 +330,10 @@ describe('shop under the home screen', () => {
     const tall = plain(renderScreen(s, '', 'staff', 80, 0, 60));
     expect(tall).toContain('TYPING');
     expect(tall).toContain('Hire a monkey');
-    expect(tall).not.toContain('> SHOP');
+    expect(tall).not.toContain(' SHOP ');
     const short = plain(renderScreen(s, '', 'staff', 80, 0, 15));
     expect(short).not.toContain('TYPING');
-    expect(short).toContain('> SHOP');
+    expect(short).toContain(' SHOP ');
   });
 });
 
@@ -1253,22 +1253,19 @@ describe('monkey table columns', () => {
   });
 });
 
-describe('navigation bar', () => {
-  it('lists every page with the open one lit, and the tabs of pages that have them', () => {
-    const [bar] = navBar('home');
-    expect(plain(bar)).toBe(' [<] [Home] [Shop] [Monkeys] [Office] [Texts] [Records] [Options] [>]');
-    expect(bar).toContain(bold(inverse('[Home]')));
-    const records = navBar('records', 'achievements');
-    expect(records).toHaveLength(2);
-    expect(plain(records[1])).toContain('[Statistics] [Achievements] [Dictionary]');
-    expect(records[1]).toContain(bold(inverse('[Achievements]')));
-    expect(navBar('shop')).toHaveLength(1);
+describe('page menu and tabs', () => {
+  it('puts a [=] menu button on every title bar', () => {
+    expect(plain(titleBar(started(), 'Shop', 120))).toContain('[=] menu   [?] flip');
+    expect(plain(titleBar(started(), 'Shop', 70))).toContain('[=]');
   });
 
-  it('turns a click on a page or tab into its own key', () => {
-    expect(labelPress('Records')).toEqual({ str: undefined, name: 'page:records' });
+  it('shows tabs only on pages that have them, the open one lit, each clickable', () => {
+    expect(pageTabsRow('home')).toEqual([]);
+    const records = pageTabsRow('records', 'achievements');
+    expect(plain(records[0])).toContain('[Statistics] [Achievements] [Dictionary]');
+    expect(records[0]).toContain(bold(inverse('[Achievements]')));
     expect(labelPress('Inventory')).toEqual({ str: undefined, name: 'page:inventory' });
-    expect(labelPress('<')).toEqual({ str: '<', name: undefined });
+    expect(labelPress('=')).toEqual({ str: '=', name: undefined });
   });
 });
 

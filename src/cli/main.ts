@@ -169,7 +169,8 @@ import {
   dyePick,
   hatPick,
   inspectItem,
-  navBar,
+  pageTabsRow,
+  pageNames,
   scriptKeys,
   shopKeys,
   pages,
@@ -178,11 +179,11 @@ import {
   type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { bold, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
+import { bold, dim, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { keyBox, overlay, postName, renderCandidates, renderPostPopup } from './hiring';
+import { keyBox, menuBox, overlay, postName, renderCandidates, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -335,6 +336,8 @@ function loadPlays(): PlayData[] {
 let hiring = false;
 let keyMenu: { title: string; keys: [string, string][] } | null = null; // a popup of keys: a page's every key ([/]) or the roster's actions ([enter])
 let keyMenuCursor = -1;
+let pageMenu: Page | null = null; // the [=] menu (a popup of every page), open: the page it was opened from
+let pageMenuCursor = -1;
 /** The department popup (Justin, 2026-10-18): for a hire (from: the candidate on HR's list, if one), or to move monkey `monkey`. */
 let choosingPost: { kind: 'hire'; from?: number } | { kind: 'move'; monkey: number } | null = null;
 let postCursor = 0;
@@ -639,7 +642,7 @@ function goHome(): void {
 
 /** The page open now, for the navigation bar, or null on a screen inside one (a book, a picker, help, a question). */
 function currentPage(): Page | null {
-  if (flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pickerOpen()) return null;
+  if (flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pageMenu || pickerOpen()) return null;
   if (namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire || showingHelp || showingDev || showingKeys || showingSlots) return null;
   if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
   if (showingInventory || showingRoster) return 'monkeys';
@@ -796,7 +799,7 @@ function draw() {
   const shown = pickerOpen() ? highlightChoice(message, pickCursor) : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
   const page = currentPage();
-  const nav = page ? navBar(page, currentTab()) : [];
+  const nav = page ? pageTabsRow(page, currentTab()) : [];
   const navHeight = nav.length;
   const under = flipping
     ? renderCoinFlip(state, flipping === 'ask', flipMessage, columns)
@@ -852,7 +855,7 @@ function draw() {
   // The navigation bar, right under the title bar, on every page.
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
-  const popup = keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = pageMenu ? menuBox('Go to', pages.map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const screen = popup ? overlay(withNav, [...popup, ...(message ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   const rows = process.stdout.rows || 0;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
@@ -1031,6 +1034,23 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  // The [=] menu (Justin, 2026-10-21: "a popup or dropdown menu button" instead of arrows between pages): pick a page by number, arrows and [enter], or a click.
+  if (pageMenu) {
+    if (key.name === 'up' || key.name === 'down') {
+      pageMenuCursor = (Math.max(0, pageMenuCursor) + (key.name === 'up' ? pages.length - 1 : 1)) % pages.length;
+      return draw();
+    }
+    pageMenu = null;
+    const row = key.name === 'return' || key.name === 'enter' ? pageMenuCursor : str && /^[1-9]$/.test(str) ? Number(str) - 1 : -1;
+    if (pages[row]) goTo(pages[row]);
+    return draw();
+  }
+  if (!busy && str === '=') {
+    keyMenu = null;
+    pageMenu = currentPage() ?? 'home';
+    pageMenuCursor = pages.indexOf(pageMenu);
+    return draw();
+  }
   // A popup of keys: arrows and [enter] pick a row, its key does it, any other key closes it and does its own thing.
   if (keyMenu) {
     const menu = keyMenu;
@@ -1060,14 +1080,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   }
 
-  // The navigation bar: [<] and [>] step through the pages, a click on one opens it, and [ and ] step through a page's tabs.
+  // A page's tabs: [ and ] step through them, a click on one opens it.
   const page = busy ? null : currentPage();
   if (key.name?.startsWith('page:')) {
-    if (page) goTo(key.name.slice('page:'.length) as Page | Tab);
-    return draw();
-  }
-  if (page && (str === '<' || str === '>')) {
-    goTo(pages[(pages.indexOf(page) + (str === '<' ? pages.length - 1 : 1)) % pages.length]);
+    if (page) goTo(key.name.slice('page:'.length) as Tab);
     return draw();
   }
   const tabs = page && pageTabs[page];

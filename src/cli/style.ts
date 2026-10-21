@@ -112,17 +112,21 @@ export function titleBar(state: GameState, screen = '', columns = 0): string {
   let name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
   // The coin flip, on every screen's title bar: a button the mouse can click any time ([?] works on every screen too).
   let flip = '[?] flip';
-  const fits = () => name.length + 4 + plainText(totals).length + (flip ? 3 + flip.length : 0) < columns;
+  // The menu button (Justin, 2026-10-21): [=] opens the popup of every page, from any screen.
+  let menu = '[=] menu';
+  const fits = () => name.length + 4 + plainText(totals).length + (flip ? 3 + flip.length : 0) + 3 + menu.length < columns;
   if (columns > 0 && !fits()) flip = '[?]';
+  if (columns > 0 && !fits()) menu = '[=]';
   if (screen && columns > 0 && !fits()) name = ` ${screen.toUpperCase()} `;
   if (columns > 0 && !fits()) flip = ''; // too narrow: the button goes before the totals turn scientific
+  if (!screen && columns > 0 && !fits()) name = ' MONKEYS ';
   const biggestFirst = amounts.map((_, i) => i).sort((a, b) => amounts[b][0] - amounts[a][0]);
   for (const i of biggestFirst) {
-    if (columns <= 0 || fits()) break;
+    if (columns <= 0 || fits() || amounts[i][0] < 1e5) break;
     short.add(i);
     totals = render();
   }
-  return `${bold(inverse(name))}    ${totals}${flip ? `   ${bold(flip)}` : ''}`;
+  return `${bold(inverse(name))}    ${totals}   ${bold(menu)}${flip ? `   ${bold(flip)}` : ''}`;
 }
 
 /**

@@ -527,7 +527,7 @@ export function renderHomeKeys(state: GameState): string {
     titleBar(state, 'Keys'),
     '',
     ...group('GO TO', [
-      ['< >', 'the page before or after, on the bar under the title (or click a page; [ and ] switch its tabs)'],
+      ['=', 'the menu of every page, from any screen (or click [=] menu in the title bar); [ and ] switch a page\'s tabs'],
       ['space', 'the shop (then [up/down] choose, [enter] or [1-9] buy, [[/]] another store, [i] inspect)'],
       ['m', 'your monkeys: each one\'s job, typing, hats and trait (the Monkeys page)'],
       ['i', 'the inventory: your hats and furniture put away; move hats, swap typewriters (a Monkeys tab)'],
@@ -562,9 +562,9 @@ export function renderHomeKeys(state: GameState): string {
 }
 
 /**
- * The pages the navigation bar under the title switches between (Justin,
- * 2026-10-21: the menus were "a mess and difficult to navigate"). Monkeys and
- * Records each hold a few screens as tabs.
+ * The pages the [=] menu goes to (Justin, 2026-10-21: the menus were "a mess
+ * and difficult to navigate"; then "a popup or dropdown menu button" instead
+ * of a bar and arrows). Monkeys and Records each hold a few screens as tabs.
  */
 export type Page = 'home' | 'shop' | 'monkeys' | 'office' | 'texts' | 'records' | 'options';
 export const pages: Page[] = ['home', 'shop', 'monkeys', 'office', 'texts', 'records', 'options'];
@@ -573,14 +573,12 @@ export type Tab = 'roster' | 'inventory' | 'statistics' | 'achievements' | 'dict
 export const pageTabs: Partial<Record<Page, Tab[]>> = { monkeys: ['roster', 'inventory'], records: ['statistics', 'achievements', 'dictionary'] };
 const tabNames: Record<Tab, string> = { roster: 'Roster', inventory: 'Inventory', statistics: 'Statistics', achievements: 'Achievements', dictionary: 'Dictionary' };
 
-/** The navigation bar: every page, the open one lit, [<] and [>] either side; under it the page's tabs, if it has any. Each name is clickable. */
-export function navBar(page: Page, tab?: Tab): string[] {
-  const item = (name: string, on: boolean) => (on ? bold(inverse(`[${name}]`)) : `[${name}]`);
+/** The tabs of a page that has them (Monkeys, Records), the open one lit, each clickable; none for other pages. Every page is in the [=] menu. */
+export function pageTabsRow(page: Page, tab?: Tab): string[] {
   const tabs = pageTabs[page];
-  return [
-    ` ${bold('[<]')} ${pages.map((p) => item(pageNames[p], p === page)).join(' ')} ${bold('[>]')}`,
-    ...(tabs ? [`     ${tabs.map((t) => item(tabNames[t], t === tab)).join(' ')}   ${dim('[ and ] switch tabs')}`] : []),
-  ];
+  if (!tabs) return [];
+  const item = (t: Tab) => (t === tab ? bold(inverse(`[${tabNames[t]}]`)) : `[${tabNames[t]}]`);
+  return [` ${tabs.map(item).join(' ')}   ${dim('[ and ] switch tabs')}`];
 }
 
 /** Every key of the script page; its key row shows the main ones, [/] the rest. */
