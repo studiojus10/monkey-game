@@ -119,6 +119,7 @@ import {
   switchClassical,
   latinUnlocked,
   noteRevealed,
+  labRoom,
 } from '../game/logic';
 import { deserialize, SAVE_VERSION, save, saveVersions } from '../game/save';
 import { GAME_VERSION } from '../version';
@@ -775,6 +776,28 @@ function shopKey(store: Store, str: string | undefined, key: { name?: string }):
   return store;
 }
 
+/** The game's height: the tallest screen seen or measured this session (see tallestPage). */
+let gameHeight = 0;
+let measuredAt = 0;
+
+/** The tallest of the pages in the [tab] menu as they'd look now, each with its tabs row. */
+function tallestPage(columns: number): number {
+  const play = availablePlays()[scriptPlay]?.id ?? '';
+  const pages = [
+    renderScreen(state, '', null, columns, -1, 0, homeChosen(state, homeCursor)),
+    renderRoster(state, rosterCursor, '', columns) + '\n',
+    renderInventory(state, 0, 0, null, '', columns) + '\n',
+    renderOffice(officeView(), '', officeCursor, -1, false, null, columns),
+    renderScript(state, play, scriptCursor, '', columns),
+    renderStats(state, columns) + '\n',
+    renderAchievements(state, 0, columns) + '\n',
+    renderDictionary(state, 0, columns) + '\n',
+    renderOptions(state, columns),
+    ...(labRoom(state) ? [renderShop(state, 'research', -1, '', columns)] : []),
+  ];
+  return Math.max(...pages.map((p) => p.split('\n').length));
+}
+
 function draw() {
   const columns = fitLines();
   // Menu items showing now keep their places; ones that show up later go under them.
@@ -860,7 +883,14 @@ function draw() {
   const upgradeTitle = upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   const popup = linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const rows = process.stdout.rows || 0;
-  const screen = fillHeight(popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav, rows);
+  const shownNow = popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
+  // Every screen as tall as the tallest, so nothing moves between them; the game still sits at the bottom of the window.
+  gameHeight = Math.max(gameHeight, shownNow.split('\n').length);
+  if (Date.now() - measuredAt > 2000) {
+    measuredAt = Date.now();
+    gameHeight = Math.max(gameHeight, tallestPage(columns));
+  }
+  const screen = fillHeight(shownNow, rows > 0 ? Math.min(gameHeight, rows - 1) : gameHeight);
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
   const lines = [...drawn.lines];

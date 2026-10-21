@@ -106,7 +106,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { shortKeyRow, affordable, coverBottom, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
+import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -1133,7 +1133,7 @@ function costText(item: ShopItem, affordable = false): string {
  * over every page; its page is the one shown), drawn inverse, or -1 for none.
  * `under` leaves out the title bar, for the shop under another screen.
  */
-export function renderShop(state: GameState, store: Store, cursor = -1, message = '', columns = 0, under = false, at?: ScriptSpot, onMap = false): string {
+export function renderShop(state: GameState, store: Store, cursor = -1, message = '', columns = 0, under = false, at?: ScriptSpot, onMap = false, sameHeight = true): string {
   const items = storeItems(state, store, at);
   const numbered = items.filter((x) => x.id);
   const pages = storePages(state, store, at);
@@ -1191,7 +1191,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
   }
   list.splice(lastRow + 1, 0, ...shopMarks[1], ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []));
 
-  return [
+  const shown = [
     ...(under ? [] : [titleBar(state, store === 'research' ? 'Research' : 'Shop', columns), '']),
     ...(store === 'research' || store === 'furniture' ? [] : [tabs.join(' '), '']),
     ...intro.map((x) => ` ${dim(x.text)}`),
@@ -1204,6 +1204,10 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     rule(columns),
     shortKeyRow(shopKeys(state, store, onMap), ['up/down', 'enter', '[/]', 'esc'], columns),
   ].join('\n');
+  // Every store as tall as the tallest (Justin, 2026-10-21: "so the top of the shop does not move up and down when changing tabs").
+  if (!sameHeight) return shown;
+  const tallest = Math.max(...openStores(state, store, onMap).map((x) => renderShop(state, x, -1, message, columns, under, at, onMap, false).split('\n').length));
+  return fillHeight(shown, tallest);
 }
 
 /** The options menu. */

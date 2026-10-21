@@ -152,17 +152,16 @@ export function placeScreen(screen: string, rows: number, atTop: boolean): strin
 }
 
 /**
- * A screen as tall as the terminal allows, whatever is showing (Justin,
- * 2026-10-21: "the top line does not move up and down when changing
- * menus"): blank lines go in above its keys (the last rule), so the title
- * stays on top and the keys (or a popup over the bottom) at the bottom. The tallest screens fill the
- * terminal anyway (lists fit themselves to it); one line is kept for the
- * terminal's cursor.
+ * A screen `height` lines tall, whatever is showing (Justin, 2026-10-21:
+ * "retain the height of the game so the lines in the game do not move up
+ * and down when changing menus"): blank lines go in above its keys (the last
+ * rule), so the title stays on top and the keys (or a popup over the
+ * bottom) at the bottom.
  */
-export function fillHeight(screen: string, rows: number): string {
+export function fillHeight(screen: string, height: number): string {
   const lines = screen.split('\n');
-  const missing = rows - 1 - lines.length;
-  if (rows <= 0 || missing <= 0) return screen;
+  const missing = height - lines.length;
+  if (missing <= 0) return screen;
   // Above a popup over the bottom (coverBottom's border), else above the keys.
   const border = lines.findIndex((l, i) => i > 0 && /^ ={20,}$/.test(plainText(l)));
   let at = border > 0 ? border : lines.length;
