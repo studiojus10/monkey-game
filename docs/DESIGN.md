@@ -447,3 +447,7 @@ Built 2026-10-14. Justin liked a prestige reset but worried how it would work wi
 
 Justin, 2026-10-21: "all furniture can be placed in any room, however, certain furniture benefits will only be active in certain rooms". Any piece can stand in any room (desks stay where their monkeys sit). Each kind's `rooms` in config.ts is now where its effects work (`worksIn`): tiring slower and pay in departments' rooms, faster breaks in break rooms, a quicker manager in a manager's office. Elsewhere a piece still counts for feng shui (chi, space, variety) but does nothing else, and inspecting it says so. A safe outside a manager's office is unlocked and empty. New pieces still place themselves where they work first. The office map's three furniture stores are one Furniture store ("combine the furniture store into one large store"), each item saying where it works.
 
+
+## Swapping furniture (v0.15.0)
+
+Justin, 2026-10-21: putting a held piece down on another piece swaps the two "if there is space" (`swapFurniture`): the held piece takes the other's spot and the other goes where the held one stood, each keeping which way it's turned. If either doesn't fit, nothing moves and the map says there's not enough space. Desks and safes still stay in their room.

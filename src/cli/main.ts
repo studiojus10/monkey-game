@@ -37,6 +37,7 @@ import {
   furnitureCost,
   dyeCost,
   moveFurniture,
+  swapFurniture,
   rotateFurniture,
   buyRoom,
   expandRoom,
@@ -1774,7 +1775,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         else if (!room || !expandRoom(state, room.id, [c.x, c.y])) message = 'Rooms grow onto empty squares next to them, not touching another room. Choose a +.';
       } else if (heldFurniture >= 0) {
         const f = state.furniture[heldFurniture];
-        if (here && moveFurniture(state, heldFurniture, here.id, c.x, c.y)) heldFurniture = -1;
+        const under = here ? cellAt(state, here.id, c.x, c.y) : null;
+        if (typeof under === 'number' && under !== heldFurniture) {
+          // Put down on another piece: the two swap places, if both fit.
+          const other = furnitureName(state, under);
+          if (swapFurniture(state, heldFurniture, under)) {
+            message = `Swapped the ${furnitureName(state, heldFurniture)} and the ${other}.`;
+            heldFurniture = -1;
+          } else message = `Not enough space to swap the ${furnitureName(state, heldFurniture)} and the ${other}.`;
+        } else if (here && moveFurniture(state, heldFurniture, here.id, c.x, c.y)) heldFurniture = -1;
         else if (!here) message = 'Furniture goes inside a room.';
         else if (f.kind === desk.id && f.room !== here.id) message = "Desks stay in their department's room.";
         else if (!allowedIn(state, f.kind, here.id))
