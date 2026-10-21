@@ -659,8 +659,11 @@ export function enjoyedRooms(state: GameState, genre: Genre | undefined): Room[]
 
 /** Adds up one effect of the furniture a department enjoys. */
 function furnitureSum(state: GameState, genre: Genre | undefined, effect: 'drain' | 'rest' | 'happiness'): number {
-  const ids = new Set(enjoyedRooms(state, genre).map((r) => r.id));
-  return state.furniture.reduce((n, f) => n + (ids.has(f.room) ? (kindOf(f.kind)?.[effect] ?? 0) : 0), 0);
+  const rooms = new Map(enjoyedRooms(state, genre).map((r) => [r.id, r.kind]));
+  return state.furniture.reduce((n, f) => {
+    const kind = rooms.get(f.room);
+    return n + (kind && worksIn(f.kind, kind) ? (kindOf(f.kind)?.[effect] ?? 0) : 0);
+  }, 0);
 }
 
 /** How much slower a department's monkeys tire, from the decor in its room and its lounge (0.1 = 10%), times feng shui's space factor. */
@@ -1057,10 +1060,20 @@ export function footprint(f: Pick<Furniture, 'kind' | 'x' | 'y' | 'turned'>): [n
 
 const covers = (f: Furniture, x: number, y: number) => footprint(f).some(([px, py]) => px === x && py === y);
 
-/** Whether a kind of furniture may stand in a room: televisions only in break rooms, for example (see furnitureKinds' rooms). */
+/**
+ * Whether a kind of furniture may stand in a room: any piece in any room
+ * (Justin, 2026-10-21), its effects working only where worksIn says; desks
+ * stay where their monkeys sit.
+ */
 export function allowedIn(state: GameState, kind: string, roomId: string): boolean {
   const room = state.office.find((r) => r.id === roomId);
-  return !!room && !!kindOf(kind)?.rooms.includes(room.kind);
+  if (!room || !kindOf(kind)) return false;
+  return kind === desk.id || kind === managerDesk.id ? kindOf(kind)!.rooms.includes(room.kind) : true;
+}
+
+/** Whether a piece's effects work in a kind of room (furnitureKinds' rooms): decor where monkeys type, comforts in break rooms, and so on. Feng shui counts every piece wherever it stands. */
+export function worksIn(kind: string, roomKind: Room['kind']): boolean {
+  return !!kindOf(kind)?.rooms.includes(roomKind);
 }
 
 /** Whether a piece fits with its first square at x, y: a room it may stand in, every square in it and free (`ignore` is the piece being moved). */
@@ -1297,13 +1310,14 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
 
 /** Where a new piece goes: the first spot it fits in a room of the kind it suits, else in any room it may stand in (turned if only that fits). */
 export function furnitureSpot(state: GameState, kind = 'plant', roomKind?: Room['kind']): Omit<Furniture, 'kind'> | null {
-  // Only rooms of roomKind when given; else rooms of the kind it suits first (decor in departments' rooms, comforts in break rooms).
+  // Only rooms of roomKind when given; else rooms where it works first (decor in departments' rooms, comforts in break rooms), in the order of its rooms, then any other.
   const suits = kindOf(kind)?.rooms ?? [];
-  const first: Room['kind'] = roomKind ?? (suits.length === 1 ? suits[0] : (kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break');
+  const preferred: Room['kind'] = suits.length === 1 ? suits[0] : (kindOf(kind)?.drain ?? 0) > 0 ? 'department' : 'break';
+  const order = roomKind ? [roomKind] : [preferred, ...suits];
   const rooms =
     kind === safe.id
       ? officesWithoutSafe(state)
-      : [...state.office.filter((r) => r.kind === first), ...(roomKind ? [] : state.office.filter((r) => r.kind !== first))];
+      : [...new Set([...order.flatMap((k) => state.office.filter((r) => r.kind === k)), ...(roomKind ? [] : state.office)])];
   const [w, h] = pieceSize(kind);
   for (const room of rooms) {
     for (const [x, y] of bestSquares(state, room)) {
@@ -2105,7 +2119,7 @@ function lineStands(state: GameState, t: Pin): boolean {
 /** How much quicker than usual a manager changes slots: upgrades, its office's furniture and (with the book) its chi. */
 export function managerSpeed(state: GameState, m: MonkeyState): number {
   const office = officeOf(state, monkeyGenre(state, m));
-  const pieces = office ? state.furniture.filter((f) => f.room === office.id) : [];
+  const pieces = office ? state.furniture.filter((f) => f.room === office.id && worksIn(f.kind, 'office')) : [];
   const furniture = Math.min(managerOffice.maxFurnitureSpeed, pieces.reduce((n, f) => n + (kindOf(f.kind)?.happiness ?? 0) * managerOffice.speedPerHappiness, 0));
   const chi = office && state.fengShuiBook ? roomChi(state, office) * managerOffice.chiSpeed : 0;
   return 1 + managers.speedPerLevel * m.managerLevel + furniture + chi;
@@ -2389,6 +2403,31 @@ export function projectOf(id: string): ResearchProject | undefined {
 }
 
 /** Projects not yet finished (the one under way included), in order. */
+/**
+ * `list` in the order its items first showed up (state.revealed), so a menu
+ * option unlocked later goes at the bottom (Justin, 2026-10-21: "so it does
+ * not change the way the player interacts with menus that already existed").
+ * Items not noted yet go last, in the order given.
+ */
+export function inRevealOrder<T>(state: GameState, list: T[], key: (t: T) => string): T[] {
+  const at = (t: T, i: number) => {
+    const k = state.revealed.indexOf(key(t));
+    return k < 0 ? state.revealed.length + i : k;
+  };
+  return list.map((t, i) => [t, at(t, i)] as const).sort((a, b) => a[1] - b[1]).map(([t]) => t);
+}
+
+/** Notes menu items showing now, after every item noted before; see inRevealOrder. */
+export function noteRevealed(state: GameState, keys: string[]): void {
+  for (const k of keys) if (!state.revealed.includes(k)) state.revealed.push(k);
+}
+
+/** The Research page's projects: every one you can start, the one under way and the ones done, in the order they showed up. */
+export function researchList(state: GameState): ResearchProject[] {
+  const left = projectsLeft(state);
+  return inRevealOrder(state, research.projects.filter((p) => left.includes(p) || state.researched.includes(p.id)), (p) => `research:${p.id}`);
+}
+
 export function projectsLeft(state: GameState): ResearchProject[] {
   return research.projects.filter((p) => !state.researched.includes(p.id) && (state.researching === p.id || ((p.needs !== 'marketing' || !!marketingRoom(state)) && (p.needs !== 'telegram' || state.telegrams.length > 0) && (!p.after || state.researched.includes(p.after)))));
 }
@@ -2478,6 +2517,7 @@ export function safeAt(state: GameState, index: number): SafeState | undefined {
 export function findSafe(state: GameState, index: number, rng: Rng = Math.random): boolean {
   if (state.furniture[index]?.kind !== safe.id || safeAt(state, index)) return false;
   const genre = officeGenre(state, index);
+  if (!genre) return false; // outside a manager's office a safe stands open and empty
   const level = Object.keys(state.safes).length;
   const lock = lockOf(level);
   let combo = '';
@@ -2565,7 +2605,7 @@ export function codebreakerCost(state: GameState): number {
 /** Why a codebreaker can't be hired right now, money aside ('' if one can). */
 export function codebreakerBlocker(state: GameState): string {
   const room = codebreakingRoom(state);
-  if (!room) return `${codebreaking.name} office needed`;
+  if (!room) return `${codebreaking.name} Department needed`;
   if (codebreakers(state).length >= codebreaking.maxStaff) return `${codebreaking.name} full`;
   return freeSquares(state, room).length > 0 ? '' : 'desk needed';
 }
@@ -2697,7 +2737,7 @@ export function marketingCost(state: GameState): number {
 /** Why a marketing monkey can't be hired right now, money aside ('' if one can). */
 export function marketingBlocker(state: GameState): string {
   const room = marketingRoom(state);
-  if (!room) return 'Marketing office needed';
+  if (!room) return 'Marketing Department needed';
   if (marketers(state).length >= marketing.maxStaff) return 'Marketing full';
   return freeSquares(state, room).length > 0 ? '' : 'desk needed';
 }
@@ -2747,7 +2787,7 @@ export function hrCost(state: GameState): number {
 /** Why an HR monkey can't be hired right now, money aside ('' if one can). */
 export function hrBlocker(state: GameState): string {
   const room = hrRoom(state);
-  if (!room) return 'HR office needed';
+  if (!room) return 'HR Department needed';
   if (hrStaff(state).length >= hr.maxStaff) return 'HR full';
   return freeSquares(state, room).length > 0 ? '' : 'desk needed';
 }
@@ -2898,12 +2938,12 @@ export function posts(state: GameState, managing = true): Post[] {
         .map((g) => ({ id: `boss:${g}`, job: 'managing', genre: g, have: managerOf(state, g) ? 1 : 0, max: 1, blocked: managerOf(state, g) ? 'full' : managerBlocker(state, g) }));
   const staff: Post[] = [
     ...(state.researchOpen ? [{ id: research.id, job: 'research' as Job, have: researchers(state).length, max: research.maxResearchers, room: labRoom(state), name: 'lab needed' }] : []),
-    ...(hrRoom(state) ? [{ id: hr.id, job: 'hr' as Job, have: hrStaff(state).length, max: hr.maxStaff, room: hrRoom(state), name: `${hr.name} office needed` }] : []),
-    ...(marketingRoom(state) ? [{ id: marketing.id, job: 'marketing' as Job, have: marketers(state).length, max: marketing.maxStaff, room: marketingRoom(state), name: `${marketing.name} office needed` }] : []),
-    ...(codebreakingRoom(state) ? [{ id: codebreaking.id, job: 'codebreaking' as Job, have: codebreakers(state).length, max: codebreaking.maxStaff, room: codebreakingRoom(state), name: `${codebreaking.name} office needed` }] : []),
-    ...(recordsRoom(state) ? [{ id: records.id, job: 'records' as Job, have: recorders(state).length, max: records.maxStaff, room: recordsRoom(state), name: `${records.name} office needed` }] : []),
+    ...(hrRoom(state) ? [{ id: hr.id, job: 'hr' as Job, have: hrStaff(state).length, max: hr.maxStaff, room: hrRoom(state), name: `${hr.name} Department needed` }] : []),
+    ...(marketingRoom(state) ? [{ id: marketing.id, job: 'marketing' as Job, have: marketers(state).length, max: marketing.maxStaff, room: marketingRoom(state), name: `${marketing.name} Department needed` }] : []),
+    ...(codebreakingRoom(state) ? [{ id: codebreaking.id, job: 'codebreaking' as Job, have: codebreakers(state).length, max: codebreaking.maxStaff, room: codebreakingRoom(state), name: `${codebreaking.name} Department needed` }] : []),
+    ...(recordsRoom(state) ? [{ id: records.id, job: 'records' as Job, have: recorders(state).length, max: records.maxStaff, room: recordsRoom(state), name: `${records.name} Department needed` }] : []),
   ].map(({ room, name, ...p }) => ({ ...p, blocked: staffBlocker(room, p.have, p.max, state, name) }));
-  return [...typing, ...bosses, ...staff];
+  return inRevealOrder(state, [...typing, ...bosses, ...staff], (p) => `post:${p.id}`);
 }
 
 /** The usual price of a hire for a post, before a candidate's stats change it. */

@@ -48,8 +48,8 @@ import { readFileSync } from 'node:fs';
 import { greekLetters } from '../src/game/plays';
 import { wordPoints } from '../src/game/words';
 
-/** What the Manager furniture store sells. */
-const sold = (s: GameState) => storeItems(s, 'office').map((x) => x.text).join('|');
+/** What the furniture store sells. */
+const sold = (s: GameState) => storeItems(s, 'furniture').map((x) => x.text).join('|');
 
 /** Comedy and tragedy departments, each with a manager's office and a safe bought for it, and plenty of bananas. */
 function offices(): GameState {
@@ -94,7 +94,7 @@ describe('safes', () => {
     expect(findSafe(s, c)).toBe(false); // found already
     expect(s.codebreakFocus).toBe('comedy');
     expect(canBuildCodebreaking(s)).toBe(true);
-    expect(safeText(s, c)).toContain('Codebreaking office could crack it');
+    expect(safeText(s, c)).toContain('Codebreaking Department could crack it');
     expect(safeText(s, c)).toContain('a five-digit dial (100,000 combinations)');
     const back = deserialize(serialize(s));
     expect(back.safes).toEqual(s.safes);
@@ -114,7 +114,7 @@ describe('safes', () => {
     expect(lockedSafes(s)).toEqual(['comedy', 'tragedy']);
     expect(cycleCodebreakFocus(s)).toBe(true);
     expect(s.codebreakFocus).toBe('tragedy');
-    expect(codebreakerBlocker(s)).toBe('Codebreaking office needed');
+    expect(codebreakerBlocker(s)).toBe('Codebreaking Department needed');
     expect(buyRoom(s, 'codebreaking')).toBe(true);
     expect(canBuildCodebreaking(s)).toBe(false); // one office
     expect(hireCodebreaker(s)).toBe(true);

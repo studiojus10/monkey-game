@@ -567,6 +567,8 @@ export const safes = {
   ],
   empty: 'a note: "Blorp. Blorp again. Splendiferous noodlewhip."',
   found: 'A heavy steel safe. Something rattles inside when you tip it.',
+  // A safe anywhere but a manager's office (Justin, 2026-10-21: "if safes are placed outside of offices they will be unlocked and empty").
+  outside: "A heavy steel safe, unlocked and empty. Safes only hold something in a manager's office.",
   open: 'The safe stands open. Inside:',
 };
 

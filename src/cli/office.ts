@@ -33,12 +33,13 @@ import {
   safeAt,
   lockOf,
   lockCombinations,
+  worksIn,
 } from '../game/logic';
 import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedBy, windowAt } from '../game/layout';
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
-import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow } from './screen';
-import { bold, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar } from './style';
+import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow, worksInText } from './screen';
+import { bold, coverBottom, roomTag, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar } from './style';
 import { formatAmount, formatNumber, formatPrice } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -53,15 +54,16 @@ export type Cell = { x: number; y: number; room?: string };
 export function roomName(state: GameState, room: Room): string {
   if (room.kind === 'department') {
     const g = roomGenre(state, room);
-    return g ? `${departmentName(state, g)} room` : 'Your room';
+    // Justin, 2026-10-21: "Comedies Department", and "Office" only for a manager's office.
+    return g ? `${departmentName(state, g)} Department` : 'Your Department';
   }
   if (room.kind === 'lab') return `${research.name} lab`;
-  if (room.kind === 'hr') return `${hr.name} office`;
-  if (room.kind === 'marketing') return `${marketing.name} office`;
-  if (room.kind === 'codebreaking') return `${codebreaking.name} office`;
+  if (room.kind === 'hr') return `${hr.name} Department`;
+  if (room.kind === 'marketing') return `${marketing.name} Department`;
+  if (room.kind === 'codebreaking') return `${codebreaking.name} Department`;
   if (room.kind === 'library') return library.name;
-  if (room.kind === 'records') return `${records.name} office`;
-  if (room.kind === 'office') return `${departmentName(state, room.department as keyof typeof genreNames) ?? 'Manager'} office`;
+  if (room.kind === 'records') return `${records.name} Department`;
+  if (room.kind === 'office') return `${departmentName(state, room.department as keyof typeof genreNames) ?? 'Manager'} Office`;
   const breaks = state.office.filter((r) => r.kind === 'break');
   return breaks.length > 1 ? `Break room ${breaks.indexOf(room) + 1}` : 'Break room';
 }
@@ -127,8 +129,8 @@ function growingRoom(state: GameState, cursor: Cell | null, growing: string | bo
  * square; `held` is the furniture being moved (an index into
  * state.furniture), or -1; `growing` shows (as +) where a room can grow;
  * `heldDoor` is the wall of the cursor's square where a door being moved
- * would go. `shop`, when given, is the map's furniture shop: it takes the
- * place of everything under the map.
+ * would go. `shop`, when given, is the map's furniture shop: a popup over
+ * the bottom of the map's screen.
  */
 export function renderOffice(
   state: GameState,
@@ -141,6 +143,7 @@ export function renderOffice(
   shop = '',
   legend: number | null = null,
 ): string {
+  if (shop) return coverBottom(renderOffice(state, '', cursor, held, growing, heldDoor, columns), shop, columns);
   const grow = growingRoom(state, cursor, growing);
   const options = grow ? expansionSquares(state, grow) : [];
   const b = officeBounds(state);
@@ -237,7 +240,7 @@ export function renderOffice(
     if (!wall(x, y - 1, x, y)) return preview(x, y, 'n') ? ' / ' : joined(x, y - 1, x, y) ? ' | ' : '   ';
     if (isDoor(x, y, 'n')) return lit?.wall === 'door' ? inverse('-/-') : '-/-';
     const label = labels.get(`${x},${y}`);
-    if (label) return lit?.room && roomAt(state, x, y)?.id === lit.room ? inverse(`-${label}`.padEnd(3, '-')) : `-${label}`.padEnd(3, '-');
+    if (label) return lit?.room && roomAt(state, x, y)?.id === lit.room ? inverse(`-${label}`.padEnd(3, '-')) : `-${roomTag(label)}${label.length < 2 ? '-' : ''}`;
     return windowAbove(x, y) ? (lit?.wall === 'window' ? inverse('===') : '===') : '---';
   };
   const lines: string[] = [];
@@ -257,7 +260,6 @@ export function renderOffice(
   while (lines.length > 0 && lines[0] === '') lines.shift();
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 
-  if (shop) return [titleBar(state, 'Office', columns), '', ...lines, rule(columns), shop].join('\n');
   if (legend !== null) besideMap(lines, items.map((i) => i.text), legend, columns);
 
   const underCursor = cursor ? roomAt(state, cursor.x, cursor.y) : undefined;
@@ -456,7 +458,7 @@ export function libraryBooks(state: GameState): { id: 'fengshui' | 'manager'; ti
   ];
 }
 
-export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number; shelf?: boolean } {
+export function inspectSquare(state: GameState, x: number, y: number, held = -1): { text: string; book: number; shelf?: boolean; choices?: string[] } {
   const room = roomAt(state, x, y);
   const spot = held >= 0 ? held : room ? cellAt(state, room.id, x, y) : 'floor';
   if (typeof spot === 'number') {
@@ -472,10 +474,12 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
       text: [
         ...(f.kind === managerDesk.id ? sits : []),
         k?.description ?? fengShui.nothing,
-        ...(found ? [found, '[y] read it'] : []),
-        ...(shelf.length > 0 ? [`On the shelf: ${shelf.map((b, i) => `[${i + 1}] ${b.title}`).join('   ')}`] : []),
+        ...(k && (k.drain || k.rest || k.happiness) && room && !worksIn(k.id, room.kind) ? [`Here it only counts for feng shui: it works in ${worksInText(k)}.`] : []),
+        ...(found ? [found] : []),
       ].join('  '),
       book: found || shelf.length > 0 ? spot : -1,
+      // What you can read here, for a popup menu.
+      choices: [...(found ? ['[y] read it'] : []), ...shelf.map((b, i) => `[${i + 1}] ${b.title}`)],
       ...(shelf.length > 0 ? { shelf: true } : {}),
     };
   }
@@ -486,13 +490,15 @@ export function inspectSquare(state: GameState, x: number, y: number, held = -1)
 /** What inspecting a safe shows: how Codebreaking is getting on with it, or what it held. */
 export function safeText(state: GameState, index: number): string {
   const s = safeAt(state, index);
+  const room = state.office.find((r) => r.id === state.furniture[index]?.room);
+  if (room?.kind !== 'office') return safes.outside;
   if (!s) return safes.found;
   if (s.open) return `${safes.open} ${s.held}`;
   const at = codebreakingRoom(state)
     ? state.codebreakFocus === Object.keys(state.safes).find((g) => state.safes[g] === s)
       ? `${codebreaking.name} is on it: ${formatNumber(Math.floor(s.tries))} combinations tried.`
       : `${codebreaking.name} is working on another safe ([space] shop, Staff store, to switch).`
-    : `Perhaps a ${codebreaking.name} office could crack it (office map, [r]).`;
+    : `Perhaps a ${codebreaking.name} Department could crack it (office map, [r]).`;
   return `${safes.found} Its lock: ${lockOf(s.level).name} (${formatAmount(lockCombinations(s.level))} combinations). ${at}`;
 }
 

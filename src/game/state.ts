@@ -173,6 +173,7 @@ export interface GameState {
   galleries: number; // the Library's galleries bought (the first comes with the room; kept through a Folio)
   recordBooks: string[][]; // Records' full books, each its sentences (words joined by spaces); shelved as 'records-N' (kept through a Folio)
   recordDraft: string[]; // the book Records is filling (kept through a Folio)
+  revealed: string[]; // menu items in the order they first showed up, so ones revealed later go at the bottom of their list
   recordCatch: number; // Records' share of the next grammatical sentence caught so far (catches one at 1)
   lastMilestone: Milestone | null;
   pointsBonus: number; // from finished scenes: points x (1 + pointsBonus)
@@ -347,6 +348,7 @@ export function createInitialState(now = Date.now()): GameState {
     recordBooks: [],
     recordDraft: [],
     recordCatch: 0,
+    revealed: [],
     classical: 'greek',
     lastMilestone: null,
     pointsBonus: 0,

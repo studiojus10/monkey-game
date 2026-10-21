@@ -2,7 +2,7 @@ import { hr, monkeyStats, theme } from '../game/config';
 import { hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
-import { priceNamed, viewName } from './screen';
+import { priceNamed, promptChoices, viewName } from './screen';
 import { affordable, bold, dim, green, inverse, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
 
 /** A stat as a percent: green above average, red below. */
@@ -143,6 +143,68 @@ export function keyBox(title: string, keys: [string, string][], cursor = -1): st
     line(` ${bold(title)}`),
     line(''),
     ...items.map((r, i) => line(isCursor(i, cursor) ? inverse(` ${plainText(r)}`) : ` ${r}`)),
+    line(''),
+    line(dim(` ${footer}`)),
+    `+${'-'.repeat(width)}+`,
+  ];
+}
+
+/** A column of a columnBox: its heading and its cells, each one or more lines. */
+export interface BoxColumn {
+  heading: string;
+  cells: string[][];
+}
+
+/**
+ * A popup of columns side by side (Justin, 2026-10-21: monkeys "in vertical
+ * columns by department"), each a heading over its cells; the cursor's cell
+ * is inverse. Columns too many for the screen go on in another band below.
+ */
+export function columnBox(title: string, cols: BoxColumn[], cursor: { col: number; row: number } | null, footer: string, columns = 0): string[] {
+  const widths = cols.map((c) => Math.max(plainText(c.heading).length, ...c.cells.flat().map((l) => plainText(l).length)));
+  const room = Math.max(30, (columns || 100) - 8);
+  const bands: number[][] = [[]];
+  let used = 0;
+  cols.forEach((_, i) => {
+    const band = bands[bands.length - 1];
+    if (band.length > 0 && used + 3 + widths[i] > room) {
+      bands.push([]);
+      used = 0;
+    }
+    used += (bands[bands.length - 1].length > 0 ? 3 : 0) + widths[i];
+    bands[bands.length - 1].push(i);
+  });
+  const body: string[] = [];
+  for (const band of bands) {
+    if (body.length > 0) body.push('');
+    const lines = (i: number) => [bold(cols[i].heading), ...cols[i].cells.flatMap((cell, r) => cell.map((l) => (cursor && isCursor(i, cursor.col) && r === cursor.row ? inverse(plainText(l).padEnd(widths[i])) : l)))];
+    const height = Math.max(...band.map((i) => lines(i).length));
+    for (let y = 0; y < height; y++) body.push(band.map((i) => padVisible(lines(i)[y] ?? '', widths[i])).join('   ').trimEnd());
+  }
+  const width = Math.max(title.length, footer.length, ...body.map((l) => plainText(l).length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [`+${'-'.repeat(width)}+`, line(` ${bold(title)}`), line(''), ...body.map((l) => line(` ${l}`)), line(''), line(dim(` ${footer}`)), `+${'-'.repeat(width)}+`];
+}
+
+/**
+ * A picker's prompt ("Which department? [1] Comedies   [2] Tragedies   (any
+ * other key cancels)") as a popup with one choice per row (Justin,
+ * 2026-10-21: no menus "as a continuous line at the bottom of the screen",
+ * "default to vertical popup menus"). Its keys work as before.
+ */
+export function promptBox(prompt: string, cursor = -1): string[] {
+  const choices = promptChoices(prompt);
+  if (choices.length === 0) return [prompt];
+  const title = plainText(prompt.slice(0, choices[0].start)).trim();
+  const rows = choices.map((c) => prompt.slice(c.start, c.end).trim());
+  const footer = '[esc] cancel';
+  const width = Math.max(plainText(title).length, footer.length, ...rows.map((r) => plainText(r).length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [
+    `+${'-'.repeat(width)}+`,
+    line(` ${bold(title)}`),
+    line(''),
+    ...rows.map((r, i) => line(isCursor(i, cursor) ? inverse(` ${plainText(r)}`) : ` ${r}`)),
     line(''),
     line(dim(` ${footer}`)),
     `+${'-'.repeat(width)}+`,

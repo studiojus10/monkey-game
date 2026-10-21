@@ -9,6 +9,7 @@
 import { theme, type FurnitureColor } from '../game/config';
 import type { GameState } from '../game/state';
 import { formatAmount } from '../format';
+import { flipChance } from '../game/logic';
 
 export const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 export const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
@@ -80,6 +81,9 @@ export function forLightBackground(screen: string): string {
   return screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`);
 }
 
+/** A room's label on the office map (Justin, 2026-10-21: the letters "blend into the map"): bold white on blue, unlike any wall or furniture. */
+export const roomTag = (s: string) => `\x1b[1;97;44m${s}\x1b[22;39;49m`;
+
 /** Text without its ANSI codes. */
 export const plainText = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
@@ -111,14 +115,17 @@ export function titleBar(state: GameState, screen = '', columns = 0): string {
   let totals = render();
   let name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
   // The coin flip, on every screen's title bar: a button the mouse can click any time ([?] works on every screen too).
-  let flip = '[?] flip';
+  // Justin, 2026-10-21: "coin flip", with its chance on the home screen.
+  let flip = screen === 'Home' ? `[?] coin flip ${(flipChance(state) * 100).toFixed(1)}%` : '[?] coin flip';
   // The menu button (Justin, 2026-10-21): [tab] opens the popup of every page, from any screen.
   let menu = '[tab] menu';
   let gap = 4; // spaces after the name
   const fits = () => name.length + gap + plainText(totals).length + (flip ? 3 + flip.length : 0) + (menu ? 3 + menu.length : 0) < columns;
-  if (columns > 0 && !fits()) flip = '[?]';
+  // Too wide: shorter labels first, keeping the coin flip's chance longest.
   if (columns > 0 && !fits()) menu = '[tab]';
   if (screen && columns > 0 && !fits()) name = ` ${screen.toUpperCase()} `;
+  if (columns > 0 && !fits()) flip = '[?] coin flip';
+  if (columns > 0 && !fits()) flip = '[?]';
   if (columns > 0 && !fits()) flip = ''; // too narrow: the button goes before the totals turn scientific
   if (!screen && columns > 0 && !fits()) name = ' MONKEYS ';
   const biggestFirst = amounts.map((_, i) => i).sort((a, b) => amounts[b][0] - amounts[a][0]);
@@ -142,6 +149,31 @@ export function placeScreen(screen: string, rows: number, atTop: boolean): strin
   const lines = screen.split('\n').length;
   if (atTop || rows <= lines) return screen + '\n';
   return '\n'.repeat(rows - lines) + screen;
+}
+
+/**
+ * A screen as tall as the terminal allows, whatever is showing (Justin,
+ * 2026-10-21: "the top line does not move up and down when changing
+ * menus"): blank lines go in above its keys (the last rule), so the title
+ * stays on top and the keys (or a popup over the bottom) at the bottom. The tallest screens fill the
+ * terminal anyway (lists fit themselves to it); one line is kept for the
+ * terminal's cursor.
+ */
+export function fillHeight(screen: string, rows: number): string {
+  const lines = screen.split('\n');
+  const missing = rows - 1 - lines.length;
+  if (rows <= 0 || missing <= 0) return screen;
+  // Above a popup over the bottom (coverBottom's border), else above the keys.
+  const border = lines.findIndex((l, i) => i > 0 && /^ ={20,}$/.test(plainText(l)));
+  let at = border > 0 ? border : lines.length;
+  for (let i = lines.length - 1; border < 0 && i > 0; i--) {
+    if (/^ -{20,}$/.test(plainText(lines[i]))) {
+      at = i;
+      break;
+    }
+  }
+  lines.splice(at, 0, ...Array<string>(missing).fill(''));
+  return lines.join('\n');
 }
 
 /** The terminal row (1-based) that placeScreen's first line lands on; below 1 when the top has scrolled away. */
@@ -180,6 +212,18 @@ export function keyRow(keys: ([string, string] | [string, string, boolean])[], c
 export function shortKeyRow(keys: [string, string][], main: string[], columns = 0, more = 'all keys'): string {
   const shown = keys.filter(([k]) => main.includes(k));
   return keyRow(shown.length < keys.length ? [...shown, ['/', more]] : shown, columns);
+}
+
+/**
+ * A popup over the bottom of a screen (Justin, 2026-10-21: the shop should
+ * "open like a popup and cover the bottom of the screen" instead of moving
+ * what's on it): the screen keeps its height and `panel`, under a border,
+ * takes its last lines. A panel taller than the screen keeps just the title bar above it.
+ */
+export function coverBottom(screen: string, panel: string, columns = 0): string {
+  const lines = screen.split('\n');
+  const box = [bold(' ' + '='.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90)))), ...panel.split('\n')];
+  return [...lines.slice(0, Math.max(1, lines.length - box.length)), ...box].join('\n');
 }
 
 /** A dim line across the screen, between a screen's content and its keys. */

@@ -253,11 +253,11 @@ describe('HR', () => {
     expect(buyRoom(s, 'hr')).toBe(false);
     buyRoom(s, 'office', 'comedy');
     expect(hireManager(s, 'comedy')).toBe(true);
-    expect(L.hrBlocker(s)).toBe('HR office needed');
+    expect(L.hrBlocker(s)).toBe('HR Department needed');
     const happy = L.happiness(s, 'comedy');
     const price = L.nextMonkeyCost(s, 'comedy');
     expect(buyRoom(s, 'hr')).toBe(true);
-    expect(buyRoom(s, 'hr')).toBe(false); // one HR office
+    expect(buyRoom(s, 'hr')).toBe(false); // one HR Department
     expect(L.hireHR(s)).toBe(true);
     expect(L.hireHR(s)).toBe(true);
     const staff = L.hrStaff(s);
@@ -297,7 +297,7 @@ describe('hidden stats and job feelings', () => {
     expect(deserialize(serialize({ ...s, monkeys: [{ ...m, speedStat: 7, jobs: { typing: 'nonsense' } }] })).monkeys[0]).toMatchObject({ speedStat: 0, jobs: {} }); // picked again
   });
 
-  it("scale a manager's bonus and show once an HR office is built", async () => {
+  it("scale a manager's bonus and show once an HR Department is built", async () => {
     const L = await import('../src/game/logic');
     const s = department(managers.minDepartmentMonkeys);
     buyRoom(s, 'office', 'comedy');
@@ -334,12 +334,12 @@ describe('traits that rub off on a room', () => {
 });
 
 describe('hiring through HR', () => {
-  it('draws candidates once there is an HR office, prices them by their stats, and hires them as they are', async () => {
+  it('draws candidates once there is an HR Department, prices them by their stats, and hires them as they are', async () => {
     const { hr } = await import('../src/game/config');
     const L = await import('../src/game/logic');
     const s = department(managers.minDepartmentMonkeys);
     L.drawCandidates(s, 1, () => 0.5);
-    expect(s.candidates).toEqual([]); // no HR office yet
+    expect(s.candidates).toEqual([]); // no HR Department yet
     buyRoom(s, 'office', 'comedy');
     hireManager(s, 'comedy');
     buyRoom(s, 'hr');
@@ -531,7 +531,7 @@ describe('Marketing', () => {
     expect(L.canBuildMarketing(s)).toBe(false); // HR first
     expect(L.projectsLeft(s).some((p) => p.needs === 'marketing')).toBe(false); // tactics hidden
     buyRoom(s, 'hr');
-    expect(L.marketingBlocker(s)).toBe('Marketing office needed');
+    expect(L.marketingBlocker(s)).toBe('Marketing Department needed');
     expect(buyRoom(s, 'marketing')).toBe(true);
     expect(L.projectsLeft(s).some((p) => p.needs === 'marketing')).toBe(true);
     s.scenesDone = ['mk:1.1'];
