@@ -106,7 +106,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow } from './style';
+import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow, highlight } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -608,7 +608,7 @@ export function shopKeys(state: GameState, store: Store, onMap = false): [string
   return [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store, onMap).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']];
 }
 
-/** Renders the whole game screen as plain text. */
+/** Renders the whole game screen as plain text. `rows` is the game's height, for the shop popup over the home screen (0: no padding). */
 export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0, chosen = -1): string {
   if (state.owned.length === 0 && state.departments.length === 0) {
     const genres = departmentChoices(state);
@@ -651,7 +651,9 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
 
   // The shop is a popup over the bottom of the home screen; Research is a page of its own.
   if (shop === 'research') return renderShop(state, shop, cursor, message, columns);
-  if (shop) return coverBottom(renderScreen(state, '', null, columns, -1, rows, chosen), renderShop(state, shop, cursor, message, columns, true), columns);
+  // The home screen is first made as tall as the game (`rows`), its keys at the bottom, so the shop
+  // covers only its own height and as much of LATELY as fits stays in sight (Justin, 2026-10-22).
+  if (shop) return coverBottom(fillHeight(renderScreen(state, '', null, columns, -1, rows, chosen), rows), renderShop(state, shop, cursor, message, columns, true), columns);
   return [...homeLines(state, message, columns, chosen), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
 
@@ -1186,7 +1188,7 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
     const cost = x.blocked ? red(x.blocked) : !x.cost ? '' : x.star ? `* ${costText(x, true)}` : costText(x);
     const text = row(`[${n + 1}]`, x.text, x.glyph ?? '', x.element ?? '', x.effect ?? '', cost);
     // What you can afford is green from end to end, glyph and number too.
-    const style = (t: string) => (isCursor(at, cursor) ? inverse(plainText(t)) : x.star ? affordable(t) : x.cost ? dim(plainText(t)) : t);
+    const style = (t: string) => (isCursor(at, cursor) ? highlight(x.star ? affordable(t) : t) : x.star ? affordable(t) : x.cost ? dim(plainText(t)) : t);
     lastRow = list.push(...text.split('\n').map(style)) - 1;
   }
   list.splice(lastRow + 1, 0, ...shopMarks[1], ...(pages > 1 ? [dim(`     page ${page + 1} of ${pages}`)] : []));
@@ -1232,7 +1234,7 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1, profil
   const onOff = (on: boolean) => (on ? green(bold('ON')) : dim('off'));
   const option = (key: string, label: string, on: boolean, notes: string[]) => {
     const row = ` ${bold(`[${key}]`)} ${label.padEnd(26)}${onOff(on)}`;
-    return [isCursor(Number(key) - 1, cursor) ? inverse(plainText(row)) : row, ...notes.map((n) => dim(`     ${n}`)), ''];
+    return [isCursor(Number(key) - 1, cursor) ? highlight(row) : row, ...notes.map((n) => dim(`     ${n}`)), ''];
   };
   return [
     titleBar(state, 'Options', columns),
@@ -1250,7 +1252,7 @@ export function renderOptions(state: GameState, columns = 0, cursor = -1, profil
     ]),
     ...(() => {
       const row = ` ${bold('[6]')} ${'Save profiles'.padEnd(26)}${profile ? bold(profile) : ''}`;
-      return [isCursor(5, cursor) ? inverse(plainText(row)) : row, dim('     Up to 3 games side by side: switch, rename, copy or delete them.'), ''];
+      return [isCursor(5, cursor) ? highlight(row) : row, dim('     Up to 3 games side by side: switch, rename, copy or delete them.'), ''];
     })(),
     dim(` ${theme.title} v${GAME_VERSION}`),
     rule(columns),
@@ -1275,7 +1277,7 @@ export function renderProfiles(state: GameState, profiles: ProfileRow[], active:
       ? dim('empty: [enter] starts a new game here')
       : `${formatAmount(p.bananas)} ${theme.currency}, ${p.monkeys} monkey${p.monkeys === 1 ? '' : 's'}, ${formatDuration(p.seconds)} played${p.gameVersion ? dim(` (v${p.gameVersion})`) : ''}`;
     const row = `${i === cursor ? bold('>') : ' '}${bold(`[${i + 1}]`)} ${p.name.padEnd(21)}${padVisible(i === active ? green('playing') : '', 9)}${what}`;
-    return [isCursor(i, cursor) ? inverse(plainText(row)) : row, ''];
+    return [isCursor(i, cursor) ? highlight(row) : row, ''];
   });
   return [
     titleBar(state, 'Save profiles', columns),
@@ -1396,10 +1398,11 @@ export function renderKeysMenu(state: GameState, message = '', columns = 0, curs
     '',
     ...choices.map(({ k, kind, cost }, i) => {
       const row = (name: string) => ` [${i + 1}] ${name}  ${kind.padEnd(11)}  `;
-      if (isCursor(i, cursor)) return inverse(`${row(k.padEnd(keyWidth))}  ${formatPrice(cost)} ${theme.currency}`);
-      return state.currency >= cost
-        ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatPrice(cost))} ${theme.currency}`)
-        : dim(`${row(k.padEnd(keyWidth))}  ${formatPrice(cost)} ${theme.currency}`);
+      const shown =
+        state.currency >= cost
+          ? green(`${row(k.padEnd(keyWidth))}* ${bold(formatPrice(cost))} ${theme.currency}`)
+          : dim(`${row(k.padEnd(keyWidth))}  ${formatPrice(cost)} ${theme.currency}`);
+      return isCursor(i, cursor) ? highlight(shown) : shown;
     }),
     ...(choices.length === 0 ? [dim('   None available yet.')] : []),
     '',

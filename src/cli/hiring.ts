@@ -3,7 +3,7 @@ import { hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../g
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
 import { priceNamed, promptChoices, viewName } from './screen';
-import { affordable, bold, dim, green, inverse, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow } from './style';
+import { affordable, bold, dim, green, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow, highlight } from './style';
 
 /** A stat as a percent: green above average, red below. */
 function percent(stat: number): string {
@@ -38,7 +38,7 @@ export function renderCandidates(state: GameState, message = '', columns = 0, cu
       padVisible(c.tempLeft > 0 ? `temp ${formatDuration(c.tempLeft)}` : 'for good', 11),
       Number.isFinite(price) ? bold(state.currency >= price ? yellow(formatPrice(price)) : formatPrice(price)) : red('no room'),
     ].join(' ');
-  }).map((r, i) => (isCursor(i, cursor) ? inverse(plainText(r)) : r));
+  }).map((r, i) => (isCursor(i, cursor) ? highlight(r) : r));
   const unseenPrice = cheapestHire(state);
   const unseen = ` [0]  someone unseen: random stats and trait   ${Number.isFinite(unseenPrice) ? `from ${priceNamed(unseenPrice, state.currency)}` : red('no room')}`;
   return [
@@ -50,7 +50,7 @@ export function renderCandidates(state: GameState, message = '', columns = 0, cu
     dim(['    ', 'SPEED ', 'STAMINA ', 'LIKES BEST         ', 'TRAIT          ', 'STAYS      ', 'PRICE FROM'].join(' ')),
     ...(rows.length > 0 ? rows : [dim('     Nobody right now.')]),
     '',
-    isCursor(cursor, state.candidates.length) ? inverse(plainText(unseen)) : unseen,
+    isCursor(cursor, state.candidates.length) ? highlight(unseen) : unseen,
     ...(state.candidates.some((c) => c.tempLeft > 0)
       ? ['', dim(` Temps cost less and work better, but leave in time and can't be upgraded.`)]
       : []),
@@ -91,7 +91,7 @@ export function renderPostPopup(state: GameState, title: string, list: Post[], c
     `+${'-'.repeat(width)}+`,
     line(` ${bold(title)}`, ` ${title}`),
     line(''),
-    ...rows.map((r, i) => (isCursor(i, cursor) ? line(inverse(` ${r.plain.trimEnd()}`), ` ${r.plain.trimEnd()}`) : line(` ${r.text.trimEnd()}`, ` ${r.plain.trimEnd()}`))),
+    ...rows.map((r, i) => (isCursor(i, cursor) ? line(highlight(` ${r.text.trimEnd()}`), ` ${r.plain.trimEnd()}`) : line(` ${r.text.trimEnd()}`, ` ${r.plain.trimEnd()}`))),
     line(''),
     line(dim(` ${list.length > 9 ? '' : `[1-${list.length}] `}pick   [esc] cancel`)),
     `+${'-'.repeat(width)}+`,
@@ -121,7 +121,7 @@ export function menuBox(title: string, rows: string[], cursor = -1, empty = 'Not
     `+${'-'.repeat(width)}+`,
     line(` ${bold(title)}`),
     line(''),
-    ...(items.length > 0 ? items.map((r, i) => line(isCursor(i, cursor) ? inverse(` ${plainText(r)}`) : ` ${r}`)) : [line(dim(` ${empty}`))]),
+    ...(items.length > 0 ? items.map((r, i) => line(isCursor(i, cursor) ? highlight(` ${r}`) : ` ${r}`)) : [line(dim(` ${empty}`))]),
     line(''),
     line(dim(` ${footer}`)),
     `+${'-'.repeat(width)}+`,
@@ -142,7 +142,7 @@ export function keyBox(title: string, keys: [string, string][], cursor = -1): st
     `+${'-'.repeat(width)}+`,
     line(` ${bold(title)}`),
     line(''),
-    ...items.map((r, i) => line(isCursor(i, cursor) ? inverse(` ${plainText(r)}`) : ` ${r}`)),
+    ...items.map((r, i) => line(isCursor(i, cursor) ? highlight(` ${r}`) : ` ${r}`)),
     line(''),
     line(dim(` ${footer}`)),
     `+${'-'.repeat(width)}+`,
@@ -177,7 +177,7 @@ export function columnBox(title: string, cols: BoxColumn[], cursor: { col: numbe
   const body: string[] = [];
   for (const band of bands) {
     if (body.length > 0) body.push('');
-    const lines = (i: number) => [bold(cols[i].heading), ...cols[i].cells.flatMap((cell, r) => cell.map((l) => (cursor && isCursor(i, cursor.col) && r === cursor.row ? inverse(plainText(l).padEnd(widths[i])) : l)))];
+    const lines = (i: number) => [bold(cols[i].heading), ...cols[i].cells.flatMap((cell, r) => cell.map((l) => (cursor && isCursor(i, cursor.col) && r === cursor.row ? highlight(padVisible(l, widths[i])) : l)))];
     const height = Math.max(...band.map((i) => lines(i).length));
     for (let y = 0; y < height; y++) body.push(band.map((i) => padVisible(lines(i)[y] ?? '', widths[i])).join('   ').trimEnd());
   }
@@ -204,7 +204,7 @@ export function promptBox(prompt: string, cursor = -1): string[] {
     `+${'-'.repeat(width)}+`,
     line(` ${bold(title)}`),
     line(''),
-    ...rows.map((r, i) => line(isCursor(i, cursor) ? inverse(` ${plainText(r)}`) : ` ${r}`)),
+    ...rows.map((r, i) => line(isCursor(i, cursor) ? highlight(` ${r}`) : ` ${r}`)),
     line(''),
     line(dim(` ${footer}`)),
     `+${'-'.repeat(width)}+`,

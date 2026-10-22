@@ -3,7 +3,7 @@ import { hatKey, isTemp, monkeyName, splitHatKey, typewriterName } from '../game
 import { menuBox } from './hiring';
 import type { GameState } from '../game/state';
 import { dyed, iconOf, paint } from './screen';
-import { bold, dim, inverse, isCursor, keyRow, padVisible, plainText, rule, titleBar } from './style';
+import { bold, dim, inverse, isCursor, keyRow, padVisible, plainText, rule, titleBar, highlight } from './style';
 
 /**
  * A menu of monkeys to give something to (a hat, a dye): `notes` says what
@@ -13,7 +13,7 @@ export function renderMonkeyPicker(state: GameState, title: string, notes: strin
   const width = Math.max(...state.monkeys.map((_, i) => monkeyName(state, i).length));
   const rows = state.monkeys.map((m, i) => {
     const row = ` ${(i < 9 ? `[${i + 1}]` : '').padEnd(4)} ${dyed(m, iconOf(m))} ${monkeyName(state, i).padEnd(width)}  ${dim(notes[i] ?? '')}`;
-    return isCursor(i, cursor) ? inverse(plainText(row)) : row;
+    return isCursor(i, cursor) ? highlight(row) : row;
   });
   return [
     titleBar(state, 'Give to', columns),
