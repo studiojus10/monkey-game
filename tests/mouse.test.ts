@@ -45,7 +45,7 @@ describe('hover and hidden cursors', () => {
     expect(targetAt(bar, 1, 1, 23)?.press.str).toBe('?');
     const lit = inverseSpan(lines[1], 1, 4);
     expect(plainText(lit)).toBe(plainText(lines[1]));
-    expect(lit).toContain('\x1b[1m\x1b[7m[b]\x1b[27m');
+    expect(lit).toContain('\x1b[1m\x1b[48;5;238m[b]\x1b[49m');
   });
 
   it('only advances on a click elsewhere when a cursor is showing; moving presses nothing', () => {
@@ -58,9 +58,9 @@ describe('hover and hidden cursors', () => {
   it('hides menu cursors until they are switched on', () => {
     showCursors(false);
     expect(isCursor(1, 1)).toBe(false);
-    expect(renderOptions(createInitialState(0), 0, 1)).not.toContain('\x1b[7m [2]');
+    expect(renderOptions(createInitialState(0), 0, 1)).not.toContain('\x1b[48;5;238m');
     showCursors(true);
     expect(isCursor(1, 1)).toBe(true);
-    expect(renderOptions(createInitialState(0), 0, 1)).toContain('\x1b[7m [2]');
+    expect(renderOptions(createInitialState(0), 0, 1)).toContain('\x1b[48;5;238m');
   });
 });

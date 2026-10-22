@@ -3,7 +3,7 @@ import { hatKey, isTemp, monkeyName, splitHatKey, typewriterName } from '../game
 import { menuBox } from './hiring';
 import type { GameState } from '../game/state';
 import { dyed, iconOf, paint } from './screen';
-import { bold, dim, inverse, isCursor, keyRow, padVisible, plainText, rule, titleBar, highlight } from './style';
+import { bold, dim, isCursor, keyRow, padVisible, plainText, rule, titleBar, highlight } from './style';
 
 /**
  * A menu of monkeys to give something to (a hat, a dye): `notes` says what
@@ -93,7 +93,7 @@ export function renderInventory(
       const count = item.kind === 'furniture' ? state.stored.furniture[item.id] ?? 0 : 1;
       const icon = item.kind === 'hat' ? `${hats.find((h) => h.id === splitHatKey(item.key).id)?.icon ?? ''} ` : '';
       const text = `${icon}${name}${count > 1 ? ` x${count}` : ''}`;
-      if (isCursor(k, row) && c === col) return inverse(text);
+      if (isCursor(k, row) && c === col) return highlight(text);
       if (item.kind === 'nohat') return dim(text);
       const color = item.kind === 'hat' ? splitHatKey(item.key).color : '';
       return color ? paint(color, text) : text;
@@ -101,7 +101,7 @@ export function renderInventory(
     const items = r.items.map((item, c) => cell(item, c));
     if (typeof r.who !== 'number') {
       const label = r.who === 'storage' ? 'Hats' : 'Furniture';
-      const empty = isCursor(k, row) ? inverse('(none)') : dim('(none)');
+      const empty = isCursor(k, row) ? highlight('(none)') : dim('(none)');
       return ` ${'   '}${label.padEnd(width)}  ${items.length > 0 ? items.join('   ') : empty}`;
     }
     const m = state.monkeys[r.who];

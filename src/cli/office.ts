@@ -39,7 +39,7 @@ import { connectedRooms, doorAt, isHall, loungeOf, officeBounds, roomAt, servedB
 import { chiHappiness, chiRules, elementOf, emptySquares, officeChi, roomChi, roomRules } from '../game/fengshui';
 import type { GameState, MonkeyState, Room, Side } from '../game/state';
 import { departmentName, dyed, genreNames, hatOf, monkeyIconLegend, traitNow, worksInText } from './screen';
-import { bold, coverBottom, roomTag, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar } from './style';
+import { bold, coverBottom, roomTag, dim, furnitureColor, green, inverse, keyRow, shortKeyRow, padVisible, plainText, red, rule, titleBar, highlight } from './style';
 import { formatAmount, formatNumber, formatPrice } from '../format';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -647,7 +647,7 @@ function besideMap(lines: string[], items: string[], cursor: number, columns = 0
   const cell = (k: number) => {
     const t = items[k];
     if (t === undefined) return '';
-    return k === cursor ? inverse(clip(t).padEnd(width)) : clip(t).padEnd(width);
+    return k === cursor ? highlight(clip(t).padEnd(width)) : clip(t).padEnd(width);
   };
   const total = Math.ceil(items.length / 2);
   const scrolls = total > height;
