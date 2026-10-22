@@ -40,7 +40,7 @@ import {
   pageTabsRow,
   shopKeys,
 } from '../src/cli/screen';
-import { bold, coverBottom, fillHeight, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
@@ -338,6 +338,25 @@ describe('shop popup', () => {
     const shop = plain(renderScreen(s, '', 'staff', 80, 0, 60));
     expect(shop.split('\n')[0]).toBe(plain(renderScreen(s, '', null, 80, 0, 60)).split('\n')[0]);
     expect(shop).toContain('Hire a monkey');
+  });
+
+  it('covers only its own height of a home screen as tall as the game, so LATELY stays in sight', () => {
+    const s = started();
+    noteLately(s, 'word', ['HELLO']);
+    const home = plain(renderScreen(s, '', null, 80, -1, 0)).split('\n');
+    const shop = plain(renderScreen(s, '', 'staff', 80, -1, 60)).split('\n');
+    expect(home).toContain(' LATELY');
+    expect(shop).toHaveLength(60);
+    expect(shop.slice(0, home.indexOf(' LATELY') + 2)).toEqual(home.slice(0, home.indexOf(' LATELY') + 2));
+  });
+
+  it('keeps a row you can buy green when it is highlighted', () => {
+    const lit = highlight(affordable(' [1] Plant  * 100 Bananas'));
+    expect(lit).toContain('\x1b[38;5;28;107m');
+    expect(lit).not.toContain('\x1b[7m');
+    expect(highlight(' [2] Couch  1,000 Bananas')).toContain('\x1b[7m');
+    expect(inverseSpan(affordable('[1] Plant'), 0, 3)).toContain('\x1b[38;5;28;107m[1]');
+    expect(inverseSpan('[1] Plant', 0, 3)).toContain('\x1b[7m[1]');
   });
 });
 

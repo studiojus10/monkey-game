@@ -820,6 +820,12 @@ function tallestPage(columns: number): number {
   return Math.max(...pages.map((p) => p.split('\n').length));
 }
 
+/** The game's height on screen: the tallest page's, but no taller than the terminal. */
+function heightNow(): number {
+  const rows = process.stdout.rows || 0;
+  return rows > 0 ? Math.min(gameHeight, rows - 1) : gameHeight;
+}
+
 function draw() {
   const columns = fitLines();
   // Menu items showing now keep their places; ones that show up later go under them.
@@ -899,7 +905,7 @@ function draw() {
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, shown, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, Math.max(0, (process.stdout.rows || 0) - navHeight), homeChosen(state, homeCursor));
+          : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, Math.max(0, heightNow() - navHeight), homeChosen(state, homeCursor));
   // The navigation bar, right under the title bar, on every page.
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
@@ -914,7 +920,7 @@ function draw() {
     measuredAt = Date.now();
     gameHeight = Math.max(gameHeight, tallestPage(columns));
   }
-  const screen = fillHeight(shownNow, rows > 0 ? Math.min(gameHeight, rows - 1) : gameHeight);
+  const screen = fillHeight(shownNow, heightNow());
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
   const lines = [...drawn.lines];

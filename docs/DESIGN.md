@@ -455,3 +455,7 @@ Justin, 2026-10-21: putting a held piece down on another piece swaps the two "if
 ## Save profiles (v0.16.0)
 
 Justin, 2026-10-21: "a menu in the game where the player can make up to 3 save profiles, rename them, copy and delete them", changed from the options menu, opening on the last profile played. Options [6] Save profiles lists the three with each one's Bananas, monkeys and time played: [enter] plays one (saving the current game first; an empty one starts a new game), [n] renames, [c] copies into the first empty profile, [d] deletes (asking first; not the one being played). The opening screens have [p] too, so a new game can switch back. Profile 1 is the usual save.json, so older games carry on as profile 1; the others are save-2.json and save-3.json, with names and the last played profile in save-profiles.json.
+
+## Shop height and green highlights (v0.16.1)
+
+Justin, 2026-10-22: the shop on the home screen "covers as little of the screen as possible... only the height of the shop": the home screen is first made as tall as the game, its keys at the bottom, so the popup covers only its own height and LATELY stays in sight above it. Also "when something is purchasable and highlighted make sure the text is still green": a menu cursor or mouse hover on a row you can buy draws it dark green on white instead of inverse (`highlight` and `inverseSpan` in style.ts).

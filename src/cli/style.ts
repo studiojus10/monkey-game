@@ -34,25 +34,46 @@ export function isCursor<T>(at: T, cursor: T): boolean {
 /** Whether menu cursors are drawn at all. */
 export const cursorsOn = () => cursorsShown;
 
-/** `line` with its visible columns from..to (ANSI codes not counted) drawn inverse: what the mouse is over. */
+/** `line` with its visible columns from..to (ANSI codes not counted) highlighted: what the mouse is over. Something you can buy stays green (see highlight). */
 export function inverseSpan(line: string, from: number, to: number): string {
   let out = '';
   let col = 0;
+  let green = false; // whether the text here is green (affordable)
+  let lit = false;
   for (let i = 0; i < line.length; ) {
-    const code = /^\x1b\[[0-9;]*m/.exec(line.slice(i));
+    const code = /^\x1b\[([0-9;]*)m/.exec(line.slice(i));
     if (code) {
       out += code[0];
       i += code[0].length;
+      const params = code[1].split(';');
+      if (code[1] === '32' || code[1] === '38;5;28') green = true; // 38;5;28: green on a light background
+      else if (params.includes('39') || params.includes('0') || code[1] === '') green = false;
       continue;
     }
-    if (col === from) out += '\x1b[7m';
+    if (col === from) {
+      lit = green;
+      out += green ? litGreen : '\x1b[7m';
+    }
     out += line[i];
     i++;
     col++;
-    if (col === to) out += '\x1b[27m';
+    if (col === to) out += lit ? '\x1b[49m\x1b[32m' : '\x1b[27m';
   }
   return out;
 }
+
+/** The highlight of something you can buy: still green, dark green on white (Justin, 2026-10-22: "make sure the text is still green"). */
+const litGreen = '\x1b[38;5;28;107m';
+
+/**
+ * A highlighted row (a menu's cursor): inverse, except a row you can buy
+ * (green from its start, as affordable() draws it), which stays green: dark
+ * green on white.
+ */
+export function highlight(s: string): string {
+  return /^\s*\x1b\[(1;)?32m/.test(s) || /^\s*\x1b\[1m\x1b\[32m/.test(s) ? `${litGreen}${plainText(s)}\x1b[39;49m` : inverse(plainText(s));
+}
+
 const color = (code: number) => (s: string) => `\x1b[${code}m${s}\x1b[39m`;
 
 /** Something you can buy, green from end to end (Justin, 2026-10-18: "the entire button highlights green"): any colours inside it give way; bold stays. */
