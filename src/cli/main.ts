@@ -183,7 +183,7 @@ import {
   type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { bold, dim, fillHeight, forLightBackground, inverseSpan, placeScreen, screenTop, showCursors } from './style';
+import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, lightShade, placeScreen, screenTop, showCursors, terminalBackground } from './style';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
@@ -193,6 +193,8 @@ import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { legendSize, renderFurniturePicker, sideName, furnitureName, inspectSquare, libraryBooks, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
+
+let lightTerminal = false; // the terminal said its background is light
 
 const FRAME_MS = 250;
 const AUTOSAVE_MS = 10_000;
@@ -930,7 +932,7 @@ function draw() {
   process.stdout.write(
     (state.settings.mouse ? mouseOn : mouseOff) +
       '\x1b[2J\x1b[H' +
-      placeScreen(state.settings.lightBackground ? forLightBackground(shownScreen) : shownScreen, rows, state.settings.screenAtTop),
+      placeScreen(state.settings.lightBackground ? forLightBackground(shownScreen) : lightTerminal ? lightShade(shownScreen) : shownScreen, rows, state.settings.screenAtTop),
   );
 }
 
@@ -2206,12 +2208,18 @@ emitKeypressEvents(keys);
 keys.on('keypress', pressKey);
 process.stdin.setRawMode(true);
 process.stdin.on('data', (chunk: Buffer) => {
-  const { events, rest } = parseMouse(chunk.toString('utf8'));
+  const background = terminalBackground(chunk.toString('utf8'));
+  if (background.light !== undefined) {
+    lightTerminal = background.light;
+    draw();
+  }
+  const { events, rest } = parseMouse(background.rest);
   if (rest) keys.write(rest);
   if (!state.settings.mouse) return;
   for (const e of events) onMouse(e);
 });
 process.stdout.write('\x1b[?25l'); // hide cursor
+process.stdout.write(askBackground); // a light terminal gets a light highlight even with the Light background option off
 showCursors(false);
 
 let last = Date.now();

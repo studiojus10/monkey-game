@@ -40,7 +40,7 @@ import {
   pageTabsRow,
   shopKeys,
 } from '../src/cli/screen';
-import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
@@ -1349,5 +1349,14 @@ describe('shop height', () => {
     const s = started();
     const heights = openStores(s).map((x) => renderShop(s, x, -1, '', 100, true).split('\n').length);
     expect(new Set(heights).size).toBe(1);
+  });
+});
+
+describe('terminal background', () => {
+  it("reads the terminal's answer about its background out of the input", () => {
+    expect(terminalBackground('\x1b]11;rgb:ffff/ffff/ffff\x07a')).toEqual({ light: true, rest: 'a' });
+    expect(terminalBackground('b\x1b]11;rgb:1e1e/1e1e/1e1e\x1b\\')).toEqual({ light: false, rest: 'b' });
+    expect(terminalBackground('abc')).toEqual({ rest: 'abc' });
+    expect(lightShade(highlight('x'))).toContain('\x1b[48;5;255m');
   });
 });

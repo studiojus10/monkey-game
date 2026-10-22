@@ -97,7 +97,25 @@ export function furnitureColor(kind: FurnitureColor | undefined, s: string): str
  */
 export function forLightBackground(screen: string): string {
   const darker: Record<string, string> = { '32': '38;5;28', '33': '38;5;130', '36': '38;5;30' };
-  return screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`).replaceAll(shadeOn, '\x1b[48;5;255m');
+  return lightShade(screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`));
+}
+
+/** A screen with the highlight's shade made light, for a terminal whose background is light (dark text on a dark shade can't be read). */
+export const lightShade = (screen: string) => screen.replaceAll(shadeOn, '\x1b[48;5;255m');
+
+/** Asks the terminal for its background colour; terminals that know answer with an OSC 11 reply (see terminalBackground). */
+export const askBackground = '\x1b]11;?\x07';
+
+/**
+ * Takes a terminal's answer to askBackground out of the input: light is true
+ * for a light background, false for a dark one, undefined if there was no
+ * answer in it.
+ */
+export function terminalBackground(input: string): { light?: boolean; rest: string } {
+  const reply = /\x1b\]11;rgba?:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)(?:\/[0-9a-f]+)?(?:\x07|\x1b\\)/i.exec(input);
+  if (!reply) return { rest: input };
+  const [r, g, b] = reply.slice(1, 4).map((hex) => parseInt(hex, 16) / (16 ** hex.length - 1));
+  return { light: 0.299 * r + 0.587 * g + 0.114 * b > 0.5, rest: input.replace(reply[0], '') };
 }
 
 /** A room's label on the office map (Justin, 2026-10-21: the letters "blend into the map"): bold white on blue, unlike any wall or furniture. */
