@@ -89,7 +89,7 @@ const plain = (text: string) => text.replace(/\x1b\[[\d;]+m/g, '');
 /** Plain text with each run of spaces as one, for checking shop rows whatever their column widths. */
 const squash = (text: string) => plain(text).replace(/ +/g, ' ');
 /** The plain text of the highlighted (shaded) lines of a screen. */
-const shaded = (text: string) => text.split('\n').filter((l) => l.includes('\x1b[48;5;238m')).map(plain).join('\n');
+const shaded = (text: string) => text.split('\n').filter((l) => l.includes('\x1b[48;5;236m')).map(plain).join('\n');
 
 /** A state past the opening choices: the test play and the letter I. */
 function started() {
@@ -224,13 +224,13 @@ describe('terminal screen', () => {
     expect(closed).toContain('[up/down] choose a monkey   [enter] details'); // the main keys only: the navigation bar goes everywhere
     expect(closed).toContain('[/] all keys');
     expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [/] all keys   [q] quit');
-    expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[48;5;238mM-1 *\x1b\[49m/); // the chosen monkey's name
+    expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[48;5;236mM-1 *\x1b\[49m/); // the chosen monkey's name
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[up/down] choose   [enter] buy   [[/]] store   [esc] back   [/] all keys');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
     expect(open).toContain('\n Typewriters   Staff   Hats \n'); // furniture is sold on the office map, research on its own page, scenes on the script page
-    expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[48;5;238m \[1\] Faster typing/); // the cursor's item
+    expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[48;5;236m \[1\] Faster typing/); // the cursor's item
     expect(renderScreen(s, '', 'staff')).not.toContain(highlight(' [1]'));
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
@@ -356,11 +356,11 @@ describe('shop popup', () => {
 
   it('shades a highlighted row, keeping its colours (green for something you can buy)', () => {
     const lit = highlight(affordable(' [1] Plant  * 100 Bananas'));
-    expect(lit).toBe(`\x1b[48;5;238m${affordable(' [1] Plant  * 100 Bananas')}\x1b[49m`);
+    expect(lit).toBe(`\x1b[48;5;236m${affordable(' [1] Plant  * 100 Bananas')}\x1b[49m`);
     expect(lit).not.toContain('\x1b[7m');
-    expect(highlight(`a${roomTagLike}b`)).toContain('\x1b[49m\x1b[48;5;238mb'); // the shade outlasts codes that clear the background
-    expect(inverseSpan(affordable('[1] Plant'), 0, 3)).toBe(`\x1b[32m\x1b[48;5;238m[1]\x1b[49m Plant\x1b[39m`);
-    expect(forLightBackground(lit)).toContain('\x1b[48;5;253m');
+    expect(highlight(`a${roomTagLike}b`)).toContain('\x1b[49m\x1b[48;5;236mb'); // the shade outlasts codes that clear the background
+    expect(inverseSpan(affordable('[1] Plant'), 0, 3)).toBe(`\x1b[32m\x1b[48;5;236m[1]\x1b[49m Plant\x1b[39m`);
+    expect(forLightBackground(lit)).toContain('\x1b[48;5;255m');
   });
 });
 
@@ -1319,7 +1319,7 @@ describe('upgrade popups', () => {
     expect(box[3]).toMatch(/Comedies +Tragedies/);
     expect(box[4]).toMatch(/Clown +skill 0\/10 +10 Bananas +Mourner/);
     expect(box[5]).toContain('Fool');
-    expect(columnBox('x', typists.cols, { col: 1, row: 0 }, '', 100).join('\n')).toContain(`\x1b[48;5;238m${typists.cols[1].cells[0][0]}`); // the chosen monkey
+    expect(columnBox('x', typists.cols, { col: 1, row: 0 }, '', 100).join('\n')).toContain(`\x1b[48;5;236m${typists.cols[1].cells[0][0]}`); // the chosen monkey
     const managers = upgradeColumns(s, 'manager');
     expect(managers.cols.map((c) => c.heading)).toEqual(['Tragedies']);
     expect(plain(managers.cols[0].cells[0].join('\n'))).toMatch(/Boss\nbananas x1.0 -> x1.3/);
