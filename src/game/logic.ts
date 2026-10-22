@@ -2142,6 +2142,19 @@ export function fitsSlots(state: GameState, department: Genre | undefined, t: Pi
   return !!line && line.words.length <= departmentSlots(state, department).length;
 }
 
+/**
+ * How many more word slots a department's manager asks for: when the line it
+ * works on is longer than the slots (no line in reach fits them), it asks the
+ * player to buy enough to steer the whole line (Justin, 2026-10-22). 0 when
+ * it has no such line, slots aren't for sale yet, or every slot is bought.
+ */
+export function slotsWanted(state: GameState, department: Genre | undefined): number {
+  const t = managerOf(state, department)?.target;
+  const line = t && plays.get(t.play)?.lines[t.index];
+  if (!line || !slotsUnlocked(state)) return 0;
+  return Math.max(0, Math.min(line.words.length, wordSlots.maxSlots) - departmentSlots(state, department).length);
+}
+
 /** Whether a manager's line still stands: owned, unwritten and within reach. */
 function lineStands(state: GameState, t: Pin): boolean {
   const play = plays.get(t.play);
@@ -2190,7 +2203,10 @@ export function manage(state: GameState, seconds = 0, rng: Rng = Math.random): v
     const swap = !!t && boss.slotWait <= seconds && !fitsSlots(state, genre, t) && fitsSlots(state, genre, managerLine(state, genre, rng));
     if (!t || !lineStands(state, t) || swap) {
       if (t) unpin(state, t);
+      const asked = slotsWanted(state, genre) > 0;
       boss.target = managerLine(state, genre, rng);
+      const wanted = slotsWanted(state, genre);
+      if (wanted > 0 && !asked) announce(state, `${boss.name ? `${boss.name}, the manager,` : 'A manager'} asks for ${wanted} more word slot${wanted === 1 ? '' : 's'} to steer a longer line (Word slots, in the shop).`);
       if (boss.target && state.pinned.length < maxPinnedLines && !state.pinned.some((p) => samePin(p, boss.target!))) {
         state.pinned.push(boss.target);
       }
