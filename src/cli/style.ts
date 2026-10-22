@@ -35,7 +35,7 @@ export function isCursor<T>(at: T, cursor: T): boolean {
 export const cursorsOn = () => cursorsShown;
 
 /** The shade behind a highlighted row or the field under the mouse (Justin, 2026-10-22: "instead of fully inverting it just shades the area", so a row keeps its colours, green for something you can buy). */
-const shadeOn = '\x1b[48;5;238m';
+const shadeOn = '\x1b[48;5;236m';
 
 /** Keeps the shade on through codes inside the text that clear the background. */
 const keepShade = (s: string) => s.replace(/\x1b\[([0-9;]*)m/g, (code, params: string) => (params === '' || params.split(';').some((p) => p === '0' || p === '49') ? code + shadeOn : code));
@@ -97,7 +97,7 @@ export function furnitureColor(kind: FurnitureColor | undefined, s: string): str
  */
 export function forLightBackground(screen: string): string {
   const darker: Record<string, string> = { '32': '38;5;28', '33': '38;5;130', '36': '38;5;30' };
-  return screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`).replaceAll(shadeOn, '\x1b[48;5;253m');
+  return screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`).replaceAll(shadeOn, '\x1b[48;5;255m');
 }
 
 /** A room's label on the office map (Justin, 2026-10-21: the letters "blend into the map"): bold white on blue, unlike any wall or furniture. */
