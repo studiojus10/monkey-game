@@ -24,7 +24,7 @@ import {
 import type { GameState } from '../game/state';
 import { bySeniority, codebreakingStatus, recordsStatus, departmentName as deptName, dyed, hatEffect, staffViews, iconOf, speedText, traitNow } from './screen';
 import { formatDuration } from '../format';
-import { bold, dim, green, inverse, isCursor, shortKeyRow, red, rule, scrollMarks, titleBar } from './style';
+import { bold, dim, green, isCursor, shortKeyRow, red, rule, scrollMarks, titleBar, highlight } from './style';
 
 /** What [enter] offers for the chosen monkey on the roster (Justin, 2026-10-21: an actions menu instead of a long key row). */
 export const rosterActions: [string, string][] = [['n', 'Rename'], ['d', 'Move department'], ['h', 'Change hat'], ['v', 'Sell its hat'], ['f', 'Fire']];
@@ -91,7 +91,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaker' : isRecorder(m) ? 'records clerk' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
     // The cursor's row is inverse; the others show the hat in its dye.
     const row = `${iconOf(m)} ${monkeyName(state, i)}${role ? `  (${role})` : ''}`;
-    list.push(isCursor(k, at) ? `   ${inverse(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
+    list.push(isCursor(k, at) ? `   ${highlight(`${row} `.padEnd(30))}` : `   ${dyed(m, iconOf(m))} ${monkeyName(state, i)}${role ? dim(`  (${role})`) : ''}`);
   });
 
   const i = order[at];

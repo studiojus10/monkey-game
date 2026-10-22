@@ -88,6 +88,8 @@ monkeyNames.splice(0);
 const plain = (text: string) => text.replace(/\x1b\[[\d;]+m/g, '');
 /** Plain text with each run of spaces as one, for checking shop rows whatever their column widths. */
 const squash = (text: string) => plain(text).replace(/ +/g, ' ');
+/** The plain text of the highlighted (shaded) lines of a screen. */
+const shaded = (text: string) => text.split('\n').filter((l) => l.includes('\x1b[48;5;238m')).map(plain).join('\n');
 
 /** A state past the opening choices: the test play and the letter I. */
 function started() {
@@ -107,7 +109,7 @@ describe('terminal screen', () => {
     expect(genres.split('\n')[0]).toBe(' INFINITE MONKEYS ');
     expect(genres).toContain('   [1] Comedies   Test Play');
     expect(genres).toContain(' [up/down] choose   [enter] pick   [1] pick   [p] save profiles   [q] quit');
-    expect(renderScreen(s, '', null, 80, 0)).toContain(inverse('   [1] Comedies   Test Play')); // the cursor's choice
+    expect(shaded(renderScreen(s, '', null, 80, 0))).toContain('   [1] Comedies   Test Play'); // the cursor's choice
     openDepartment(s, 'comedy');
     expect(plain(renderScreen(s))).toContain('   [1] Test Play   2 lines');
     chooseStarterPlay(s, 'test');
@@ -120,10 +122,10 @@ describe('terminal screen', () => {
   it('finds the choices in a picker prompt and highlights the chosen one', () => {
     const prompt = `Hat for which monkey? [1] ${green('Ann')} (free)   [2] Bob   (any other key: done)`;
     expect(promptChoices(prompt).map((c) => c.key)).toEqual(['1', '2']);
-    expect(highlightChoice(prompt, 1)).toContain(inverse('[2] Bob'));
-    expect(highlightChoice(prompt, 0)).toContain(inverse(`[1] ${green('Ann')} (free)`));
+    expect(highlightChoice(prompt, 1)).toContain(highlight('[2] Bob'));
+    expect(highlightChoice(prompt, 0)).toContain(highlight(`[1] ${green('Ann')} (free)`));
     expect(promptChoices('Press letters to buy (any other key: done). Values: B(3) C(3)').map((c) => c.key)).toEqual(['B', 'C']);
-    expect(highlightChoice('Values: B(3) C(3)', 1)).toBe(`Values: B(3) ${inverse('C(3)')}`);
+    expect(highlightChoice('Values: B(3) C(3)', 1)).toBe(`Values: B(3) ${highlight('C(3)')}`);
   });
 
   it('shows the longest word, the last sentence and the longest sentence lately', () => {
@@ -222,14 +224,14 @@ describe('terminal screen', () => {
     expect(closed).toContain('[up/down] choose a monkey   [enter] details'); // the main keys only: the navigation bar goes everywhere
     expect(closed).toContain('[/] all keys');
     expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [/] all keys   [q] quit');
-    expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[7mM-1 *\x1b\[27m/); // the chosen monkey's name
+    expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[48;5;238mM-1 *\x1b\[49m/); // the chosen monkey's name
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');
     expect(open).toContain('[up/down] choose   [enter] buy   [[/]] store   [esc] back   [/] all keys');
     expect(open).not.toContain('SPEED'); // the shop takes the whole screen
     expect(open).toContain('\n Typewriters   Staff   Hats \n'); // furniture is sold on the office map, research on its own page, scenes on the script page
-    expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[7m \[1\] Faster typing/); // the cursor's item
-    expect(renderScreen(s, '', 'staff')).not.toContain(inverse(' [1]'));
+    expect(renderScreen(s, '', 'staff', 0, 0)).toMatch(/\x1b\[48;5;238m \[1\] Faster typing/); // the cursor's item
+    expect(renderScreen(s, '', 'staff')).not.toContain(highlight(' [1]'));
     expect(renderScreen(s, '', 'staff')).toContain(bold(inverse(' Staff '))); // the open store
     s.currency = 30; // enough for Faster typing and a letter key: a * on those stores
     expect(plain(renderScreen(s, '', 'hats'))).toContain('\n Typewriters*  Staff*  Hats \n');
@@ -330,6 +332,8 @@ describe('the roster', () => {
   });
 });
 
+const roomTagLike = '\x1b[44mX\x1b[49m';
+
 describe('shop popup', () => {
   it('covers the bottom of the screen without moving what is above it', () => {
     expect(plain(coverBottom('a\nb\nc\nd\ne', 'X\nY', 30))).toBe(`a\nb\n ${'='.repeat(28)}\nX\nY`);
@@ -350,13 +354,13 @@ describe('shop popup', () => {
     expect(shop.slice(0, home.indexOf(' LATELY') + 2)).toEqual(home.slice(0, home.indexOf(' LATELY') + 2));
   });
 
-  it('keeps a row you can buy green when it is highlighted', () => {
+  it('shades a highlighted row, keeping its colours (green for something you can buy)', () => {
     const lit = highlight(affordable(' [1] Plant  * 100 Bananas'));
-    expect(lit).toContain('\x1b[38;5;28;107m');
+    expect(lit).toBe(`\x1b[48;5;238m${affordable(' [1] Plant  * 100 Bananas')}\x1b[49m`);
     expect(lit).not.toContain('\x1b[7m');
-    expect(highlight(' [2] Couch  1,000 Bananas')).toContain('\x1b[7m');
-    expect(inverseSpan(affordable('[1] Plant'), 0, 3)).toContain('\x1b[38;5;28;107m[1]');
-    expect(inverseSpan('[1] Plant', 0, 3)).toContain('\x1b[7m[1]');
+    expect(highlight(`a${roomTagLike}b`)).toContain('\x1b[49m\x1b[48;5;238mb'); // the shade outlasts codes that clear the background
+    expect(inverseSpan(affordable('[1] Plant'), 0, 3)).toBe(`\x1b[32m\x1b[48;5;238m[1]\x1b[49m Plant\x1b[39m`);
+    expect(forLightBackground(lit)).toContain('\x1b[48;5;253m');
   });
 });
 
@@ -407,7 +411,7 @@ describe('script browser and pins', () => {
     expect(squash(text)).toContain('\n ACT 1, SCENE 2 0 / 1 written NEEDS\n');
     expect(squash(text)).toContain('\n HAMLET I. in reach\n');
     expect(squash(text)).toContain('\n> POLONIUS Ay, my lord. ADLMORY \n'); // the letters it needs
-    expect(text.split('\n').some((r) => r.startsWith('\x1b[7m>  POLONIUS '))).toBe(true); // the cursor's line is inverse
+    expect(shaded(text)).toContain('>  POLONIUS '); // the cursor's line is shaded
     s.completed.test = [0];
     togglePin(s, 'test', 1);
     text = renderScript(s, 'test', 0);
@@ -509,7 +513,7 @@ describe('word slots on screen', () => {
     s.slots = [{ department: '', position: 3, word: 'FRIEND', on: true }];
     const text = plain(renderSlotsMenu(s, 'comedy', 0, null));
     expect(text).toContain('> [1] 3rd  word  FRIEND           ON');
-    expect(renderSlotsMenu(s, 'comedy', 0, null)).toContain('\x1b[7m> [1] 3rd'); // the selected slot is inverse
+    expect(shaded(renderSlotsMenu(s, 'comedy', 0, null))).toContain('> [1] 3rd'); // the selected slot is shaded
     expect(text).toContain(' [b] buy a slot   * 2 Lines');
     expect(renderSlotsMenu(s, 'comedy', 0, 'FRI')).toContain('word  FRI_');
     expect(ordinal(1) + ordinal(2) + ordinal(11) + ordinal(22)).toBe('1st2nd11th22nd');
@@ -811,7 +815,7 @@ describe('furniture', () => {
   it('has an option to place furniture yourself', () => {
     const s = started();
     expect(squash(renderOptions(s))).toContain('[1] Furniture places itself ON');
-    expect(renderOptions(s, 0, 1)).toMatch(/\x1b\[7m \[2\] Light background/);
+    expect(shaded(renderOptions(s, 0, 1))).toContain(' [2] Light background');
     s.settings.autoPlaceFurniture = false;
     expect(squash(renderOptions(s))).toContain('[1] Furniture places itself off');
     expect(squash(renderOptions(s))).toContain('[2] Light background off');
@@ -992,7 +996,7 @@ describe('hats on screen', () => {
     const menu = plain(renderMonkeyPicker(s, top.title, top.notes, 1));
     expect(menu).toContain(' [1]  #@ M-1  wearing it: takes it off');
     expect(menu).toContain('[enter] give');
-    expect(renderMonkeyPicker(s, top.title, top.notes, 1)).toContain(inverse(' [2]   @ M-2  ')); // the cursor's monkey
+    expect(shaded(renderMonkeyPicker(s, top.title, top.notes, 1))).toContain(' [2]   @ M-2  '); // the cursor's monkey
     s.monkeys[0].hat = 'cap';
     expect(hatPick(s, 'crown').notes[0]).toBe('swaps its thinking cap (into your inventory)');
     s.stored.hats = { tophat: 1 };
@@ -1017,7 +1021,7 @@ describe('hats on screen', () => {
     expect(text).toContain('YOUR INVENTORY');
     expect(text).toMatch(/Hats +# red top hat   W Crown/); // in shop order, dyed ones by colour
     expect(text).toMatch(/Furniture +Potted plant x2/);
-    expect(renderInventory(s, 0, 1, null)).toContain(inverse('^ Thinking cap'));
+    expect(renderInventory(s, 0, 1, null)).toContain(highlight('^ Thinking cap'));
     expect(plain(renderInventory(s, 1, 0, { who: 0, item: { kind: 'hat', key: 'cap' } }))).toContain('Moving: Thinking cap from M-1');
   });
 });
@@ -1315,7 +1319,7 @@ describe('upgrade popups', () => {
     expect(box[3]).toMatch(/Comedies +Tragedies/);
     expect(box[4]).toMatch(/Clown +skill 0\/10 +10 Bananas +Mourner/);
     expect(box[5]).toContain('Fool');
-    expect(columnBox('x', typists.cols, { col: 1, row: 0 }, '', 100).join('\n')).toContain(inverse(plain(typists.cols[1].cells[0][0]))); // the chosen monkey
+    expect(columnBox('x', typists.cols, { col: 1, row: 0 }, '', 100).join('\n')).toContain(`\x1b[48;5;238m${typists.cols[1].cells[0][0]}`); // the chosen monkey
     const managers = upgradeColumns(s, 'manager');
     expect(managers.cols.map((c) => c.heading)).toEqual(['Tragedies']);
     expect(plain(managers.cols[0].cells[0].join('\n'))).toMatch(/Boss\nbananas x1.0 -> x1.3/);

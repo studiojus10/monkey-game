@@ -459,3 +459,7 @@ Justin, 2026-10-21: "a menu in the game where the player can make up to 3 save p
 ## Shop height and green highlights (v0.16.1)
 
 Justin, 2026-10-22: the shop on the home screen "covers as little of the screen as possible... only the height of the shop": the home screen is first made as tall as the game, its keys at the bottom, so the popup covers only its own height and LATELY stays in sight above it. Also "when something is purchasable and highlighted make sure the text is still green": a menu cursor or mouse hover on a row you can buy draws it dark green on white instead of inverse (`highlight` and `inverseSpan` in style.ts).
+
+## One shaded highlight (v0.16.2)
+
+Justin, 2026-10-22: "make sure the highlighting looks consistent across all menus... instead of fully inverting it just shades the area. that way the green labels can stay green". Every menu cursor and the mouse hover now shade the row (a grey background, lighter with the light-background option) and keep its own colours, so a row you can buy stays green. Inverse is left for where you are (the title bar, the open tab or store) and the office map's lit items.

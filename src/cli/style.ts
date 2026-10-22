@@ -34,44 +34,42 @@ export function isCursor<T>(at: T, cursor: T): boolean {
 /** Whether menu cursors are drawn at all. */
 export const cursorsOn = () => cursorsShown;
 
-/** `line` with its visible columns from..to (ANSI codes not counted) highlighted: what the mouse is over. Something you can buy stays green (see highlight). */
+/** The shade behind a highlighted row or the field under the mouse (Justin, 2026-10-22: "instead of fully inverting it just shades the area", so a row keeps its colours, green for something you can buy). */
+const shadeOn = '\x1b[48;5;238m';
+
+/** Keeps the shade on through codes inside the text that clear the background. */
+const keepShade = (s: string) => s.replace(/\x1b\[([0-9;]*)m/g, (code, params: string) => (params === '' || params.split(';').some((p) => p === '0' || p === '49') ? code + shadeOn : code));
+
+/** A highlighted row (a menu's cursor): shaded, keeping its own colours. */
+export function highlight(s: string): string {
+  return `${shadeOn}${keepShade(s)}\x1b[49m`;
+}
+
+/** `line` with its visible columns from..to (ANSI codes not counted) shaded the same way: what the mouse is over. */
 export function inverseSpan(line: string, from: number, to: number): string {
   let out = '';
   let col = 0;
-  let green = false; // whether the text here is green (affordable)
   let lit = false;
   for (let i = 0; i < line.length; ) {
-    const code = /^\x1b\[([0-9;]*)m/.exec(line.slice(i));
+    const code = /^\x1b\[[0-9;]*m/.exec(line.slice(i));
     if (code) {
-      out += code[0];
+      out += lit ? keepShade(code[0]) : code[0];
       i += code[0].length;
-      const params = code[1].split(';');
-      if (code[1] === '32' || code[1] === '38;5;28') green = true; // 38;5;28: green on a light background
-      else if (params.includes('39') || params.includes('0') || code[1] === '') green = false;
       continue;
     }
     if (col === from) {
-      lit = green;
-      out += green ? litGreen : '\x1b[7m';
+      out += shadeOn;
+      lit = true;
     }
     out += line[i];
     i++;
     col++;
-    if (col === to) out += lit ? '\x1b[49m\x1b[32m' : '\x1b[27m';
+    if (col === to) {
+      out += '\x1b[49m';
+      lit = false;
+    }
   }
   return out;
-}
-
-/** The highlight of something you can buy: still green, dark green on white (Justin, 2026-10-22: "make sure the text is still green"). */
-const litGreen = '\x1b[38;5;28;107m';
-
-/**
- * A highlighted row (a menu's cursor): inverse, except a row you can buy
- * (green from its start, as affordable() draws it), which stays green: dark
- * green on white.
- */
-export function highlight(s: string): string {
-  return /^\s*\x1b\[(1;)?32m/.test(s) || /^\s*\x1b\[1m\x1b\[32m/.test(s) ? `${litGreen}${plainText(s)}\x1b[39;49m` : inverse(plainText(s));
 }
 
 const color = (code: number) => (s: string) => `\x1b[${code}m${s}\x1b[39m`;
@@ -99,7 +97,7 @@ export function furnitureColor(kind: FurnitureColor | undefined, s: string): str
  */
 export function forLightBackground(screen: string): string {
   const darker: Record<string, string> = { '32': '38;5;28', '33': '38;5;130', '36': '38;5;30' };
-  return screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`);
+  return screen.replace(/\x1b\[(3[236])m/g, (_, code: string) => `\x1b[${darker[code]}m`).replaceAll(shadeOn, '\x1b[48;5;253m');
 }
 
 /** A room's label on the office map (Justin, 2026-10-21: the letters "blend into the map"): bold white on blue, unlike any wall or furniture. */
