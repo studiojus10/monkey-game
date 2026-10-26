@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { introTyped, lettersTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
-import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper, renderNewspaperNote } from '../src/cli/hiring';
+import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper, renderNote } from '../src/cli/hiring';
 import { opening, typing } from '../src/game/config';
 import { buyFasterTyping, buyLetter, deliverManuscript, earlyShopKeys, hireApplicant, manuscriptPlays, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
@@ -149,6 +149,7 @@ describe('the opening', () => {
     expect(buyFasterTyping(s, 0)).toBe(true);
     tick(s, 1, () => 0.5);
     expect(s.manuscript).toBe('h1');
+    expect(s.manuscriptNote).toBe(true); // "An old favorite", closed before the manuscript shows
     expect(s.departments).toEqual(['history']);
     expect(s.owned).toEqual(['h1']);
     expect(s.office[0].department).toBe('history');
@@ -176,7 +177,7 @@ describe('the opening', () => {
     const s = createInitialState(0);
     for (let i = 0; i < opening.newspaperAfter; i++) playerPress(s, rng);
     expect(s.newspaperNote).toBe(true);
-    expect(plain(renderNewspaperNote().join('\n'))).toContain(opening.newspaper.note);
+    expect(plain(renderNote(opening.newspaper.note).join('\n'))).toContain(opening.newspaper.note);
     expect(deserialize(serialize(s), 0).newspaperNote).toBe(true);
   });
 });

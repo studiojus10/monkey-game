@@ -283,9 +283,13 @@ export function renderManuscript(state: GameState, elapsed = Infinity): string[]
   return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
 }
 
-/** The note on top of the newspaper (Justin, 2026-10-26), closed before the newspaper opens. A note keeps its own format: shown at once, not typed. */
-export function renderNewspaperNote(): string[] {
-  const rows = ['', `   ${bold(opening.newspaper.note)}   `, '', dim(' [enter] close')];
+/**
+ * A note that comes with something (Justin, 2026-10-26): on top of the
+ * newspaper, or with the first play; closed before what it came with. A note
+ * keeps its own format: shown at once, not typed.
+ */
+export function renderNote(text: string): string[] {
+  const rows = ['', `   ${bold(text)}   `, '', dim(' [enter] close')];
   const width = Math.max(...rows.map((r) => plainText(r).length)) + 2;
   const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
   return [`+${'-'.repeat(width)}+`, ...rows.map(line), `+${'-'.repeat(width)}+`];

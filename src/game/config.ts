@@ -29,6 +29,7 @@ export const opening = {
   manuscriptLetters: 2,
   manuscriptSkill: 1,
   manuscript: {
+    note: 'An old favorite', // Justin's: a note that comes with the first play, closed before the manuscript shows
     arrival: 'A thick envelope slides through the mail slot, sealed with wax and a faint smell of plumbuckle.',
     inside: 'Inside, a manuscript:',
   },
