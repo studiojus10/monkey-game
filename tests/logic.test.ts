@@ -103,6 +103,7 @@ import {
   departmentChoices,
   manage,
   managerLine,
+  slotsWanted,
   managerSpeed,
   slotDelay,
   departmentMonkeys,
@@ -140,6 +141,8 @@ import { createMonkey, rectangle, type GameState } from '../src/game/state';
 import { startedGame } from './start';
 import { autoConnect, connectedRooms, cycleDoor, doorBetween, doorSides, isConnected, layOutOffice, loungeOf, placeDoor, servedBy, takeDoor, toggleHall } from '../src/game/layout';
 import { sellEverything, withUnlocks } from './unlocks';
+import { renderSlotsMenu, storeItems } from '../src/cli/screen';
+import { plainText } from '../src/cli/style';
 
 sellEverything();
 
@@ -1450,6 +1453,36 @@ describe('manager line choice', () => {
       expect(s.monkeys[0].target).toEqual({ play: 'p', index: 1 }); // only when it's time to change a slot
       manage(s, 1000, () => 0);
       expect(s.monkeys[0].target).toEqual({ play: 'p', index: 3 });
+    } finally {
+      setPlays([]);
+    }
+  });
+
+  it('asks for more word slots when its line is longer than the slots', () => {
+    try {
+      setPlays([{ id: 'p', title: 'P', genre: 'comedy', lines: [[1, 1, 'B', 'Ay, my lord.'], [1, 1, 'C', 'No, my lord.']] }]);
+      const s = startedGame(0);
+      s.departments = ['comedy'];
+      s.owned = ['p'];
+      s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'B', 'C', 'E', 'F', 'G'];
+      s.monkeys[0].department = 'comedy';
+      s.monkeys[0].manager = true;
+      s.monkeys[0].name = 'Bing Bong';
+      expect(slotsWanted(s, 'comedy')).toBe(0); // no line yet
+      manage(s, 0, () => 0);
+      expect(slotsWanted(s, 'comedy')).toBe(3);
+      expect(s.lately.news.map((n) => n.text)).toEqual(['Bing Bong, the manager, asks for 3 more word slots to steer a longer line (Word slots, in the shop).']);
+      s.completed.p = [0];
+      manage(s, 0, () => 0); // the next line is too long as well: no second request
+      expect(s.monkeys[0].target).toEqual({ play: 'p', index: 1 });
+      expect(s.lately.news).toHaveLength(1);
+      s.lines = 100;
+      expect(buySlot(s, 'comedy')).toBe(true);
+      expect(slotsWanted(s, 'comedy')).toBe(2);
+      expect(storeItems(s, 'typewriters').find((i) => i.id === 'slots')?.effect).toBe('managers ask for 2 more');
+      expect(plainText(renderSlotsMenu(s, 'comedy', -1, null))).toContain('The manager asks for 2 more slots');
+      expect(buySlot(s, 'comedy') && buySlot(s, 'comedy')).toBe(true);
+      expect(slotsWanted(s, 'comedy')).toBe(0);
     } finally {
       setPlays([]);
     }

@@ -50,6 +50,7 @@ import {
   missingLetters,
   slotCost,
   slotsUnlocked,
+  slotsWanted,
   monkeyName,
   typingUpgradeCost,
   skillCap,
@@ -972,7 +973,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           ? [keysUnlocked(state) ? { id: 'keys', text: 'Typewriter keys...', effect: 'letter combos and whole words' } : { text: `Typewriter keys unlock when you own ${typewriterKeys.unlockLetters} letters.` }]
           : []),
         ...(shopRevealed(state, 'shop:slots')
-          ? [slotsUnlocked(state) ? { id: 'slots', text: 'Word slots...', effect: `${state.slots.filter((x) => x.on && x.word).length} active` } : { text: `Word slots unlock when you own ${wordSlots.unlockLetters} letters.` }]
+          ? [slotsUnlocked(state) ? { id: 'slots', text: 'Word slots...', effect: slotRequests(state) || `${state.slots.filter((x) => x.on && x.word).length} active` } : { text: `Word slots unlock when you own ${wordSlots.unlockLetters} letters.` }]
           : []),
       ];
     }
@@ -1359,6 +1360,7 @@ export function renderSlotsMenu(
     return isCursor(i, selected) ? highlight(row + ' ') : row;
   });
   const managed = !!managerOf(state, genre);
+  const wanted = slotsWanted(state, genre);
   const many = departmentGenres(state).length > 1;
   return [
     titleBar(state, 'Word slots', columns),
@@ -1368,6 +1370,7 @@ export function renderSlotsMenu(
     dim(' choose, e.g. 3rd word: FRIEND. Switch slots off for fully random typing.'),
     '',
     ...(managed ? [" This department's manager sets these slots for you.", ''] : []),
+    ...(wanted > 0 ? [` ${yellow(`The manager asks for ${wanted} more slot${wanted === 1 ? '' : 's'}: its line is longer than the slots.`)}`, ''] : []),
     ...(rows.length > 0 ? rows : [dim('   No slots yet.')]),
     ...(canBuy
       ? ['', state.lines >= next ? ` ${affordable(`${bold('[b]')} buy a slot   * ${bold(formatPrice(next))} Lines`)}` : ` ${bold('[b]')} buy a slot   ${formatPrice(next)} Lines`]
@@ -1845,6 +1848,12 @@ export function slotHighlight(state: GameState, text: string, genre: Genre | und
   });
 }
 
+/** The shop's note on the Word slots item when managers ask for more slots, e.g. "managers ask for 3 more"; '' when none do. */
+function slotRequests(state: GameState): string {
+  const wanted = departmentGenres(state).reduce((n, g) => n + slotsWanted(state, g), 0);
+  return wanted > 0 ? `managers ask for ${wanted} more` : '';
+}
+
 /** Pinned lines for the home screen, with what each still needs: the player's pins and every manager's line, marked with its department. */
 function pinnedText(state: GameState): string[] {
   const managed = departmentGenres(state).flatMap((g) => {
@@ -1857,7 +1866,10 @@ function pinnedText(state: GameState): string[] {
     const play = getPlay(p.play);
     const line = play?.lines[p.index];
     if (!play || !line) return [];
-    const bosses = managed.filter((m) => same(m.pin, p)).map((m) => `${departmentName(state, m.genre)} manager`);
+    const bosses = managed.filter((m) => same(m.pin, p)).map((m) => {
+      const wanted = slotsWanted(state, m.genre);
+      return `${departmentName(state, m.genre)} manager${wanted > 0 ? `, ${yellow(`wants ${wanted} more slot${wanted === 1 ? '' : 's'}`)}` : ''}`;
+    });
     const by = bosses.length > 0 ? `   [${bosses.join(', ')}]` : '';
     return [`   @ ${play.title} ${lineLocation(line, play.genre)} "${slotHighlight(state, line.text, play.genre)}"   (${lineStatus(state, play, p.index)})${by}`];
   });

@@ -464,7 +464,11 @@ Justin, 2026-10-22: the shop on the home screen "covers as little of the screen 
 
 Justin, 2026-10-22: "make sure the highlighting looks consistent across all menus... instead of fully inverting it just shades the area. that way the green labels can stay green". Every menu cursor and the mouse hover now shade the row (a grey background, lighter with the light-background option) and keep its own colours, so a row you can buy stays green. Inverse is left for where you are (the title bar, the open tab or store) and the office map's lit items.
 
-## A simpler opening (v0.17.0)
+## Managers ask for word slots (v0.17.0)
+
+Justin, 2026-10-22: when a manager's line has more words than its department has word slots (no line in reach fits them), the manager asks the player to buy more. The request shows in LATELY once when it starts, beside the manager's pinned line ("wants 2 more slots"), on the shop's Word slots item, and at the top of the Word slots page, which opens on the department asking. It goes away once the department has a slot for every word of the line.
+
+## A simpler opening (v0.18.0)
 
 Justin, 2026-10-26: "Start with A key by default. Start with no monkeys only the player typing the A key at the slowest pace with the 'pet monkey' button allowing the player to type by pressing the button." Also "keep things simple at the start, and then introduce more complicated mechanics as they become relevant." A new game opens on the home screen with the player (You) alone at the typewriter with only the A key, typing at the slowest pace (0.5 letters/s) on its own, and [h] (the pet button) types A by hand. After 20 presses, "a folded up newspaper is dropped through the mail slot in the door. It's only the classified section, that is titled 'Wanted Help' instead of 'Help Wanted'": a popup with 3 monkeys, each a name and a short personality blurb that changes nothing about how it types; all stats stay hidden. The one picked takes the first desk and typewriter and starts typing. Shakespeare is set aside for now (Justin, 2026-10-26: "set aside shakespeare until i bring it back up"; when it comes back, starting on Shakespeare must make sense in the story): new games have no department or free play to choose (`opening.scriptLetters`), and the first-letter screen is gone. The newspaper's text is a nonsense placeholder until the story is written (`opening` in config.ts).
 

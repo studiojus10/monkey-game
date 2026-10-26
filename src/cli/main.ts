@@ -82,6 +82,7 @@ import {
   monkeyName,
   renameMonkey,
   buySlot,
+  slotsWanted,
   chooseStarterPlay,
   chooseFirstLetter,
   moveSlot,
@@ -498,6 +499,8 @@ function buyItem(id: string): void {
   } else if (id === 'slots') {
     showingSlots = true;
     if (slotDept >= departmentGenres(state).length) slotDept = 0;
+    const asking = departmentGenres(state).findIndex((g) => slotsWanted(state, g) > 0);
+    if (asking >= 0 && slotsWanted(state, departmentGenres(state)[slotDept]) === 0) slotDept = asking; // open on a manager's request
     selectedSlot = departmentSlots(state, departmentGenres(state)[slotDept])[0] ?? -1;
   } else if (id === 'department') {
     pickingDepartment = true;
