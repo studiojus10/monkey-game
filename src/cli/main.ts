@@ -91,7 +91,6 @@ import {
   poke,
   playerPress,
   playerTyping,
-  scriptDue,
   hireApplicant,
   reachableLines,
   setSlotWord,
@@ -194,7 +193,7 @@ import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, 
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { columnBox, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, newspaperTyped, renderPostPopup } from './hiring';
+import { columnBox, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -272,6 +271,7 @@ let flipping: '' | 'ask' | 'done' = ''; // the coin flip screen ([?] from anywhe
 let flipMessage = '';
 let newsCursor = 0; // the newspaper's chosen monkey
 let newsStart = 0; // when the newspaper started typing out (epoch ms; 0: not yet)
+let manuscriptStart = 0; // when the manuscript's note started typing out (epoch ms; 0: not yet)
 let introPage = 0; // the intro's page on screen
 let introStart = 0; // when it started typing out (epoch ms; 0: not yet)
 const SKIPPED = -1e12; // a start time far enough back that any text is all typed out
@@ -279,7 +279,8 @@ const SKIPPED = -1e12; // a start time far enough back that any text is all type
 /** Whether story text is still typing out on screen: the intro or the newspaper. */
 function typingOut(): boolean {
   if (!state.introSeen) return !introTyped(introPage, Date.now() - introStart);
-  return state.newspaper.length > 0 && !newspaperTyped(state, Date.now() - newsStart);
+  if (state.newspaper.length > 0) return !newspaperTyped(state, Date.now() - newsStart);
+  return !!state.manuscript && !manuscriptTyped(state, Date.now() - manuscriptStart);
 }
 let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
 let showingScript = false;
@@ -877,6 +878,7 @@ function draw() {
   const navHeight = nav.length;
   if (!state.introSeen && introStart === 0) introStart = Date.now();
   if (state.newspaper.length > 0 && newsStart === 0) newsStart = Date.now();
+  if (state.manuscript && manuscriptStart === 0) manuscriptStart = Date.now();
   const under = !state.introSeen
     ? renderIntro(introPage, Date.now() - introStart, columns)
     : flipping
@@ -938,7 +940,7 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const rows = process.stdout.rows || 0;
   const shownNow = popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   // Every screen as tall as the tallest, so nothing moves between them; the game still sits at the bottom of the window.
@@ -1080,7 +1082,7 @@ function switchProfile(slot: number): void {
   officeCursor = null;
   heldFurniture = -1;
   rosterCursor = scriptPlay = scriptCursor = libraryCursor = homeCursor = menuCursor = 0;
-  introPage = introStart = newsStart = 0;
+  introPage = introStart = newsStart = manuscriptStart = 0;
   if (fresh) save(state, storage);
   message = [fresh ? `A new game starts in ${profiles.names[slot]}.` : `Now playing ${profiles.names[slot]}.`, loaded].filter(Boolean).join(' ');
 }
@@ -1154,6 +1156,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   if (state.newspaper.length > 0 && !newspaperTyped(state, Date.now() - newsStart)) {
     if (key.name === 'q') return quit();
     newsStart = SKIPPED;
+    return draw();
+  }
+  // The manuscript's note: a popup until [enter]; any key first types out the rest of it.
+  if (state.manuscript && state.newspaper.length === 0) {
+    if (key.name === 'q') return quit();
+    if (!manuscriptTyped(state, Date.now() - manuscriptStart)) manuscriptStart = SKIPPED;
+    else if (key.name === 'return' || key.name === 'enter' || key.name === 'escape') {
+      state.manuscript = '';
+      manuscriptStart = 0;
+    }
     return draw();
   }
   if (state.newspaper.length > 0) {
@@ -1440,7 +1452,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     if (key.name === 'y') {
       storage.clear();
       state = createInitialState();
-      introPage = introStart = newsStart = 0;
+      introPage = introStart = newsStart = manuscriptStart = 0;
       setScientific(false);
       message = 'Progress reset.';
     } else {
@@ -2159,7 +2171,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   message = '';
   // The opening screens' choices: arrows and enter, or their keys.
-  const opening = playerTyping(state) ? 0 : scriptDue(state) ? departmentChoices(state).length : starterGenre(state) ? starterPlays(state).length : state.letters.length === 0 ? startingLetters.length : 0;
+  const opening = playerTyping(state) ? 0 : starterGenre(state) ? starterPlays(state).length : state.letters.length === 0 ? startingLetters.length : 0;
   if (opening > 0) {
     const row = menuKey(key, opening);
     if (row >= 0) {
@@ -2173,9 +2185,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     // The opening screens reach the save profiles too, so a new game can switch back.
     showingOptions = true;
     openProfiles();
-  } else if (scriptDue(state)) {
-    const g = departmentChoices(state)[Number(str) - 1];
-    if (g) openDepartment(state, g);
   } else if (starterGenre(state)) {
     const pick = starterPlays(state)[Number(str) - 1];
     if (pick) {

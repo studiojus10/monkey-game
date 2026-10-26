@@ -1,5 +1,5 @@
 import { hr, monkeyStats, opening, theme } from '../game/config';
-import { hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
+import { getPlay, hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
 import { priceNamed, promptChoices, typeOut, viewName } from './screen';
@@ -248,6 +248,35 @@ export function renderNewspaper(state: GameState, cursor = -1, elapsed = Infinit
   const footer = done ? ` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire` : ' [any key] skip';
   const body = [...typeOut(rows, Math.floor(elapsed / opening.msPerLetter)), dim(footer)];
   const width = Math.max(plainText(` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire`).length, ...rows.map(([t]) => t.length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
+}
+
+/** The manuscript's note: how it came, and the play's title, as rows with their styles. */
+function manuscriptRows(state: GameState): Styled[] {
+  const note = opening.manuscript;
+  const play = getPlay(state.manuscript);
+  return [
+    [` ${note.arrival}`, dim],
+    ['', (t: string) => t],
+    [` ${note.inside}`, (t: string) => t],
+    ['', (t: string) => t],
+    [`     ${play?.title ?? ''}`, bold],
+    ['     by William Shakespeare', dim],
+  ];
+}
+
+/** Whether the manuscript's note is all typed out after `elapsed` ms. */
+export function manuscriptTyped(state: GameState, elapsed: number): boolean {
+  return Math.floor(elapsed / opening.msPerLetter) >= manuscriptRows(state).reduce((n, [t]) => n + t.length, 0);
+}
+
+/** The popup when a manuscript comes through the mail slot (see deliverManuscript), typed out over `elapsed` ms. Lines of a box, for overlay(). */
+export function renderManuscript(state: GameState, elapsed = Infinity): string[] {
+  const rows = manuscriptRows(state);
+  const footer = manuscriptTyped(state, elapsed) ? ' [enter] read it later ([p] the script)' : ' [any key] skip';
+  const body = [...typeOut(rows, Math.floor(elapsed / opening.msPerLetter)), '', dim(footer)];
+  const width = Math.max(plainText(' [enter] read it later ([p] the script)').length, ...rows.map(([t]) => t.length)) + 2;
   const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
   return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
 }

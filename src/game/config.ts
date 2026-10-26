@@ -23,7 +23,15 @@ export const opening = {
   letter: 'A',
   newspaperAfter: 20,
   applicants: 3,
-  scriptLetters: Infinity, // letters owned before the first department and free play are chosen: Shakespeare is set aside for now (Justin, 2026-10-26: "until I bring it back up")
+  // Shakespeare's way in (Justin, 2026-10-26): once you own manuscriptLetters letters and a monkey has had manuscriptSkill
+  // typing upgrades, a manuscript of one starter play (the shortest of each Shakespeare genre, picked at random) comes
+  // through the mail slot, opening its department.
+  manuscriptLetters: 2,
+  manuscriptSkill: 1,
+  manuscript: {
+    arrival: 'A thick envelope slides through the mail slot, sealed with wax and a faint smell of plumbuckle.',
+    inside: 'Inside, a manuscript:',
+  },
   playerName: 'You',
   pressAction: 'type',
   // Story text shown to the player is typed out letter by letter, like the title (Justin, 2026-10-26: "lets see what its like").
