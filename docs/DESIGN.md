@@ -463,3 +463,7 @@ Justin, 2026-10-22: the shop on the home screen "covers as little of the screen 
 ## One shaded highlight (v0.16.2)
 
 Justin, 2026-10-22: "make sure the highlighting looks consistent across all menus... instead of fully inverting it just shades the area. that way the green labels can stay green". Every menu cursor and the mouse hover now shade the row (a grey background, lighter with the light-background option) and keep its own colours, so a row you can buy stays green. Inverse is left for where you are (the title bar, the open tab or store) and the office map's lit items.
+
+## Managers ask for word slots (v0.17.0)
+
+Justin, 2026-10-22: when a manager's line has more words than its department has word slots (no line in reach fits them), the manager asks the player to buy more. The request shows in LATELY once when it starts, beside the manager's pinned line ("wants 2 more slots"), on the shop's Word slots item, and at the top of the Word slots page, which opens on the department asking. It goes away once the department has a slot for every word of the line.
