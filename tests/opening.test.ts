@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { introTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
-import { newspaperTyped, renderNewspaper } from '../src/cli/hiring';
+import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper } from '../src/cli/hiring';
 import { opening, typing } from '../src/game/config';
-import { earlyShopKeys, hireApplicant, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
+import { buyFasterTyping, buyLetter, deliverManuscript, earlyShopKeys, hireApplicant, manuscriptPlays, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState } from '../src/game/state';
 
@@ -127,5 +127,36 @@ describe('the opening', () => {
     const old = JSON.parse(serialize(createInitialState(0)));
     delete old.state.introSeen;
     expect(deserialize(JSON.stringify(old), 0).introSeen).toBe(true);
+  });
+
+  it('slips a manuscript of a random starter play through the mail slot after a 2nd letter and a typing upgrade', () => {
+    const line = (text: string): [number, number, string, string] => [1, 1, 'X', text];
+    setPlays([
+      { id: 'c1', title: 'Short Comedy', genre: 'comedy', lines: [line('A.')] },
+      { id: 'c2', title: 'Long Comedy', genre: 'comedy', lines: [line('A.'), line('A A.')] },
+      { id: 'h1', title: 'History', genre: 'history', lines: [line('A.')] },
+      { id: 't1', title: 'Tragedy', genre: 'tragedy', lines: [line('A.')] },
+    ]);
+    expect(manuscriptPlays().map((p) => p.id)).toEqual(['c1', 'h1', 't1']);
+    const s = createInitialState(0);
+    for (let i = 0; i < opening.newspaperAfter; i++) playerPress(s, rng);
+    hireApplicant(s, 0);
+    s.currency = 1e9;
+    s.words = 1e9;
+    expect(deliverManuscript(s, rng)).toBe(false);
+    expect(buyLetter(s, 'N')).toBe(true);
+    expect(deliverManuscript(s, rng)).toBe(false); // the typing upgrade still to come
+    expect(buyFasterTyping(s, 0)).toBe(true);
+    tick(s, 1, () => 0.5);
+    expect(s.manuscript).toBe('h1');
+    expect(s.departments).toEqual(['history']);
+    expect(s.owned).toEqual(['h1']);
+    expect(s.office[0].department).toBe('history');
+    expect(deliverManuscript(s, rng)).toBe(false); // only once
+    const note = plain(renderManuscript(s).join('\n'));
+    expect(note).toContain('History');
+    expect(note).toContain('by William Shakespeare');
+    expect(manuscriptTyped(s, 0)).toBe(false);
+    expect(deserialize(serialize(s), 0).manuscript).toBe('h1');
   });
 });

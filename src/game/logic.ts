@@ -1848,9 +1848,28 @@ export function deliverNewspaper(state: GameState, rng: Rng = Math.random): bool
   return state.newspaper.length > 0;
 }
 
-/** Whether the first department and free play are waiting to be chosen: a monkey hired, no department yet, and opening.scriptLetters letters owned. */
-export function scriptDue(state: GameState): boolean {
-  return !playerTyping(state) && state.departments.length === 0 && state.owned.length === 0 && state.letters.length >= opening.scriptLetters;
+/** The plays a manuscript can bring: the shortest of each Shakespeare genre. */
+export function manuscriptPlays(): Play[] {
+  return playGenres.flatMap((g) => availablePlays().filter((p) => p.genre === g).sort((a, b) => a.lines.length - b.lines.length || a.id.localeCompare(b.id)).slice(0, 1));
+}
+
+/**
+ * Once a monkey works here, you own opening.manuscriptLetters letters and a
+ * monkey has had opening.manuscriptSkill typing upgrades, a manuscript of a
+ * random starter play comes through the mail slot: the first department
+ * opens for its genre and owns it. Only before any department or script.
+ */
+export function deliverManuscript(state: GameState, rng: Rng = Math.random): boolean {
+  if (playerTyping(state) || state.departments.length > 0 || state.owned.length > 0) return false;
+  if (state.letters.length < opening.manuscriptLetters || !state.monkeys.some((m) => m.skill >= opening.manuscriptSkill)) return false;
+  const choices = manuscriptPlays();
+  const play = choices[Math.min(choices.length - 1, Math.floor(rng() * choices.length))];
+  if (!play || !openDepartment(state, play.genre)) return false;
+  state.owned.push(play.id);
+  state.completed[play.id] ??= [];
+  state.manuscript = play.id;
+  announce(state, `A manuscript came through the mail slot: ${play.title}. [p] to read it.`);
+  return true;
 }
 
 /** Hires applicant `i` from the newspaper: the first monkey, at the first desk and typewriter, its stats unseen. */
@@ -2344,6 +2363,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   shelveBooks(state);
   unlockLatin(state);
   deliverTelegrams(state, seconds, rng);
+  deliverManuscript(state, rng);
   // Alone at the typewriter, the player types at the slowest pace.
   if (state.player && playerTyping(state)) {
     state.player.progress += lettersPerSecond(0) * seconds;

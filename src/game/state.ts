@@ -147,6 +147,7 @@ export interface GameState {
   player: MonkeyState | null; // the player at the typewriter before the first monkey is hired (see `opening`); null after
   playerPresses: number; // letters the player has typed, by hand or not
   newspaper: Applicant[]; // the classified section's monkeys, once it comes, until one is hired
+  manuscript: string; // the play whose manuscript just came through the mail slot, until the player has read the note ('' for none)
   currency: number;
   totalEarned: number;
   sentences: number; // currency: every time a play line (3+ words) is typed
@@ -326,6 +327,7 @@ export function createInitialState(now = Date.now()): GameState {
     player: { ...createMonkey(), name: opening.playerName },
     playerPresses: 0,
     newspaper: [],
+    manuscript: '',
     currency: 0,
     totalEarned: 0,
     sentences: 0,
