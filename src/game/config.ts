@@ -26,6 +26,29 @@ export const opening = {
   scriptLetters: Infinity, // letters owned before the first department and free play are chosen: Shakespeare is set aside for now (Justin, 2026-10-26: "until I bring it back up")
   playerName: 'You',
   pressAction: 'type',
+  // Story text shown to the player is typed out letter by letter, like the title (Justin, 2026-10-26: "lets see what its like").
+  msPerLetter: 30,
+  intro: {
+    titleMsPerLetter: 150,
+    pauseMs: 700,
+    // Justin's own intro (2026-10-26). Each page waits for [enter]; `choice` is what [enter] does there.
+    pages: [
+      {
+        text: [
+          'In the center of town, there sits a small brick building, a relic of an era before metal and glass towers blocked the sun from seeing the streets below. The address is correct, and the door is unlocked.',
+        ],
+        choice: 'Enter?',
+      },
+      {
+        text: [
+          'In this house there have been many rooms, each with its own purpose, but right now there is only one. The front door opens into a broom closet with no other entrances or exits. The walls are solid stone but they seem receptive to suggestion. A small desk and chair take up half of the already limited floor space. On the desk is a typewriter and a stack of blank paper. One page is already started...',
+          '"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"',
+          'The typewriter is broken, save one key.',
+        ],
+        choice: '',
+      },
+    ],
+  },
   newspaper: {
     title: 'WANTED HELP',
     arrival: 'A folded newspaper drops through the mail slot. Only the classified section.',

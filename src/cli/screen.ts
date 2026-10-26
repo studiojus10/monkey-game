@@ -1561,6 +1561,54 @@ function wrapVisible(items: string[], columns: number, lead: string): string[] {
   return rows;
 }
 
+/** The first `letters` letters of rows of text, as if typed out in order; each row keeps its own style. */
+export function typeOut(rows: [string, (t: string) => string][], letters: number): string[] {
+  let left = Math.max(0, letters);
+  return rows.map(([text, style]) => {
+    const shown = text.slice(0, left);
+    left -= shown.length;
+    return shown ? style(shown) : '';
+  });
+}
+
+/** The intro's page `page` (see opening.intro) with the title, then its text, typed out over `elapsed` ms; Infinity shows it all. */
+function introRows(page: number, elapsed: number, columns: number): { title: string; rows: string[]; done: boolean } {
+  const intro = opening.intro;
+  const title = theme.title.toUpperCase();
+  const p = intro.pages[Math.min(page, intro.pages.length - 1)];
+  const width = Math.min(columns > 0 ? columns : 80, 80) - 2;
+  const body: [string, (t: string) => string][] = [
+    ...p.text.flatMap((para) => [...wrapWords(para, width).map((r) => [r, (t: string) => t] as [string, (t: string) => string]), ['', (t: string) => t] as [string, (t: string) => string]]),
+    ...(p.choice ? [[`- ${p.choice}`, bold] as [string, (t: string) => string]] : []),
+  ];
+  const total = body.reduce((n, [t]) => n + t.length, 0);
+  // The first page starts blank, types the title slowly, then the text.
+  const titleTime = page === 0 ? intro.pauseMs + title.length * intro.titleMsPerLetter + intro.pauseMs : 0;
+  const titleLetters = page === 0 ? Math.floor((elapsed - intro.pauseMs) / intro.titleMsPerLetter) : title.length;
+  const letters = Math.floor((elapsed - titleTime) / opening.msPerLetter);
+  return { title: title.slice(0, Math.max(0, titleLetters)), rows: typeOut(body, letters), done: letters >= total };
+}
+
+/** Whether the intro's page `page` is all typed out after `elapsed` ms. */
+export function introTyped(page: number, elapsed: number): boolean {
+  return introRows(page, elapsed, 80).done;
+}
+
+/** The intro (Justin, 2026-10-26): a blank screen, the title typed out as on a typewriter, then the story, page by page. */
+export function renderIntro(page: number, elapsed: number, columns = 0): string {
+  const { title, rows, done } = introRows(page, elapsed, columns);
+  const choice = opening.intro.pages[Math.min(page, opening.intro.pages.length - 1)].choice;
+  return [
+    '',
+    ` ${bold(title)}`,
+    '',
+    ...rows.map((r) => (r ? ` ${r}` : '')),
+    '',
+    rule(columns),
+    done ? keyRow([['enter', choice ? choice.replace(/\?$/, '').toLowerCase() : 'continue'], ['q', 'quit']], columns) : keyRow([['any key', 'skip']], columns),
+  ].join('\n');
+}
+
 /** Words of `text` in rows at most `width` long (a word longer than that gets a row of its own). */
 export function wrapWords(text: string, width: number): string[] {
   const rows: string[] = [];

@@ -8,6 +8,7 @@ import { createInitialState, createMonkey, monkeyNameFor, type GameState } from 
  */
 export function startedGame(now?: number): GameState {
   const state = createInitialState(now);
+  state.introSeen = true;
   state.player = null;
   state.letters = [];
   state.monkeys = [{ ...createMonkey(), number: 1, name: monkeyNameFor(1, []) }];

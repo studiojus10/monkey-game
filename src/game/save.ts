@@ -259,6 +259,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     // Saves from before the opening's newspaper (no player field) have hired already, and their shop shows everything.
     const player = s.player && typeof s.player === 'object' ? monkey(s.player) : null;
     const state: GameState = {
+      introSeen: s.introSeen !== false, // saves from before the intro have seen it
       player,
       playerPresses: Math.max(0, Math.floor(num(s.playerPresses, 0))),
       newspaper: (Array.isArray(s.newspaper) ? s.newspaper : []).filter((a) => a && typeof a.name === 'string').map((a) => ({ name: a.name, blurb: str(a.blurb) })),

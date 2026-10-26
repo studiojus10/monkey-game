@@ -376,6 +376,7 @@ export function publishFolio(state: GameState): GameState | null {
   next.freeLetters = state.freeLetters;
   next.stats = state.stats;
   next.settings = state.settings;
+  next.introSeen = state.introSeen;
   checkAchievements(next);
   return next;
 }

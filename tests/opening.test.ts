@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderScreen, openStores, storeItems } from '../src/cli/screen';
-import { renderNewspaper } from '../src/cli/hiring';
+import { introTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
+import { newspaperTyped, renderNewspaper } from '../src/cli/hiring';
 import { opening, typing } from '../src/game/config';
 import { earlyShopKeys, hireApplicant, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
@@ -93,5 +93,39 @@ describe('the opening', () => {
     const s = deserialize(JSON.stringify(old), 0);
     expect(s.monkeys).toHaveLength(1);
     for (const k of earlyShopKeys) expect(s.revealed).toContain(k);
+  });
+
+  it('types out the intro: a blank screen, the title letter by letter, then the story, page by page', () => {
+    const intro = opening.intro;
+    expect(plain(renderIntro(0, 0, 80))).not.toContain('I');
+    expect(plain(renderIntro(0, intro.pauseMs + 3 * intro.titleMsPerLetter, 80))).toContain(' INF\n');
+    expect(introTyped(0, intro.pauseMs + 3 * intro.titleMsPerLetter)).toBe(false);
+    const page = plain(renderIntro(0, Infinity, 80));
+    expect(page).toContain('INFINITE MONKEYS');
+    expect(page).toContain('In the center of town');
+    expect(page).toContain('- Enter?');
+    expect(page).toContain('[enter] enter');
+    expect(introTyped(0, Infinity)).toBe(true);
+    const last = plain(renderIntro(1, Infinity, 80));
+    expect(last).toContain('The typewriter is broken, save one key.');
+    for (const line of last.split('\n')) expect(line.length).toBeLessThanOrEqual(80);
+    // Every page keeps its height while it types, so nothing moves.
+    expect(renderIntro(1, 0, 80).split('\n')).toHaveLength(last.split('\n').length);
+    // The newspaper types out too.
+    const s = createInitialState(0);
+    for (let i = 0; i < opening.newspaperAfter; i++) playerPress(s, rng);
+    expect(newspaperTyped(s, 0)).toBe(false);
+    expect(plain(renderNewspaper(s, -1, 0).join('\n'))).not.toContain(opening.newspaper.title);
+    expect(newspaperTyped(s, Infinity)).toBe(true);
+  });
+
+  it('remembers the intro was read; saves from before it never show it', () => {
+    const s = createInitialState(0);
+    expect(deserialize(serialize(s), 0).introSeen).toBe(false);
+    s.introSeen = true;
+    expect(deserialize(serialize(s), 0).introSeen).toBe(true);
+    const old = JSON.parse(serialize(createInitialState(0)));
+    delete old.state.introSeen;
+    expect(deserialize(JSON.stringify(old), 0).introSeen).toBe(true);
   });
 });

@@ -143,6 +143,7 @@ export interface Applicant {
 }
 
 export interface GameState {
+  introSeen: boolean; // the story's intro has been read (see opening.intro)
   player: MonkeyState | null; // the player at the typewriter before the first monkey is hired (see `opening`); null after
   playerPresses: number; // letters the player has typed, by hand or not
   newspaper: Applicant[]; // the classified section's monkeys, once it comes, until one is hired
@@ -321,6 +322,7 @@ export function starterRoom(): Room {
 
 export function createInitialState(now = Date.now()): GameState {
   return {
+    introSeen: false,
     player: { ...createMonkey(), name: opening.playerName },
     playerPresses: 0,
     newspaper: [],
