@@ -277,3 +277,55 @@ export function scrollMarks(above: number, below: number, what = 'more'): [strin
   if (above <= 0 && below <= 0) return [[], []];
   return [[above > 0 ? ` ${bold('^')} ${above.toLocaleString('en-US')} ${what} above` : ''], [below > 0 ? ` ${bold('v')} ${below.toLocaleString('en-US')} ${what} below` : '']];
 }
+
+/**
+ * A line of text broken into lines at most `width` columns wide, at the end
+ * of a word (Justin, 2026-10-26: "if text wraps to the next line, it wraps at
+ * the end of a word"). ANSI styles carry on into the lines after the first,
+ * which start under its text (its leading spaces, up to half the width). A
+ * word longer than a whole line stays whole.
+ */
+export function wrapAnsi(line: string, width: number): string[] {
+  if (width <= 0 || plainText(line).length <= width) return [line];
+  const lead = plainText(line).search(/\S|$/);
+  const indent = ' '.repeat(Math.min(lead, Math.floor(width / 2)));
+  // Words with their styles, and the spaces before each.
+  const words: { gap: number; text: string; length: number; codes: string }[] = [];
+  let gap = 0;
+  let text = '';
+  let codes = '';
+  const end = () => {
+    if (plainText(text).length > 0) words.push({ gap, text, length: plainText(text).length, codes });
+    else if (text) words.push({ gap, text, length: 0, codes });
+    gap = 0;
+    text = '';
+    codes = '';
+  };
+  for (const [token] of line.matchAll(/\x1b\[[0-9;]*m| +|[^ \x1b]+/g)) {
+    if (token.startsWith(' ')) {
+      if (plainText(text).length > 0) end();
+      gap += token.length;
+    } else {
+      text += token;
+      if (token.startsWith('\x1b')) codes += token;
+    }
+  }
+  end();
+  const rows: string[] = [];
+  let row = '';
+  let length = 0;
+  let seen = ''; // every style code so far, to start a new line in the same style
+  for (const w of words) {
+    if (length > 0 && w.length > 0 && length + w.gap + w.length > width) {
+      rows.push(`${row}\x1b[0m`);
+      row = `${indent}${seen}${w.text}`;
+      length = indent.length + w.length;
+    } else {
+      row += ' '.repeat(w.gap) + w.text;
+      length += w.gap + w.length;
+    }
+    seen += w.codes;
+  }
+  rows.push(row);
+  return rows;
+}

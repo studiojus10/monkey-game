@@ -189,7 +189,7 @@ import {
   type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, lightShade, placeScreen, screenTop, showCursors, terminalBackground } from './style';
+import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, lightShade, placeScreen, screenTop, showCursors, terminalBackground, wrapAnsi } from './style';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
@@ -279,8 +279,8 @@ const SKIPPED = -1e12; // a start time far enough back that any text is all type
 /** Whether story text is still typing out on screen: the intro or the newspaper. */
 function typingOut(): boolean {
   if (!state.introSeen) return !introTyped(introPage, Date.now() - introStart);
-  if (state.newspaper.length > 0) return !state.newspaperNote && !newspaperTyped(state, Date.now() - newsStart);
-  return !!state.manuscript && !state.manuscriptNote && !manuscriptTyped(state, Date.now() - manuscriptStart);
+  if (state.newspaper.length > 0) return !state.newspaperNote && !newspaperTyped(state, Date.now() - newsStart, process.stdout.columns || 80);
+  return !!state.manuscript && !state.manuscriptNote && !manuscriptTyped(state, Date.now() - manuscriptStart, process.stdout.columns || 80);
 }
 let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
 let showingScript = false;
@@ -940,9 +940,13 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const rows = process.stdout.rows || 0;
-  const shownNow = popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
+  // Any line still wider than the terminal wraps at the end of a word rather than mid-word.
+  const shownNow = (popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav)
+    .split('\n')
+    .flatMap((l) => wrapAnsi(l, columns))
+    .join('\n');
   // Every screen as tall as the tallest, so nothing moves between them; the game still sits at the bottom of the window.
   gameHeight = Math.max(gameHeight, shownNow.split('\n').length);
   if (Date.now() - measuredAt > 2000) {
@@ -1159,7 +1163,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
   // The newspaper: a popup until one of its monkeys is hired; any key first types out the rest of it.
-  if (state.newspaper.length > 0 && !newspaperTyped(state, Date.now() - newsStart)) {
+  if (state.newspaper.length > 0 && !newspaperTyped(state, Date.now() - newsStart, process.stdout.columns || 80)) {
     if (key.name === 'q') return quit();
     newsStart = SKIPPED;
     return draw();
@@ -1173,7 +1177,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   // The manuscript: a popup until [enter]; any key first types out the rest of it.
   if (state.manuscript && state.newspaper.length === 0) {
     if (key.name === 'q') return quit();
-    if (!manuscriptTyped(state, Date.now() - manuscriptStart)) manuscriptStart = SKIPPED;
+    if (!manuscriptTyped(state, Date.now() - manuscriptStart, process.stdout.columns || 80)) manuscriptStart = SKIPPED;
     else if (key.name === 'return' || key.name === 'enter' || key.name === 'escape') {
       state.manuscript = '';
       manuscriptStart = 0;

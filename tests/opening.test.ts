@@ -181,3 +181,25 @@ describe('the opening', () => {
     expect(deserialize(serialize(s), 0).newspaperNote).toBe(true);
   });
 });
+
+describe('wrapping at the end of a word', () => {
+  it('wraps a styled line between words, keeping its indent and style', async () => {
+    const { wrapAnsi, plainText } = await import('../src/cli/style');
+    const rows = wrapAnsi('  \x1b[1mthe quick brown fox jumps\x1b[0m', 12);
+    expect(rows.map((r) => plainText(r))).toEqual(['  the quick', '  brown fox', '  jumps']);
+    expect(rows[1]).toContain('\x1b[1m');
+    expect(wrapAnsi('short', 12)).toEqual(['short']);
+  });
+
+  it('wraps the newspaper and manuscript to a 50-column screen at word ends', async () => {
+    const { renderNewspaper, renderManuscript } = await import('../src/cli/hiring');
+    const { plainText } = await import('../src/cli/style');
+    const state = createInitialState(0);
+    state.newspaper = [{ name: 'Bing Bong', blurb: 'a very long blurb that goes on and on well past the edge of any narrow screen' }];
+    for (const box of [renderNewspaper(state, -1, Infinity, 50)]) {
+      for (const l of box) expect(plainText(l).length).toBeLessThanOrEqual(50);
+    }
+    state.manuscript = 'midsummer';
+    for (const l of renderManuscript(state, Infinity, 50)) expect(plainText(l).length).toBeLessThanOrEqual(50);
+  });
+});
