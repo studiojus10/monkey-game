@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clickPress, mousePress, parseMouse, targetAt } from '../src/cli/mouse';
 import { bold, inverse, inverseSpan, isCursor, plainText, screenTop, showCursors } from '../src/cli/style';
 import { renderOptions } from '../src/cli/screen';
-import { createInitialState } from '../src/game/state';
+import { startedGame } from './start';
 
 describe('mouse', () => {
   it('takes clicks, right clicks and the wheel out of the input, leaving the keys', () => {
@@ -58,9 +58,9 @@ describe('hover and hidden cursors', () => {
   it('hides menu cursors until they are switched on', () => {
     showCursors(false);
     expect(isCursor(1, 1)).toBe(false);
-    expect(renderOptions(createInitialState(0), 0, 1)).not.toContain('\x1b[48;5;236m');
+    expect(renderOptions(startedGame(0), 0, 1)).not.toContain('\x1b[48;5;236m');
     showCursors(true);
     expect(isCursor(1, 1)).toBe(true);
-    expect(renderOptions(createInitialState(0), 0, 1)).toContain('\x1b[48;5;236m');
+    expect(renderOptions(startedGame(0), 0, 1)).toContain('\x1b[48;5;236m');
   });
 });

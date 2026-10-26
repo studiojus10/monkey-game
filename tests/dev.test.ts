@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { renderDevMenu } from '../src/cli/screen';
 import { devTools } from '../src/game/dev';
-import { createInitialState } from '../src/game/state';
+import { startedGame } from './start';
 
 const plain = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
 describe('development tools', () => {
   const use = (label: string) => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     devTools.find((t) => t.label === label)!.apply(s);
     return s;
   };
@@ -25,6 +25,6 @@ describe('development tools', () => {
   });
 
   it('lists each tool with its number key', () => {
-    expect(plain(renderDevMenu(createInitialState(0)))).toContain('[1] Add 1 billion bananas');
+    expect(plain(renderDevMenu(startedGame(0)))).toContain('[1] Add 1 billion bananas');
   });
 });

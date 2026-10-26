@@ -1,8 +1,8 @@
-import { hr, monkeyStats, theme } from '../game/config';
+import { hr, monkeyStats, opening, theme } from '../game/config';
 import { hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
-import { priceNamed, promptChoices, viewName } from './screen';
+import { priceNamed, promptChoices, typeOut, viewName } from './screen';
 import { affordable, bold, dim, green, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow, highlight } from './style';
 
 /** A stat as a percent: green above average, red below. */
@@ -209,4 +209,45 @@ export function promptBox(prompt: string, cursor = -1): string[] {
     line(dim(` ${footer}`)),
     `+${'-'.repeat(width)}+`,
   ];
+}
+
+type Styled = [string, (t: string) => string];
+
+/** The newspaper's rows of text, each with its style: the arrival, the title, the ad, then each monkey's name and blurb. */
+function newspaperRows(state: GameState, cursor: number): Styled[] {
+  const paper = opening.newspaper;
+  const plain = (t: string) => t;
+  return [
+    [` ${paper.arrival}`, dim],
+    ['', plain],
+    [` ${paper.title}`, bold],
+    ...paper.lines.map((l): Styled => [` ${l}`, dim]),
+    ['', plain],
+    ...state.newspaper.flatMap((a, i): Styled[] => [
+      [` [${i + 1}] ${a.name || 'A monkey'}`, (t: string) => (isCursor(i, cursor) ? highlight(bold(t)) : bold(t))],
+      [`     ${a.blurb}`, dim],
+      ['', plain],
+    ]),
+  ];
+}
+
+/** Whether the newspaper's text is all typed out after `elapsed` ms (see opening.msPerLetter). */
+export function newspaperTyped(state: GameState, elapsed: number): boolean {
+  return Math.floor(elapsed / opening.msPerLetter) >= newspaperRows(state, -1).reduce((n, [t]) => n + t.length, 0);
+}
+
+/**
+ * The newspaper that drops through the mail slot (see `opening`): the
+ * classified section, its monkeys each with a name and a blurb, numbered to
+ * hire one, typed out over `elapsed` ms. A popup with no way out but a pick.
+ * Lines of a box, for overlay().
+ */
+export function renderNewspaper(state: GameState, cursor = -1, elapsed = Infinity): string[] {
+  const rows = newspaperRows(state, cursor);
+  const done = newspaperTyped(state, elapsed);
+  const footer = done ? ` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire` : ' [any key] skip';
+  const body = [...typeOut(rows, Math.floor(elapsed / opening.msPerLetter)), dim(footer)];
+  const width = Math.max(plainText(` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire`).length, ...rows.map(([t]) => t.length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
 }

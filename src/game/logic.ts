@@ -9,6 +9,9 @@ import {
   maxOfflineLetters,
   maxSimulatedLettersPerSecond,
   maxMonkeyNameLength,
+  monkeyNames,
+  opening,
+  shopReveals,
   maxPinnedLines,
   milestones,
   scriptShop,
@@ -373,6 +376,7 @@ export function publishFolio(state: GameState): GameState | null {
   next.freeLetters = state.freeLetters;
   next.stats = state.stats;
   next.settings = state.settings;
+  next.introSeen = state.introSeen;
   checkAchievements(next);
   return next;
 }
@@ -1769,7 +1773,13 @@ let wordEarnings = 0;
 
 export function typeLetter(state: GameState, index: number, rng: Rng = Math.random): void {
   const m = state.monkeys[index];
-  if (!m || !isTypist(m) || state.letters.length === 0) return;
+  if (!m || !isTypist(m)) return;
+  typeAs(state, m, rng);
+}
+
+/** Someone at a typewriter (a monkey, or the player before the first hire) presses one key. */
+function typeAs(state: GameState, m: MonkeyState, rng: Rng): void {
+  if (state.letters.length === 0) return;
   const genre = monkeyGenre(state, m);
   const dict = dictionaryFor(state, genre);
   const events: ReadEvent[] = [];
@@ -1806,6 +1816,51 @@ export function typeLetter(state: GameState, index: number, rng: Rng = Math.rand
     }
     addToLine(m, { text: e.text, scored: e.kind === 'word' });
   }
+}
+
+/** Whether the player is still alone at the typewriter: no monkey hired yet (see `opening`). */
+export function playerTyping(state: GameState): boolean {
+  return !!state.player && state.monkeys.length === 0;
+}
+
+/**
+ * The player presses their key (by hand with [h], or at the slowest pace on
+ * its own): it types like a monkey's. Enough presses bring the newspaper.
+ */
+export function playerPress(state: GameState, rng: Rng = Math.random): boolean {
+  if (!state.player || !playerTyping(state)) return false;
+  typeAs(state, state.player, rng);
+  state.playerPresses++;
+  deliverNewspaper(state, rng);
+  return true;
+}
+
+/** After opening.newspaperAfter presses, the classified section comes with opening.applicants monkeys, each a name and a blurb. */
+export function deliverNewspaper(state: GameState, rng: Rng = Math.random): boolean {
+  if (!playerTyping(state) || state.newspaper.length > 0 || state.playerPresses < opening.newspaperAfter) return false;
+  const draw = (list: string[], n: number) => {
+    const left = [...list];
+    return Array.from({ length: Math.min(n, left.length) }, () => left.splice(Math.min(left.length - 1, Math.floor(rng() * left.length)), 1)[0]);
+  };
+  const names = draw(monkeyNames.filter((x) => x.length <= maxMonkeyNameLength), opening.applicants);
+  const blurbs = draw(opening.blurbs, opening.applicants);
+  state.newspaper = Array.from({ length: opening.applicants }, (_, i) => ({ name: names[i] ?? '', blurb: blurbs[i] ?? '' }));
+  return state.newspaper.length > 0;
+}
+
+/** Whether the first department and free play are waiting to be chosen: a monkey hired, no department yet, and opening.scriptLetters letters owned. */
+export function scriptDue(state: GameState): boolean {
+  return !playerTyping(state) && state.departments.length === 0 && state.owned.length === 0 && state.letters.length >= opening.scriptLetters;
+}
+
+/** Hires applicant `i` from the newspaper: the first monkey, at the first desk and typewriter, its stats unseen. */
+export function hireApplicant(state: GameState, i: number): boolean {
+  const a = state.newspaper[i];
+  if (!a || !playerTyping(state)) return false;
+  state.monkeys.push({ ...createMonkey(), number: 1, name: a.name });
+  state.player = null;
+  state.newspaper = [];
+  return true;
 }
 
 /** Sentences a chain of `counted` long-enough words pays when it ends. */
@@ -2289,6 +2344,13 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   shelveBooks(state);
   unlockLatin(state);
   deliverTelegrams(state, seconds, rng);
+  // Alone at the typewriter, the player types at the slowest pace.
+  if (state.player && playerTyping(state)) {
+    state.player.progress += lettersPerSecond(0) * seconds;
+    const n = Math.min(Math.floor(state.player.progress), Math.max(1, Math.floor(lettersPerSecondCap * seconds)));
+    state.player.progress -= Math.floor(state.player.progress);
+    for (let k = 0; k < n; k++) playerPress(state, rng);
+  }
   const due = state.monkeys.map((m) => {
     if (!isTypist(m) || !canReachDesk(state, m)) return 0;
     m.progress += monkeySpeed(state, m) * spendEnergy(m, seconds, energyRates(state, m));
@@ -2463,6 +2525,32 @@ export function inRevealOrder<T>(state: GameState, list: T[], key: (t: T) => str
     return k < 0 ? state.revealed.length + i : k;
   };
   return list.map((t, i) => [t, at(t, i)] as const).sort((a, b) => a[1] - b[1]).map(([t]) => t);
+}
+
+/** Shop items that show up only once they matter (see shopReveals), by their key in state.revealed; old saves have them all. */
+export const earlyShopKeys = ['shop:typewriter', 'shop:hire', 'shop:combo', 'shop:keys', 'shop:slots', 'store:hats'];
+
+/** Whether a shop item that shows up later matters now: see shopReveals. */
+function shopMatters(state: GameState, key: string): boolean {
+  switch (key) {
+    case 'shop:typewriter': return state.monkeys.some((m) => isTypist(m) && m.skill >= skillCap(m));
+    case 'shop:hire': return state.monkeys.length > 0 && state.currency >= nextMonkeyCost(state) * shopReveals.hireShare;
+    case 'shop:combo':
+    case 'store:hats': return state.sentences > 0;
+    case 'shop:keys': return keysUnlocked(state);
+    case 'shop:slots': return slotsUnlocked(state);
+    default: return true;
+  }
+}
+
+/** Whether a shop item that shows up later shows: once it matters, and for good after (the front end notes it, see noteRevealed). */
+export function shopRevealed(state: GameState, key: string): boolean {
+  return state.revealed.includes(key) || shopMatters(state, key);
+}
+
+/** The shop items that show up later and matter now, to note as revealed. */
+export function shopRevealsNow(state: GameState): string[] {
+  return earlyShopKeys.filter((k) => shopMatters(state, k));
 }
 
 /** Notes menu items showing now, after every item noted before; see inRevealOrder. */

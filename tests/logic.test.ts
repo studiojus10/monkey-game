@@ -95,6 +95,7 @@ import {
   poke,
   tick,
   typeLetter,
+  playerPress,
   typingUpgradeCost,
   buySection,
   chooseStarterPlay,
@@ -136,7 +137,8 @@ import {
   nextOwnedScene,
   nextPin,
 } from '../src/game/logic';
-import { createInitialState, createMonkey, rectangle, type GameState } from '../src/game/state';
+import { createMonkey, rectangle, type GameState } from '../src/game/state';
+import { startedGame } from './start';
 import { autoConnect, connectedRooms, cycleDoor, doorBetween, doorSides, isConnected, layOutOffice, loungeOf, placeDoor, servedBy, takeDoor, toggleHall } from '../src/game/layout';
 import { sellEverything, withUnlocks } from './unlocks';
 import { renderSlotsMenu, storeItems } from '../src/cli/screen';
@@ -165,7 +167,7 @@ const plainMonkey = { trait: 'none', speedStat: 1, stamina: 1, jobs: { typing: '
 
 describe('first letter', () => {
   it('can be A or I, and only once', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     expect(chooseFirstLetter(s, 'z')).toBe(false);
     expect(chooseFirstLetter(s, 'i')).toBe(true);
     expect(chooseFirstLetter(s, 'a')).toBe(false);
@@ -173,7 +175,7 @@ describe('first letter', () => {
   });
 
   it('the monkey does not type before a letter is picked', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     tick(s, 10, rng);
     poke(s);
     expect(s.currency).toBe(0);
@@ -183,7 +185,7 @@ describe('first letter', () => {
 
 describe('typing', () => {
   it('each one-letter word scores 1 point', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'a');
     typeLetter(s, 0, rng);
     typeLetter(s, 0, rng);
@@ -200,7 +202,7 @@ describe('typing', () => {
   it('runs of one letter (AA, AAA, MM) are never words, even if the word list has them', () => {
     try {
       setWordList(['AA', 'AAA', 'MM', 'AM']);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       chooseFirstLetter(s, 'a');
       s.letters.push('M');
       expect(dictionaryFor(s).isWord('AA')).toBe(false);
@@ -217,7 +219,7 @@ describe('typing', () => {
   });
 
   it('pets the chosen typing monkey, or the least happy one', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(structuredClone(s.monkeys[0]));
     expect(poke(s, 1)).toBe(1);
@@ -228,7 +230,7 @@ describe('typing', () => {
   });
 
   it('keeps statistics on letters, words, chains and pets', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     poke(s);
     for (let i = 0; i < 3; i++) typeLetter(s, 0, rng);
@@ -244,7 +246,7 @@ describe('typing', () => {
   });
 
   it('simulates at most a budget of letters a tick, and credits the rest', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
     for (const m of s.monkeys) Object.assign(m, { skill: 60, ...plainMonkey }); // far more letters a second than the budget; no trait
@@ -256,7 +258,7 @@ describe('typing', () => {
   });
 
   it('petting types nothing: it makes the least happy typist a little happier, which wears off', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey(), createMonkey());
     s.monkeys[0].manager = true;
@@ -274,7 +276,7 @@ describe('typing', () => {
   });
 
   it('happier monkeys tire slower and rest faster', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     const m = s.monkeys[0];
     const calm = energyRates(s, m);
     m.petHappiness = 0.05;
@@ -284,7 +286,7 @@ describe('typing', () => {
   });
 
   it('monkeys type over time, carrying over partial letters', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     tick(s, 10, rng);
     expect(s.currency).toBe(10 * typing.baseLettersPerSecond);
@@ -294,14 +296,14 @@ describe('typing', () => {
   });
 
   it('starts a fresh line when the line is full', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     for (let i = 0; i < lineWidth + 1; i++) typeLetter(s, 0, rng);
     expect(s.monkeys[0].line).toHaveLength(1);
   });
 
   it('lets a front end set how long a line runs, to fit its screen', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     try {
       setLineWidth(150);
@@ -315,7 +317,7 @@ describe('typing', () => {
   });
 
   it('offline typing is credited and capped', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     Object.assign(s.monkeys[0], plainMonkey);
     const earned = applyOfflineProgress(s, (maxOfflineSeconds + 1000) * 1000, rng);
@@ -325,7 +327,7 @@ describe('typing', () => {
   });
 
   it('gives a free letter for each milestone reached, once', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     expect(checkLetterGifts(s)).toEqual([]);
     s.achievements.push('first-hire', 'first-word'); // a second monkey; the first word gives no letter
@@ -346,7 +348,7 @@ describe('typing', () => {
 
 describe('faster typing', () => {
   it('costs points, speeds monkeys up and gets pricier', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     const cost = typingUpgradeCost(0);
     s.currency = cost - 1;
@@ -362,7 +364,7 @@ describe('faster typing', () => {
   });
 
   it('is per monkey and capped by its typewriter, which can be upgraded', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey());
     s.currency = s.sentences = 1e12;
@@ -393,7 +395,7 @@ describe('buying letters', () => {
   });
 
   it('adds a new letter for points, once', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     expect(buyLetter(s, 't')).toBe(false); // no first letter yet
     chooseFirstLetter(s, 'i');
     s.currency = letterCost(1) * 100;
@@ -412,7 +414,7 @@ describe('buying letters', () => {
   it('longer words become possible and score more', () => {
     setWordList(['IT', 'TI']);
     try {
-      const s = createInitialState(0);
+      const s = startedGame(0);
       chooseFirstLetter(s, 'i');
       s.letters.push('T');
       let n = 0;
@@ -431,7 +433,7 @@ describe('buying letters', () => {
 
 describe('monkeys', () => {
   it('buying a monkey costs points and raises the next price', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.sentences = 1e12;
     s.lines = 1e12;
@@ -447,7 +449,7 @@ describe('monkeys', () => {
   });
 
   it('prices every hire the same whichever department it goes to', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.letters = ['A'];
     s.departments = ['comedy', 'tragedy'];
     s.currency = s.sentences = 1e30;
@@ -463,7 +465,7 @@ describe('monkeys', () => {
   });
 
   it('monkeys can be renamed, and an empty name gives a famous one back', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.monkeys.push(createMonkey());
     expect(monkeyName(s, 1)).toBe('M-2');
     expect(renameMonkey(s, 1, '  Bubbles  the  Great ')).toBe(false); // too long once trimmed
@@ -476,7 +478,7 @@ describe('monkeys', () => {
   });
 
   it('every monkey types its own line', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.monkeys.push(createMonkey(), createMonkey());
     for (const m of s.monkeys) Object.assign(m, plainMonkey);
@@ -486,7 +488,7 @@ describe('monkeys', () => {
   });
 
   it('long absences with many monkeys are estimated past the simulation limit', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.monkeys = Array.from({ length: 100 }, () => ({ ...createMonkey(), ...plainMonkey }));
     const letters = 100 * maxOfflineSeconds * typing.baseLettersPerSecond;
@@ -500,14 +502,14 @@ describe('monkeys', () => {
 
 describe('combos', () => {
   const letters = ['C', 'A', 'T', 'Q', 'U', 'I', 'Z', 'N', 'Y', 'E', 'X'];
-  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
+  const typeAll = (s: ReturnType<typeof startedGame>, text: string) => {
     for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
   };
 
   it('adds 0.1 to the multiplier for each word of 2+ letters in a chain, up to the cap', () => {
     setWordList(['CAT', 'QUIZ', 'ZANY']);
     try {
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.letters = [...letters];
       const m = s.monkeys[0];
       typeAll(s, 'CAT');
@@ -529,7 +531,7 @@ describe('combos', () => {
   });
 
   it('only I never builds a combo', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     for (let i = 0; i < 50; i++) typeLetter(s, 0, rng);
     expect(comboMultiplier(s, s.monkeys[0])).toBe(1);
@@ -539,7 +541,7 @@ describe('combos', () => {
 
 describe('starting combo', () => {
   it('starts every chain a step higher per upgrade, bought with Sentences, up to the cap', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     expect(comboStart(s)).toBe(1);
     expect(comboMultiplier(s, s.monkeys[0])).toBe(1);
@@ -573,13 +575,13 @@ describe('the play', () => {
     ] as [number, number, string, string][],
   };
   const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
-  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
+  const typeAll = (s: ReturnType<typeof startedGame>, text: string) => {
     for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
   };
   const setup = () => {
     setWordList([]); // only the play's own words can score
     setPlays([play]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.owned = ['test'];
     s.completed.test = [];
     s.letters = [...letters];
@@ -644,7 +646,7 @@ describe('the play', () => {
 describe('typewriter keys', () => {
   const thirteen = 'ABCDEFGHILNOTRSUWYQ'.split(''); // enough for keys like THE, ING, QU
   const fresh = (letters: string[]) => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.letters = [...letters];
     return s;
   };
@@ -721,7 +723,7 @@ describe('pinned lines', () => {
       },
     ]);
     try {
-      const s = createInitialState(0);
+      const s = startedGame(0);
       expect(togglePin(s, 'p', 0)).toBe(false); // not owned
       s.owned = ['p'];
       chooseFirstLetter(s, 'i');
@@ -751,7 +753,7 @@ describe('word slots', () => {
   const letters = 'AYMLORDNXEISTH'.split(''); // 14 letters: slots unlocked
   const setup = () => {
     setWordList(['AY', 'MY', 'LORD', 'NO', 'IS', 'THE']);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.letters = [...letters];
     return s;
   };
@@ -765,7 +767,7 @@ describe('word slots', () => {
       expect(buySlot(s)).toBe(true);
       expect(s.slots.map((x) => x.position)).toEqual([1, 2]);
       expect(s.lines).toBe(0);
-      const few = createInitialState(0);
+      const few = startedGame(0);
       few.letters = ['A'];
       few.lines = 100;
       expect(buySlot(few)).toBe(false);
@@ -881,14 +883,14 @@ describe('departments, the scene shop and milestones', () => {
     lines: [[1, 1, 'E', 'Nay, my lord.']] as [number, number, string, string][],
   };
   const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
-  const typeAll = (s: ReturnType<typeof createInitialState>, text: string, monkey = 0) => {
+  const typeAll = (s: ReturnType<typeof startedGame>, text: string, monkey = 0) => {
     for (const ch of text) typeLetter(s, monkey, () => (letters.indexOf(ch) + 0.5) / letters.length);
   };
 
   it('starts with a department and a free scene from its genre', () => {
     try {
       setPlays([one, two]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       expect(departmentPicks(s)).toBe(1);
       expect(openDepartment(s, 'tragedy')).toBe(true);
       expect(openDepartment(s, 'comedy')).toBe(false); // the next one needs more monkeys
@@ -915,7 +917,7 @@ describe('departments, the scene shop and milestones', () => {
     try {
       setWordList([]);
       setPlays([one, two]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = ['one', 'two'];
       s.letters = [...letters];
@@ -946,7 +948,7 @@ describe('departments, the scene shop and milestones', () => {
   it('prices texts in Lines by their unowned lines, sells them only whole, and only for open departments', () => {
     try {
       setPlays([one, two]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = ['one:1.1'];
       const play = getPlay('one')!;
@@ -972,7 +974,7 @@ describe('departments, the scene shop and milestones', () => {
     try {
       setWordList([]);
       setPlays([one]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = ['one:2.1'];
       s.letters = [...letters];
@@ -989,7 +991,7 @@ describe('departments, the scene shop and milestones', () => {
     const fresh = (owned: string[]) => {
       setWordList([]);
       setPlays([one, two]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = owned;
       s.letters = [...letters];
@@ -1045,14 +1047,14 @@ describe('the sonnet department', () => {
     ] as [number, number, string, string][],
   };
   const letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'X'];
-  const typeAll = (s: ReturnType<typeof createInitialState>, text: string) => {
+  const typeAll = (s: ReturnType<typeof startedGame>, text: string) => {
     for (const ch of text) typeLetter(s, 0, () => (letters.indexOf(ch) + 0.5) / letters.length);
   };
 
   it('opens only after every play genre, at the last monkey threshold', () => {
     try {
       setPlays([comedy, tragedy, sonnets]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       while (s.monkeys.length < departmentRules.monkeysToOpen[1]) s.monkeys.push(createMonkey());
       expect(departmentChoices(s)).toEqual(['tragedy']);
@@ -1071,7 +1073,7 @@ describe('the sonnet department', () => {
     try {
       setWordList([]);
       setPlays([sonnets]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['sonnet'];
       s.owned = ['sonnets'];
       s.letters = [...letters];
@@ -1105,7 +1107,7 @@ describe('manager monkeys', () => {
   const setup = () => {
     setWordList([]);
     setPlays([play]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.departments = ['comedy'];
     s.owned = ['m'];
     s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N'];
@@ -1219,7 +1221,7 @@ describe('manager monkeys, keeping their line', () => {
     setWordList([]);
     setPlays([{ id: 'g', title: 'G', genre: 'comedy', lines: [[1, 1, 'A', 'Ay, my lord.'], [1, 1, 'B', 'Go.']] }]);
     try {
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = ['g'];
       s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D'];
@@ -1242,7 +1244,7 @@ describe('department limits and slots', () => {
   it('caps each department at 10 typists plus a manager; you choose where new monkeys go', () => {
     try {
       setPlays([comedy, tragedy]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.letters = ['A'];
       s.lines = 1e9;
@@ -1273,7 +1275,7 @@ describe('department limits and slots', () => {
   it('holds an earned monkey until you pick its department, when there is a choice', () => {
     try {
       setPlays([comedy, tragedy]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy', 'tragedy'];
       roomFor(s, 'tragedy');
       s.unassignedMonkeys = 1;
@@ -1291,7 +1293,7 @@ describe('department limits and slots', () => {
     try {
       setWordList([]);
       setPlays([comedy, tragedy]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy', 'tragedy'];
       s.owned = ['c', 't'];
       s.letters = 'AYMLORDNXEISTH'.split('');
@@ -1328,7 +1330,7 @@ describe('finding your place in the script', () => {
   const playB = { id: 'b', title: 'B', lines: [[1, 1, 'X', 'No.']] as [number, number, string, string][] };
   const setup = () => {
     setPlays([playA, playB]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.owned = ['a:1.1', 'a:2.1', 'b'];
     return s;
   };
@@ -1390,7 +1392,7 @@ describe('manager line choice', () => {
   it('pins nothing until a line is within reach', () => {
     try {
       setPlays([{ id: 'q', title: 'Q', genre: 'comedy', lines: [[1, 1, 'A', 'Zounds.'], [1, 1, 'B', 'Ay, my lord.']] }]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = ['q'];
       s.letters = ['A', 'Y', 'M', 'L', 'O', 'R'];
@@ -1423,7 +1425,7 @@ describe('manager line choice', () => {
           ],
         },
       ]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = ['p'];
       s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N'];
@@ -1459,7 +1461,7 @@ describe('manager line choice', () => {
   it('asks for more word slots when its line is longer than the slots', () => {
     try {
       setPlays([{ id: 'p', title: 'P', genre: 'comedy', lines: [[1, 1, 'B', 'Ay, my lord.'], [1, 1, 'C', 'No, my lord.']] }]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.owned = ['p'];
       s.letters = ['A', 'Y', 'M', 'L', 'O', 'R', 'D', 'N', 'B', 'C', 'E', 'F', 'G'];
@@ -1490,14 +1492,14 @@ describe('manager line choice', () => {
 describe('office space', () => {
   const comedy = { id: 'c', title: 'C', genre: 'comedy' as const, lines: [[1, 1, 'A', 'No.']] as [number, number, string, string][] };
   const tragedy = { id: 't', title: 'T', genre: 'tragedy' as const, lines: [[1, 1, 'A', 'Lo.']] as [number, number, string, string][] };
-  const genreRoom = (s: ReturnType<typeof createInitialState>, g: string) => {
+  const genreRoom = (s: ReturnType<typeof startedGame>, g: string) => {
     s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'department', g as never)).toBe(true);
     return s.office[s.office.length - 1];
   };
 
   it('starts with one small room and a desk for the first monkey; floor space caps the monkeys', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.letters = ['A'];
     s.lines = 1e9;
     s.currency = s.sentences = 1e30;
@@ -1511,7 +1513,7 @@ describe('office space', () => {
   });
 
   it('grows a room one square at a time, compact unless you choose the square', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     const room = s.office[0];
     s.sentences = squareCost(s) * 10; // squares cost Sentences
     const first = squareCost(s);
@@ -1528,7 +1530,7 @@ describe('office space', () => {
   it('gives each department its own room, where its monkeys get desks', () => {
     try {
       setPlays([comedy, tragedy]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.letters = ['A'];
       s.lines = 1e9;
       s.currency = s.sentences = 1e30;
@@ -1552,7 +1554,7 @@ describe('office space', () => {
   it('lists every department as a post with its count, and moves a monkey to any of them with its desk', () => {
     try {
       setPlays([comedy, tragedy]);
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.letters = ['A'];
       s.currency = s.sentences = 1e30;
       expect(openDepartment(s, 'comedy')).toBe(true);
@@ -1589,7 +1591,7 @@ describe('office space', () => {
   });
 
   it('holds an earned monkey until there is a square for its desk', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.letters = ['A'];
     s.office[0].cells = [[0, 0]];
     s.unassignedMonkeys = 1;
@@ -1601,7 +1603,7 @@ describe('office space', () => {
   });
 
   it('builds an office for saves from before rooms', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.departments = ['comedy', 'tragedy'];
     s.monkeys = Array.from({ length: 6 }, (_, i) => ({ ...createMonkey(), department: i < 5 ? 'comedy' : 'tragedy' }));
     s.office = [];
@@ -1614,7 +1616,7 @@ describe('office space', () => {
 
 describe('furniture', () => {
   it('buys furniture into a free square where it works, each costing more than the last; some pieces fit only one kind of room', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     const plant = furnitureKinds[0];
     s.currency = s.sentences = 1e12;
     expect(furnitureCost(s, plant.id)).toBe(plant.cost);
@@ -1635,14 +1637,14 @@ describe('furniture', () => {
   });
 
   it('stops when every room is full', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e15;
     while (furnitureSpot(s)) expect(buyFurniture(s, 'plant')).toBe(true);
     expect(buyFurniture(s, 'plant')).toBe(false);
   });
 
   it('moves furniture onto free squares; desks stay in their room', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 });
@@ -1658,7 +1660,7 @@ describe('furniture', () => {
   });
 
   it('swaps two pieces when one is put down on the other, if both fit', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     const [x, y] = s.office[1].cells[0];
@@ -1676,7 +1678,7 @@ describe('furniture', () => {
 describe('energy', () => {
   it('tires a typing monkey, slowing it, until it takes a break and comes back rested', () => {
     energy.drainSeconds = drainSeconds;
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.letters = ['I'];
     const m = s.monkeys[0];
     expect(currentSpeed(s, m)).toBeCloseTo(typing.baseLettersPerSecond);
@@ -1711,7 +1713,7 @@ describe('energy', () => {
 
 describe('furniture effects', () => {
   it('gives a department the furniture in its own room and in its lounge, all of it adding happiness (points and energy)', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e15;
     s.office[0].cells.push([2, 0], [2, 1]);
     s.furniture.push({ kind: 'plant', room: 'r1', x: 1, y: 0 }, { kind: 'armchair', room: 'r1', x: 2, y: 0 });
@@ -1734,7 +1736,7 @@ describe('furniture effects', () => {
   });
 
   it("gives each department only its lounge: the nearest break room, then the biggest, then the most furnished", () => {
-    const s = createInitialState(0); // room 1: 2x2 at 0,0
+    const s = startedGame(0); // room 1: 2x2 at 0,0
     const add = (id: string, x0: number, y0: number) => s.office.push({ id, kind: 'break', department: '', cells: rectangle(2, 2).map(([x, y]) => [x + x0, y + y0]) });
     add('r2', 2, 0); // against room 1's east wall
     add('r3', -4, 0); // two hallway squares west
@@ -1762,7 +1764,7 @@ describe('furniture effects', () => {
   });
 
   it('caps each effect', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.office[0].cells = rectangle(10, 10);
     const r2 = addRoom(s, 'break', '', 10, 10);
     for (let i = 0; i < 40; i++) s.furniture.push({ kind: 'tv', room: 'r2', x: r2.cells[i][0], y: r2.cells[i][1] }, { kind: 'bookshelf', room: 'r1', x: i % 10, y: 5 + Math.floor(i / 10) });
@@ -1774,7 +1776,7 @@ describe('furniture effects', () => {
 
 describe('placing and moving rooms', () => {
   it('builds a room where the player puts it, if it fits', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.sentences = 1e9;
     expect(buyRoom(s, 'break', undefined, [0, 0])).toBe(false); // on top of room 1
     expect(buyRoom(s, 'break', undefined, [10, 10])).toBe(true);
@@ -1784,7 +1786,7 @@ describe('placing and moving rooms', () => {
   });
 
   it('moves a room with its furniture and windows, and keeps a manager beside its department', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.sentences = 1e9;
     expect(buyRoom(s, 'break', undefined, [10, 0])).toBe(true);
     const lounge = s.office[1];
@@ -1803,7 +1805,7 @@ describe('placing and moving rooms', () => {
 describe('shop unlocks', () => {
   it('sells hats and furniture only once enough scenes, acts and texts are finished', () => {
     withUnlocks(() => {
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.sentences = 1e15;
       expect(hatsForSale(s).map((h) => h.id)).toEqual(['baseball']);
       expect(wearHat(s, 0, 'beanie')).toBe(false); // locked
@@ -1823,7 +1825,7 @@ describe('shop unlocks', () => {
 
 describe('hats', () => {
   it('moves hats between monkeys and the inventory, and swaps typewriters', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.monkeys.push(createMonkey());
     s.monkeys[0].hat = 'tophat';
     s.monkeys[0].hatColor = 'red';
@@ -1846,7 +1848,7 @@ describe('hats', () => {
   });
 
   it('buys a hat with Sentences, each of a kind dearer than the last', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.monkeys.push(createMonkey());
     const top = hats.find((h) => h.id === 'tophat')!;
     s.currency = 1e12;
@@ -1864,7 +1866,7 @@ describe('hats', () => {
   });
 
   it('puts a hat taken off in the inventory: wearing it again is free, picking the one worn takes it off', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.sentences = 1e12;
     const m = s.monkeys[0];
     expect(wearHat(s, 0, 'tophat')).toBe(true);
@@ -1894,7 +1896,7 @@ describe('hats', () => {
   });
 
   it('applies only the worn hat to the monkey wearing it', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.sentences = 1e12;
     const m = s.monkeys[0];
     const base = monkeySpeed(s, m);
@@ -1913,7 +1915,7 @@ describe('hats', () => {
   });
 
   it('dyes a worn hat for Sentences, and washes it out for free', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     const m = s.monkeys[0];
     s.sentences = 2000;
     expect(dyeHat(s, 0, 'red')).toBe(false); // no hat to dye
@@ -1949,7 +1951,7 @@ describe('sentences from long chains', () => {
   it('pays when the chain breaks, counting only long words', () => {
     setWordList(['CATS', 'DOGS', 'BIRD', 'AT']);
     try {
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.letters = ['C', 'A', 'T', 'S', 'D', 'O', 'G', 'B', 'I', 'R', 'X'];
       typeAll(s, 'CATSATDOGSBIRDCATS'); // 4 long words (and AT)
       expect(s.monkeys[0].chainCounted).toBe(4);
@@ -1983,7 +1985,7 @@ describe('bigger furniture', () => {
   });
 
   it('stands a new couch on two free squares, and both squares hold it', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     const room = s.office[1];
@@ -1998,7 +2000,7 @@ describe('bigger furniture', () => {
   });
 
   it('only puts a piece down where all its squares are free floor', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     const room = s.office[1];
@@ -2013,7 +2015,7 @@ describe('bigger furniture', () => {
   });
 
   it('turns only bigger pieces, and a piece can move onto its own old squares', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     buyFurniture(s, 'plant');
@@ -2037,7 +2039,7 @@ describe('bigger furniture', () => {
 
 describe('doors and hallways', () => {
   it('places each new room apart from rooms of its kind, with a hallway or a door straight in back to the first room', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e30;
     s.departments = ['comedy', 'tragedy', 'history'];
     for (let i = 0; i < 4; i++) expect(buyRoom(s, 'break')).toBe(true);
@@ -2063,7 +2065,7 @@ describe('doors and hallways', () => {
   });
 
   it('puts a door in when a room grows against a room of the other kind', () => {
-    const s = createInitialState(0); // room 1: 2x2 at 0,0
+    const s = startedGame(0); // room 1: 2x2 at 0,0
     s.currency = s.sentences = 1e30;
     s.office.push({ id: 'r2', kind: 'break', department: '', cells: [[3, 0]] });
     expect(doorBetween(s, s.office[0], s.office[1])).toBe(false);
@@ -2072,7 +2074,7 @@ describe('doors and hallways', () => {
   });
 
   it("stops a room's monkeys and furniture working when nothing leads to it", () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e30;
     s.letters = ['A'];
     const lounge = addRoom(s, 'break', '', 3, 3);
@@ -2101,7 +2103,7 @@ describe('doors and hallways', () => {
   });
 
   it('picks a door up out of a wall and puts it in another', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     toggleHall(s, 0, -1);
     toggleHall(s, -1, 0);
     expect(placeDoor(s, 0, 0, 'n')).toBe(true);
@@ -2114,7 +2116,7 @@ describe('doors and hallways', () => {
   });
 
   it('cycles a door around the walls of a square, and lays or lifts hallway squares', () => {
-    const s = createInitialState(0); // a 2x2 room at 0,0
+    const s = startedGame(0); // a 2x2 room at 0,0
     expect(cycleDoor(s, 0, 0)).toBe(false); // nothing beyond its walls yet
     expect(toggleHall(s, 0, 0)).toBe(false); // part of a room
     expect(toggleHall(s, 0, -1)).toBe(true);
@@ -2131,7 +2133,7 @@ describe('doors and hallways', () => {
   });
 
   it('lays out an older office where every room started at the same corner', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.office.push({ id: 'r2', kind: 'break', department: '', cells: rectangle(3, 3) });
     s.furniture.push({ kind: 'plant', room: 'r2', x: 1, y: 1 });
     layOutOffice(s);
@@ -2145,7 +2147,7 @@ describe('doors and hallways', () => {
 
 describe('achievements', () => {
   it('unlock firsts as they happen, once each, in order', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     expect(checkAchievements(s)).toEqual([]);
     chooseFirstLetter(s, 'i');
     typeLetter(s, 0, rng);
@@ -2161,7 +2163,7 @@ describe('achievements', () => {
   });
 
   it('measures each stat, including secret words and worn hats', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.stats.words = { MONKEY: 2, CAT: 1 };
     s.monkeys[0].hat = 'crown';
     expect(achievementValue(s, 'word:MONKEY')).toBe(2);
@@ -2193,7 +2195,7 @@ describe('publishing a Folio', () => {
 
   it('opens once a play is finished, and banks a page per line written plus each finished play again', () => {
     setPlays([play]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     expect(canPublishFolio(s)).toBe(false);
     expect(publishFolio(s)).toBeNull();
     s.completed = { 'folio-test': [0, 1, 2], other: [5] };
@@ -2204,7 +2206,7 @@ describe('publishing a Folio', () => {
 
   it('starts over, keeping achievements, statistics, options and the Folio, which raises points for good', () => {
     setPlays([play]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'i');
     s.currency = s.sentences = 1e9;
     s.monkeys.push(createMonkey());
@@ -2215,8 +2217,10 @@ describe('publishing a Folio', () => {
     s.settings.autoPlaceFurniture = false;
     const next = publishFolio(s)!;
     expect(next.currency).toBe(0);
-    expect(next.monkeys).toHaveLength(1);
-    expect(next.letters).toEqual([]);
+    // Back to the start: the player alone at the typewriter with A.
+    expect(next.monkeys).toHaveLength(0);
+    expect(next.player).not.toBeNull();
+    expect(next.letters).toEqual(['A']);
     expect(next.playsDone).toEqual([]);
     expect(next.folios).toBe(1);
     expect(next.folioPages).toBe(6);
@@ -2230,18 +2234,17 @@ describe('publishing a Folio', () => {
     const third = publishFolio(next)!;
     expect(third.folios).toBe(2);
     expect(third.folioPages).toBe(12);
-    chooseFirstLetter(third, 'i');
-    typeLetter(third, 0, rng);
+    playerPress(third, rng);
     // Folios multiply each other.
     expect(folioMultiplier(third)).toBeCloseTo((1 + 6 * folio.bonusPerPage) ** 2);
-    expect(third.currency).toBeCloseTo((1 + 6 * folio.bonusPerPage) ** 2); // the word I pays 1 point, times the Folios
+    expect(third.currency).toBeCloseTo((1 + 6 * folio.bonusPerPage) ** 2); // the word A pays 1 point, times the Folios
   });
 });
 
 describe('coin flip', () => {
   it('doubles every banana or loses them all, just for fun', async () => {
     const { flipCoin } = await import('../src/game/logic');
-    const s = createInitialState(0);
+    const s = startedGame(0);
     expect(flipCoin(s, () => 0)).toBeNull(); // nothing to bet
     s.currency = 300;
     expect(flipCoin(s, () => 0.005)).toBe(true);
@@ -2260,7 +2263,7 @@ describe('coin flip', () => {
 
 describe('manager speed', () => {
   it('changes slots quicker with upgrades, office furniture and (with the book) chi', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.departments = ['comedy'];
     s.monkeys = Array.from({ length: managers.minDepartmentMonkeys + 1 }, createMonkey);
     s.sentences = 1e9;

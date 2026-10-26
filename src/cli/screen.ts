@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { records, lately as latelyRules, achievements, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, type Unlock, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo } from '../game/config';
+import { records, lately as latelyRules, achievements, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, type Unlock, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo, opening } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -30,6 +30,7 @@ import {
   comboStart,
   comboStartCost,
   comboMultiplier,
+  lettersPerSecond,
   keyCost,
   wordKeySpellsNeeded,
   keysUnlocked,
@@ -99,6 +100,10 @@ import {
   unlockNeeds,
   hatsForSale,
   inRevealOrder,
+  playerTyping,
+  scriptDue,
+  shopRevealed,
+  shopRevealsNow,
   researchList,
 } from '../game/logic';
 import { departmentOf, isForeign, lineLocation, sceneName, textToWords, type Genre, type Play } from '../game/plays';
@@ -379,6 +384,13 @@ function monkeyHeadings(state: GameState): string {
   );
 }
 
+/** The player's row while alone at the typewriter: no icon, the slowest speed, no energy to spend. */
+function playerRow(state: GameState, p: MonkeyState, room: number): string {
+  const dept = hasDeptColumn(state) ? '  ' : '';
+  const trait = hasTraitColumn(state) ? `${''.padEnd(col.trait)}  ` : '';
+  return `    ${dept}${bold(p.name.padEnd(col.name))}    ${trait}${speedText(lettersPerSecond(0)).padStart(col.speed)}  ${dim('-'.padStart(col.energy))}  ${`x${comboMultiplier(state, p).toFixed(1)}`.padStart(col.combo)}  ${renderLine(p, room)}`;
+}
+
 /** One monkey's row: its icon (hat dyed), department initial, name (a heart if petted lately), speed, energy, combo and line. */
 function monkeyRow(state: GameState, i: number, room: number, chosen = false): string {
   const m = state.monkeys[i];
@@ -488,7 +500,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
     ...l.news.filter((n) => state.stats.secondsTyping - n.at <= latelyRules.windowSeconds).map((n) => `* ${n.text}`),
     ...folioOffer(state),
-    ...(departmentPicks(state) > 0 ? ['* You can open a new department in the Staff store.'] : []),
+    ...(departmentPicks(state) > 0 && departmentGenres(state).length > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
     ...(canBuildHR(state) ? [`* You can build an ${hr.name} Department on the office map ([o], then [r]).`] : []),
     ...(canBuildMarketing(state) ? [`* You can build a ${marketing.name} Department on the office map ([o], then [r]).`] : []),
@@ -510,6 +522,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
  * 2026-10-21), since the navigation bar goes everywhere; every key is on the [/] page.
  */
 function homeKeys(state: GameState, columns: number): string[] {
+  if (playerTyping(state)) return [keyRow([['h', `${opening.pressAction} ${state.letters[0] ?? ''}`], ['space', 'shop'], ['/', 'all keys'], ['q', 'quit']], columns)];
   return [
     keyRow([
       ...(homeViews(state).length > 1 ? [['<>', 'department'] as [string, string]] : []),
@@ -611,11 +624,11 @@ export function shopKeys(state: GameState, store: Store, onMap = false): [string
 
 /** Renders the whole game screen as plain text. `rows` is the game's height, for the shop popup over the home screen (0: no padding). */
 export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0, chosen = -1): string {
-  if (state.owned.length === 0 && state.departments.length === 0) {
+  if (scriptDue(state)) {
     const genres = departmentChoices(state);
     return openingScreen(
       'Somewhere, infinite monkeys are trying to write Shakespeare.',
-      ['Choose their first department. Each works on one genre; the others', 'open as you gather more monkeys.'],
+      ['Choose the first department. Each works on one genre; the others', 'open as you gather more monkeys.'],
       genres.map((g, i) => [String(i + 1), genreNames[g], availablePlays().filter((p) => p.genre === g).map((p) => p.title).join(', ')]),
       [['up/down', 'choose'], ['enter', 'pick'], [genres.length === 1 ? '1' : `1-${genres.length}`, 'pick'], ['p', 'save profiles'], ['q', 'quit']],
       message,
@@ -688,12 +701,14 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
     // With several departments, one at a time, picked on a row of tabs (Justin, 2026-10-18): [1]-[9] or < >.
     ...(views.length > 1 && view ? [...departmentTabs(state, views, view, columns), ''] : []),
     monkeyHeadings(state),
+    // Alone at the typewriter before the first hire (Justin, 2026-10-26).
+    ...(state.player && playerTyping(state) ? [playerRow(state, state.player, room)] : []),
     ...shown.slice(0, maxMonkeyLines).map((i) => monkeyRow(state, i, room, i === chosen)),
     ...(shown.length > maxMonkeyLines ? [dim(` ...and ${shown.length - maxMonkeyLines} more monkeys typing`)] : []),
     '',
     // Only an alphabet still to finish (Justin, 2026-10-17): Greek and Latin monkeys have all their letters from the start.
     ...(state.letters.length < Object.keys(letterValues).length ? [`${label('Letters')} ${letterRow(state)}`] : []),
-    `${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`,
+    ...(state.owned.length === 0 ? [] : [`${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`]),
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
     ...latelyLines(state, message, columns),
     ...pinnedText(state),
@@ -811,10 +826,11 @@ export interface ScriptSpot {
 }
 
 /** The stores a shop can switch between: the main shop's, the office map's furniture stores, or just the script's or Research's. */
-export function openStores(_state: GameState, store: Store = 'typewriters', onMap = false): Store[] {
+export function openStores(state: GameState, store: Store = 'typewriters', onMap = false): Store[] {
   if (store === 'script' || store === 'research') return [store];
   if (onMap) return [...officeStores];
-  return [...stores];
+  // A store shows once it sells something: Staff with the first monkey, Hats with the first Sentence (Justin, 2026-10-26).
+  return stores.filter((x) => x === 'typewriters' || (x === 'hats' ? shopRevealed(state, 'store:hats') : storeItems(state, x).some((i) => i.id)));
 }
 export const storeNames: Record<Store, string> = {
   typewriters: 'Typewriters',
@@ -901,23 +917,31 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           ? [{ id: 'classical', text: `Switch Classical to ${state.classical === 'greek' ? 'Latin' : 'Greek'}`, effect: `now typing ${state.classical === 'greek' ? 'Greek' : 'Latin'}; slots start over` }]
           : []),
       ];
+      // At the start only Faster typing; the rest show up as they matter (Justin, 2026-10-26), and stay.
+      const hiring = shopRevealed(state, 'shop:hire');
       return [
-        typingShop.skill,
-        free.length > 0
-          ? { ...hireItem, star: state.currency >= cheapest, cost: [[cheapest, 'currency']], costFrom: free.length > 1 }
-          : { ...hireItem, blocked: new Set(posts(state).map((p) => p.blocked)).size === 1 ? posts(state)[0].blocked : 'no room' },
-        comboStart(state) >= comboCap(state)
-          ? { id: 'combo', text: 'Starting combo', effect: `x${comboStart(state).toFixed(1)}`, blocked: 'at the cap' }
-          : {
-              id: 'combo',
-              star: state.sentences >= nextStart,
-              text: 'Starting combo',
-              effect: `x${comboStart(state).toFixed(1)} -> x${(comboStart(state) + combo.step).toFixed(1)}`,
-              cost: [[nextStart, 'sentences']],
-            },
+        ...(trainees(state).length > 0 ? [typingShop.skill] : []),
+        ...(!hiring
+          ? []
+          : free.length > 0
+            ? [{ ...hireItem, star: state.currency >= cheapest, cost: [[cheapest, 'currency']], costFrom: free.length > 1 } as ShopItem]
+            : [{ ...hireItem, blocked: new Set(posts(state).map((p) => p.blocked)).size === 1 ? posts(state)[0].blocked : 'no room' }]),
+        ...(!shopRevealed(state, 'shop:combo')
+          ? []
+          : comboStart(state) >= comboCap(state)
+            ? [{ id: 'combo', text: 'Starting combo', effect: `x${comboStart(state).toFixed(1)}`, blocked: 'at the cap' }]
+            : [
+                {
+                  id: 'combo',
+                  star: state.sentences >= nextStart,
+                  text: 'Starting combo',
+                  effect: `x${comboStart(state).toFixed(1)} -> x${(comboStart(state) + combo.step).toFixed(1)}`,
+                  cost: [[nextStart, 'sentences']] as [number, Currency][],
+                },
+              ]),
         ...inRevealOrder(state, later, (x) => `staff:${x.id}`),
         // Items that come and go: last, so they never move the others.
-        ...(departmentPicks(state) > 0 ? [{ id: 'department', star: true, text: 'Open a new department!' }] : []),
+        ...(departmentPicks(state) > 0 && open.length > 0 ? [{ id: 'department', star: true, text: 'Open a new department!' }] : []),
         ...(state.unassignedMonkeys > 0
           ? [
               canSeatMonkey(state)
@@ -925,8 +949,8 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
                 : { text: `${state.unassignedMonkeys} new monkey${state.unassignedMonkeys === 1 ? ' is' : 's are'} waiting for a free square for a desk.` },
             ]
           : []),
-        ...(departmentPicks(state) === 0 && nextDepartmentAt(state) > 0 ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }] : []),
-        ...(managerNote ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }] : []),
+        ...(hiring && departmentPicks(state) === 0 && nextDepartmentAt(state) > 0 ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }] : []),
+        ...(hiring && managerNote ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }] : []),
       ];
     }
     case 'typewriters': {
@@ -943,13 +967,14 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
               cost: [[nextLetter, 'currency'], ...(nextLetterWords > 0 ? [[nextLetterWords, 'words'] as [number, Currency]] : [])] as [number, Currency][],
             }
           : { id: 'letter', text: 'Buy a letter key', effect: 'every letter is yours', blocked: 'all owned' },
-        typingShop.typewriter,
-        keysUnlocked(state)
-          ? { id: 'keys', text: 'Typewriter keys...', effect: 'letter combos and whole words' }
-          : { text: `Typewriter keys unlock when you own ${typewriterKeys.unlockLetters} letters.` },
-        slotsUnlocked(state)
-          ? { id: 'slots', text: 'Word slots...', effect: slotRequests(state) || `${state.slots.filter((x) => x.on && x.word).length} active` }
-          : { text: `Word slots unlock when you own ${wordSlots.unlockLetters} letters.` },
+        // Shown once they matter: a typewriter at the skill cap, keys and slots once unlocked (Justin, 2026-10-26).
+        ...(trainees(state).length > 0 && shopRevealed(state, 'shop:typewriter') ? [typingShop.typewriter] : []),
+        ...(shopRevealed(state, 'shop:keys')
+          ? [keysUnlocked(state) ? { id: 'keys', text: 'Typewriter keys...', effect: 'letter combos and whole words' } : { text: `Typewriter keys unlock when you own ${typewriterKeys.unlockLetters} letters.` }]
+          : []),
+        ...(shopRevealed(state, 'shop:slots')
+          ? [slotsUnlocked(state) ? { id: 'slots', text: 'Word slots...', effect: slotRequests(state) || `${state.slots.filter((x) => x.on && x.word).length} active` } : { text: `Word slots unlock when you own ${wordSlots.unlockLetters} letters.` }]
+          : []),
       ];
     }
     case 'furniture': {
@@ -1539,6 +1564,54 @@ function wrapVisible(items: string[], columns: number, lead: string): string[] {
   return rows;
 }
 
+/** The first `letters` letters of rows of text, as if typed out in order; each row keeps its own style. */
+export function typeOut(rows: [string, (t: string) => string][], letters: number): string[] {
+  let left = Math.max(0, letters);
+  return rows.map(([text, style]) => {
+    const shown = text.slice(0, left);
+    left -= shown.length;
+    return shown ? style(shown) : '';
+  });
+}
+
+/** The intro's page `page` (see opening.intro) with the title, then its text, typed out over `elapsed` ms; Infinity shows it all. */
+function introRows(page: number, elapsed: number, columns: number): { title: string; rows: string[]; done: boolean } {
+  const intro = opening.intro;
+  const title = theme.title.toUpperCase();
+  const p = intro.pages[Math.min(page, intro.pages.length - 1)];
+  const width = Math.min(columns > 0 ? columns : 80, 80) - 2;
+  const body: [string, (t: string) => string][] = [
+    ...p.text.flatMap((para) => [...wrapWords(para, width).map((r) => [r, (t: string) => t] as [string, (t: string) => string]), ['', (t: string) => t] as [string, (t: string) => string]]),
+    ...(p.choice ? [[`- ${p.choice}`, bold] as [string, (t: string) => string]] : []),
+  ];
+  const total = body.reduce((n, [t]) => n + t.length, 0);
+  // The first page starts blank, types the title slowly, then the text.
+  const titleTime = page === 0 ? intro.pauseMs + title.length * intro.titleMsPerLetter + intro.pauseMs : 0;
+  const titleLetters = page === 0 ? Math.floor((elapsed - intro.pauseMs) / intro.titleMsPerLetter) : title.length;
+  const letters = Math.floor((elapsed - titleTime) / opening.msPerLetter);
+  return { title: title.slice(0, Math.max(0, titleLetters)), rows: typeOut(body, letters), done: letters >= total };
+}
+
+/** Whether the intro's page `page` is all typed out after `elapsed` ms. */
+export function introTyped(page: number, elapsed: number): boolean {
+  return introRows(page, elapsed, 80).done;
+}
+
+/** The intro (Justin, 2026-10-26): a blank screen, the title typed out as on a typewriter, then the story, page by page. */
+export function renderIntro(page: number, elapsed: number, columns = 0): string {
+  const { title, rows, done } = introRows(page, elapsed, columns);
+  const choice = opening.intro.pages[Math.min(page, opening.intro.pages.length - 1)].choice;
+  return [
+    '',
+    ` ${bold(title)}`,
+    '',
+    ...rows.map((r) => (r ? ` ${r}` : '')),
+    '',
+    rule(columns),
+    done ? keyRow([['enter', choice ? choice.replace(/\?$/, '').toLowerCase() : 'continue'], ['q', 'quit']], columns) : keyRow([['any key', 'skip']], columns),
+  ].join('\n');
+}
+
 /** Words of `text` in rows at most `width` long (a word longer than that gets a row of its own). */
 export function wrapWords(text: string, width: number): string[] {
   const rows: string[] = [];
@@ -1672,6 +1745,7 @@ export function revealKeys(state: GameState): string[] {
   const staff = storeItems(state, 'staff').filter((x) => x.id && ['manager', 'codefocus', 'telegram', 'classical'].includes(x.id));
   const furniture = storeItems(state, 'furniture').flatMap((x) => (x.id?.startsWith('furniture:') ? [x.id] : []));
   return [
+    ...shopRevealsNow(state),
     ...posts(state).map((p) => `post:${p.id}`),
     ...researchList(state).map((p) => `research:${p.id}`),
     ...staff.map((x) => `staff:${x.id}`),

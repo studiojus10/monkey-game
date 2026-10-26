@@ -40,7 +40,8 @@ import {
   typeLetter,
 } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
-import { createInitialState, createMonkey, type GameState } from '../src/game/state';
+import { createMonkey, type GameState } from '../src/game/state';
+import { startedGame } from './start';
 import { safeText } from '../src/cli/office';
 import { renderContents, renderScript, renderTelegrams, storeItems, textsTabs } from '../src/cli/screen';
 import { plainText } from '../src/cli/style';
@@ -53,7 +54,7 @@ const sold = (s: GameState) => storeItems(s, 'furniture').map((x) => x.text).joi
 
 /** Comedy and tragedy departments, each with a manager's office and a safe bought for it, and plenty of bananas. */
 function offices(): GameState {
-  const s = createInitialState(0);
+  const s = startedGame(0);
   s.letters = ['I'];
   s.departments = ['comedy', 'tragedy'];
   s.monkeys[0].department = 'comedy';
@@ -69,7 +70,7 @@ const safeIn = (s: GameState, genre: 'comedy' | 'tragedy') => s.furniture.findIn
 
 describe('safes', () => {
   it("are sold for a manager's office that has none, one each, stay put, and are found by inspecting them", () => {
-    const fresh = createInitialState(0);
+    const fresh = startedGame(0);
     fresh.departments = ['comedy'];
     fresh.sentences = 1e15;
     expect(sold(fresh)).not.toContain('Safe');

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { copyProfile, deleteProfile, emptyProfile, profileInfo, profilePath, readProfiles, renameProfile, writeProfiles } from '../src/cli/profiles';
 import { renderOptions, renderProfiles } from '../src/cli/screen';
 import { serialize } from '../src/game/save';
-import { createInitialState } from '../src/game/state';
+import { startedGame } from './start';
 
 const plain = (text: string) => text.replace(/\x1b\[[\d;]+m/g, '');
 const squash = (text: string) => plain(text).replace(/ +/g, ' ');
@@ -26,7 +26,7 @@ describe('save profiles', () => {
 
   it('renames, copies into the first empty profile and deletes', () => {
     const base = folder();
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = 1234;
     writeFileSync(base, serialize(s));
     const profiles = readProfiles(base);
@@ -53,7 +53,7 @@ describe('save profiles', () => {
   });
 
   it('draws the profiles, the one being played and the chosen one', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     const rows = [
       { name: 'Big game', empty: false, gameVersion: '0.15.1', bananas: 1234, monkeys: 3, seconds: 3600 },
       { name: 'Profile 2', empty: true, gameVersion: '', bananas: 0, monkeys: 0, seconds: 0 },

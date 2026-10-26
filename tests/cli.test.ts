@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
 import {
   keyChoices,
@@ -47,11 +47,12 @@ import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli
 import { columnBox, promptBox, keyBox, cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
-import { achievements, lately, monkeyNames } from '../src/game/config';
+import { achievements, lately, monkeyNames, opening } from '../src/game/config';
 import { greekLetters, type PlayData } from '../src/game/plays';
 import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
-import { createInitialState, createMonkey } from '../src/game/state';
+import { createMonkey } from '../src/game/state';
+import { startedGame } from './start';
 import type { Genre } from '../src/game/plays';
 import { formatAmount, formatPrice } from '../src/format';
 import { sellEverything, withUnlocks } from './unlocks';
@@ -62,7 +63,7 @@ describe('file storage', () => {
   it('saves and loads through a file, and clears it', () => {
     const storage = fileStorage(join(mkdtempSync(join(tmpdir(), 'idle-')), 'nested', 'save.json'));
     expect(storage.read()).toBeNull();
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'a');
     s.currency = 99;
     save(s, storage, 1000);
@@ -94,7 +95,7 @@ const shaded = (text: string) => text.split('\n').filter((l) => l.includes('\x1b
 /** A state past the opening choices: the test play and the letter I. */
 function started() {
   setPlays([testPlay]);
-  const s = createInitialState(0);
+  const s = startedGame(0);
   s.departments = ['comedy'];
   s.owned = ['test'];
   chooseFirstLetter(s, 'i');
@@ -102,9 +103,14 @@ function started() {
 }
 
 describe('terminal screen', () => {
-  it('asks for a genre first, then a free play, then the first letter', () => {
+  it('asks for a genre first, then a free play, then the first letter (once Shakespeare is back)', () => {
     setPlays([testPlay]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
+    const scriptLetters = opening.scriptLetters;
+    opening.scriptLetters = 0;
+    onTestFinished(() => {
+      opening.scriptLetters = scriptLetters;
+    });
     const genres = plain(renderScreen(s, '', null, 80));
     expect(genres.split('\n')[0]).toBe(' INFINITE MONKEYS ');
     expect(genres).toContain('   [1] Comedies   Test Play');
@@ -366,7 +372,7 @@ describe('shop popup', () => {
 
 describe('letter picking', () => {
   it('shows A to Z with owned letters dimmed and no values', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'a');
     const text = renderLetterPicker(s, false, 0);
     expect(text).toContain('\x1b[2mA\x1b[');
@@ -377,7 +383,7 @@ describe('letter picking', () => {
   });
 
   it('offers a free letter with no way out', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     chooseFirstLetter(s, 'a');
     s.freeLetters = 2;
     s.letterGifts = ['first-hire'];
@@ -1148,7 +1154,7 @@ describe('balances in full', () => {
     expect(formatAmount(1234567890)).toBe('1,234,567,890');
     expect(formatAmount(12345678901)).toBe('1.23e10');
     expect(formatAmount(12.7)).toBe('12');
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = 1234567890;
     expect(plain(titleBar(s))).toContain('1,234,567,890 Bananas');
     s.sentences = 9876543210;
@@ -1164,8 +1170,8 @@ describe('screen position', () => {
     expect(placeScreen('a\nb', 5, false)).toBe('\n\n\na\nb');
     expect(placeScreen('a\nb', 5, true)).toBe('a\nb\n');
     expect(placeScreen('a\nb\nc', 2, false)).toBe('a\nb\nc\n');
-    expect(createInitialState(0).settings.screenAtTop).toBe(false);
-    expect(squash(renderOptions(createInitialState(0)))).toContain('[4] Screen at the top off');
+    expect(startedGame(0).settings.screenAtTop).toBe(false);
+    expect(squash(renderOptions(startedGame(0)))).toContain('[4] Screen at the top off');
   });
 });
 
@@ -1204,7 +1210,7 @@ describe('scrolling lists', () => {
 
   it('show on the script when a play runs past the screen', () => {
     setPlays([{ id: 'long', title: 'Long', lines: Array.from({ length: 40 }, (_, i) => [1, 1, 'A', `Line ${i}.`] as [number, number, string, string]) }]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     const text = plain(renderScript(s, 'long', 20, '', 80));
     expect(text).toMatch(/\^ \d+ lines above/);
     expect(text).toMatch(/v \d+ lines below/);
@@ -1217,7 +1223,7 @@ describe('pickers', () => {
     const { renderHatPicker, hatChoices } = await import('../src/cli/inventory');
     const { renderFurniturePicker } = await import('../src/cli/office');
     const { storedFitting, placeStoredFurniture } = await import('../src/game/logic');
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.stored.hats = { tophat: 2 };
     expect(hatChoices(s, 0)).toEqual(['tophat', '']);
     const box = renderHatPicker(s, 0, 0).join('\n').replace(/\x1b\[[\d;]+m/g, '');
