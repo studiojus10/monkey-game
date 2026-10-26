@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { introTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
-import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper } from '../src/cli/hiring';
+import { introTyped, lettersTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
+import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper, renderNewspaperNote } from '../src/cli/hiring';
 import { opening, typing } from '../src/game/config';
 import { buyFasterTyping, buyLetter, deliverManuscript, earlyShopKeys, hireApplicant, manuscriptPlays, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
@@ -25,7 +25,7 @@ describe('the opening', () => {
     expect(s.playerPresses).toBe(1 + 10 * typing.baseLettersPerSecond);
     const screen = plain(renderScreen(s, '', null, 80));
     expect(screen).toContain(opening.playerName);
-    expect(screen).toContain(`[h] ${opening.pressAction} A`);
+    expect(screen).toContain(`[h] ${opening.pressAction} A   [space] open shop`);
     expect(screen).not.toContain('Script');
   });
 
@@ -158,5 +158,25 @@ describe('the opening', () => {
     expect(note).toContain('by William Shakespeare');
     expect(manuscriptTyped(s, 0)).toBe(false);
     expect(deserialize(serialize(s), 0).manuscript).toBe('h1');
+  });
+
+  it('pauses briefly after each sentence while typing out', () => {
+    const ms = opening.msPerLetter;
+    expect(lettersTyped(['Hi. Yo'], 3 * ms)).toBe(3);
+    // After the full stop, the pause before the next letter.
+    expect(lettersTyped(['Hi. Yo'], 4 * ms)).toBe(3);
+    expect(lettersTyped(['Hi. Yo'], 4 * ms + opening.sentencePauseMs)).toBe(4);
+    // An ellipsis pauses once, at its end.
+    expect(lettersTyped(['A...B'], 4 * ms)).toBe(4);
+    expect(lettersTyped(['A...B'], 5 * ms + opening.sentencePauseMs)).toBe(5);
+    expect(lettersTyped(['Hi.', 'Yo'], Infinity)).toBe(5);
+  });
+
+  it('puts a note on top of the newspaper, closed before it opens', () => {
+    const s = createInitialState(0);
+    for (let i = 0; i < opening.newspaperAfter; i++) playerPress(s, rng);
+    expect(s.newspaperNote).toBe(true);
+    expect(plain(renderNewspaperNote().join('\n'))).toContain(opening.newspaper.note);
+    expect(deserialize(serialize(s), 0).newspaperNote).toBe(true);
   });
 });

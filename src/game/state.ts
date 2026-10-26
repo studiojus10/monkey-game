@@ -147,6 +147,7 @@ export interface GameState {
   player: MonkeyState | null; // the player at the typewriter before the first monkey is hired (see `opening`); null after
   playerPresses: number; // letters the player has typed, by hand or not
   newspaper: Applicant[]; // the classified section's monkeys, once it comes, until one is hired
+  newspaperNote: boolean; // the note on top of the newspaper is still to be closed
   manuscript: string; // the play whose manuscript just came through the mail slot, until the player has read the note ('' for none)
   currency: number;
   totalEarned: number;
@@ -327,6 +328,7 @@ export function createInitialState(now = Date.now()): GameState {
     player: { ...createMonkey(), name: opening.playerName },
     playerPresses: 0,
     newspaper: [],
+    newspaperNote: false,
     manuscript: '',
     currency: 0,
     totalEarned: 0,

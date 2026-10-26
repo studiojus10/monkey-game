@@ -2,7 +2,7 @@ import { hr, monkeyStats, opening, theme } from '../game/config';
 import { getPlay, hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
-import { priceNamed, promptChoices, typeOut, viewName } from './screen';
+import { lettersTyped, priceNamed, promptChoices, typeOut, viewName } from './screen';
 import { affordable, bold, dim, green, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow, highlight } from './style';
 
 /** A stat as a percent: green above average, red below. */
@@ -233,7 +233,8 @@ function newspaperRows(state: GameState, cursor: number): Styled[] {
 
 /** Whether the newspaper's text is all typed out after `elapsed` ms (see opening.msPerLetter). */
 export function newspaperTyped(state: GameState, elapsed: number): boolean {
-  return Math.floor(elapsed / opening.msPerLetter) >= newspaperRows(state, -1).reduce((n, [t]) => n + t.length, 0);
+  const rows = newspaperRows(state, -1).map(([t]) => t);
+  return lettersTyped(rows, elapsed) >= rows.reduce((n, t) => n + t.length, 0);
 }
 
 /**
@@ -246,7 +247,7 @@ export function renderNewspaper(state: GameState, cursor = -1, elapsed = Infinit
   const rows = newspaperRows(state, cursor);
   const done = newspaperTyped(state, elapsed);
   const footer = done ? ` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire` : ' [any key] skip';
-  const body = [...typeOut(rows, Math.floor(elapsed / opening.msPerLetter)), dim(footer)];
+  const body = [...typeOut(rows, lettersTyped(rows.map(([t]) => t), elapsed)), dim(footer)];
   const width = Math.max(plainText(` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire`).length, ...rows.map(([t]) => t.length)) + 2;
   const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
   return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
@@ -268,15 +269,24 @@ function manuscriptRows(state: GameState): Styled[] {
 
 /** Whether the manuscript's note is all typed out after `elapsed` ms. */
 export function manuscriptTyped(state: GameState, elapsed: number): boolean {
-  return Math.floor(elapsed / opening.msPerLetter) >= manuscriptRows(state).reduce((n, [t]) => n + t.length, 0);
+  const rows = manuscriptRows(state).map(([t]) => t);
+  return lettersTyped(rows, elapsed) >= rows.reduce((n, t) => n + t.length, 0);
 }
 
 /** The popup when a manuscript comes through the mail slot (see deliverManuscript), typed out over `elapsed` ms. Lines of a box, for overlay(). */
 export function renderManuscript(state: GameState, elapsed = Infinity): string[] {
   const rows = manuscriptRows(state);
   const footer = manuscriptTyped(state, elapsed) ? ' [enter] read it later ([p] the script)' : ' [any key] skip';
-  const body = [...typeOut(rows, Math.floor(elapsed / opening.msPerLetter)), '', dim(footer)];
+  const body = [...typeOut(rows, lettersTyped(rows.map(([t]) => t), elapsed)), '', dim(footer)];
   const width = Math.max(plainText(' [enter] read it later ([p] the script)').length, ...rows.map(([t]) => t.length)) + 2;
   const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
   return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
+}
+
+/** The note on top of the newspaper (Justin, 2026-10-26), closed before the newspaper opens. A note keeps its own format: shown at once, not typed. */
+export function renderNewspaperNote(): string[] {
+  const rows = ['', `   ${bold(opening.newspaper.note)}   `, '', dim(' [enter] close')];
+  const width = Math.max(...rows.map((r) => plainText(r).length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [`+${'-'.repeat(width)}+`, ...rows.map(line), `+${'-'.repeat(width)}+`];
 }

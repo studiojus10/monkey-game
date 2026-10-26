@@ -193,7 +193,7 @@ import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, 
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { columnBox, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
+import { columnBox, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, renderNewspaperNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -279,7 +279,7 @@ const SKIPPED = -1e12; // a start time far enough back that any text is all type
 /** Whether story text is still typing out on screen: the intro or the newspaper. */
 function typingOut(): boolean {
   if (!state.introSeen) return !introTyped(introPage, Date.now() - introStart);
-  if (state.newspaper.length > 0) return !newspaperTyped(state, Date.now() - newsStart);
+  if (state.newspaper.length > 0) return !state.newspaperNote && !newspaperTyped(state, Date.now() - newsStart);
   return !!state.manuscript && !manuscriptTyped(state, Date.now() - manuscriptStart);
 }
 let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
@@ -877,7 +877,7 @@ function draw() {
   const nav = page ? pageTabsRow(page, currentTab()) : [];
   const navHeight = nav.length;
   if (!state.introSeen && introStart === 0) introStart = Date.now();
-  if (state.newspaper.length > 0 && newsStart === 0) newsStart = Date.now();
+  if (state.newspaper.length > 0 && !state.newspaperNote && newsStart === 0) newsStart = Date.now();
   if (state.manuscript && manuscriptStart === 0) manuscriptStart = Date.now();
   const under = !state.introSeen
     ? renderIntro(introPage, Date.now() - introStart, columns)
@@ -940,7 +940,7 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNewspaperNote() : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const rows = process.stdout.rows || 0;
   const shownNow = popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav;
   // Every screen as tall as the tallest, so nothing moves between them; the game still sits at the bottom of the window.
@@ -1152,6 +1152,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  // The note on top of the newspaper: closed first, then the newspaper opens.
+  if (state.newspaper.length > 0 && state.newspaperNote) {
+    if (key.name === 'q') return quit();
+    if (key.name === 'return' || key.name === 'enter' || key.name === 'escape') state.newspaperNote = false;
+    return draw();
+  }
   // The newspaper: a popup until one of its monkeys is hired; any key first types out the rest of it.
   if (state.newspaper.length > 0 && !newspaperTyped(state, Date.now() - newsStart)) {
     if (key.name === 'q') return quit();
