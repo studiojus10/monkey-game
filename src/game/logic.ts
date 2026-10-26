@@ -1845,6 +1845,7 @@ export function deliverNewspaper(state: GameState, rng: Rng = Math.random): bool
   const names = draw(monkeyNames.filter((x) => x.length <= maxMonkeyNameLength), opening.applicants);
   const blurbs = draw(opening.blurbs, opening.applicants);
   state.newspaper = Array.from({ length: opening.applicants }, (_, i) => ({ name: names[i] ?? '', blurb: blurbs[i] ?? '' }));
+  state.newspaperNote = true;
   return state.newspaper.length > 0;
 }
 
@@ -1868,6 +1869,7 @@ export function deliverManuscript(state: GameState, rng: Rng = Math.random): boo
   state.owned.push(play.id);
   state.completed[play.id] ??= [];
   state.manuscript = play.id;
+  state.manuscriptNote = true;
   announce(state, `A manuscript came through the mail slot: ${play.title}. [p] to read it.`);
   return true;
 }

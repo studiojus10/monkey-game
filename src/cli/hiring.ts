@@ -2,7 +2,7 @@ import { hr, monkeyStats, opening, theme } from '../game/config';
 import { getPlay, hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
-import { priceNamed, promptChoices, typeOut, viewName } from './screen';
+import { lettersTyped, priceNamed, promptChoices, typeOut, viewName, wrapWords } from './screen';
 import { affordable, bold, dim, green, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow, highlight } from './style';
 
 /** A stat as a percent: green above average, red below. */
@@ -213,11 +213,25 @@ export function promptBox(prompt: string, cursor = -1): string[] {
 
 type Styled = [string, (t: string) => string];
 
+/** The widest text a story popup's rows get on a screen `columns` wide (80 when unknown), inside the box's borders. */
+function storyWidth(columns: number): number {
+  return Math.max(20, Math.min(columns || 80, 80) - 4);
+}
+
+/** Rows too wide for `width` wrapped at the end of a word, each piece keeping its row's indent and style. */
+export function wrapStyled(rows: Styled[], width: number): Styled[] {
+  return rows.flatMap(([text, style]): Styled[] => {
+    if (text.length <= width) return [[text, style]];
+    const indent = text.match(/^ */)![0];
+    return wrapWords(text.slice(indent.length), width - indent.length).map((t): Styled => [indent + t, style]);
+  });
+}
+
 /** The newspaper's rows of text, each with its style: the arrival, the title, the ad, then each monkey's name and blurb. */
-function newspaperRows(state: GameState, cursor: number): Styled[] {
+function newspaperRows(state: GameState, cursor: number, columns = 0): Styled[] {
   const paper = opening.newspaper;
   const plain = (t: string) => t;
-  return [
+  return wrapStyled([
     [` ${paper.arrival}`, dim],
     ['', plain],
     [` ${paper.title}`, bold],
@@ -228,12 +242,13 @@ function newspaperRows(state: GameState, cursor: number): Styled[] {
       [`     ${a.blurb}`, dim],
       ['', plain],
     ]),
-  ];
+  ], storyWidth(columns));
 }
 
 /** Whether the newspaper's text is all typed out after `elapsed` ms (see opening.msPerLetter). */
-export function newspaperTyped(state: GameState, elapsed: number): boolean {
-  return Math.floor(elapsed / opening.msPerLetter) >= newspaperRows(state, -1).reduce((n, [t]) => n + t.length, 0);
+export function newspaperTyped(state: GameState, elapsed: number, columns = 0): boolean {
+  const rows = newspaperRows(state, -1, columns).map(([t]) => t);
+  return lettersTyped(rows, elapsed) >= rows.reduce((n, t) => n + t.length, 0);
 }
 
 /**
@@ -242,41 +257,54 @@ export function newspaperTyped(state: GameState, elapsed: number): boolean {
  * hire one, typed out over `elapsed` ms. A popup with no way out but a pick.
  * Lines of a box, for overlay().
  */
-export function renderNewspaper(state: GameState, cursor = -1, elapsed = Infinity): string[] {
-  const rows = newspaperRows(state, cursor);
-  const done = newspaperTyped(state, elapsed);
+export function renderNewspaper(state: GameState, cursor = -1, elapsed = Infinity, columns = 0): string[] {
+  const rows = newspaperRows(state, cursor, columns);
+  const done = newspaperTyped(state, elapsed, columns);
   const footer = done ? ` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire` : ' [any key] skip';
-  const body = [...typeOut(rows, Math.floor(elapsed / opening.msPerLetter)), dim(footer)];
+  const body = [...typeOut(rows, lettersTyped(rows.map(([t]) => t), elapsed)), dim(footer)];
   const width = Math.max(plainText(` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire`).length, ...rows.map(([t]) => t.length)) + 2;
   const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
   return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
 }
 
 /** The manuscript's note: how it came, and the play's title, as rows with their styles. */
-function manuscriptRows(state: GameState): Styled[] {
+function manuscriptRows(state: GameState, columns = 0): Styled[] {
   const note = opening.manuscript;
   const play = getPlay(state.manuscript);
-  return [
+  return wrapStyled([
     [` ${note.arrival}`, dim],
     ['', (t: string) => t],
     [` ${note.inside}`, (t: string) => t],
     ['', (t: string) => t],
     [`     ${play?.title ?? ''}`, bold],
     ['     by William Shakespeare', dim],
-  ];
+  ], storyWidth(columns));
 }
 
 /** Whether the manuscript's note is all typed out after `elapsed` ms. */
-export function manuscriptTyped(state: GameState, elapsed: number): boolean {
-  return Math.floor(elapsed / opening.msPerLetter) >= manuscriptRows(state).reduce((n, [t]) => n + t.length, 0);
+export function manuscriptTyped(state: GameState, elapsed: number, columns = 0): boolean {
+  const rows = manuscriptRows(state, columns).map(([t]) => t);
+  return lettersTyped(rows, elapsed) >= rows.reduce((n, t) => n + t.length, 0);
 }
 
 /** The popup when a manuscript comes through the mail slot (see deliverManuscript), typed out over `elapsed` ms. Lines of a box, for overlay(). */
-export function renderManuscript(state: GameState, elapsed = Infinity): string[] {
-  const rows = manuscriptRows(state);
-  const footer = manuscriptTyped(state, elapsed) ? ' [enter] read it later ([p] the script)' : ' [any key] skip';
-  const body = [...typeOut(rows, Math.floor(elapsed / opening.msPerLetter)), '', dim(footer)];
+export function renderManuscript(state: GameState, elapsed = Infinity, columns = 0): string[] {
+  const rows = manuscriptRows(state, columns);
+  const footer = manuscriptTyped(state, elapsed, columns) ? ' [enter] read it later ([p] the script)' : ' [any key] skip';
+  const body = [...typeOut(rows, lettersTyped(rows.map(([t]) => t), elapsed)), '', dim(footer)];
   const width = Math.max(plainText(' [enter] read it later ([p] the script)').length, ...rows.map(([t]) => t.length)) + 2;
   const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
   return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
+}
+
+/**
+ * A note that comes with something (Justin, 2026-10-26): on top of the
+ * newspaper, or with the first play; closed before what it came with. A note
+ * keeps its own format: shown at once, not typed.
+ */
+export function renderNote(text: string): string[] {
+  const rows = ['', `   ${bold(text)}   `, '', dim(' [enter] close')];
+  const width = Math.max(...rows.map((r) => plainText(r).length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [`+${'-'.repeat(width)}+`, ...rows.map(line), `+${'-'.repeat(width)}+`];
 }

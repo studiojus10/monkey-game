@@ -29,6 +29,7 @@ export const opening = {
   manuscriptLetters: 2,
   manuscriptSkill: 1,
   manuscript: {
+    note: 'An old favorite', // Justin's: a note that comes with the first play, closed before the manuscript shows
     arrival: 'A thick envelope slides through the mail slot, sealed with wax and a faint smell of plumbuckle.',
     inside: 'Inside, a manuscript:',
   },
@@ -36,6 +37,7 @@ export const opening = {
   pressAction: 'type',
   // Story text shown to the player is typed out letter by letter, like the title (Justin, 2026-10-26: "lets see what its like").
   msPerLetter: 30,
+  sentencePauseMs: 600, // a brief pause after each sentence (Justin, 2026-10-26)
   intro: {
     titleMsPerLetter: 150,
     pauseMs: 700,
@@ -58,6 +60,7 @@ export const opening = {
     ],
   },
   newspaper: {
+    note: "you can't do it all alone", // Justin's: a note on top of the newspaper, closed before it opens
     title: 'WANTED HELP',
     arrival: 'A folded newspaper drops through the mail slot. Only the classified section.',
     lines: ['Splendid wobblers sought for the clattering. Apply flumpwise.'],

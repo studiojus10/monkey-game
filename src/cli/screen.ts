@@ -521,13 +521,14 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
  * 2026-10-21), since the navigation bar goes everywhere; every key is on the [/] page.
  */
 function homeKeys(state: GameState, columns: number): string[] {
-  if (playerTyping(state)) return [keyRow([['h', `${opening.pressAction} ${state.letters[0] ?? ''}`], ['space', 'shop'], ['/', 'all keys'], ['q', 'quit']], columns)];
+  if (playerTyping(state)) return [keyRow([['h', `${opening.pressAction} ${state.letters[0] ?? ''}`], ['space', 'open shop'], ['/', 'all keys'], ['q', 'quit']], columns)];
   return [
     keyRow([
       ...(homeViews(state).length > 1 ? [['<>', 'department'] as [string, string]] : []),
       ['up/down', 'choose a monkey'],
       ['enter', 'details'],
       ['h', theme.pokeAction],
+      ['space', 'open shop'], // the button to open the shop, as [esc] closes it (Justin, 2026-10-26)
       ...(canPublishFolio(state) ? [['f', 'publish a Folio'] as [string, string]] : []),
       ['/', 'all keys'],
       ['q', 'quit'],
@@ -1560,6 +1561,25 @@ export function typeOut(rows: [string, (t: string) => string][], letters: number
   });
 }
 
+/**
+ * How many letters of rows of text are typed out after `elapsed` ms:
+ * opening.msPerLetter each, and a pause of opening.sentencePauseMs after
+ * each sentence's end (., ! or ?, the last of an ellipsis).
+ */
+export function lettersTyped(rows: string[], elapsed: number): number {
+  if (elapsed === Infinity) return rows.reduce((n, r) => n + r.length, 0);
+  let time = 0;
+  let n = 0;
+  for (const row of rows)
+    for (let i = 0; i < row.length; i++) {
+      time += opening.msPerLetter;
+      if (time > elapsed) return n;
+      n++;
+      if ('.!?'.includes(row[i]) && !'.!?'.includes(row[i + 1] ?? '')) time += opening.sentencePauseMs;
+    }
+  return n;
+}
+
 /** The intro's page `page` (see opening.intro) with the title, then its text, typed out over `elapsed` ms; Infinity shows it all. */
 function introRows(page: number, elapsed: number, columns: number): { title: string; rows: string[]; done: boolean } {
   const intro = opening.intro;
@@ -1574,7 +1594,7 @@ function introRows(page: number, elapsed: number, columns: number): { title: str
   // The first page starts blank, types the title slowly, then the text.
   const titleTime = page === 0 ? intro.pauseMs + title.length * intro.titleMsPerLetter + intro.pauseMs : 0;
   const titleLetters = page === 0 ? Math.floor((elapsed - intro.pauseMs) / intro.titleMsPerLetter) : title.length;
-  const letters = Math.floor((elapsed - titleTime) / opening.msPerLetter);
+  const letters = lettersTyped(body.map(([t]) => t), elapsed - titleTime);
   return { title: title.slice(0, Math.max(0, titleLetters)), rows: typeOut(body, letters), done: letters >= total };
 }
 

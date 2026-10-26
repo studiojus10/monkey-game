@@ -223,7 +223,7 @@ describe('terminal screen', () => {
     expect(closed).not.toContain('Faster typing');
     expect(closed).toContain('[up/down] choose a monkey   [enter] details'); // the main keys only: the navigation bar goes everywhere
     expect(closed).toContain('[/] all keys');
-    expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [/] all keys   [q] quit');
+    expect(closed).toContain('[up/down] choose a monkey   [enter] details   [h] pet the monkey   [space] open shop   [/] all keys   [q] quit');
     expect(renderScreen(s, '', null, 0, -1, 0, 0)).toMatch(/\x1b\[48;5;236mM-1 *\x1b\[49m/); // the chosen monkey's name
     const open = plain(renderScreen(s, '', 'staff'));
     expect(open).toContain('Faster typing');

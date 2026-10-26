@@ -263,6 +263,8 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       player,
       playerPresses: Math.max(0, Math.floor(num(s.playerPresses, 0))),
       manuscript: str(s.manuscript),
+      newspaperNote: s.newspaperNote === true,
+      manuscriptNote: s.manuscriptNote === true,
       newspaper: (Array.isArray(s.newspaper) ? s.newspaper : []).filter((a) => a && typeof a.name === 'string').map((a) => ({ name: a.name, blurb: str(a.blurb) })),
       currency: num(s.currency, fresh.currency),
       totalEarned: num(s.totalEarned, fresh.totalEarned),

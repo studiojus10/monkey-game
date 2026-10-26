@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { introTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
-import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper } from '../src/cli/hiring';
+import { introTyped, lettersTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
+import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper, renderNote } from '../src/cli/hiring';
 import { opening, typing } from '../src/game/config';
 import { buyFasterTyping, buyLetter, deliverManuscript, earlyShopKeys, hireApplicant, manuscriptPlays, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
@@ -25,7 +25,7 @@ describe('the opening', () => {
     expect(s.playerPresses).toBe(1 + 10 * typing.baseLettersPerSecond);
     const screen = plain(renderScreen(s, '', null, 80));
     expect(screen).toContain(opening.playerName);
-    expect(screen).toContain(`[h] ${opening.pressAction} A`);
+    expect(screen).toContain(`[h] ${opening.pressAction} A   [space] open shop`);
     expect(screen).not.toContain('Script');
   });
 
@@ -149,6 +149,7 @@ describe('the opening', () => {
     expect(buyFasterTyping(s, 0)).toBe(true);
     tick(s, 1, () => 0.5);
     expect(s.manuscript).toBe('h1');
+    expect(s.manuscriptNote).toBe(true); // "An old favorite", closed before the manuscript shows
     expect(s.departments).toEqual(['history']);
     expect(s.owned).toEqual(['h1']);
     expect(s.office[0].department).toBe('history');
@@ -158,5 +159,47 @@ describe('the opening', () => {
     expect(note).toContain('by William Shakespeare');
     expect(manuscriptTyped(s, 0)).toBe(false);
     expect(deserialize(serialize(s), 0).manuscript).toBe('h1');
+  });
+
+  it('pauses briefly after each sentence while typing out', () => {
+    const ms = opening.msPerLetter;
+    expect(lettersTyped(['Hi. Yo'], 3 * ms)).toBe(3);
+    // After the full stop, the pause before the next letter.
+    expect(lettersTyped(['Hi. Yo'], 4 * ms)).toBe(3);
+    expect(lettersTyped(['Hi. Yo'], 4 * ms + opening.sentencePauseMs)).toBe(4);
+    // An ellipsis pauses once, at its end.
+    expect(lettersTyped(['A...B'], 4 * ms)).toBe(4);
+    expect(lettersTyped(['A...B'], 5 * ms + opening.sentencePauseMs)).toBe(5);
+    expect(lettersTyped(['Hi.', 'Yo'], Infinity)).toBe(5);
+  });
+
+  it('puts a note on top of the newspaper, closed before it opens', () => {
+    const s = createInitialState(0);
+    for (let i = 0; i < opening.newspaperAfter; i++) playerPress(s, rng);
+    expect(s.newspaperNote).toBe(true);
+    expect(plain(renderNote(opening.newspaper.note).join('\n'))).toContain(opening.newspaper.note);
+    expect(deserialize(serialize(s), 0).newspaperNote).toBe(true);
+  });
+});
+
+describe('wrapping at the end of a word', () => {
+  it('wraps a styled line between words, keeping its indent and style', async () => {
+    const { wrapAnsi, plainText } = await import('../src/cli/style');
+    const rows = wrapAnsi('  \x1b[1mthe quick brown fox jumps\x1b[0m', 12);
+    expect(rows.map((r) => plainText(r))).toEqual(['  the quick', '  brown fox', '  jumps']);
+    expect(rows[1]).toContain('\x1b[1m');
+    expect(wrapAnsi('short', 12)).toEqual(['short']);
+  });
+
+  it('wraps the newspaper and manuscript to a 50-column screen at word ends', async () => {
+    const { renderNewspaper, renderManuscript } = await import('../src/cli/hiring');
+    const { plainText } = await import('../src/cli/style');
+    const state = createInitialState(0);
+    state.newspaper = [{ name: 'Bing Bong', blurb: 'a very long blurb that goes on and on well past the edge of any narrow screen' }];
+    for (const box of [renderNewspaper(state, -1, Infinity, 50)]) {
+      for (const l of box) expect(plainText(l).length).toBeLessThanOrEqual(50);
+    }
+    state.manuscript = 'midsummer';
+    for (const l of renderManuscript(state, Infinity, 50)) expect(plainText(l).length).toBeLessThanOrEqual(50);
   });
 });
