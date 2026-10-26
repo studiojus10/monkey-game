@@ -1847,6 +1847,11 @@ export function deliverNewspaper(state: GameState, rng: Rng = Math.random): bool
   return state.newspaper.length > 0;
 }
 
+/** Whether the first department and free play are waiting to be chosen: a monkey hired, no department yet, and opening.scriptLetters letters owned. */
+export function scriptDue(state: GameState): boolean {
+  return !playerTyping(state) && state.departments.length === 0 && state.owned.length === 0 && state.letters.length >= opening.scriptLetters;
+}
+
 /** Hires applicant `i` from the newspaper: the first monkey, at the first desk and typewriter, its stats unseen. */
 export function hireApplicant(state: GameState, i: number): boolean {
   const a = state.newspaper[i];

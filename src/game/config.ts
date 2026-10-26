@@ -23,6 +23,7 @@ export const opening = {
   letter: 'A',
   newspaperAfter: 20,
   applicants: 3,
+  scriptLetters: Infinity, // letters owned before the first department and free play are chosen: Shakespeare is set aside for now (Justin, 2026-10-26: "until I bring it back up")
   playerName: 'You',
   pressAction: 'type',
   newspaper: {

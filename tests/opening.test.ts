@@ -29,7 +29,7 @@ describe('the opening', () => {
     expect(screen).not.toContain('Script');
   });
 
-  it('brings the newspaper after enough presses; the monkey hired from it takes the desk, then the department is chosen', () => {
+  it('brings the newspaper after enough presses; the monkey hired from it takes the desk and types, Shakespeare set aside', () => {
     setPlays([{ id: 'test', title: 'Test Play', lines: [[1, 1, 'HAMLET', 'I.']] }]);
     const s = createInitialState(0);
     for (let i = 1; i < opening.newspaperAfter; i++) playerPress(s, rng);
@@ -50,7 +50,12 @@ describe('the opening', () => {
     expect(s.player).toBeNull();
     expect(s.newspaper).toEqual([]);
     expect(playerPress(s, rng)).toBe(false);
-    expect(plain(renderScreen(s, '', null, 80))).toContain('Choose its department');
+    // No department or play to choose yet: the monkey types on the home screen.
+    tick(s, 10, rng);
+    const home = plain(renderScreen(s, '', null, 80));
+    expect(home).not.toContain('department');
+    expect(home).toContain(name);
+    expect(s.monkeys[0].line.length).toBeGreaterThan(0);
     // A loaded game keeps its monkey and doesn't bring the player back.
     const loaded = deserialize(serialize(s), 0);
     expect(loaded.player).toBeNull();

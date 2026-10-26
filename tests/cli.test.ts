@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { fileStorage } from '../src/cli/fileStorage';
 import {
   keyChoices,
@@ -47,7 +47,7 @@ import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli
 import { columnBox, promptBox, keyBox, cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
-import { achievements, lately, monkeyNames } from '../src/game/config';
+import { achievements, lately, monkeyNames, opening } from '../src/game/config';
 import { greekLetters, type PlayData } from '../src/game/plays';
 import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
@@ -103,9 +103,14 @@ function started() {
 }
 
 describe('terminal screen', () => {
-  it('asks for a genre first, then a free play, then the first letter', () => {
+  it('asks for a genre first, then a free play, then the first letter (once Shakespeare is back)', () => {
     setPlays([testPlay]);
     const s = startedGame(0);
+    const scriptLetters = opening.scriptLetters;
+    opening.scriptLetters = 0;
+    onTestFinished(() => {
+      opening.scriptLetters = scriptLetters;
+    });
     const genres = plain(renderScreen(s, '', null, 80));
     expect(genres.split('\n')[0]).toBe(' INFINITE MONKEYS ');
     expect(genres).toContain('   [1] Comedies   Test Play');

@@ -90,6 +90,7 @@ import {
   poke,
   playerPress,
   playerTyping,
+  scriptDue,
   hireApplicant,
   reachableLines,
   setSlotWord,
@@ -2118,7 +2119,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
 
   message = '';
   // The opening screens' choices: arrows and enter, or their keys.
-  const opening = playerTyping(state) ? 0 : state.owned.length === 0 && state.departments.length === 0 ? departmentChoices(state).length : starterGenre(state) ? starterPlays(state).length : state.letters.length === 0 ? startingLetters.length : 0;
+  const opening = playerTyping(state) ? 0 : scriptDue(state) ? departmentChoices(state).length : starterGenre(state) ? starterPlays(state).length : state.letters.length === 0 ? startingLetters.length : 0;
   if (opening > 0) {
     const row = menuKey(key, opening);
     if (row >= 0) {
@@ -2132,7 +2133,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     // The opening screens reach the save profiles too, so a new game can switch back.
     showingOptions = true;
     openProfiles();
-  } else if (state.owned.length === 0 && state.departments.length === 0 && !playerTyping(state)) {
+  } else if (scriptDue(state)) {
     const g = departmentChoices(state)[Number(str) - 1];
     if (g) openDepartment(state, g);
   } else if (starterGenre(state)) {

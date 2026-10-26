@@ -100,6 +100,7 @@ import {
   hatsForSale,
   inRevealOrder,
   playerTyping,
+  scriptDue,
   shopRevealed,
   shopRevealsNow,
   researchList,
@@ -622,11 +623,11 @@ export function shopKeys(state: GameState, store: Store, onMap = false): [string
 
 /** Renders the whole game screen as plain text. `rows` is the game's height, for the shop popup over the home screen (0: no padding). */
 export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0, chosen = -1): string {
-  if (state.owned.length === 0 && state.departments.length === 0 && !playerTyping(state)) {
+  if (scriptDue(state)) {
     const genres = departmentChoices(state);
     return openingScreen(
-      `${state.monkeys[0] ? monkeyName(state, 0) : 'Your monkey'} sits down at the typewriter.`,
-      ['Choose its department. Each works on one genre; the others', 'open as you gather more monkeys.'],
+      'Somewhere, infinite monkeys are trying to write Shakespeare.',
+      ['Choose the first department. Each works on one genre; the others', 'open as you gather more monkeys.'],
       genres.map((g, i) => [String(i + 1), genreNames[g], availablePlays().filter((p) => p.genre === g).map((p) => p.title).join(', ')]),
       [['up/down', 'choose'], ['enter', 'pick'], [genres.length === 1 ? '1' : `1-${genres.length}`, 'pick'], ['p', 'save profiles'], ['q', 'quit']],
       message,
