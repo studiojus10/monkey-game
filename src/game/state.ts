@@ -1,4 +1,4 @@
-import { maxMonkeyNameLength, monkeyNames, parodyNames, office as officeRules } from './config';
+import { maxMonkeyNameLength, monkeyNames, opening, parodyNames, office as officeRules } from './config';
 import type { EnigmaKey } from './enigma';
 
 /** A piece of a monkey's current line: a scored word or a skipped letter. */
@@ -136,7 +136,16 @@ export interface TelegramState {
   read: boolean;
 }
 
+/** A monkey in the newspaper's classified section (see `opening`): its name and a blurb about it. Its stats come once hired. */
+export interface Applicant {
+  name: string;
+  blurb: string;
+}
+
 export interface GameState {
+  player: MonkeyState | null; // the player at the typewriter before the first monkey is hired (see `opening`); null after
+  playerPresses: number; // letters the player has typed, by hand or not
+  newspaper: Applicant[]; // the classified section's monkeys, once it comes, until one is hired
   currency: number;
   totalEarned: number;
   sentences: number; // currency: every time a play line (3+ words) is typed
@@ -312,6 +321,9 @@ export function starterRoom(): Room {
 
 export function createInitialState(now = Date.now()): GameState {
   return {
+    player: { ...createMonkey(), name: opening.playerName },
+    playerPresses: 0,
+    newspaper: [],
     currency: 0,
     totalEarned: 0,
     sentences: 0,
@@ -358,8 +370,8 @@ export function createInitialState(now = Date.now()): GameState {
     comboStartLevel: 0,
     keys: [],
     slots: [],
-    letters: [],
-    monkeys: [{ ...createMonkey(), number: 1, name: monkeyNameFor(1, []) }],
+    letters: [opening.letter],
+    monkeys: [],
     monkeysBought: {},
     unassignedMonkeys: 0,
     wordsTyped: 0,

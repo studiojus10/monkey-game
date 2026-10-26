@@ -24,14 +24,15 @@ import {
 } from '../src/game/logic';
 import { doorBetween, loungeOf } from '../src/game/layout';
 import { deserialize, serialize } from '../src/game/save';
-import { createInitialState, createMonkey, type GameState } from '../src/game/state';
+import { createMonkey, type GameState } from '../src/game/state';
+import { startedGame } from './start';
 import { sellEverything } from './unlocks';
 
 sellEverything();
 
 /** One comedy department with `typists` typing monkeys, each at its desk, and plenty of bananas. */
 function department(typists: number): GameState {
-  const s = createInitialState(0);
+  const s = startedGame(0);
   s.letters = ['I'];
   s.departments = ['comedy'];
   s.monkeys[0].department = 'comedy';
@@ -206,7 +207,7 @@ describe('traits and offices in saves', () => {
     expect(back.monkeys.map((m) => m.trait)).toEqual(['loner', '']);
     expect(back.managerBook).toBe(true);
     expect(officeOf(back, 'comedy')?.kind).toBe('office');
-    expect(deserialize(serialize(createInitialState(0))).managerBook).toBe(false);
+    expect(deserialize(serialize(startedGame(0))).managerBook).toBe(false);
   });
 });
 

@@ -26,7 +26,7 @@ import {
 } from '../src/game/logic';
 import { departmentName, renderScreen } from '../src/cli/screen';
 import { deserialize, serialize } from '../src/game/save';
-import { createInitialState } from '../src/game/state';
+import { startedGame } from './start';
 import { renderBook, renderLibrary } from '../src/cli/library';
 import { roomName } from '../src/cli/office';
 
@@ -35,7 +35,7 @@ const play = (id: string) => ({ id, title: `Play ${id}`, lines: [[1, 1, 'HAMLET'
 
 function started() {
   setPlays(['a', 'b', 'c', 'd', 'e'].map(play));
-  const s = createInitialState(0);
+  const s = startedGame(0);
   s.departments = ['comedy'];
   s.owned = ['a'];
   chooseFirstLetter(s, 'i');

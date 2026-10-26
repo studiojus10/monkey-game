@@ -21,7 +21,8 @@ import {
 } from '../src/game/logic';
 import { bookRows } from '../src/cli/library';
 import { deserialize, serialize } from '../src/game/save';
-import { createInitialState, createMonkey } from '../src/game/state';
+import { createMonkey } from '../src/game/state';
+import { startedGame } from './start';
 
 setLexicon(readFileSync(new URL('../data/lexicon.txt', import.meta.url), 'utf8').split('\n'));
 const words = (text: string) => text.toUpperCase().split(' ');
@@ -44,7 +45,7 @@ describe('the Records department', () => {
   const play = { id: 'p', title: 'P', lines: [[1, 1, 'A', 'The cat sat on a mat.'] as [number, number, string, string]] };
   function withRecords() {
     setPlays([play]);
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.departments = ['comedy'];
     s.owned = ['p'];
     chooseFirstLetter(s, 'i');
@@ -92,7 +93,7 @@ describe('the Records department', () => {
 
 describe('temps', () => {
   it("bring the second-best typewriter in the office, or now and then the best", () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.monkeys = [0, 3, 1, 5].map((typewriter) => ({ ...createMonkey(), typewriter }));
     expect(tempTypewriter(s, hr.tempSecondTypewriter - 0.01)).toBe(3);
     expect(tempTypewriter(s, hr.tempSecondTypewriter)).toBe(5);
@@ -105,7 +106,7 @@ describe("a manager's Sentences multiplier", () => {
   it('starts at its upgrades, rises with grammatical sentences and falls back to them with the rest', () => {
     setWordList(['KINGS', 'LOVE', 'GOLD', 'LOVES']);
     try {
-      const s = createInitialState(0);
+      const s = startedGame(0);
       s.departments = ['comedy'];
       s.letters = ['K', 'I', 'N', 'G', 'S', 'L', 'O', 'V', 'E', 'D', 'X'];
       s.monkeys[0].department = 'comedy';

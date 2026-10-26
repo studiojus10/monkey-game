@@ -11,6 +11,47 @@ export const theme = {
 export const startingLetters = ['A', 'I'];
 
 /**
+ * The opening (Justin, 2026-10-26: keep the start simple, bring in mechanics
+ * as they matter): the player sits alone at the typewriter with only the
+ * `letter` key, typing it at the slowest pace (typing.baseLettersPerSecond)
+ * or by pressing [h]. After `newspaperAfter` presses the classified section
+ * drops through the mail slot, offering `applicants` monkeys; the one picked
+ * takes the desk and typewriter. Blurbs never change how a monkey types.
+ * The newspaper's words are nonsense placeholders until the story is written.
+ */
+export const opening = {
+  letter: 'A',
+  newspaperAfter: 20,
+  applicants: 3,
+  playerName: 'You',
+  pressAction: 'type',
+  newspaper: {
+    title: 'WANTED HELP',
+    arrival: 'A folded newspaper drops through the mail slot. Only the classified section.',
+    lines: ['Splendid wobblers sought for the clattering. Apply flumpwise.'],
+  },
+  blurbs: [
+    'Hums at teaspoons. Distrusts the colour Tuesday.',
+    'Collects left socks and the opinions of clouds.',
+    'Once argued with a hat and won. Snores in A minor.',
+    'Prefers gravy to doors. Knits small weather.',
+    'Believes the moon is a coin someone dropped.',
+    'Polite to pigeons, rude to marmalade.',
+    'Has a lucky pebble named Gerald. Gerald is unlucky.',
+    'Laughs at the number seven, but only on stairs.',
+    'Writes letters to the fog. The fog writes back.',
+  ],
+};
+
+/**
+ * When the shop's later items show up (they stay once shown): the hire item
+ * once your bananas reach hireShare of its price; the rest as they matter
+ * (a better typewriter at the skill cap, Sentences items with the first
+ * Sentence, keys and slots once unlocked).
+ */
+export const shopReveals = { hireShare: 0.25 };
+
+/**
  * Words added on top of the main word list (data/words.txt, the public-domain
  * ENABLE list), which leaves out one-letter words.
  */

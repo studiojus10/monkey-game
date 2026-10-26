@@ -4,10 +4,11 @@ import { buyRoom, chooseFirstLetter, typeLetter } from '../src/game/logic';
 import { connectedRooms } from '../src/game/layout';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState, createMonkey } from '../src/game/state';
+import { startedGame } from './start';
 
 describe('save/load', () => {
   it('round-trips state', () => {
-    const s = createInitialState(123);
+    const s = startedGame(123);
     chooseFirstLetter(s, 'i');
     typeLetter(s, 0, () => 0);
     s.monkeys[0].progress = 0.5;
@@ -16,7 +17,7 @@ describe('save/load', () => {
   });
 
   it('keeps hats, their dye and the inventory; old wardrobes and accessory hats become hats', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.monkeys[0].hat = 'crown';
     s.monkeys[0].hatColor = 'cyan';
     s.stored.hats = { tophat: 1, 'cap:red': 2 };
@@ -56,7 +57,7 @@ describe('save/load', () => {
   });
 
   it('gives an old save one Word per different word it has spelled', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.stats.words = { CAT: 3, DOG: 1 };
     const raw = JSON.parse(serialize(s));
     delete raw.state.words;
@@ -64,7 +65,7 @@ describe('save/load', () => {
   });
 
   it('gives every monkey of an old save its shared typing level, with the typewriter it needs', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.monkeys.push(createMonkey());
     const raw = JSON.parse(serialize(s));
     raw.state.typingLevel = 23;
@@ -80,14 +81,14 @@ describe('save/load', () => {
     const s = deserialize(JSON.stringify({ version: 3, state: { currency: 7, letters: ['I', 'bad'] } }), 5);
     expect(s.currency).toBe(7);
     expect(s.letters).toEqual(['I']);
-    expect(s.monkeys).toEqual(createInitialState(5).monkeys);
+    expect(s.monkeys).toEqual(startedGame(5).monkeys);
     expect(s.lastSaved).toBe(5);
   });
 });
 
 describe('office space in saves', () => {
   it('keeps rooms, squares, furniture and options, and gives saves from before rooms an office', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.office.push({ id: 'r2', kind: 'break', department: '', cells: [[0, 0], [1, 0]] });
     s.squaresBought = 3;
     s.settings.autoPlaceFurniture = false;
@@ -112,7 +113,7 @@ describe('office space in saves', () => {
   });
 
   it('keeps hallways, doors and per-department hiring, and lays out saves from before hallways', () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     s.currency = s.sentences = 1e12;
     buyRoom(s, 'break');
     s.monkeysBought = { comedy: 3 };
@@ -140,7 +141,7 @@ describe('office space in saves', () => {
 
 describe('combo upgrades in old saves', () => {
   it("turns an old save's combo cap raises into starting-combo upgrades", () => {
-    const old = JSON.parse(serialize(createInitialState(0)));
+    const old = JSON.parse(serialize(startedGame(0)));
     old.version = 3;
     delete old.state.comboStartLevel;
     old.state.comboCapLevel = 3;
@@ -153,7 +154,7 @@ describe('texts replaced by public-domain editions', () => {
     const lines = (id: string) => (JSON.parse(readFileSync(`data/plays/${id}.json`, 'utf8')) as { lines: [number, number][] }).lines;
     const gen = lines('generatione');
     const sceneLines = (all: [number, number][], key: string) => all.flatMap((l, i) => (`${l[0]}.${l[1]}` === key ? [i] : []));
-    const old = JSON.parse(serialize(createInitialState(0)));
+    const old = JSON.parse(serialize(startedGame(0)));
     old.version = 4;
     // The old De generatione: chapter 1.1 was lines 0-107 and 1.9 (Prantl's, with Bekker's 1.10) lines 1300-1482.
     old.state.owned = ['hamlet:1.1', 'generatione:1.1', 'generatione:1.9', 'natura:1.16', 'natura:1'];
@@ -176,7 +177,7 @@ describe('versions', () => {
     const { SAVE_VERSION, migrations, saveVersions } = await import('../src/game/save');
     const pkg = JSON.parse((await import('node:fs')).readFileSync('package.json', 'utf8'));
     expect(pkg.version).toBe(GAME_VERSION);
-    const raw = serialize(createInitialState(0));
+    const raw = serialize(startedGame(0));
     expect(saveVersions(raw)).toEqual({ version: SAVE_VERSION, gameVersion: GAME_VERSION });
     expect(saveVersions('{"version":3,"state":{}}')).toEqual({ version: 3, gameVersion: '' }); // from before game versions
     expect(saveVersions('nonsense')).toBeNull();
@@ -192,7 +193,7 @@ describe('versions', () => {
 
 describe('migrations', () => {
   it("5 -> 6: a manager's two upgrades become one, at the higher level", async () => {
-    const s = createInitialState(0);
+    const s = startedGame(0);
     const raw = JSON.parse(serialize(s));
     raw.version = 5;
     raw.state.monkeys = [{ ...raw.state.monkeys[0], managerLevel: 1, managerSpeedLevel: 3 }, { ...raw.state.monkeys[0], managerLevel: 2 }];

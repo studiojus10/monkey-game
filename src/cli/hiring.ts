@@ -1,4 +1,4 @@
-import { hr, monkeyStats, theme } from '../game/config';
+import { hr, monkeyStats, opening, theme } from '../game/config';
 import { hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
@@ -209,4 +209,19 @@ export function promptBox(prompt: string, cursor = -1): string[] {
     line(dim(` ${footer}`)),
     `+${'-'.repeat(width)}+`,
   ];
+}
+
+/**
+ * The newspaper that drops through the mail slot (see `opening`): the
+ * classified section, its monkeys each with a name and a blurb, numbered to
+ * hire one. A popup with no way out but a pick. Lines of a box, for overlay().
+ */
+export function renderNewspaper(state: GameState, cursor = -1): string[] {
+  const paper = opening.newspaper;
+  const items = state.newspaper.flatMap((a, i) => [isCursor(i, cursor) ? highlight(` [${i + 1}] ${bold(a.name || 'A monkey')}`) : ` [${i + 1}] ${bold(a.name || 'A monkey')}`, dim(`     ${a.blurb}`), '']);
+  const footer = ` [up/down] choose   [enter] or [1-${state.newspaper.length}] hire`;
+  const body = [dim(` ${paper.arrival}`), '', ` ${bold(paper.title)}`, ...paper.lines.map((l) => dim(` ${l}`)), '', ...items, dim(footer)];
+  const width = Math.max(...body.map((r) => plainText(r).length)) + 2;
+  const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
+  return [`+${'-'.repeat(width)}+`, ...body.map(line), `+${'-'.repeat(width)}+`];
 }

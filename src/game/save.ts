@@ -1,5 +1,5 @@
 import { desk, folio, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
-import { furnishOffice } from './logic';
+import { earlyShopKeys, furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type SafeState, type TelegramState, type Stats } from './state';
 
@@ -256,7 +256,12 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       .map((p) => (typeof p === 'number' ? { play: oldPlay, index: p } : (p as Pin)))
       .filter((p) => p && typeof p.play === 'string' && p.play && Number.isInteger(p.index) && p.index >= 0)
       .map((p) => ({ play: p.play, index: p.index }));
+    // Saves from before the opening's newspaper (no player field) have hired already, and their shop shows everything.
+    const player = s.player && typeof s.player === 'object' ? monkey(s.player) : null;
     const state: GameState = {
+      player,
+      playerPresses: Math.max(0, Math.floor(num(s.playerPresses, 0))),
+      newspaper: (Array.isArray(s.newspaper) ? s.newspaper : []).filter((a) => a && typeof a.name === 'string').map((a) => ({ name: a.name, blurb: str(a.blurb) })),
       currency: num(s.currency, fresh.currency),
       totalEarned: num(s.totalEarned, fresh.totalEarned),
       sentences: num(s.sentences, 0),
@@ -315,7 +320,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       recordBooks: Array.isArray(s.recordBooks) ? s.recordBooks.filter(Array.isArray).map(strings) : [],
       recordDraft: strings(s.recordDraft),
       recordCatch: Math.max(0, num(s.recordCatch, 0)),
-      revealed: strings(s.revealed),
+      revealed: [...strings(s.revealed), ...(s.player === undefined ? earlyShopKeys.filter((k) => !strings(s.revealed).includes(k)) : [])],
       lastMilestone,
       pointsBonus: Math.max(0, num(s.pointsBonus, 0)),
       speedBonus: Math.max(0, num(s.speedBonus, 0)),
@@ -331,7 +336,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       letters: Array.isArray(s.letters)
         ? s.letters.filter((l) => typeof l === 'string' && /^[A-Z]$/.test(l))
         : [],
-      monkeys: monkeys.length > 0 ? monkeys : [{ ...createMonkey(), number: 1, name: monkeyNameFor(1, []) }],
+      monkeys: monkeys.length > 0 || player ? monkeys : [{ ...createMonkey(), number: 1, name: monkeyNameFor(1, []) }],
       monkeysBought: Object.fromEntries(
         Object.entries(s.monkeysBought && typeof s.monkeysBought === 'object' ? (s.monkeysBought as Record<string, unknown>) : {}).map(([k, v]) => [k, Math.max(0, Math.floor(num(v, 0)))]),
       ),
