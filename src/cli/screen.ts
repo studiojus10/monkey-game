@@ -1014,6 +1014,8 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const section = (id: string, text: string, n: number, effect: string): ShopItem =>
         n === 0 ? { id, text, effect, blocked: 'owned' } : { id, text, effect, star: state.lines >= n, cost: [[n, 'lines']] };
       const lines = (n: number) => `${count(n)} line${n === 1 ? '' : 's'}`;
+      // Nothing to buy for a text already owned (Justin, 2026-10-27).
+      if (sectionPrice(state, play) === 0) return [{ text: `You own ${play.title}.` }];
       return [section('section:w', play.genre === 'sonnet' ? 'All the sonnets' : isForeign(play.genre) ? 'The whole text' : 'The whole play', sectionPrice(state, play), `${play.title}, ${lines(play.lines.length)}`)];
     }
     case 'hats': {
@@ -1705,7 +1707,9 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
     dim(` + written   @ pinned (${state.pinned.length}/${maxPinnedLines})   NEEDS: letters you don't own yet`),
     ...(locked
       ? [` Open a ${departmentName(state, departmentOf(play.genre))} department to buy these.`]
-      : wrapVisible(
+      : sectionPrice(state, play) === 0
+        ? [] // already owned: nothing to buy (Justin, 2026-10-27)
+        : wrapVisible(
           [section('w', play.genre === 'sonnet' ? 'all the sonnets' : isForeign(play.genre) ? 'whole text' : 'whole play', sectionPrice(state, play))],
           columns,
           ` ${dim('Buy')}  `,
