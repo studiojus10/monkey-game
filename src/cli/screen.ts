@@ -774,7 +774,7 @@ export function upgradeColumns(state: GameState, kind: UpgradeKind): { cols: { h
   const cols: { heading: string; cells: string[][] }[] = [];
   const monkeys: number[][] = [];
   for (const g of departmentGenres(state)) {
-    const team = kind === 'manager' ? state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) && m.department === g ? [i] : [])) : trainees(state).filter((i) => state.monkeys[i].department === g);
+    const team = kind === 'manager' ? state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) && monkeyGenre(state, m) === g ? [i] : [])) : trainees(state).filter((i) => monkeyGenre(state, state.monkeys[i]) === g);
     if (team.length === 0) continue;
     cols.push({
       heading: departmentName(state, g),

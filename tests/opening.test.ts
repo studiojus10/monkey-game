@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { introTyped, lettersTyped, renderIntro, renderScreen, openStores, storeItems } from '../src/cli/screen';
+import { introTyped, lettersTyped, renderIntro, renderScreen, openStores, storeItems, upgradeColumns } from '../src/cli/screen';
 import { manuscriptTyped, newspaperTyped, renderManuscript, renderNewspaper, renderNote } from '../src/cli/hiring';
 import { opening, typing } from '../src/game/config';
-import { buyFasterTyping, buyLetter, deliverManuscript, earlyShopKeys, hireApplicant, manuscriptPlays, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
+import { buyFasterTyping, buyLetter, buyMonkey, deliverManuscript, earlyShopKeys, hireApplicant, manuscriptPlays, nextMonkeyCost, noteRevealed, playerPress, playerTyping, setPlays, shopRevealsNow, tick } from '../src/game/logic';
 import { deserialize, serialize } from '../src/game/save';
 import { createInitialState } from '../src/game/state';
 
@@ -159,6 +159,9 @@ describe('the opening', () => {
     expect(note).toContain('by William Shakespeare');
     expect(manuscriptTyped(s, 0)).toBe(false);
     expect(deserialize(serialize(s), 0).manuscript).toBe('h1');
+    // The first monkey (hired before any department) can still be upgraded once a second is hired.
+    expect(buyMonkey(s, 'history')).toBe(true);
+    expect(upgradeColumns(s, 'skill').monkeys).toEqual([[0, 1]]);
   });
 
   it('pauses briefly after each sentence while typing out', () => {
