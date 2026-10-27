@@ -32,6 +32,7 @@ import {
   openStores,
   pagesFor,
   storeChoices,
+  storeItems,
   storePages,
   storePageSize,
   renderShop,
@@ -405,7 +406,7 @@ describe('script browser and pins', () => {
     let text = renderScript(s, 'test', 1);
     expect(text).toContain(' INFINITE MONKEYS > SCRIPT ');
     expect(squash(text)).toContain('\n Test Play Comedies 0 / 2 lines written\n');
-    expect(squash(text)).toContain('[w] whole play owned');
+    expect(squash(text)).not.toContain('[w] whole play'); // owned: no option to buy it
     expect(squash(text)).not.toContain('[b] scene');
     expect(squash(text)).toContain('\n ACT 1, SCENE 1 0 / 1 written NEEDS\n');
     expect(squash(text)).toContain('\n ACT 1, SCENE 2 0 / 1 written NEEDS\n');
@@ -749,11 +750,11 @@ describe('furniture', () => {
     s.currency = s.sentences = 1e9;
     const at = { play: 'test', line: 0 };
     expect(openStores(s, 'script')).toEqual(['script']);
-    expect(storeChoices(s, 'script', 0, at).map((x) => x.id)).toEqual(['section:w']);
-    expect(storeChoices(s, 'script', 0, at)[0].blocked).toBe('owned'); // the free first play
+    expect(storeChoices(s, 'script', 0, at).map((x) => x.id)).toEqual([]); // the free first play: nothing to buy
+    expect(storeItems(s, 'script', at).map((x) => x.text)).toEqual(['You own Test Play.']);
     const page = squash(renderScript(s, 'test', 0, '', 0, renderShop(s, 'script', 0, '', 0, true, at)));
     expect(page).toContain(' Script \n');
-    expect(page).toContain('[1] The whole play');
+    expect(page).toContain('You own Test Play.');
     expect(page).not.toContain('[tab] contents'); // the shop takes the place of the keys
     expect(squash(renderScript(s, 'test', 0))).toContain('[space] shop');
   });
