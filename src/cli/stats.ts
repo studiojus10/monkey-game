@@ -1,5 +1,5 @@
-import { achievements, theme } from '../game/config';
-import { achievementValue, folioMultiplier, getPlay } from '../game/logic';
+import { achievements, letterGifts, theme } from '../game/config';
+import { achievementOpen, achievementValue, folioMultiplier, getPlay } from '../game/logic';
 import { lineLocation } from '../game/plays';
 import type { GameState } from '../game/state';
 import { formatDuration, formatMultiplier, formatNumber } from '../format';
@@ -162,10 +162,12 @@ export function renderAchievements(state: GameState, row: number, columns = 0): 
   const nameWidth = Math.max(...achievements.map((a) => a.name.length)) + 2;
   const all = achievements.map((a) => {
     const done = state.achievements.includes(a.id);
-    if (done) return ` ${green('[x]')} ${a.name.padEnd(nameWidth)}${dim(a.text)}`;
-    if (a.secret) return dim(` [ ] ${'???'.padEnd(nameWidth)}A secret`);
+    const reward = letterGifts.includes(a.id) ? (done ? dim('   Reward: a free letter') : '   Reward: a free letter') : '';
+    if (done) return ` ${green('[x]')} ${a.name.padEnd(nameWidth)}${dim(a.text)}${reward}`;
+    if (a.secret) return dim(` [ ] ${'???'.padEnd(nameWidth)}A secret`) + reward;
+    if (!achievementOpen(state, a)) return dim(` [ ] ${'???'.padEnd(nameWidth)}Hidden achievement`) + reward;
     const progress = a.at > 2 ? `   ${measure(Math.min(a.at, achievementValue(state, a.stat)))} / ${measure(a.at)}` : '';
-    return dim(` [ ] ${a.name.padEnd(nameWidth)}${a.text}`) + progress;
+    return dim(` [ ] ${a.name.padEnd(nameWidth)}${a.text}`) + progress + reward;
   });
   const top = Math.max(0, Math.min(row, all.length - achievementPageRows));
   const pages = all.length > achievementPageRows;

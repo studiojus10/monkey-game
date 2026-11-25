@@ -1063,6 +1063,17 @@ describe('achievements on screen', () => {
     expect(plain(renderAchievements(s, 999))).toContain('Self-aware');
   });
 
+  it('labels free-letter rewards and hides achievements whose mechanic has not shown up', () => {
+    const s = started();
+    s.fengShuiBook = false;
+    const all = () => achievements.map((_, i) => plain(renderAchievements(s, i))).join('\n');
+    expect(all()).not.toContain('Harmony');
+    expect(all()).toContain('Hidden achievement');
+    expect(all()).toMatch(/Best friends +Pet the monkeys 100 times.*Reward: a free letter/);
+    s.fengShuiBook = true;
+    expect(all()).toContain('Harmony');
+  });
+
   it('shows a heart by a monkey petted lately', () => {
     const s = started();
     expect(plain(renderScreen(s))).not.toContain('<3');

@@ -34,6 +34,7 @@ import {
   petting,
   lately,
   achievements,
+  type Achievement,
   folio,
   fengShui,
   managerDesk,
@@ -2490,6 +2491,37 @@ export function achievementValue(state: GameState, stat: string): number {
     case 'points': return state.totalEarned;
     case 'folios': return state.folios;
     default: return 0;
+  }
+}
+
+/** Whether an achievement can be worked toward yet: its mechanic has shown up, so listing it spoils nothing. */
+export function achievementOpen(state: GameState, a: Achievement): boolean {
+  if (a.stat.startsWith('wearing:')) return shopRevealed(state, 'store:hats');
+  switch (a.stat) {
+    case 'linesWritten':
+    case 'scenes':
+    case 'acts':
+    case 'plays': return state.owned.length > 0;
+    case 'monkeys':
+    case 'departments': return shopRevealed(state, 'shop:hire');
+    case 'named':
+    case 'rooms':
+    case 'furniture':
+    case 'biggestDepartment': return state.monkeys.length > 0;
+    case 'managers': return state.managerChairs.length > 0 || state.monkeys.some((m) => m.manager);
+    case 'researchers':
+    case 'researched': return state.researchOpen || canBuildLab(state);
+    case 'hrStaff': return !!hrRoom(state) || canBuildHR(state);
+    case 'marketers': return !!marketingRoom(state) || canBuildMarketing(state);
+    case 'harmony': return state.fengShuiBook;
+    case 'hats':
+    case 'hatKinds':
+    case 'dyed': return shopRevealed(state, 'store:hats');
+    case 'typewriter': return shopRevealed(state, 'shop:typewriter');
+    case 'keys': return keysUnlocked(state);
+    case 'slots': return slotsUnlocked(state);
+    case 'folios': return state.folios > 0 || canPublishFolio(state);
+    default: return true;
   }
 }
 
