@@ -2104,15 +2104,30 @@ export function managerOf(state: GameState, genre: Genre | undefined): MonkeySta
  * can): it has one, it needs a manager's office with a door into its room
  * and a manager's desk, and minDepartmentMonkeys typing monkeys to manage.
  */
-export function managerBlocker(state: GameState, genre: Genre | undefined, typists = departmentTypists(state, genre)): string {
+export function managerBlocker(state: GameState, genre: Genre | undefined): string {
   if (managerOf(state, genre)) return 'has a manager';
   const office = officeOf(state, genre);
   const room = departmentRoom(state, genre);
   if (!office || !room) return 'office needed';
   if (!doorBetween(state, office, room)) return 'door needed';
   if (!state.furniture.some((f) => f.room === office.id && f.kind === managerDesk.id)) return "manager's desk needed";
-  const short = managers.minDepartmentMonkeys - typists;
-  return short > 0 ? `${short} more monkey${short === 1 ? '' : 's'} needed` : '';
+  if (managerChairOpen(state, genre)) return '';
+  const short = managers.minDepartmentMonkeys - departmentTypists(state, genre);
+  return `${short} more monkey${short === 1 ? '' : 's'} needed`;
+}
+
+/**
+ * Whether a department's manager's chair is open: for good once it has had
+ * minDepartmentMonkeys typists or a manager (Justin, 2026-11-25), so one of
+ * those typists can be promoted.
+ */
+export function managerChairOpen(state: GameState, genre: Genre | undefined): boolean {
+  return !!genre && (state.managerChairs.includes(genre) || !!managerOf(state, genre) || departmentTypists(state, genre) >= managers.minDepartmentMonkeys);
+}
+
+/** Notes every department whose manager's chair is open now, so it stays open (see managerChairOpen). */
+export function noteManagerChairs(state: GameState): void {
+  for (const g of departmentGenres(state)) if (!state.managerChairs.includes(g) && managerChairOpen(state, g)) state.managerChairs.push(g);
 }
 
 /** Points for a department's manager: the price of its next monkey. */
@@ -2134,15 +2149,13 @@ export function hireManager(state: GameState, genre: Genre | undefined, from?: n
 
 /**
  * Why a typing monkey can't be promoted to its department's manager ('' if it
- * can): the same needs as hiring one (see managerBlocker), counting the
- * typists it leaves behind. Temps can't be promoted.
+ * can): the same needs as hiring one (see managerBlocker). Temps can't be promoted.
  */
 export function promoteBlocker(state: GameState, index: number): string {
   const m = state.monkeys[index];
   if (!m || !isTypist(m)) return 'not a typist';
   if (isTemp(m)) return "temps can't be promoted";
-  const genre = monkeyGenre(state, m);
-  return managerBlocker(state, genre, departmentTypists(state, genre) - 1);
+  return managerBlocker(state, monkeyGenre(state, m));
 }
 
 /**
@@ -2151,6 +2164,7 @@ export function promoteBlocker(state: GameState, index: number): string {
  */
 export function promoteMonkey(state: GameState, index: number): boolean {
   if (promoteBlocker(state, index)) return false;
+  noteManagerChairs(state);
   const m = state.monkeys[index];
   removeDesk(state, index);
   m.manager = true;
@@ -2382,6 +2396,7 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
   giveTraits(state, rng);
   drawCandidates(state, seconds, rng);
   for (const m of state.monkeys) m.worked += seconds;
+  noteManagerChairs(state);
   endTemps(state, seconds);
   for (const m of state.monkeys) m.petHappiness = Math.max(0, m.petHappiness - (petting.fadePerMinute * seconds) / 60);
   manage(state, seconds, rng);
@@ -3120,7 +3135,7 @@ export function posts(state: GameState, managing = true): Post[] {
   const bosses: Post[] = !managing
     ? []
     : open
-        .filter((g) => managerOf(state, g) || officeOf(state, g) || departmentTypists(state, g) >= managers.minDepartmentMonkeys)
+        .filter((g) => officeOf(state, g) || managerChairOpen(state, g))
         .map((g) => ({ id: `boss:${g}`, job: 'managing', genre: g, have: managerOf(state, g) ? 1 : 0, max: 1, blocked: managerOf(state, g) ? 'full' : managerBlocker(state, g) }));
   const staff: Post[] = [
     ...(state.researchOpen ? [{ id: research.id, job: 'research' as Job, have: researchers(state).length, max: research.maxResearchers, room: labRoom(state), name: 'lab needed' }] : []),
@@ -3174,6 +3189,7 @@ export function moveMonkeyTo(state: GameState, index: number, postId: string): b
   const m = state.monkeys[index];
   const post = posts(state, false).find((p) => p.id === postId);
   if (!m || !post || post.blocked || postOf(state, m) === postId) return false;
+  noteManagerChairs(state); // the chair stays open after the department shrinks
   // Its desk moves with it (a manager's desk stays in its office).
   removeDesk(state, index);
   if (m.manager) {

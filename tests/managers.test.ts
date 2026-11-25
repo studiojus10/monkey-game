@@ -15,6 +15,8 @@ import {
   officeOf,
   officelessDepartments,
   pointsMultiplier,
+  managerChairOpen,
+  noteManagerChairs,
   promoteBlocker,
   promoteMonkey,
   readManagerBook,
@@ -75,11 +77,11 @@ describe("managers' offices", () => {
 });
 
 describe('promoting a monkey to manager', () => {
-  it('needs what a hire needs, counting the typists left; it moves to the manager\'s desk for free', () => {
-    const s = department(managers.minDepartmentMonkeys);
+  it('needs what a hire needs; it moves to the manager\'s desk for free', () => {
+    const s = department(managers.minDepartmentMonkeys - 1);
     expect(promoteBlocker(s, 0)).toBe('office needed');
     buyRoom(s, 'office', 'comedy');
-    expect(promoteBlocker(s, 0)).toBe('1 more monkey needed'); // it would leave too few typists
+    expect(promoteBlocker(s, 0)).toBe('1 more monkey needed');
     expect(promoteMonkey(s, 0)).toBe(false);
     const s2 = department(managers.minDepartmentMonkeys + 1);
     buyRoom(s2, 'office', 'comedy');
@@ -95,6 +97,21 @@ describe('promoting a monkey to manager', () => {
     expect(roomDesks(s2, room)).toHaveLength(desks - 1); // its typing desk is free for a new hire
     expect(new Set(s2.monkeys.map((_, i) => deskOf(s2, i))).size).toBe(s2.monkeys.length);
     expect(promoteBlocker(s2, 2)).toBe('has a manager');
+  });
+});
+
+describe("a manager's chair", () => {
+  it('opens for good once the department has had enough typists, so one of them can be promoted', () => {
+    const s = department(managers.minDepartmentMonkeys);
+    buyRoom(s, 'office', 'comedy');
+    expect(managerChairOpen(s, 'comedy')).toBe(true);
+    expect(promoteBlocker(s, 0)).toBe(''); // 3 typists: one can become their manager
+    noteManagerChairs(s);
+    s.monkeys.splice(1);
+    expect(managerBlocker(s, 'comedy')).toBe(''); // still open with fewer typists
+    expect(promoteMonkey(s, 0)).toBe(true);
+    const saved = deserialize(serialize(s));
+    expect(saved.managerChairs).toEqual(['comedy']);
   });
 });
 

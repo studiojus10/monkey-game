@@ -901,8 +901,8 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           ? [
               {
                 id: 'boss',
-                text: 'Hire or promote a manager',
-                effect: 'hire a new monkey into a manager\'s chair, or promote a typist for free',
+                text: 'Promote or hire a manager',
+                effect: 'promote a typist for free, or hire a new monkey into a manager\'s chair',
                 ...(freeChairs.length > 0 || promotable
                   ? { star: promotable || state.currency >= chairPrice, ...(freeChairs.length > 0 ? { cost: [[chairPrice, 'currency']] as [number, Currency][], costFrom: true } : {}) }
                   : { blocked: chairs[0].blocked }),
@@ -966,7 +966,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
             ]
           : []),
         ...(hiring && departmentPicks(state) === 0 && nextDepartmentAt(state) > 0 ? [{ text: `Next department opens at ${nextDepartmentAt(state)} monkeys.` }] : []),
-        ...(hiring && managerNote ? [{ text: `A department of ${managers.minDepartmentMonkeys} monkeys can hire a manager, with an office next door.` }] : []),
+        ...(hiring && managerNote ? [{ text: `${managers.minDepartmentMonkeys} monkeys in a department open its manager's chair for good.` }] : []),
       ];
     }
     case 'typewriters': {

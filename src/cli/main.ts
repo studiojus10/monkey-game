@@ -380,7 +380,7 @@ function loadPlays(): PlayData[] {
 /** Choosing who to hire on HR's list of candidates, before the department popup. */
 let hiring = false;
 let hiringManager = false; // the hire (HR's candidates, then the popup) is for a manager's chair
-let bossMenu = -1; // 'Hire or promote a manager': the popup asking which, open (its cursor) when 0 or more
+let bossMenu = -1; // 'Promote or hire a manager': the popup asking which, open (its cursor) when 0 or more
 let keyMenu: { title: string; keys: [string, string][] } | null = null; // a popup of keys: a page's every key ([/]) or the roster's actions ([enter])
 let keyMenuCursor = -1;
 let pageMenu: Page | null = null; // the [tab] menu (a popup of every page), open: the page it was opened from
@@ -427,12 +427,12 @@ function startMove(i: number): void {
   message = '';
 }
 
-/** The choices of 'Hire or promote a manager'. */
+/** The choices of 'Promote or hire a manager'. */
 function bossChoices(): string[] {
   const price = cheapestHire(state, undefined, true);
   return [
-    `Hire a new monkey as a manager  ${Number.isFinite(price) ? `from ${formatPrice(price)} ${theme.currency}` : dim('no free chair')}`,
     `Promote one of your monkeys  ${dim('free')}`,
+    `Hire a new monkey as a manager  ${Number.isFinite(price) ? `from ${formatPrice(price)} ${theme.currency}` : dim('no free chair')}`,
   ];
 }
 
@@ -960,7 +960,7 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'promote' ? 'Promote which monkey to manager?' : upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Hire or promote a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const rows = process.stdout.rows || 0;
   // Any line still wider than the terminal wraps at the end of a word rather than mid-word.
   const shownNow = (popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav)
@@ -1353,7 +1353,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
-  // 'Hire or promote a manager' (Justin, 2026-11-25): [1] hires a new monkey into a manager's chair, [2] promotes a typist.
+  // 'Promote or hire a manager' (Justin, 2026-11-25): [1] promotes a typist, [2] hires a new monkey into a manager's chair.
   if (bossMenu >= 0) {
     const n = bossChoices().length;
     if (key.name === 'up' || key.name === 'down') {
@@ -1363,8 +1363,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     const row = key.name === 'return' || key.name === 'enter' ? bossMenu : str && /^[1-9]$/.test(str) ? Number(str) - 1 : -1;
     bossMenu = -1;
     message = '';
-    if (row === 0) startHire(true);
-    else if (row === 1) {
+    if (row === 1) startHire(true);
+    else if (row === 0) {
       if (upgradeColumns(state, 'promote').cols.length === 0) message = 'No department without a manager has a typist to promote.';
       else upgrading = { kind: 'promote', col: 0, row: 0 };
     }

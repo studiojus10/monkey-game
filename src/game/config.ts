@@ -1021,8 +1021,9 @@ export const sonnetRewards = {
 };
 
 /**
- * Manager monkeys: a department with more than minDepartmentMonkeys monkeys
- * can promote one (at most one per department). A manager stops typing and
+ * Manager monkeys: a department that has had minDepartmentMonkeys typists
+ * opens its manager's chair for good (at most one manager per department),
+ * hired new or promoted from its typists. A manager stops typing and
  * instead keeps its department aimed at the first unwritten line it can
  * spell with your letters: it pins that line and fills your word slots with
  * its words. If several departments have managers, the first department's
