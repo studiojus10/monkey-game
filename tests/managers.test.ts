@@ -15,6 +15,8 @@ import {
   officeOf,
   officelessDepartments,
   pointsMultiplier,
+  promoteBlocker,
+  promoteMonkey,
   readManagerBook,
   roomDesks,
   setHour,
@@ -69,6 +71,30 @@ describe("managers' offices", () => {
     s.furniture = s.furniture.filter((f) => f.kind !== managerDesk.id);
     expect(buyFurniture(s, managerDesk.id)).toBe(true);
     expect(s.furniture[s.furniture.length - 1].room).toBe(officeOf(s, 'comedy')!.id);
+  });
+});
+
+describe('promoting a monkey to manager', () => {
+  it('needs what a hire needs, counting the typists left; it moves to the manager\'s desk for free', () => {
+    const s = department(managers.minDepartmentMonkeys);
+    expect(promoteBlocker(s, 0)).toBe('office needed');
+    buyRoom(s, 'office', 'comedy');
+    expect(promoteBlocker(s, 0)).toBe('1 more monkey needed'); // it would leave too few typists
+    expect(promoteMonkey(s, 0)).toBe(false);
+    const s2 = department(managers.minDepartmentMonkeys + 1);
+    buyRoom(s2, 'office', 'comedy');
+    s2.monkeys[1].tempLeft = 100;
+    expect(promoteBlocker(s2, 1)).toBe("temps can't be promoted");
+    const room = departmentRoom(s2, 'comedy')!;
+    const desks = roomDesks(s2, room).length;
+    const money = s2.currency;
+    expect(promoteMonkey(s2, 0)).toBe(true);
+    expect(s2.currency).toBe(money);
+    expect(managerOf(s2, 'comedy')).toBe(s2.monkeys[0]);
+    expect(s2.furniture[deskOf(s2, 0)!]).toMatchObject({ kind: managerDesk.id, room: officeOf(s2, 'comedy')!.id });
+    expect(roomDesks(s2, room)).toHaveLength(desks - 1); // its typing desk is free for a new hire
+    expect(new Set(s2.monkeys.map((_, i) => deskOf(s2, i))).size).toBe(s2.monkeys.length);
+    expect(promoteBlocker(s2, 2)).toBe('has a manager');
   });
 });
 

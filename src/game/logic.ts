@@ -2104,14 +2104,14 @@ export function managerOf(state: GameState, genre: Genre | undefined): MonkeySta
  * can): it has one, it needs a manager's office with a door into its room
  * and a manager's desk, and minDepartmentMonkeys typing monkeys to manage.
  */
-export function managerBlocker(state: GameState, genre: Genre | undefined): string {
+export function managerBlocker(state: GameState, genre: Genre | undefined, typists = departmentTypists(state, genre)): string {
   if (managerOf(state, genre)) return 'has a manager';
   const office = officeOf(state, genre);
   const room = departmentRoom(state, genre);
   if (!office || !room) return 'office needed';
   if (!doorBetween(state, office, room)) return 'door needed';
   if (!state.furniture.some((f) => f.room === office.id && f.kind === managerDesk.id)) return "manager's desk needed";
-  const short = managers.minDepartmentMonkeys - departmentTypists(state, genre);
+  const short = managers.minDepartmentMonkeys - typists;
   return short > 0 ? `${short} more monkey${short === 1 ? '' : 's'} needed` : '';
 }
 
@@ -2128,6 +2128,34 @@ export function hireManager(state: GameState, genre: Genre | undefined, from?: n
   state.currency -= cost;
   state.monkeysBought.boss = (state.monkeysBought.boss ?? 0) + 1;
   addMonkey(state, { ...takeCandidate(state, from), department: genre, manager: true });
+  manage(state);
+  return true;
+}
+
+/**
+ * Why a typing monkey can't be promoted to its department's manager ('' if it
+ * can): the same needs as hiring one (see managerBlocker), counting the
+ * typists it leaves behind. Temps can't be promoted.
+ */
+export function promoteBlocker(state: GameState, index: number): string {
+  const m = state.monkeys[index];
+  if (!m || !isTypist(m)) return 'not a typist';
+  if (isTemp(m)) return "temps can't be promoted";
+  const genre = monkeyGenre(state, m);
+  return managerBlocker(state, genre, departmentTypists(state, genre) - 1);
+}
+
+/**
+ * Promotes a typing monkey to its department's manager (Justin, 2026-11-25),
+ * free: it leaves its typing desk for the manager's desk in the office.
+ */
+export function promoteMonkey(state: GameState, index: number): boolean {
+  if (promoteBlocker(state, index)) return false;
+  const m = state.monkeys[index];
+  removeDesk(state, index);
+  m.manager = true;
+  m.pending = '';
+  m.progress = 0;
   manage(state);
   return true;
 }

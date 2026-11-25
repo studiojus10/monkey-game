@@ -94,6 +94,7 @@ import {
   recordCount,
   canBuildRecords,
   posts,
+  promoteBlocker,
   postCost,
   isStaff,
   unlocked,
@@ -761,8 +762,8 @@ function typingItems(state: GameState): { skill: ShopItem; typewriter: ShopItem 
   };
 }
 
-/** Who an upgrade popup offers: Faster typing or a better typewriter for a typist, or a manager's upgrade. */
-export type UpgradeKind = 'skill' | 'typewriter' | 'manager';
+/** Who an upgrade popup offers: Faster typing or a better typewriter for a typist, a manager's upgrade, or a typist to promote to manager. */
+export type UpgradeKind = 'skill' | 'typewriter' | 'manager' | 'promote';
 
 /**
  * An upgrade popup's columns, one per department (Justin, 2026-10-21: the
@@ -774,12 +775,22 @@ export function upgradeColumns(state: GameState, kind: UpgradeKind): { cols: { h
   const cols: { heading: string; cells: string[][] }[] = [];
   const monkeys: number[][] = [];
   for (const g of departmentGenres(state)) {
-    const team = kind === 'manager' ? state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) && monkeyGenre(state, m) === g ? [i] : [])) : trainees(state).filter((i) => monkeyGenre(state, state.monkeys[i]) === g);
+    const team =
+      kind === 'manager'
+        ? state.monkeys.flatMap((m, i) => (m.manager && !isTemp(m) && monkeyGenre(state, m) === g ? [i] : []))
+        : kind === 'promote'
+          ? managerOf(state, g) ? [] : state.monkeys.flatMap((m, i) => (isTypist(m) && !isTemp(m) && monkeyGenre(state, m) === g ? [i] : []))
+          : trainees(state).filter((i) => monkeyGenre(state, state.monkeys[i]) === g);
     if (team.length === 0) continue;
     cols.push({
       heading: departmentName(state, g),
       cells: team.map((i) => {
         const m = state.monkeys[i];
+        if (kind === 'promote') {
+          const why = promoteBlocker(state, i);
+          const cell = `${monkeyName(state, i)}  ${why || 'free'}`;
+          return [why ? dim(cell) : affordable(cell)];
+        }
         if (kind === 'manager') {
           const now = 1 + managers.bonusPerLevel * m.managerLevel;
           const next = managers.secondsPerSlot / (managerSpeed(state, m) + managers.speedPerLevel);
@@ -869,7 +880,13 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const nextStart = comboStartCost(state.comboStartLevel);
       const open = departmentGenres(state);
       // Every hire is one item (Justin, 2026-10-18): the department is chosen after, in a popup, each with its own price.
-      const free = posts(state).filter((p) => !p.blocked);
+      // Managers' chairs are hired from their own item, with promotions (Justin, 2026-11-25).
+      const typingPosts = posts(state).filter((p) => p.job !== 'managing');
+      const free = typingPosts.filter((p) => !p.blocked);
+      const chairs = posts(state).filter((p) => p.job === 'managing' && p.have === 0);
+      const freeChairs = chairs.filter((p) => !p.blocked);
+      const promotable = state.monkeys.some((_, i) => !promoteBlocker(state, i));
+      const chairPrice = Math.min(...freeChairs.map((p) => postCost(state, p)));
       const cheapest = Math.min(...free.map((p) => postCost(state, p)));
       const hireItem: ShopItem = {
         id: 'hire',
@@ -880,6 +897,18 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const managerNote = open.some((g) => !managerOf(state, g)) && !posts(state).some((p) => p.job === 'managing' && p.have === 0);
       // Items that show up later go after the ones already there (Justin, 2026-10-21), and stay once they show.
       const later: ShopItem[] = [
+        ...(chairs.length > 0
+          ? [
+              {
+                id: 'boss',
+                text: 'Hire or promote a manager',
+                effect: 'hire a new monkey into a manager\'s chair, or promote a typist for free',
+                ...(freeChairs.length > 0 || promotable
+                  ? { star: promotable || state.currency >= chairPrice, ...(freeChairs.length > 0 ? { cost: [[chairPrice, 'currency']] as [number, Currency][], costFrom: true } : {}) }
+                  : { blocked: chairs[0].blocked }),
+              } as ShopItem,
+            ]
+          : []),
         ...(managerChoices(state).length > 0
           ? [
               {
@@ -912,7 +941,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           ? []
           : free.length > 0
             ? [{ ...hireItem, star: state.currency >= cheapest, cost: [[cheapest, 'currency']], costFrom: free.length > 1 } as ShopItem]
-            : [{ ...hireItem, blocked: new Set(posts(state).map((p) => p.blocked)).size === 1 ? posts(state)[0].blocked : 'no room' }]),
+            : [{ ...hireItem, blocked: new Set(typingPosts.map((p) => p.blocked)).size === 1 ? typingPosts[0].blocked : 'no room' }]),
         ...(!shopRevealed(state, 'shop:combo')
           ? []
           : comboStart(state) >= comboCap(state)
@@ -1752,7 +1781,7 @@ function unlockRank(x: { id: string; unlock?: Unlock }): number {
  * each time it draws, so ones that show up later go at the bottom.
  */
 export function revealKeys(state: GameState): string[] {
-  const staff = storeItems(state, 'staff').filter((x) => x.id && ['manager', 'codefocus', 'telegram', 'classical'].includes(x.id));
+  const staff = storeItems(state, 'staff').filter((x) => x.id && ['boss', 'manager', 'codefocus', 'telegram', 'classical'].includes(x.id));
   const furniture = storeItems(state, 'furniture').flatMap((x) => (x.id?.startsWith('furniture:') ? [x.id] : []));
   return [
     ...shopRevealsNow(state),

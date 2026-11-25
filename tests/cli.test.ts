@@ -45,12 +45,12 @@ import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
-import { columnBox, promptBox, keyBox, cheapestHire, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
+import { columnBox, promptBox, keyBox, cheapestHire, hirePosts, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, lately, monkeyNames } from '../src/game/config';
 import { greekLetters, type PlayData } from '../src/game/plays';
-import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
+import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, promoteMonkey, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
 import { createMonkey } from '../src/game/state';
 import { startedGame } from './start';
@@ -604,7 +604,7 @@ describe('office space on screen', () => {
     s.furniture.push({ kind: 'desk', room: 'r1', x: 1, y: 0 }, { kind: 'desk', room: 'r1', x: 0, y: 1 }, { kind: 'desk', room: 'r1', x: 1, y: 1 });
     s.currency = s.sentences = 1e30;
     const staff = renderScreen(s, '', 'staff');
-    expect(squash(staff)).toContain('[2] Hire a monkey random stats and trait, you have 4 no room\n'); // no price: a desk is what it needs
+    expect(squash(staff)).toContain('[2] Hire a monkey random stats and trait, you have 4 desk needed\n'); // no price: a desk is what it needs
     expect(plain(renderPostPopup(s, 'x', posts(s), -1, true).join('\n'))).toContain('desk needed');
     s.departments = ['comedy', 'tragedy'];
     expect(squash(renderPostPopup(s, 'x', posts(s), -1, true).map(plain).join('\n'))).toContain('[2] Tragedies (0/5) room needed');
@@ -937,6 +937,25 @@ describe('managers and traits on screen', () => {
     expect(office).toContain("Manager's desk"); // a spare, in case one's needed
     expect(squash(office)).toContain('Potted plant'); // decor for the office: it makes the manager quicker
     expect(office).toContain('Couch'); // one store: any piece can go in any room
+  });
+
+  it("hires or promotes managers from one Staff item, and leaves managers' chairs out of Hire a monkey", () => {
+    const s = staffed();
+    s.currency = 1e30;
+    const staff = () => squash(plain(renderScreen(s, '', 'staff')));
+    expect(staff()).toContain('Hire or promote a manager');
+    expect(staff()).toMatch(/Hire or promote a manager [^\n]* office needed/);
+    expect(hirePosts(s).some((p) => p.job === 'managing')).toBe(false);
+    expect(hirePosts(s, true).map((p) => p.id)).toEqual(['boss:comedy']);
+    buyRoom(s, 'office', 'comedy');
+    expect(staff()).not.toMatch(/Hire or promote a manager [^\n]* office needed/);
+    const promote = upgradeColumns(s, 'promote');
+    expect(promote.cols.map((c) => c.heading)).toEqual(['Comedies']);
+    expect(promote.monkeys[0]).toHaveLength(5);
+    expect(plain(promote.cols[0].cells[0][0])).toContain('free');
+    expect(promoteMonkey(s, 0)).toBe(true);
+    expect(upgradeColumns(s, 'promote').cols).toEqual([]); // the department has its manager
+    expect(staff()).not.toContain('Hire or promote a manager');
   });
 
   it("hides the manager's book in the manager's desk; once read, traits show on the home screen, on desks and in the book", () => {
