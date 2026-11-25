@@ -14,7 +14,7 @@ import { replacedTexts, textMap } from './replacedTexts';
  * Version 2 had one chosen play (`play`) and pins as line numbers in it; it
  * loads as owning that whole play.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 interface SaveFile {
   version: number; // the save format (SAVE_VERSION)
@@ -95,6 +95,13 @@ export const migrations: Record<number, (s: RawState) => void> = {
       if (levels.length > 0) m.managerLevel = Math.max(...levels);
       delete m.managerSpeedLevel;
     }
+  },
+  // 6 -> 7 (game 0.21.0): texts are only owned whole (since game 0.11.0), so
+  // a save that bought a text's acts or scenes owns that whole text.
+  6: (s) => {
+    if (!Array.isArray(s.owned)) return;
+    const ids = (s.owned as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.split(':')[0]);
+    s.owned = [...new Set(ids)];
   },
 };
 

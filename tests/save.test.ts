@@ -165,8 +165,7 @@ describe('texts replaced by public-domain editions', () => {
     expect(s.completed.generatione).toEqual(sceneLines(gen, '1.1')); // the whole first chapter, as many lines as it has now
     expect(s.completed.hamlet).toEqual([3]);
     expect(s.pinned).toEqual([{ play: 'generatione', index: sceneLines(gen, '1.1').at(-1) }, { play: 'hamlet', index: 9 }]);
-    // Bekker splits Prantl's 1.9 in two; Schömann's 1.16 takes in 1.17, whose start the importer can't find.
-    expect(s.owned).toEqual(['hamlet:1.1', 'natura:1', 'generatione:1.1', 'generatione:1.9', 'generatione:1.10', 'natura:1.16']);
+    expect(s.owned).toEqual(['hamlet', 'natura', 'generatione']); // texts are owned whole since save version 7
     expect(s.scenesDone).toEqual(['generatione:1.1']); // natura 1.16 now needs 1.17's lines too
   });
 });
@@ -200,5 +199,13 @@ describe('migrations', () => {
     const back = deserialize(JSON.stringify(raw));
     expect(back.monkeys.map((m) => m.managerLevel)).toEqual([3, 2]);
     expect('managerSpeedLevel' in back.monkeys[0]).toBe(false);
+  });
+
+  it('6 -> 7: a text owned in acts or scenes is owned whole', () => {
+    const s = startedGame(0);
+    const raw = JSON.parse(serialize(s));
+    raw.version = 6;
+    raw.state.owned = ['macbeth:1.2', 'macbeth:2', 'midsummer', 'richard3:3'];
+    expect(deserialize(JSON.stringify(raw)).owned).toEqual(['macbeth', 'midsummer', 'richard3']);
   });
 });
