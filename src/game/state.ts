@@ -162,6 +162,7 @@ export interface GameState {
   fengShuiBook: boolean; // read the feng shui book (found in a bookshelf): chi counts, and the office map shows it
   managerBook: boolean; // read the book in a manager's desk: monkeys' traits show
   researchOpen: boolean; // R&D is open
+  managerChairs: string[]; // departments whose manager's chair is open for good: they once had minDepartmentMonkeys typists (or a manager)
   safes: Record<string, SafeState>; // safes found, by the genre of the manager's office they stand in
   codebreakFocus: string; // what Codebreaking works on: a safe's genre, 'telegram', or '' for nothing
   telegrams: TelegramState[]; // telegrams in Enigma that have come, oldest first
@@ -344,6 +345,7 @@ export function createInitialState(now = Date.now()): GameState {
     fengShuiBook: false,
     managerBook: false,
     researchOpen: false,
+    managerChairs: [],
     safes: {},
     codebreakFocus: '',
     telegrams: [],

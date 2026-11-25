@@ -943,19 +943,19 @@ describe('managers and traits on screen', () => {
     const s = staffed();
     s.currency = 1e30;
     const staff = () => squash(plain(renderScreen(s, '', 'staff')));
-    expect(staff()).toContain('Hire or promote a manager');
-    expect(staff()).toMatch(/Hire or promote a manager [^\n]* office needed/);
+    expect(staff()).toContain('Promote or hire a manager');
+    expect(staff()).toMatch(/Promote or hire a manager [^\n]* office needed/);
     expect(hirePosts(s).some((p) => p.job === 'managing')).toBe(false);
     expect(hirePosts(s, true).map((p) => p.id)).toEqual(['boss:comedy']);
     buyRoom(s, 'office', 'comedy');
-    expect(staff()).not.toMatch(/Hire or promote a manager [^\n]* office needed/);
+    expect(staff()).not.toMatch(/Promote or hire a manager [^\n]* office needed/);
     const promote = upgradeColumns(s, 'promote');
     expect(promote.cols.map((c) => c.heading)).toEqual(['Comedies']);
     expect(promote.monkeys[0]).toHaveLength(5);
     expect(plain(promote.cols[0].cells[0][0])).toContain('free');
     expect(promoteMonkey(s, 0)).toBe(true);
     expect(upgradeColumns(s, 'promote').cols).toEqual([]); // the department has its manager
-    expect(staff()).not.toContain('Hire or promote a manager');
+    expect(staff()).not.toContain('Promote or hire a manager');
   });
 
   it("hides the manager's book in the manager's desk; once read, traits show on the home screen, on desks and in the book", () => {

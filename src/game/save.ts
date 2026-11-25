@@ -282,6 +282,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       fengShuiBook: s.fengShuiBook === true,
       managerBook: s.managerBook === true,
       researchOpen: s.researchOpen === true,
+      managerChairs: strings(s.managerChairs),
       safes: Object.fromEntries(
         Object.entries(s.safes && typeof s.safes === 'object' ? (s.safes as Record<string, Partial<SafeState>>) : {})
           .filter(([, x]) => typeof x?.combo === 'string' && /^[A-Z0-9]+$/.test(x.combo))
