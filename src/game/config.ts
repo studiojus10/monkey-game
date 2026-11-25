@@ -138,7 +138,7 @@ export const letterShop = {
 /**
  * A free letter with every monkey hired for Bananas (Justin, 2026-11-25), until
  * your letters and free letters make the whole alphabet. The newspaper's free
- * first monkey doesn't count. Justin wants this back for other alphabets later.
+ * first monkey and temps don't count. Justin wants this back for other alphabets later.
  */
 export const hireLetterGift = true;
 

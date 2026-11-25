@@ -3270,7 +3270,7 @@ export function giveHireLetter(state: GameState): boolean {
 
 /** Takes a candidate off the list, for a hire (every hire for Bananas goes through here): its trait and stats (nothing for an unseen hire). */
 function takeCandidate(state: GameState, from?: number): Partial<MonkeyState> {
-  giveHireLetter(state);
+  if (!(state.candidates[from ?? -1]?.tempLeft > 0)) giveHireLetter(state); // temps bring no letter
   if (from === undefined || !state.candidates[from]) return {};
   const { luck, ...c } = state.candidates.splice(from, 1)[0];
   return c.tempLeft > 0 ? { ...c, typewriter: tempTypewriter(state, luck ?? 0) } : c;
