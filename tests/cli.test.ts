@@ -381,9 +381,9 @@ describe('letter picking', () => {
     const s = startedGame(0);
     chooseFirstLetter(s, 'a');
     s.freeLetters = 2;
-    s.letterGifts = ['first-hire'];
+    s.letterGiftFor = '"Company"';
     const text = plainText(renderLetterPicker(s, true, 0));
-    expect(text).toContain('A free letter for');
+    expect(text).toContain('A free letter for "Company"');
     expect(text).toContain('2 free letters');
     expect(text).not.toContain('esc');
   });

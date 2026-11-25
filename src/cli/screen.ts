@@ -1,5 +1,5 @@
 import { GAME_VERSION } from '../version';
-import { records, lately as latelyRules, achievements, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, type Unlock, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo, opening } from '../game/config';
+import { records, lately as latelyRules, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, type Unlock, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo, opening } from '../game/config';
 import {
   availableKeys,
   flipChance,
@@ -194,9 +194,8 @@ export function renderLetterPicker(state: GameState, free: boolean, cursor: numb
     .sort()
     .map((l) => (state.letters.includes(l) ? dim(l) : isCursor(l, chosen) ? highlight(l) : bold(l)))
     .join(' ');
-  const gift = achievements.find((a) => a.id === state.letterGifts[state.letterGifts.length - 1])?.name ?? '';
   const title = free
-    ? `A free letter${gift ? ` for "${gift}"` : ''}! Choose one.${state.freeLetters > 1 ? `  (${state.freeLetters} free letters)` : ''}`
+    ? `A free letter${state.letterGiftFor ? ` for ${state.letterGiftFor}` : ''}! Choose one.${state.freeLetters > 1 ? `  (${state.freeLetters} free letters)` : ''}`
     : `Buy a letter for ${priceNamed(letterCost(state.letters.length), state.currency)}${letterWordsCost(state.letters.length) > 0 ? ` and ${priceNamed(letterWordsCost(state.letters.length), state.words, 'words')}` : ''}.`;
   return [
     titleBar(state, 'Letters', columns),

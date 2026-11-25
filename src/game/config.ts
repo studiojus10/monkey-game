@@ -135,6 +135,13 @@ export const letterShop = {
  * earn free letters"). The player picks the letter, and can keep free
  * letters for later. Each is given once, ever: Folios keep them.
  */
+/**
+ * A free letter with every monkey hired for Bananas (Justin, 2026-11-25), until
+ * your letters and free letters make the whole alphabet. The newspaper's free
+ * first monkey doesn't count. Justin wants this back for other alphabets later.
+ */
+export const hireLetterGift = true;
+
 export const letterGifts: string[] = ['first-hire', 'first-typewriter', 'pets-100', 'first-hat', 'chain-10', 'flip-won', 'word-banana', 'full-department'];
 
 /**

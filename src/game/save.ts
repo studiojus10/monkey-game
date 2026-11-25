@@ -369,6 +369,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       folioPages: Math.max(0, Math.floor(num(s.folioPages, 0))),
       // Saves from before Folios multiplied each other: all pages in one.
       freeLetters: Math.max(0, Math.floor(num(s.freeLetters, 0))),
+      letterGiftFor: typeof s.letterGiftFor === 'string' ? s.letterGiftFor : '',
       letterGifts: strings(s.letterGifts),
       folioBoost: num(s.folioBoost, 0) >= 1 ? num(s.folioBoost, 0) : 1 + Math.max(0, Math.floor(num(s.folioPages, 0))) * folio.bonusPerPage,
       lastSaved: num(s.lastSaved, now),

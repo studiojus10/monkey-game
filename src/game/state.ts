@@ -211,6 +211,7 @@ export interface GameState {
   folios: number; // Folios published (prestige resets)
   folioPages: number; // pages banked by every Folio published (Marketing's royalties count them)
   freeLetters: number; // letters you can take for free (letterGifts)
+  letterGiftFor: string; // what the latest free letter was for, for the letter picker ('' for none)
   letterGifts: string[]; // achievements whose free letter (letterGifts) has been given; kept by Folios
   folioBoost: number; // bananas x this for good: every Folio's (1 + its pages x folio.bonusPerPage), multiplied together
   lastSaved: number; // epoch ms
@@ -394,6 +395,7 @@ export function createInitialState(now = Date.now()): GameState {
     folios: 0,
     folioPages: 0,
     freeLetters: 0,
+    letterGiftFor: '',
     letterGifts: [],
     folioBoost: 1,
     lastSaved: now,

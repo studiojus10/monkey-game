@@ -1,6 +1,7 @@
 import {
   combo,
   letterGifts,
+  hireLetterGift,
   extraWords,
   lineRewards,
   sentenceRules,
@@ -375,6 +376,7 @@ export function publishFolio(state: GameState): GameState | null {
   next.achievements = [...state.achievements];
   next.letterGifts = [...state.letterGifts];
   next.freeLetters = state.freeLetters;
+  next.letterGiftFor = state.letterGiftFor;
   next.stats = state.stats;
   next.settings = state.settings;
   next.introSeen = state.introSeen;
@@ -985,6 +987,7 @@ export function checkLetterGifts(state: GameState): string[] {
   for (const id of given) {
     state.letterGifts.push(id);
     state.freeLetters++;
+    state.letterGiftFor = `"${achievements.find((a) => a.id === id)?.name ?? id}"`;
   }
   return given;
 }
@@ -3255,8 +3258,19 @@ function seatAtNewDesk(state: GameState, index: number, room: Room | undefined):
   state.furniture.splice(seat, 0, state.furniture.pop()!);
 }
 
-/** Takes a candidate off the list, for a hire: its trait and stats (nothing for an unseen hire). */
+const alphabetSize = 26;
+
+/** A free letter for a monkey hired for Bananas (hireLetterGift), while letters and free letters don't make the whole alphabet. */
+export function giveHireLetter(state: GameState): boolean {
+  if (!hireLetterGift || state.letters.length + state.freeLetters >= alphabetSize) return false;
+  state.freeLetters++;
+  state.letterGiftFor = 'hiring a monkey';
+  return true;
+}
+
+/** Takes a candidate off the list, for a hire (every hire for Bananas goes through here): its trait and stats (nothing for an unseen hire). */
 function takeCandidate(state: GameState, from?: number): Partial<MonkeyState> {
+  giveHireLetter(state);
   if (from === undefined || !state.candidates[from]) return {};
   const { luck, ...c } = state.candidates.splice(from, 1)[0];
   return c.tempLeft > 0 ? { ...c, typewriter: tempTypewriter(state, luck ?? 0) } : c;
