@@ -64,6 +64,9 @@ import {
   canAffordLetter,
   moveMonkeyTo,
   posts,
+  monkeyGenre,
+  promoteMonkey,
+  promoteBlocker,
   postOf,
   hireFor,
   type Post,
@@ -193,7 +196,7 @@ import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, 
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { columnBox, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
+import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -376,6 +379,8 @@ function loadPlays(): PlayData[] {
 
 /** Choosing who to hire on HR's list of candidates, before the department popup. */
 let hiring = false;
+let hiringManager = false; // the hire (HR's candidates, then the popup) is for a manager's chair
+let bossMenu = -1; // 'Hire or promote a manager': the popup asking which, open (its cursor) when 0 or more
 let keyMenu: { title: string; keys: [string, string][] } | null = null; // a popup of keys: a page's every key ([/]) or the roster's actions ([enter])
 let keyMenuCursor = -1;
 let pageMenu: Page | null = null; // the [tab] menu (a popup of every page), open: the page it was opened from
@@ -386,17 +391,19 @@ let postCursor = 0;
 
 /** The departments the popup offers: all of them for a hire, the others (no manager's chair) for a move. */
 function postList(): Post[] {
-  if (choosingPost?.kind !== 'move') return posts(state);
+  if (choosingPost?.kind !== 'move') return hirePosts(state, hiringManager);
   const m = state.monkeys[choosingPost.monkey];
   return posts(state, false).filter((p) => !m || p.id !== postOf(state, m));
 }
 
-/** Hires a monkey: HR's list of candidates first once there's an HR office, then the department popup. */
-function startHire(): void {
-  if (!posts(state).some((p) => !p.blocked)) {
-    message = noSeatMessage();
+/** Hires a monkey (or a manager): HR's list of candidates first once there's an HR office, then the department popup. */
+function startHire(managers = false): void {
+  const list = hirePosts(state, managers);
+  if (!list.some((p) => !p.blocked)) {
+    message = managers ? `No manager's chair is free: ${list[0]?.blocked ?? 'no department needs one'}.` : noSeatMessage();
     return;
   }
+  hiringManager = managers;
   message = '';
   if (hrRoom(state)) {
     hiring = true;
@@ -420,10 +427,19 @@ function startMove(i: number): void {
   message = '';
 }
 
+/** The choices of 'Hire or promote a manager'. */
+function bossChoices(): string[] {
+  const price = cheapestHire(state, undefined, true);
+  return [
+    `Hire a new monkey as a manager  ${Number.isFinite(price) ? `from ${formatPrice(price)} ${theme.currency}` : dim('no free chair')}`,
+    `Promote one of your monkeys  ${dim('free')}`,
+  ];
+}
+
 /** The department popup's lines. */
 function postPopup(): string[] {
   const c = choosingPost!;
-  const title = c.kind === 'hire' ? 'Which department gets the new monkey?' : `Move ${monkeyName(state, c.monkey)} to which department?`;
+  const title = c.kind === 'hire' ? `Which department gets the new ${hiringManager ? 'manager' : 'monkey'}?` : `Move ${monkeyName(state, c.monkey)} to which department?`;
   return renderPostPopup(state, title, postList(), postCursor, c.kind === 'hire', c.kind === 'hire' ? c.from : undefined);
 }
 
@@ -444,7 +460,7 @@ function pickPost(p: Post): void {
   }
   if (hireFor(state, p, c.from)) {
     choosingPost = null;
-    hiring = false;
+    hiring = hiringManager = false;
     welcome(state.monkeys.length - 1);
   } else message = `Not enough ${theme.currency}.`;
 }
@@ -472,6 +488,9 @@ function buyItem(id: string): void {
     }
   } else if (id === 'hire') {
     startHire();
+  } else if (id === 'boss') {
+    bossMenu = 0;
+    message = '';
   } else if (id === 'assign') {
     if (!canSeatMonkey(state)) message = noSeatMessage();
     else if (assignMonkey(state)) welcome(state.monkeys.length - 1);
@@ -668,7 +687,8 @@ function goHome(): void {
   showingScript = showingKeys = showingHelp = showingDev = showingStats = showingRoster = showingAchievements = false;
   showingOffice = showingOptions = showingDictionary = showingSlots = showingInventory = showingLibrary = showingProfiles = false;
   namingProfile = deletingProfile = -1;
-  readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = false;
+  readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = hiringManager = false;
+  bossMenu = -1;
   pickingDyeColor = pickingDepartment = buyingRoom = false;
   upgrading = null;
   confirmingFire = false;
@@ -685,7 +705,7 @@ function goHome(): void {
 
 /** The page open now, for the navigation bar, or null on a screen inside one (a book, a picker, help, a question). */
 function currentPage(): Page | null {
-  if (upgrading || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pageMenu || pickerOpen()) return null;
+  if (upgrading || bossMenu >= 0 || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pageMenu || pickerOpen()) return null;
   if (namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire || showingHelp || showingDev || showingKeys || showingSlots) return null;
   if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
   if (showingInventory || showingRoster) return 'monkeys';
@@ -896,7 +916,7 @@ function draw() {
     : showingInventory
     ? renderInventory(state, invRow, invCol, invHeld, shown, columns)
     : hiring
-    ? renderCandidates(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor)
+    ? renderCandidates(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor, hiringManager)
     : showingScript && contents
     ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns, contentsTab)
     : showingOptions && showingProfiles
@@ -938,9 +958,9 @@ function draw() {
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
-  const upgradeTitle = upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
+  const upgradeTitle = upgrading?.kind === 'promote' ? 'Promote which monkey to manager?' : upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, '[arrows] choose   [enter] buy   [esc] done', columns) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Hire or promote a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   const rows = process.stdout.rows || 0;
   // Any line still wider than the terminal wraps at the end of a word rather than mid-word.
   const shownNow = (popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav)
@@ -1333,6 +1353,24 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     return draw();
   }
 
+  // 'Hire or promote a manager' (Justin, 2026-11-25): [1] hires a new monkey into a manager's chair, [2] promotes a typist.
+  if (bossMenu >= 0) {
+    const n = bossChoices().length;
+    if (key.name === 'up' || key.name === 'down') {
+      bossMenu = (bossMenu + (key.name === 'up' ? n - 1 : 1)) % n;
+      return draw();
+    }
+    const row = key.name === 'return' || key.name === 'enter' ? bossMenu : str && /^[1-9]$/.test(str) ? Number(str) - 1 : -1;
+    bossMenu = -1;
+    message = '';
+    if (row === 0) startHire(true);
+    else if (row === 1) {
+      if (upgradeColumns(state, 'promote').cols.length === 0) message = 'No department without a manager has a typist to promote.';
+      else upgrading = { kind: 'promote', col: 0, row: 0 };
+    }
+    return draw();
+  }
+
   // The upgrade popup: arrows choose a monkey (up and down in a department, left and right between them), enter buys and it stays open; any other key closes it.
   if (upgrading) {
     const { monkeys } = upgradeColumns(state, upgrading.kind);
@@ -1347,7 +1385,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (key.name === 'return' || key.name === 'enter') {
       const i = monkeys[u.col]?.[u.row];
       if (i !== undefined) {
-        if (u.kind === 'manager') message = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Sentences.';
+        if (u.kind === 'promote') {
+          const why = promoteBlocker(state, i);
+          if (promoteMonkey(state, i)) {
+            message = `${monkeyName(state, i)} is the ${departmentName(state, monkeyGenre(state, state.monkeys[i]))} manager now.`;
+            upgrading = null;
+          } else message = `${monkeyName(state, i)} can't be promoted: ${why}.${/office|door|desk/.test(why) ? ' See the office map ([o]).' : ''}`;
+        } else if (u.kind === 'manager') message = upgradeManager(state, i) ? `${monkeyName(state, i)}'s department works harder.` : 'Not enough Sentences.';
         else message = buyTyping(i, u.kind) || (u.kind === 'skill' ? `${monkeyName(state, i)} types faster.` : '');
       }
     } else {

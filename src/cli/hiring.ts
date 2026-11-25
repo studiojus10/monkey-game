@@ -11,9 +11,17 @@ function percent(stat: number): string {
   return stat > 1 ? green(text) : stat < 1 ? red(text) : text;
 }
 
+/**
+ * The posts a hire can go to: managers' chairs for 'Hire or promote a
+ * manager' (Justin, 2026-11-25), every other post for 'Hire a monkey'.
+ */
+export function hirePosts(state: GameState, managers = false): Post[] {
+  return posts(state).filter((p) => (p.job === 'managing') === managers);
+}
+
 /** The cheapest a candidate (from: its index in state.candidates, or none for someone unseen) costs for any post with room, or Infinity with none. */
-export function cheapestHire(state: GameState, from?: number): number {
-  return Math.min(...posts(state).filter((p) => !p.blocked).map((p) => hirePrice(state, postCost(state, p), p.job, from)));
+export function cheapestHire(state: GameState, from?: number, managers = false): number {
+  return Math.min(...hirePosts(state, managers).filter((p) => !p.blocked).map((p) => hirePrice(state, postCost(state, p), p.job, from)));
 }
 
 /**
@@ -22,13 +30,13 @@ export function cheapestHire(state: GameState, from?: number): number {
  * temp, and its lowest price (each department's comes next, in the popup);
  * [0] hires someone unseen.
  */
-export function renderCandidates(state: GameState, message = '', columns = 0, cursor = -1): string {
+export function renderCandidates(state: GameState, message = '', columns = 0, cursor = -1, managers = false): string {
   const rows = state.candidates.map((c, i) => {
     const monkey = { ...createMonkey(), ...c };
     const best = monkeyStats.jobs.map((j) => ({ j, f: jobFeeling(monkey, j.id) })).sort((a, b) => b.f.bonus - a.f.bonus)[0];
     const likes = best.f.bonus > 0 ? green(`${best.f.name} ${best.j.name.toLowerCase()}`) : 'nothing much';
     const trait = state.managerBook ? (traitOf(monkey)?.name ?? '?') : dim('?');
-    const price = cheapestHire(state, i);
+    const price = cheapestHire(state, i, managers);
     return [
       ` [${i + 1}]`,
       padVisible(percent(c.speedStat), 6),
@@ -39,10 +47,10 @@ export function renderCandidates(state: GameState, message = '', columns = 0, cu
       Number.isFinite(price) ? bold(state.currency >= price ? yellow(formatPrice(price)) : formatPrice(price)) : red('no room'),
     ].join(' ');
   }).map((r, i) => (isCursor(i, cursor) ? highlight(r) : r));
-  const unseenPrice = cheapestHire(state);
+  const unseenPrice = cheapestHire(state, undefined, managers);
   const unseen = ` [0]  someone unseen: random stats and trait   ${Number.isFinite(unseenPrice) ? `from ${priceNamed(unseenPrice, state.currency)}` : red('no room')}`;
   return [
-    titleBar(state, 'Hiring a monkey', columns),
+    titleBar(state, managers ? 'Hiring a manager' : 'Hiring a monkey', columns),
     '',
     dim(` ${hr.name} found these monkeys, priced by speed, stamina and feeling about the job.`),
     dim(` Lowest price in ${theme.currency} of any department; pick the department next.`),
