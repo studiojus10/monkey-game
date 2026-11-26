@@ -41,7 +41,7 @@ import {
   pageTabsRow,
   shopKeys,
 } from '../src/cli/screen';
-import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, rule, scrollMarks, spreadHeight, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
@@ -1220,7 +1220,7 @@ describe('scrolling lists', () => {
   it('mark what is above and below the part shown, and nothing when the list fits', () => {
     expect(scrollMarks(0, 0)).toEqual([[], []]);
     const [above, below] = scrollMarks(0, 12, 'more lines');
-    expect(above).toEqual(['']);
+    expect(above).toEqual([' ']); // a space, not '', so spreading doesn't take it for a gap between sections
     expect(plain(below[0])).toBe(' v 12 more lines below');
     expect(plain(scrollMarks(3, 0)[0][0])).toBe(' ^ 3 more above');
   });
@@ -1372,6 +1372,32 @@ describe('screen height', () => {
     expect(fillHeight(`T\n b\n ${'-'.repeat(30)}\n [q] quit`, 7).split('\n')).toEqual(['T', ' b', '', '', '', ` ${'-'.repeat(30)}`, ' [q] quit']);
     expect(fillHeight(`T\n b\n ${'='.repeat(30)}\n shop\n ${'-'.repeat(30)}\n keys`, 8).split('\n')[4]).toBe(` ${'='.repeat(30)}`);
     expect(fillHeight('a\nb\nc', 3)).toBe('a\nb\nc'); // tall enough already
+  });
+
+  it('spreads a short screen between its sections, top first, at most 2 per gap, the rest above the keys', () => {
+    const rule = ` ${'-'.repeat(30)}`;
+    const page = ['T', '', 'a', '', 'b', '', rule, ' [q] quit'].join('\n');
+    // 2 gaps above the last one before the rule; 3 spare lines: +1 each top-down, then +1 to the first.
+    expect(spreadHeight(page, 11).split('\n')).toEqual(['T', '', '', '', 'a', '', '', 'b', '', rule, ' [q] quit']);
+    // 10 spare: both gaps get 2, the other 6 go above the rule.
+    const tall = spreadHeight(page, 18).split('\n');
+    expect(tall).toHaveLength(18);
+    expect(tall.slice(0, 4)).toEqual(['T', '', '', '']);
+    expect(tall[tall.length - 2]).toBe(rule);
+    expect(spreadHeight(page, 5)).toBe(page); // too tall already: unchanged
+  });
+
+  it('leaves popups over the bottom and scroll placeholders alone when spreading', () => {
+    const page = ['T', '', 'a', ' ', 'b', ` ${'='.repeat(30)}`, ' shop', '', ' item', ` ${'-'.repeat(30)}`, ' keys'].join('\n');
+    const out = spreadHeight(page, 13).split('\n');
+    expect(out.slice(-6)).toEqual([` ${'='.repeat(30)}`, ' shop', '', ' item', ` ${'-'.repeat(30)}`, ' keys']);
+    expect(out.slice(0, 4)).toEqual(['T', '', '', '']); // the gap after the title grew, ' ' did not
+  });
+
+  it('draws dividers the full width of the screen', () => {
+    expect(plain(rule(200))).toBe(` ${'-'.repeat(198)}`);
+    expect(plain(coverBottom('a\nb\nc\nd\ne', 'X', 150)).split('\n')[3]).toBe(` ${'='.repeat(148)}`);
+    expect(plain(rule())).toBe(` ${'-'.repeat(90)}`); // no width known: as before
   });
 });
 
