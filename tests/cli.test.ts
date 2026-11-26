@@ -43,7 +43,7 @@ import {
   latelyShown,
 } from '../src/cli/screen';
 import { fitRows } from '../src/cli/fit';
-import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, rule, scrollMarks, spreadHeight, titleBar, yellow } from '../src/cli/style';
+import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
@@ -368,6 +368,23 @@ describe('shop popup', () => {
     expect(border).toBeGreaterThan(0);
     expect(shop).toHaveLength(height);
     expect(home).not.toEqual(plain(renderScreen(s, '', null, 100, -1, height, -1, n)).split('\n')); // spread: there was room to
+    expect(shop.slice(0, border)).toEqual(home.slice(0, border));
+  });
+
+  it('counts a home line that wraps, so the home with the shop is still exactly the game\'s height once wrapped', () => {
+    const s = started();
+    noteLately(s, 'word', ['HELLO']);
+    const columns = 50;
+    const height = 45;
+    // Wrapped as main.ts wraps every screen before it's drawn.
+    const wrap = (x: string) => x.split('\n').flatMap((l) => wrapAnsi(l, columns)).join('\n');
+    expect(plain(renderScreen(s, '', null, columns, -1, height)).split('\n').some((l) => l.length > columns)).toBe(true); // a line that wraps
+    const { rows: n } = fitRows((k) => wrap(renderScreen(s, '', null, columns, -1, height, -1, k)), latelyShown, height, latelyShown);
+    const home = plain(spreadHeight(wrap(renderScreen(s, '', null, columns, -1, height, -1, n)), height)).split('\n');
+    const shop = plain(wrap(renderScreen(s, '', 'typewriters', columns, -1, height, -1, n))).split('\n');
+    const border = shop.findIndex((l) => /^ ={20,}$/.test(l));
+    expect(shop).toHaveLength(height);
+    expect(border).toBeGreaterThan(0);
     expect(shop.slice(0, border)).toEqual(home.slice(0, border));
   });
 

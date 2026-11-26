@@ -112,7 +112,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, spreadHeight, titleBar, yellow, highlight } from './style';
+import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow, highlight } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -625,6 +625,14 @@ export function shopKeys(state: GameState, store: Store, onMap = false): [string
   return [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store, onMap).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']];
 }
 
+/** A screen with each line wider than `columns` wrapped at the end of a word (wrapAnsi), as the terminal front end draws it; 0 columns: unchanged. */
+function wrapLines(screen: string, columns: number): string {
+  return screen
+    .split('\n')
+    .flatMap((l) => wrapAnsi(l, columns))
+    .join('\n');
+}
+
 /** Renders the whole game screen as plain text. `rows` is the game's height, for the shop popup over the home screen (0: no padding). */
 export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0, chosen = -1, news = latelyShown): string {
   const starter = starterGenre(state);
@@ -658,7 +666,8 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   // The home screen is first made as tall as the game (`rows`), its keys at the bottom, so the shop
   // covers only its own height and as much of LATELY as fits stays in sight (Justin, 2026-10-22).
   // It's spread as the home screen is without the shop, so opening the shop moves nothing above it.
-  if (shop) return coverBottom(spreadHeight(renderScreen(state, '', null, columns, -1, rows, chosen, news), rows), renderShop(state, shop, cursor, message, columns, true), columns);
+  // Both are wrapped to the screen first, as the front end wraps them, so a line that wraps still counts.
+  if (shop) return coverBottom(spreadHeight(wrapLines(renderScreen(state, '', null, columns, -1, rows, chosen, news), columns), rows), wrapLines(renderShop(state, shop, cursor, message, columns, true), columns), columns);
   return [...homeLines(state, message, columns, chosen, news), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
 
