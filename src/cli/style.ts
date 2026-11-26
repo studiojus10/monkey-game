@@ -229,9 +229,10 @@ export function terminalFrame(screen: string, rows: number, columns: number, atT
     return columns > 0 && width > 0 && width % columns === 0;
   };
   const lines = placeScreen(screen, rows, atTop).split('\n');
+  // A screen at the top (or taller than the terminal) ends in a newline, with rows below it to clear; at the bottom it fills every row.
+  const clearBelow = atTop || rows <= screen.split('\n').length;
   const last = lines.length - 1;
-  // After placeScreen's last newline (a screen at the top): clear everything below.
-  const drawn = lines.map((l, i) => (i === last && l === '' && last > 0 ? '\x1b[J' : fills(l) ? l : l + '\x1b[K'));
+  const drawn = lines.map((l, i) => (clearBelow && i === last ? '\x1b[J' : fills(l) ? l : l + '\x1b[K'));
   return `\x1b[?2026h\x1b[H${drawn.join('\n')}\x1b[?2026l`;
 }
 

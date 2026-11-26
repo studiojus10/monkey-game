@@ -1225,6 +1225,14 @@ describe('terminal frame', () => {
     expect(terminalFrame('a\nb', 5, 10, true)).toBe(`${sync}\x1b[Ha\x1b[K\nb\x1b[K\n\x1b[J${unsync}`);
   });
 
+  it('clears the rest of the last row of a line too long for one row', () => {
+    expect(terminalFrame('x'.repeat(15), 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n\x1b[K\n${'x'.repeat(15)}\x1b[K${unsync}`);
+  });
+
+  it('clears only to the end of the line after a blank last line at the bottom', () => {
+    expect(terminalFrame('a\n', 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\na\x1b[K\n\x1b[K${unsync}`);
+  });
+
   it('clears below a screen taller than the terminal, which starts at the top', () => {
     expect(terminalFrame('a\nb\nc', 2, 10, false)).toBe(`${sync}\x1b[Ha\x1b[K\nb\x1b[K\nc\x1b[K\n\x1b[J${unsync}`);
   });
