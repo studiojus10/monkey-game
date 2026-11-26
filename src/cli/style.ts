@@ -130,6 +130,13 @@ export function padVisible(s: string, width: number, align: 'left' | 'right' = '
   return align === 'left' ? s + ' '.repeat(room) : ' '.repeat(room) + s;
 }
 
+/** Text cut to `width` visible columns; its ANSI codes all stay, so the styles it opens are still closed. */
+export function cropVisible(s: string, width: number): string {
+  if (plainText(s).length <= width) return s;
+  let shown = 0;
+  return s.replace(/\x1b\[[0-9;]*m|[^\x1b]/g, (t) => (t.length > 1 ? t : shown++ < width ? t : ''));
+}
+
 /** Each currency's colour, wherever its total or a price in it shows. */
 export const currencyColors = { currency: yellow, words: cyan, sentences: magenta, lines: blue };
 

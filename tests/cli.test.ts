@@ -1597,6 +1597,16 @@ describe('screen height', () => {
     expect(bookRows(s, 'bibliography')).not.toContain('');
   });
 
+  it('crops a popup line too wide for the screen, so it does not wrap in the terminal', () => {
+    const box = ['+' + '-'.repeat(70) + '+', `|${bold(' A title')}${' '.repeat(62)}|`];
+    const screen = overlay('a\nb\nc\nd\ne', box, 50).split('\n');
+    expect(screen).toHaveLength(5);
+    expect(screen.every((l) => plainText(l).length <= 50)).toBe(true);
+    expect(plain(screen[3])).toMatch(/^ \| A title +$/);
+    expect(screen[3]).toContain('\x1b[22m'); // its styles still closed
+    expect(overlay('a\nb\nc\nd', ['|ok|'], 80).split('\n')[2]).toMatch(/\|ok\|$/); // a box that fits: whole
+  });
+
   it('draws dividers the full width of the screen', () => {
     expect(plain(rule(200))).toBe(` ${'-'.repeat(198)}`);
     expect(plain(coverBottom('a\nb\nc\nd\ne', 'X', 150)).split('\n')[3]).toBe(` ${'='.repeat(148)}`);
