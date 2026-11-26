@@ -295,7 +295,7 @@ describe('the Research page', () => {
   it('is in the [tab] menu once the R&D lab is built, a page of its own rather than a shop tab', () => {
     const s = started();
     expect(pagesFor(s)).not.toContain('research');
-    s.monkeys.push(...Array.from({ length: 7 }, createMonkey));
+    s.monkeys.push({ ...createMonkey(), manager: true });
     s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab')).toBe(true);
     expect(pagesFor(s)).toEqual(['home', 'shop', 'monkeys', 'office', 'texts', 'records', 'options', 'research']);

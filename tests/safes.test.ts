@@ -94,6 +94,9 @@ describe('safes', () => {
     expect(s.safes.comedy).toEqual({ level: 0, combo: '33333', tries: 0, open: false, held: '' });
     expect(findSafe(s, c)).toBe(false); // found already
     expect(s.codebreakFocus).toBe('comedy');
+    expect(canBuildCodebreaking(s)).toBe(false); // the safe opens Codebreaking's research, not the department
+    expect(projectsLeft(s).some((p) => p.opens === 'codebreaking')).toBe(true);
+    s.researched.push('dept-codebreaking');
     expect(canBuildCodebreaking(s)).toBe(true);
     expect(safeText(s, c)).toContain('Codebreaking Department could crack it');
     expect(safeText(s, c)).toContain('a five-digit dial (100,000 combinations)');
@@ -116,6 +119,7 @@ describe('safes', () => {
     expect(cycleCodebreakFocus(s)).toBe(true);
     expect(s.codebreakFocus).toBe('tragedy');
     expect(codebreakerBlocker(s)).toBe('Codebreaking Department needed');
+    s.researched.push('dept-codebreaking'); // R&D opens it
     expect(buyRoom(s, 'codebreaking')).toBe(true);
     expect(canBuildCodebreaking(s)).toBe(false); // one office
     expect(hireCodebreaker(s)).toBe(true);
@@ -149,6 +153,7 @@ describe('safes', () => {
     try {
       const s = offices();
       findSafe(s, safeIn(s, 'comedy'));
+      s.researched.push('dept-codebreaking'); // R&D opens it
       buyRoom(s, 'codebreaking');
       hireCodebreaker(s);
       expect(unlockGreek(s)).toBe(false); // no scroll yet
@@ -210,6 +215,7 @@ describe('telegrams', () => {
 function telegramsCome() {
   const s = offices();
   findSafe(s, safeIn(s, 'comedy'));
+  s.researched.push('dept-codebreaking'); // R&D opens it
   expect(buyRoom(s, 'codebreaking')).toBe(true);
   expect(hireCodebreaker(s)).toBe(true);
   expect(deliverTelegrams(s, 1)).toBe(false); // not while a safe is locked

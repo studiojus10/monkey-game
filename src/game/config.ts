@@ -510,9 +510,10 @@ export const traits: Trait[] = [
 ];
 
 /**
- * R&D (Justin, 2026-10-14): a department that doesn't type. It opens at
- * opensAt monkeys (before the second play department), needs a lab (a room
- * bought on the office map) and researchers, monkeys hired into it with a
+ * R&D (Justin, 2026-10-14): a department that doesn't type. It opens with
+ * the first manager (Justin, 2026-11-25: R&D comes first, and its research
+ * opens the other staff departments), needs a lab (a room bought on the
+ * office map) and researchers, monkeys hired into it with a
  * desk each, up to maxResearchers. One project runs at a time: it costs
  * bananas to start and takes `hours` of one researcher's work in real time,
  * so two researchers take half as long; it carries on while you're away.
@@ -534,16 +535,23 @@ export interface ResearchProject {
   squares?: number;
   marketing?: number; // a marketing tactic: royalties up by this share
   bombe?: number; // the Bombe tests this share more settings a second
-  needs?: 'marketing' | 'telegram'; // listed only once there's a Marketing office, or a telegram has come
+  needs?: 'marketing' | 'telegram' | 'hr' | 'safe' | 'library'; // listed only once there's a Marketing office, a telegram has come, there's an HR office, a safe has been found, or there's a Library
+  opens?: 'hr' | 'marketing' | 'codebreaking' | 'records'; // finishing it lets that department's room be built on the office map
   after?: string; // listed only once this project is done
 }
 
 export const research = {
   id: 'research', // a researcher's department
   name: 'R&D',
-  opensAt: 8,
   maxResearchers: 10,
   projects: [
+    // Departments (Justin, 2026-11-25): R&D opens first, with the first
+    // manager; every other staff department's unlock makes its research
+    // project show up, and finishing that lets its room be built.
+    { id: 'dept-hr', name: 'Human resources', text: 'Opens the HR Department.', hours: 8, cost: 1e9, opens: 'hr' },
+    { id: 'dept-marketing', name: 'Marketing', text: 'Opens the Marketing Department.', hours: 24, cost: 1e11, opens: 'marketing', needs: 'hr' },
+    { id: 'dept-codebreaking', name: 'Codebreaking', text: 'Opens the Codebreaking Department.', hours: 12, cost: 1e10, opens: 'codebreaking', needs: 'safe' },
+    { id: 'dept-records', name: 'Records', text: 'Opens the Records Department.', hours: 24, cost: 1e12, opens: 'records', needs: 'library' },
     { id: 'chairs', name: 'Ergonomic chairs', text: 'Monkeys tire 10% slower.', hours: 1, cost: 100_000, drain: 0.1 },
     { id: 'snacks', name: 'Banana snacks', text: 'Recovers 20% faster.', hours: 3, cost: 1_000_000, rest: 0.2 },
     { id: 'spelling', name: 'Spelling theory', text: '+10% bananas.', hours: 8, cost: 10_000_000, points: 0.1 },

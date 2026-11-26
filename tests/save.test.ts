@@ -208,4 +208,13 @@ describe('migrations', () => {
     raw.state.owned = ['macbeth:1.2', 'macbeth:2', 'midsummer', 'richard3:3'];
     expect(deserialize(JSON.stringify(raw)).owned).toEqual(['macbeth', 'midsummer', 'richard3']);
   });
+
+  it('6 -> 7: a staff department already built has its research done', () => {
+    const s = startedGame(0);
+    const raw = JSON.parse(serialize(s));
+    raw.version = 6;
+    raw.state.office.push({ ...raw.state.office[0], id: 'x', kind: 'hr' });
+    raw.state.researched = ['chairs'];
+    expect(deserialize(JSON.stringify(raw)).researched).toEqual(['chairs', 'dept-hr']);
+  });
 });
