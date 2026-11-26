@@ -46,7 +46,7 @@ import { fitRows } from '../src/cli/fit';
 import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
-import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
+import { renderRoster, rosterActions, rosterKeys, rosterOrder, rosterPageRows } from '../src/cli/roster';
 import { columnBox, promptBox, keyBox, cheapestHire, hirePosts, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
@@ -332,6 +332,22 @@ describe('the roster', () => {
     expect(plain(shown)).toContain('Typing loves, Managing fine, HR unsuited, Marketing good, Research detests');
     expect(shown).toContain(bold(green('Typing loves'))); // its own job, in bold
     expect(plain(renderHomeKeys(s))).toContain('[m]');
+  });
+
+  it('is as tall whichever monkey is chosen, so its rules and keys stay put and its list keeps its size', () => {
+    const s = started();
+    s.monkeys.push({ ...createMonkey(), department: 'comedy', manager: true, name: 'Boss' }); // a manager's details are a line shorter than a typist's
+    const order = rosterOrder(s);
+    const [manager, typist] = [order.indexOf(1), order.indexOf(0)];
+    for (const columns of [100, 60]) {
+      // Wrapped as main.ts wraps every screen (the manager's Slots line wraps at 60).
+      const lines = (k: number, n = 12) => plain(renderRoster(s, k, '', columns, n).split('\n').flatMap((l) => wrapAnsi(l, columns)).join('\n')).split('\n');
+      const rules = (l: string[]) => l.flatMap((x, k) => (/^ -{20,}$/.test(x) ? [k] : []));
+      expect(lines(manager)).toHaveLength(lines(typist).length);
+      expect(rules(lines(manager))).toEqual(rules(lines(typist)));
+      const fitted = (k: number) => fitRows((n) => lines(k, n).join('\n'), rosterPageRows, 40).rows;
+      expect(fitted(manager)).toBe(fitted(typist));
+    }
   });
 });
 
