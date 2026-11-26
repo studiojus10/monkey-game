@@ -76,17 +76,17 @@ function statText(stat: number): string {
  * about that monkey: its job, typing, energy, hats, trait (once the manager's
  * book is read).
  */
-export function renderRoster(state: GameState, cursor: number, message = '', columns = 0): string {
+export function renderRoster(state: GameState, cursor: number, message = '', columns = 0, pageRows = rosterPageRows): string {
   const order = rosterOrder(state);
   const at = Math.max(0, Math.min(cursor, order.length - 1));
-  const top = Math.max(0, Math.min(at - Math.floor(rosterPageRows / 2), order.length - rosterPageRows));
+  const top = Math.max(0, Math.min(at - Math.floor(pageRows / 2), order.length - pageRows));
   const list: string[] = [];
   order.forEach((i, k) => {
     const dept = departmentName(state, i);
     if (k === 0 || departmentName(state, order[k - 1]) !== dept) {
-      if (k >= top && k < top + rosterPageRows) list.push(dim(` ${dept.toUpperCase()}`));
+      if (k >= top && k < top + pageRows) list.push(dim(` ${dept.toUpperCase()}`));
     }
-    if (k < top || k >= top + rosterPageRows) return;
+    if (k < top || k >= top + pageRows) return;
     const m = state.monkeys[i];
     const role = [m.manager ? 'manager' : isResearcher(m) ? 'researcher' : isHR(m) ? 'HR' : isMarketer(m) ? 'marketing' : isCodebreaker(m) ? 'codebreaker' : isRecorder(m) ? 'records clerk' : '', isTemp(m) ? 'temp' : ''].filter(Boolean).join(', ');
     // The cursor's row is inverse; the others show the hat in its dye.
@@ -134,10 +134,10 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
   return [
     titleBar(state, 'Monkeys', columns),
     '',
-    ...scrollMarks(top, order.length - top - rosterPageRows, 'more monkeys')[0],
+    ...scrollMarks(top, order.length - top - pageRows, 'more monkeys')[0],
     ...list,
-    ...scrollMarks(top, order.length - top - rosterPageRows, 'more monkeys')[1],
-    ...(order.length > rosterPageRows ? [dim(`   ${at + 1} of ${order.length}`)] : []),
+    ...scrollMarks(top, order.length - top - pageRows, 'more monkeys')[1],
+    ...(order.length > pageRows ? [dim(`   ${at + 1} of ${order.length}`)] : []),
     '',
     rule(columns),
     ...details,

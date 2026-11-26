@@ -50,7 +50,7 @@ import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/i
 import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, lately, monkeyNames } from '../src/game/config';
 import { greekLetters, type PlayData } from '../src/game/plays';
-import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, promoteMonkey, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
+import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, promoteMonkey, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately, announce } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
 import { createMonkey } from '../src/game/state';
 import { startedGame } from './start';
@@ -1239,6 +1239,51 @@ describe('scrolling lists', () => {
     const text = plain(renderScript(s, 'long', 20, '', 80));
     expect(text).toMatch(/\^ \d+ lines above/);
     expect(text).toMatch(/v \d+ lines below/);
+  });
+
+  it('show as many rows as they are given', () => {
+    const line = (i: number) => [1, 1, 'A', `Line ${i}.`] as [number, number, string, string];
+    const many = Array.from({ length: 12 }, (_, p) => ({ id: `p${p}`, title: `Play ${p}`, genre: 'comedy' as const, lines: Array.from({ length: 40 }, (_, i) => line(i)) }));
+    setPlays(many);
+    const s = startedGame(0);
+    s.monkeys = Array.from({ length: 30 }, (_, i) => ({ ...createMonkey(), department: 'comedy', number: i + 1 }));
+    expect(plain(renderRoster(s, 0, '', 100, 20))).toContain('v 10 more monkeys below');
+    expect(plain(renderRoster(s, 0, '', 100))).toContain('v 18 more monkeys below'); // default: 12
+    expect(plain(renderAchievements(s, 0, 100, 5))).toContain(`v ${achievements.length - 5} more below`);
+    s.stats.words = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`W${String(i).padStart(2, '0')}`, 1]));
+    expect(plain(renderDictionary(s, 0, 100, 5))).toContain(`v ${40 - 5 * 4} more words below`);
+    expect(plain(renderContents(s, null, 0, '', 100, 'plays', 5))).toContain('v 7 more below');
+    expect(plain(renderContents(s, null, 0, '', 100))).not.toMatch(/more below/); // default: 20
+    expect(plain(renderScript(s, 'p0', 0, '', 100, '', 30))).toContain('v 10 lines below');
+    expect(plain(renderScript(s, 'p0', 0, '', 100, 'SHOP', 30))).toContain('v 10 lines below');
+    expect(plain(renderScript(s, 'p0', 0, '', 100))).toContain('v 25 lines below'); // default: 15
+  });
+});
+
+describe('LATELY news', () => {
+  it('home shows as many news items as it is given, newest last', () => {
+    const s = started();
+    for (let i = 0; i < 12; i++) announce(s, `News ${i}`);
+    expect(s.lately.news).toHaveLength(12);
+    const shown = plain(renderScreen(s, '', null, 100, -1, 0, -1, 5));
+    expect(shown).toContain('News 11');
+    expect(shown).toContain('News 7');
+    expect(shown).not.toContain('News 6');
+    expect(shown.indexOf('News 7')).toBeLessThan(shown.indexOf('News 11'));
+    const fewer = plain(renderScreen(s, '', null, 100));
+    expect(fewer).toContain('News 9');
+    expect(fewer).not.toContain('News 8'); // default: 3
+    expect(plain(renderScreen(s, '', 'staff', 100, -1, 60, -1, 5))).toContain('News 7'); // under the shop too
+  });
+});
+
+describe('shop columns', () => {
+  it("widens the shop's column gaps on a wide screen", () => {
+    const s = started();
+    const header = (cols: number) => plain(renderShop(s, 'staff', -1, '', cols)).split('\n').find((l) => l.includes('ITEM') && l.includes('PRICE'))!;
+    // No width known keeps 2 spaces; a wide screen gets 4, so PRICE moves right 2 spaces per gap.
+    expect(header(250).indexOf('PRICE') - header(0).indexOf('PRICE')).toBeGreaterThanOrEqual(4);
+    expect(plain(renderShop(s, 'staff', -1, '', 0)).split('\n').length).toBe(plain(renderShop(s, 'staff', -1, '', 250)).split('\n').length);
   });
 });
 

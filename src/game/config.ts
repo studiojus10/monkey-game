@@ -858,7 +858,7 @@ export const energy = {
  * shown, and so does any once it is older than that. Sentences keep at most
  * maxSentenceWords words, to keep saves small.
  */
-export const lately = { windowSeconds: 3600, maxSentenceWords: 100, maxNews: 3 };
+export const lately = { windowSeconds: 3600, maxSentenceWords: 100, maxNews: 12 };
 
 export const petting = {
   happinessPerPet: 0.005,
