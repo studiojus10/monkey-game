@@ -295,7 +295,7 @@ describe('the Research page', () => {
   it('is in the [tab] menu once the R&D lab is built, a page of its own rather than a shop tab', () => {
     const s = started();
     expect(pagesFor(s)).not.toContain('research');
-    s.monkeys.push(...Array.from({ length: 7 }, createMonkey));
+    s.monkeys.push({ ...createMonkey(), manager: true });
     s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab')).toBe(true);
     expect(pagesFor(s)).toEqual(['home', 'shop', 'monkeys', 'office', 'texts', 'records', 'options', 'research']);
@@ -381,9 +381,9 @@ describe('letter picking', () => {
     const s = startedGame(0);
     chooseFirstLetter(s, 'a');
     s.freeLetters = 2;
-    s.letterGifts = ['first-hire'];
+    s.letterGiftFor = '"Company"';
     const text = plainText(renderLetterPicker(s, true, 0));
-    expect(text).toContain('A free letter for');
+    expect(text).toContain('A free letter for "Company"');
     expect(text).toContain('2 free letters');
     expect(text).not.toContain('esc');
   });
@@ -1061,6 +1061,17 @@ describe('achievements on screen', () => {
     expect(last.split('\n').slice(1).join('\n')).not.toContain('MONKEY'); // past the title bar
     s.achievements.push('word-monkey');
     expect(plain(renderAchievements(s, 999))).toContain('Self-aware');
+  });
+
+  it('labels free-letter rewards and hides achievements whose mechanic has not shown up', () => {
+    const s = started();
+    s.fengShuiBook = false;
+    const all = () => achievements.map((_, i) => plain(renderAchievements(s, i))).join('\n');
+    expect(all()).not.toContain('Harmony');
+    expect(all()).toContain('Hidden achievement');
+    expect(all()).toMatch(/Best friends +Pet the monkeys 100 times.*Reward: a free letter/);
+    s.fengShuiBook = true;
+    expect(all()).toContain('Harmony');
   });
 
   it('shows a heart by a monkey petted lately', () => {

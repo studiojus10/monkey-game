@@ -432,6 +432,23 @@ describe('buying letters', () => {
 });
 
 describe('monkeys', () => {
+  it('gives a free letter with every monkey bought, until the alphabet is full', () => {
+    const s = startedGame(0);
+    chooseFirstLetter(s, 'i');
+    s.freeLetters = 0;
+    s.currency = 1e30;
+    expect(buyMonkey(s)).toBe(true);
+    expect(s.freeLetters).toBe(1);
+    expect(s.letterGiftFor).toBe('hiring a monkey');
+    s.freeLetters = 26 - s.letters.length;
+    expect(buyMonkey(s)).toBe(true);
+    expect(s.freeLetters).toBe(26 - s.letters.length); // letters and free letters already make the alphabet
+    s.freeLetters = 0;
+    s.candidates = [{ trait: 'loner', speedStat: 1.1, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' }, tempLeft: 100 }];
+    expect(buyMonkey(s, undefined, 0)).toBe(true);
+    expect(s.freeLetters).toBe(0); // temps bring no letter
+  });
+
   it('buying a monkey costs points and raises the next price', () => {
     const s = startedGame(0);
     chooseFirstLetter(s, 'i');

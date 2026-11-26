@@ -255,13 +255,13 @@ describe('traits and offices in saves', () => {
 });
 
 describe('R&D', () => {
-  it('opens at enough monkeys, needs a lab and researchers, and researches in real time, faster with more researchers', async () => {
+  it('opens with the first manager, needs a lab and researchers, and researches in real time, faster with more researchers', async () => {
     const { research } = await import('../src/game/config');
     const L = await import('../src/game/logic');
-    const s = department(research.opensAt - 1);
+    const s = department(4);
     expect(L.canBuildLab(s)).toBe(false);
     expect(buyRoom(s, 'lab')).toBe(false);
-    s.monkeys.push({ ...createMonkey(), department: 'comedy' });
+    s.monkeys.push({ ...createMonkey(), department: 'comedy', manager: true });
     expect(L.researcherBlocker(s)).toBe('lab needed');
     expect(buyRoom(s, 'lab')).toBe(true); // building the lab opens R&D
     expect(s.researchOpen).toBe(true);
@@ -273,9 +273,9 @@ describe('R&D', () => {
     for (const i of r) s.monkeys[i].trait = 'none';
     expect(L.isTypist(s.monkeys[r[0]])).toBe(false);
     expect(L.monkeyGenre(s, s.monkeys[r[0]])).toBeUndefined();
-    const p = research.projects[0];
+    const p = research.projects.find((q) => q.id === 'chairs')!;
     expect(L.startResearch(s, p.id)).toBe(true);
-    expect(L.startResearch(s, research.projects[1].id)).toBe(false); // one at a time
+    expect(L.startResearch(s, 'snacks')).toBe(false); // one at a time
     expect(L.researchSecondsLeft(s)).toBeCloseTo((p.hours * 3600) / 2);
     L.advanceResearch(s, (p.hours * 3600) / 2);
     expect(s.researched).toEqual([p.id]);
@@ -299,6 +299,7 @@ describe('HR', () => {
     expect(hireManager(s, 'comedy')).toBe(true);
     expect(L.hrBlocker(s)).toBe('HR Department needed');
     const happy = L.happiness(s, 'comedy');
+    s.researched.push('dept-hr'); // R&D opens it
     expect(buyRoom(s, 'hr')).toBe(true);
     expect(buyRoom(s, 'hr')).toBe(false); // one HR Department
     expect(L.hireHR(s)).toBe(true);
@@ -350,6 +351,7 @@ describe('hidden stats and job feelings', () => {
     boss.jobs = { managing: 'good' };
     expect(L.managerMultiplier(s, s.monkeys[0])).toBeCloseTo((1 + managers.bonusPerLevel) * 1.1);
     expect(L.statsShown(s)).toBe(false);
+    s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
     expect(L.statsShown(s)).toBe(true);
   });
@@ -385,6 +387,7 @@ describe('hiring through HR', () => {
     expect(s.candidates).toEqual([]); // no HR Department yet
     buyRoom(s, 'office', 'comedy');
     hireManager(s, 'comedy');
+    s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
     let r = 0;
     L.drawCandidates(s, 1, () => ((r += 0.37) % 1));
@@ -525,6 +528,7 @@ describe('temps', () => {
     s.lines = 1e9;
     buyRoom(s, 'office', 'comedy');
     hireManager(s, 'comedy');
+    s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
     L.drawCandidates(s, 1, () => 0); // rng 0: every candidate a temp
     expect(s.candidates.every((c) => c.tempLeft === hr.tempHours * 3600)).toBe(true);
@@ -573,8 +577,10 @@ describe('Marketing', () => {
     hireManager(s, 'comedy');
     expect(L.canBuildMarketing(s)).toBe(false); // HR first
     expect(L.projectsLeft(s).some((p) => p.needs === 'marketing')).toBe(false); // tactics hidden
+    s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
     expect(L.marketingBlocker(s)).toBe('Marketing Department needed');
+    s.researched.push('dept-marketing'); // R&D opens it
     expect(buyRoom(s, 'marketing')).toBe(true);
     expect(L.projectsLeft(s).some((p) => p.needs === 'marketing')).toBe(true);
     s.scenesDone = ['mk:1.1'];

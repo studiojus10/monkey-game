@@ -53,6 +53,8 @@ describe('the Records department', () => {
     s.playsDone = ['p'];
     expect(canBuildRecords(s)).toBe(false); // the Library first
     expect(buyRoom(s, 'library')).toBe(true);
+    expect(canBuildRecords(s)).toBe(false); // the Library opens Records' research
+    s.researched.push('dept-records'); // R&D opens it
     expect(canBuildRecords(s)).toBe(true);
     expect(buyRoom(s, 'records')).toBe(true);
     return s;

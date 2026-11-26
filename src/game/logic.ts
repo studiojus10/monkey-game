@@ -1,6 +1,7 @@
 import {
   combo,
   letterGifts,
+  hireLetterGift,
   extraWords,
   lineRewards,
   sentenceRules,
@@ -34,6 +35,7 @@ import {
   petting,
   lately,
   achievements,
+  type Achievement,
   folio,
   fengShui,
   managerDesk,
@@ -374,6 +376,7 @@ export function publishFolio(state: GameState): GameState | null {
   next.achievements = [...state.achievements];
   next.letterGifts = [...state.letterGifts];
   next.freeLetters = state.freeLetters;
+  next.letterGiftFor = state.letterGiftFor;
   next.stats = state.stats;
   next.settings = state.settings;
   next.introSeen = state.introSeen;
@@ -984,6 +987,7 @@ export function checkLetterGifts(state: GameState): string[] {
   for (const id of given) {
     state.letterGifts.push(id);
     state.freeLetters++;
+    state.letterGiftFor = `"${achievements.find((a) => a.id === id)?.name ?? id}"`;
   }
   return given;
 }
@@ -2493,6 +2497,37 @@ export function achievementValue(state: GameState, stat: string): number {
   }
 }
 
+/** Whether an achievement can be worked toward yet: its mechanic has shown up, so listing it spoils nothing. */
+export function achievementOpen(state: GameState, a: Achievement): boolean {
+  if (a.stat.startsWith('wearing:')) return shopRevealed(state, 'store:hats');
+  switch (a.stat) {
+    case 'linesWritten':
+    case 'scenes':
+    case 'acts':
+    case 'plays': return state.owned.length > 0;
+    case 'monkeys':
+    case 'departments': return shopRevealed(state, 'shop:hire');
+    case 'named':
+    case 'rooms':
+    case 'furniture':
+    case 'biggestDepartment': return state.monkeys.length > 0;
+    case 'managers': return state.managerChairs.length > 0 || state.monkeys.some((m) => m.manager);
+    case 'researchers':
+    case 'researched': return state.researchOpen || canBuildLab(state);
+    case 'hrStaff': return !!hrRoom(state) || canBuildHR(state);
+    case 'marketers': return !!marketingRoom(state) || canBuildMarketing(state);
+    case 'harmony': return state.fengShuiBook;
+    case 'hats':
+    case 'hatKinds':
+    case 'dyed': return shopRevealed(state, 'store:hats');
+    case 'typewriter': return shopRevealed(state, 'shop:typewriter');
+    case 'keys': return keysUnlocked(state);
+    case 'slots': return slotsUnlocked(state);
+    case 'folios': return state.folios > 0 || canPublishFolio(state);
+    default: return true;
+  }
+}
+
 /** Unlocks every achievement whose measure is reached. Returns the ids newly unlocked. */
 export function checkAchievements(state: GameState): string[] {
   const got: string[] = [];
@@ -2541,9 +2576,26 @@ export function researchers(state: GameState): number[] {
   return state.monkeys.flatMap((m, i) => (isResearcher(m) ? [i] : []));
 }
 
-/** Whether an R&D lab can be built on the office map: you have research.opensAt monkeys and no lab yet. Building it opens R&D. */
+/** Whether an R&D lab can be built on the office map: a manager has been hired and there's no lab yet. Building it opens R&D. */
 export function canBuildLab(state: GameState): boolean {
-  return !labRoom(state) && state.monkeys.length >= research.opensAt;
+  return !labRoom(state) && state.monkeys.some((m) => m.manager);
+}
+
+/** Whether the research that opens a staff department is done (see research.projects' opens). */
+export function departmentResearched(state: GameState, dept: NonNullable<ResearchProject['opens']>): boolean {
+  return research.projects.some((p) => p.opens === dept && state.researched.includes(p.id));
+}
+
+/** Whether a project's needs are met, so it can be listed. */
+function projectNeedsMet(state: GameState, p: ResearchProject): boolean {
+  switch (p.needs) {
+    case 'marketing': return !!marketingRoom(state);
+    case 'telegram': return state.telegrams.length > 0;
+    case 'hr': return !!hrRoom(state);
+    case 'safe': return Object.keys(state.safes).length > 0;
+    case 'library': return !!libraryRoom(state);
+    default: return true;
+  }
 }
 
 /** Points for the next researcher. */
@@ -2630,7 +2682,7 @@ export function researchList(state: GameState): ResearchProject[] {
 }
 
 export function projectsLeft(state: GameState): ResearchProject[] {
-  return research.projects.filter((p) => !state.researched.includes(p.id) && (state.researching === p.id || ((p.needs !== 'marketing' || !!marketingRoom(state)) && (p.needs !== 'telegram' || state.telegrams.length > 0) && (!p.after || state.researched.includes(p.after)))));
+  return research.projects.filter((p) => !state.researched.includes(p.id) && (state.researching === p.id || (projectNeedsMet(state, p) && (!p.after || state.researched.includes(p.after)))));
 }
 
 /** Starts a project, paying its price. One at a time. */
@@ -2674,6 +2726,7 @@ export function advanceResearch(state: GameState, seconds: number): void {
     state.researched.push(p.id);
     state.researching = '';
     state.researchProgress = 0;
+    if (p.opens) announce(state, `R&D finished ${p.name}: build its department on the office map.`);
   }
 }
 
@@ -2795,7 +2848,7 @@ export function codebreakers(state: GameState): number[] {
 
 /** Whether Codebreaking's office can be built on the office map: a safe has been found and there's no Codebreaking office yet. */
 export function canBuildCodebreaking(state: GameState): boolean {
-  return !codebreakingRoom(state) && Object.keys(state.safes).length > 0;
+  return !codebreakingRoom(state) && departmentResearched(state, 'codebreaking');
 }
 
 /** Bananas for the next codebreaker (before HR's discount on a candidate). */
@@ -2927,7 +2980,7 @@ export function marketers(state: GameState): number[] {
 
 /** Whether Marketing's office can be built on the office map: there's an HR office and no Marketing office yet. */
 export function canBuildMarketing(state: GameState): boolean {
-  return !marketingRoom(state) && !!hrRoom(state);
+  return !marketingRoom(state) && departmentResearched(state, 'marketing');
 }
 
 /** Bananas for the next marketing monkey (before HR's discount on a candidate). */
@@ -2977,7 +3030,7 @@ export function royalties(state: GameState): number {
 
 /** Whether HR's office can be built on the office map: a manager has been hired and there's no HR office yet. */
 export function canBuildHR(state: GameState): boolean {
-  return !hrRoom(state) && state.monkeys.some((m) => m.manager);
+  return !hrRoom(state) && departmentResearched(state, 'hr');
 }
 
 /** Points for the next HR monkey. */
@@ -3223,8 +3276,19 @@ function seatAtNewDesk(state: GameState, index: number, room: Room | undefined):
   state.furniture.splice(seat, 0, state.furniture.pop()!);
 }
 
-/** Takes a candidate off the list, for a hire: its trait and stats (nothing for an unseen hire). */
+const alphabetSize = 26;
+
+/** A free letter for a monkey hired for Bananas (hireLetterGift), while letters and free letters don't make the whole alphabet. */
+export function giveHireLetter(state: GameState): boolean {
+  if (!hireLetterGift || state.letters.length + state.freeLetters >= alphabetSize) return false;
+  state.freeLetters++;
+  state.letterGiftFor = 'hiring a monkey';
+  return true;
+}
+
+/** Takes a candidate off the list, for a hire (every hire for Bananas goes through here): its trait and stats (nothing for an unseen hire). */
 function takeCandidate(state: GameState, from?: number): Partial<MonkeyState> {
+  if (!(state.candidates[from ?? -1]?.tempLeft > 0)) giveHireLetter(state); // temps bring no letter
   if (from === undefined || !state.candidates[from]) return {};
   const { luck, ...c } = state.candidates.splice(from, 1)[0];
   return c.tempLeft > 0 ? { ...c, typewriter: tempTypewriter(state, luck ?? 0) } : c;
@@ -3476,7 +3540,7 @@ export function recorders(state: GameState): number[] {
 
 /** Whether Records' office can be built on the office map: the Library stands and there's no Records office yet. */
 export function canBuildRecords(state: GameState): boolean {
-  return !recordsRoom(state) && !!libraryRoom(state);
+  return !recordsRoom(state) && departmentResearched(state, 'records');
 }
 
 /** Bananas for the next records clerk (before HR's discount on a candidate). */

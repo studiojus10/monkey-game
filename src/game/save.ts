@@ -14,7 +14,7 @@ import { replacedTexts, textMap } from './replacedTexts';
  * Version 2 had one chosen play (`play`) and pins as line numbers in it; it
  * loads as owning that whole play.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 interface SaveFile {
   version: number; // the save format (SAVE_VERSION)
@@ -95,6 +95,20 @@ export const migrations: Record<number, (s: RawState) => void> = {
       if (levels.length > 0) m.managerLevel = Math.max(...levels);
       delete m.managerSpeedLevel;
     }
+  },
+  // 6 -> 7 (game 0.21.0): texts are only owned whole (since game 0.11.0), so
+  // a save that bought a text's acts or scenes owns that whole text. And staff
+  // departments now open through research, so a save that has built one has
+  // done its research.
+  6: (s) => {
+    if (Array.isArray(s.owned)) {
+      const ids = (s.owned as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.split(':')[0]);
+      s.owned = [...new Set(ids)];
+    }
+    const kinds = new Set((Array.isArray(s.office) ? s.office : []).map((r: { kind?: unknown } | null) => r?.kind));
+    const done = Array.isArray(s.researched) ? (s.researched as unknown[]) : [];
+    for (const p of research.projects) if (p.opens && kinds.has(p.opens) && !done.includes(p.id)) done.push(p.id);
+    s.researched = done;
   },
 };
 
@@ -369,6 +383,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       folioPages: Math.max(0, Math.floor(num(s.folioPages, 0))),
       // Saves from before Folios multiplied each other: all pages in one.
       freeLetters: Math.max(0, Math.floor(num(s.freeLetters, 0))),
+      letterGiftFor: typeof s.letterGiftFor === 'string' ? s.letterGiftFor : '',
       letterGifts: strings(s.letterGifts),
       folioBoost: num(s.folioBoost, 0) >= 1 ? num(s.folioBoost, 0) : 1 + Math.max(0, Math.floor(num(s.folioPages, 0))) * folio.bonusPerPage,
       lastSaved: num(s.lastSaved, now),
