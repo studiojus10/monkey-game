@@ -718,10 +718,16 @@ function goHome(): void {
   message = '';
 }
 
-/** The page open now, for the navigation bar, or null on a screen inside one (a book, a picker, help, a question). */
-function currentPage(): Page | null {
-  if (upgrading || bossMenu >= 0 || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pageMenu || pickerOpen()) return null;
-  if (namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire || showingHelp || showingDev || showingKeys || showingSlots) return null;
+/**
+ * The page open now, for the navigation bar, or null on a screen inside one
+ * (a book, a picker, help, a question). `drawn`: the page as drawn, under a
+ * popup or a question on the message line, which keeps its tabs row so
+ * nothing under them moves.
+ */
+function currentPage(drawn = false): Page | null {
+  const over = upgrading || bossMenu >= 0 || picker || choosingPost || keyMenu || pageMenu || pickerOpen() || namingMonkey >= 0 || confirmingFire;
+  if ((over && !drawn) || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring) return null;
+  if (confirmingReset || confirmingFolio || showingHelp || showingDev || showingKeys || showingSlots) return null;
   if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
   if (showingInventory || showingRoster) return 'monkeys';
   if (showingScript) return 'texts';
@@ -908,7 +914,7 @@ function draw() {
   // A picker is a popup (promptBox), not a line on the screen.
   const shown = pickerOpen() ? '' : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
-  const page = currentPage();
+  const page = currentPage(true);
   const nav = page ? pageTabsRow(page, currentTab()) : [];
   const navHeight = nav.length;
   const rows = process.stdout.rows || 0;
