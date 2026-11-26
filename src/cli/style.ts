@@ -212,6 +212,29 @@ export function fillHeight(screen: string, height: number): string {
   return lines.join('\n');
 }
 
+/**
+ * A screen as written to the terminal each frame, placed as placeScreen does.
+ * It draws over the last frame instead of erasing the whole screen first: the
+ * terminal gets the output in pieces (1 KB at a time on macOS), and a terminal
+ * that draws between them, like Ghostty, showed a blank screen for a moment,
+ * so the game flashed. Each line clears what's left of the last frame after
+ * it, and the whole frame goes in synchronized output (mode 2026), so a
+ * terminal that knows it shows the frame only once it's complete. A line that
+ * fills the width (or a multiple, wrapped) gets no clear: the cursor stays on
+ * its last column, and clearing from there would erase its last character.
+ */
+export function terminalFrame(screen: string, rows: number, columns: number, atTop: boolean): string {
+  const fills = (line: string) => {
+    const width = plainText(line).length;
+    return columns > 0 && width > 0 && width % columns === 0;
+  };
+  const lines = placeScreen(screen, rows, atTop).split('\n');
+  const last = lines.length - 1;
+  // After placeScreen's last newline (a screen at the top): clear everything below.
+  const drawn = lines.map((l, i) => (i === last && l === '' && last > 0 ? '\x1b[J' : fills(l) ? l : l + '\x1b[K'));
+  return `\x1b[?2026h\x1b[H${drawn.join('\n')}\x1b[?2026l`;
+}
+
 /** The terminal row (1-based) that placeScreen's first line lands on; below 1 when the top has scrolled away. */
 export function screenTop(screen: string, rows: number, atTop: boolean): number {
   const lines = screen.split('\n').length;

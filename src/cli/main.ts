@@ -192,7 +192,7 @@ import {
   type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, lightShade, placeScreen, screenTop, showCursors, terminalBackground, wrapAnsi } from './style';
+import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, lightShade, screenTop, showCursors, terminalBackground, terminalFrame, wrapAnsi } from './style';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
@@ -982,8 +982,7 @@ function draw() {
   const shownScreen = lines.join('\n');
   process.stdout.write(
     (state.settings.mouse ? mouseOn : mouseOff) +
-      '\x1b[2J\x1b[H' +
-      placeScreen(state.settings.lightBackground ? forLightBackground(shownScreen) : lightTerminal ? lightShade(shownScreen) : shownScreen, rows, state.settings.screenAtTop),
+      terminalFrame(state.settings.lightBackground ? forLightBackground(shownScreen) : lightTerminal ? lightShade(shownScreen) : shownScreen, rows, columns, state.settings.screenAtTop),
   );
 }
 

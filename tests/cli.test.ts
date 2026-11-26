@@ -41,7 +41,7 @@ import {
   pageTabsRow,
   shopKeys,
 } from '../src/cli/screen';
-import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, scrollMarks, terminalFrame, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
@@ -1197,6 +1197,36 @@ describe('screen position', () => {
     expect(placeScreen('a\nb\nc', 2, false)).toBe('a\nb\nc\n');
     expect(startedGame(0).settings.screenAtTop).toBe(false);
     expect(squash(renderOptions(startedGame(0)))).toContain('[4] Screen at the top off');
+  });
+});
+
+describe('terminal frame', () => {
+  const sync = '\x1b[?2026h';
+  const unsync = '\x1b[?2026l';
+
+  it('draws over the last frame instead of erasing the screen first, inside synchronized output', () => {
+    const out = terminalFrame('a\nb', 4, 10, false);
+    expect(out).not.toContain('\x1b[2J');
+    expect(out.startsWith(`${sync}\x1b[H`)).toBe(true);
+    expect(out.endsWith(unsync)).toBe(true);
+  });
+
+  it("clears the rest of each line it writes, blank lines above the screen too", () => {
+    expect(terminalFrame('a\nb', 4, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n\x1b[K\na\x1b[K\nb\x1b[K${unsync}`);
+  });
+
+  it('leaves a line that fills the width alone, so its last character is not erased', () => {
+    expect(terminalFrame(`${'x'.repeat(10)}\nb`, 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n${'x'.repeat(10)}\nb\x1b[K${unsync}`);
+    expect(terminalFrame(bold('x'.repeat(10)), 2, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n${bold('x'.repeat(10))}${unsync}`);
+    expect(terminalFrame('x'.repeat(20), 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n\x1b[K\n${'x'.repeat(20)}${unsync}`); // wrapped onto two rows
+  });
+
+  it('clears below a screen shorter than the terminal at the top', () => {
+    expect(terminalFrame('a\nb', 5, 10, true)).toBe(`${sync}\x1b[Ha\x1b[K\nb\x1b[K\n\x1b[J${unsync}`);
+  });
+
+  it('clears below a screen taller than the terminal, which starts at the top', () => {
+    expect(terminalFrame('a\nb\nc', 2, 10, false)).toBe(`${sync}\x1b[Ha\x1b[K\nb\x1b[K\nc\x1b[K\n\x1b[J${unsync}`);
   });
 });
 
