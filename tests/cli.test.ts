@@ -45,6 +45,7 @@ import {
   contentsPageSize,
 } from '../src/cli/screen';
 import { fitPage, fitRows, type PageFit } from '../src/cli/fit';
+import { bookRows } from '../src/cli/library';
 import { affordable, bold, coverBottom, fillHeight, fillUnderList, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
@@ -1585,6 +1586,15 @@ describe('screen height', () => {
     const atEnd = ['T', '', ...scrollMarks(3, 0)[0], ' x', ...scrollMarks(3, 0)[1], '', rule, ' keys'].join('\n');
     expect(fillUnderList(atEnd, 9).split('\n').slice(4)).toEqual([' ', '', '', rule, ' keys']); // the blank mark at the end
     expect(fillUnderList(['T', ' a', rule, ' keys'].join('\n'), 6)).toBe(fillHeight(['T', ' a', rule, ' keys'].join('\n'), 6)); // no list: above the keys
+  });
+
+  it('keeps blank lines inside lists from being spread: scene breaks and bibliography entries are a space', () => {
+    const s = started();
+    const script = plain(renderScript(s, 'test', 0, '', 100)).split('\n');
+    expect(script[script.findIndex((l) => /SCENE 2/.test(l)) - 1]).toBe(' ');
+    expect(bookRows(s, 'test')).not.toContain('');
+    expect(bookRows(s, 'test')).toContain(' ');
+    expect(bookRows(s, 'bibliography')).not.toContain('');
   });
 
   it('draws dividers the full width of the screen', () => {

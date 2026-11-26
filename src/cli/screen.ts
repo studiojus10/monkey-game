@@ -1709,7 +1709,8 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
         ? `${count(w)} / ${count(total)} written${w === total ? ` ${green('finished')}` : ''}`
         : dim(`${count(total)} line${total === 1 ? '' : 's'}, not owned`);
       const heading = ` ${dim(sceneName(sc.act, sc.scene, play.genre).toUpperCase())}   ${status}`;
-      rows.push(...(rows.length > 0 ? [''] : []), padVisible(heading, Math.max(rowWidth - needsWidth, plainText(heading).length + 2)) + dim('NEEDS'));
+      // A space between scenes, not '', so spreadHeight doesn't push the list apart (as scrollMarks).
+      rows.push(...(rows.length > 0 ? [' '] : []), padVisible(heading, Math.max(rowWidth - needsWidth, plainText(heading).length + 2)) + dim('NEEDS'));
     }
     const written = done.includes(i);
     const owned = ownsScene(state, play.id, sc);
