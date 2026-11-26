@@ -214,6 +214,24 @@ function bottomStart(lines: string[]): number {
 }
 
 /**
+ * A screen with a scrolling list, `height` lines tall: its spare lines go
+ * right under the list (after its bottom mark, see scrollMarks), so a list a
+ * line shorter at one cursor than at the next (a heading, a row that wraps)
+ * moves nothing, under it or over it. With no list mark it's fillHeight.
+ */
+export function fillUnderList(screen: string, height: number): string {
+  const lines = screen.split('\n');
+  const missing = height - lines.length;
+  if (missing <= 0) return screen;
+  const end = bottomStart(lines);
+  let mark = -1;
+  for (let i = end - 1; i > 0 && mark < 0; i--) if (/^ (v [\d,]+ .+ below)?$/.test(plainText(lines[i]))) mark = i;
+  if (mark < 0) return fillHeight(screen, height);
+  lines.splice(mark + 1, 0, ...Array<string>(missing).fill(''));
+  return lines.join('\n');
+}
+
+/**
  * A screen `height` lines tall, its spare lines spread between its sections
  * (the fill-terminal design: in a tall window the space goes "into spacing
  * between its sections, not one big gap"). Each gap between sections (a run

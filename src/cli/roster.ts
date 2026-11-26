@@ -98,9 +98,11 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
   // The details are padded to the tallest monkey's (as wrapped to the screen), so the page is as tall
   // whichever monkey is chosen: its rules and keys stay put and its list keeps its size. The others
   // are measured with wide stand-ins for the costly numbers (see detailsOf), never shorter than they are.
+  // A message takes two of the padding's lines (more if it wraps), so it doesn't move the keys either.
   const height = (lines: string[]) => lines.reduce((n, l) => n + wrapAnsi(l, columns).length, 0);
   const tallest = Math.max(height(details), ...order.map((k) => height(detailsOf(state, k, false))));
-  const padding = Array<string>(tallest - height(details)).fill('');
+  const note = message ? ['', ` ${bold(message)}`] : [];
+  const padding = Array<string>(Math.max(0, tallest + 2 - height(details) - height(note))).fill('');
 
   return [
     titleBar(state, 'Monkeys', columns),
@@ -112,7 +114,7 @@ export function renderRoster(state: GameState, cursor: number, message = '', col
     '',
     rule(columns),
     ...details,
-    ...(message ? ['', ` ${bold(message)}`] : []),
+    ...note,
     ...padding,
     '',
     rule(columns),

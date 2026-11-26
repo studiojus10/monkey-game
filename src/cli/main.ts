@@ -193,8 +193,8 @@ import {
   type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { askBackground, bold, dim, forLightBackground, inverseSpan, lightShade, placeScreen, screenTop, showCursors, spreadHeight, terminalBackground, wrapAnsi } from './style';
-import { fitRows } from './fit';
+import { askBackground, bold, dim, fillUnderList, forLightBackground, inverseSpan, lightShade, placeScreen, screenTop, showCursors, spreadHeight, terminalBackground, wrapAnsi } from './style';
+import { fitPage, fitRows } from './fit';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
@@ -914,11 +914,14 @@ function draw() {
   const rows = process.stdout.rows || 0;
   // Any line still wider than the terminal wraps at the end of a word rather than mid-word.
   const wrapped = (screen: string) => screen.split('\n').flatMap((l) => wrapAnsi(l, columns)).join('\n');
-  // Lists as long as the page has room for (at their defaults when the terminal doesn't say its size).
+  // Lists as long as the page has room for (at their defaults when the terminal doesn't say its size),
+  // each page brought to its height so nothing moves as its cursor moves or a message shows (see fitPage).
   const pageHeight = rows > 0 ? heightNow() - navHeight : 0;
-  const fit = (list: keyof typeof shownRows, render: (n: number) => string, floor?: number) => {
-    const fitted = fitRows((n) => wrapped(render(n)), defaultRows[list], pageHeight, floor);
+  let scrolls = false;
+  const fit = (list: keyof typeof shownRows, render: (n: number, message: string) => string, total: number, panel = '') => {
+    const fitted = fitPage(render, { base: defaultRows[list], total, height: pageHeight, columns, message: shown, panel });
     shownRows[list] = fitted.rows;
+    scrolls = fitted.scrolls;
     return fitted.screen;
   };
   shownRows.book = Math.max(5, (rows > 0 ? heightNow() : 30) - 8);
@@ -928,9 +931,13 @@ function draw() {
     const homeRows = Math.max(0, heightNow() - navHeight);
     const chosen = homeChosen(state, homeCursor);
     if (shop === 'research') return renderScreen(state, shown, shop, columns, shopCursor, homeRows, chosen);
-    const home = fit('news', (n) => renderScreen(state, shop ? '' : shown, null, columns, shop ? -1 : menuCursor, homeRows, chosen, n), latelyShown);
-    return shop ? renderScreen(state, shown, shop, columns, shopCursor, homeRows, chosen, shownRows.news) : home;
+    const home = fitRows((n) => wrapped(renderScreen(state, shop ? '' : shown, null, columns, shop ? -1 : menuCursor, homeRows, chosen, n)), latelyShown, pageHeight, latelyShown);
+    shownRows.news = home.rows;
+    return shop ? renderScreen(state, shown, shop, columns, shopCursor, homeRows, chosen, shownRows.news) : home.screen;
   };
+  const play = availablePlays()[scriptPlay];
+  const scriptPage = (panel = '') => fit('script', (n, m) => renderScript(state, play?.id ?? '', scriptCursor, m, columns, '', n), play?.lines.length ?? 0, panel);
+  const contentsPlay = contents === 'scenes' ? (play ?? null) : null;
   if (!state.introSeen && introStart === 0) introStart = Date.now();
   if (state.newspaper.length > 0 && !state.newspaperNote && newsStart === 0) newsStart = Date.now();
   if (state.manuscript && !state.manuscriptNote && manuscriptStart === 0) manuscriptStart = Date.now();
@@ -953,7 +960,7 @@ function draw() {
     : hiring
     ? renderCandidates(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor, hiringManager)
     : showingScript && contents
-    ? fit('contents', (n) => renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns, contentsTab, n))
+    ? fit('contents', (n, m) => renderContents(state, contentsPlay?.id ?? null, contentsCursor, m, columns, contentsTab, n), contentsPlay ? contentsPlay.scenes.length : contentsTab === 'codes' ? 0 : tabPlays(contentsTab).length)
     : showingOptions && showingProfiles
     ? renderProfiles(state, profileList, profiles.active, menuCursor, message, columns)
     : showingOptions
@@ -969,17 +976,17 @@ function draw() {
     : showingOffice
     ? renderOffice(officeView(), shown, roomCursor(), heldFurniture, officeGrowing, heldDoor?.side ?? null, columns, '', officeLegend)
     : showingAchievements
-    ? fit('achievements', (n) => renderAchievements(state, achievementRow, columns, n))
+    ? fit('achievements', (n) => renderAchievements(state, achievementRow, columns, n), achievements.length)
     : showingRoster
-    ? fit('roster', (n) => renderRoster(state, rosterCursor, shown, columns, n))
+    ? fit('roster', (n, m) => renderRoster(state, rosterCursor, m, columns, n), state.monkeys.length)
     : showingStats
     ? renderStats(state, columns)
     : showingDictionary
-      ? fit('dictionary', (n) => renderDictionary(state, dictionaryRow, columns, n))
+      ? fit('dictionary', (n) => renderDictionary(state, dictionaryRow, columns, n), Math.ceil(dictionaryWords(state).length / dictionaryColumns))
       : showingScript && scriptShop
-    ? renderScript(state, scriptSpot().play, scriptCursor, '', columns, renderShop(state, 'script', shopCursor, shown, columns, true, scriptSpot()))
+    ? scriptPage(renderShop(state, 'script', shopCursor, shown, columns, true, scriptSpot()))
     : showingScript
-    ? fit('script', (n) => renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, shown, columns, '', n))
+    ? scriptPage()
     : showingDev
       ? renderDevMenu(state, shown, columns, menuCursor)
       : showingKeys
@@ -1007,8 +1014,9 @@ function draw() {
       gameHeight = Math.max(gameHeight, tallestPage(columns));
     }
   }
-  // Spread before the popup goes over it, so the popup isn't split by the spacing.
-  const filled = spreadHeight(full, heightNow());
+  // Spread before the popup goes over it, so the popup isn't split by the spacing (a fitted page is
+  // the page's height already, unless the terminal doesn't say its size).
+  const filled = (scrolls ? fillUnderList : spreadHeight)(full, heightNow());
   const screen = box ? overlay(filled, box, columns) : filled;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
