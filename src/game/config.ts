@@ -856,7 +856,9 @@ export const energy = {
  * most recent sentence, and longest recent sentence"). "Lately" is the last
  * windowSeconds of typing time: a longer word or sentence replaces the one
  * shown, and so does any once it is older than that. Sentences keep at most
- * maxSentenceWords words, to keep saves small.
+ * maxSentenceWords words, to keep saves small. The feed keeps the last
+ * maxNews news items; the home screen shows as many of them as fit, and at
+ * least latelyShown (in cli/screen.ts) however small the window.
  */
 export const lately = { windowSeconds: 3600, maxSentenceWords: 100, maxNews: 12 };
 

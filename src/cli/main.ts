@@ -674,8 +674,8 @@ function newRoomMessage(room: Room): string {
 /** The office map's furniture shop: under the map when the screen is tall enough for both, else on its own. */
 function officeShopScreen(columns: number): string {
   const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true, undefined, true));
-  const rows = process.stdout.rows || 0;
-  return rows > 0 && both.split('\n').length > rows ? renderShop(state, officeShop!, shopCursor, message, columns, false, undefined, true) : both;
+  const height = process.stdout.rows ? heightNow() : 0;
+  return height > 0 && both.split('\n').length > height ? renderShop(state, officeShop!, shopCursor, message, columns, false, undefined, true) : both;
 }
 
 /** How many rows each scrolling list shows when the window's size isn't known. */
@@ -933,6 +933,7 @@ function draw() {
   shownRows.book = Math.max(5, (rows > 0 ? heightNow() : 30) - 8);
   // The home screen's LATELY is fitted as it is without the shop (the home under the shop has no
   // message or cursor), and the shop goes over that same screen, so opening the shop moves nothing.
+  // Its floor is latelyShown, not minListRows: the news shows at least as many items as it always did.
   const homeScreen = () => {
     const homeRows = Math.max(0, heightNow() - navHeight);
     const chosen = homeChosen(state, homeCursor);

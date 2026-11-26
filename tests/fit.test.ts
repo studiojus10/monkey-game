@@ -10,9 +10,10 @@ describe('fitRows', () => {
     expect(r.screen.split('\n')).toHaveLength(40);
   });
   it('steps down when headings make it too tall', () => {
+    // 12 rows draw 20 lines; 32 would draw 45, so it steps down by the 5 too many to 27 (38 lines).
     const r = fitRows(page(1), 12, 40);
-    expect(r.screen.split('\n').length).toBeLessThanOrEqual(40);
-    expect(fitRows(page(1), 12, 40).rows).toBeGreaterThan(20);
+    expect(r.rows).toBe(27);
+    expect(r.screen.split('\n')).toHaveLength(38);
   });
   it('shrinks to fit a small window, never below the floor', () => {
     expect(fitRows(page(0), 12, 15).rows).toBe(10);

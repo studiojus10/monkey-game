@@ -1328,6 +1328,12 @@ describe('LATELY news', () => {
     expect(plain(renderScreen(s, '', 'staff', 100, -1, 60, -1, 5))).toContain('News 7'); // under the shop too
   });
 
+  it('keeps the newest 12 news items, dropping the oldest', () => {
+    const s = started();
+    for (let i = 0; i < 13; i++) announce(s, `News ${i}`);
+    expect(s.lately.news).toHaveLength(lately.maxNews);
+    expect(s.lately.news.map((n) => n.text)).toEqual(Array.from({ length: 12 }, (_, i) => `News ${i + 1}`));
+  });
 });
 
 describe('fitted pages', () => {
