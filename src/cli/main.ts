@@ -922,6 +922,15 @@ function draw() {
     return fitted.screen;
   };
   shownRows.book = Math.max(5, (rows > 0 ? heightNow() : 30) - 8);
+  // The home screen's LATELY is fitted as it is without the shop (the home under the shop has no
+  // message or cursor), and the shop goes over that same screen, so opening the shop moves nothing.
+  const homeScreen = () => {
+    const homeRows = Math.max(0, heightNow() - navHeight);
+    const chosen = homeChosen(state, homeCursor);
+    if (shop === 'research') return renderScreen(state, shown, shop, columns, shopCursor, homeRows, chosen);
+    const home = fit('news', (n) => renderScreen(state, shop ? '' : shown, null, columns, shop ? -1 : menuCursor, homeRows, chosen, n), latelyShown);
+    return shop ? renderScreen(state, shown, shop, columns, shopCursor, homeRows, chosen, shownRows.news) : home;
+  };
   if (!state.introSeen && introStart === 0) introStart = Date.now();
   if (state.newspaper.length > 0 && !state.newspaperNote && newsStart === 0) newsStart = Date.now();
   if (state.manuscript && !state.manuscriptNote && manuscriptStart === 0) manuscriptStart = Date.now();
@@ -979,7 +988,7 @@ function draw() {
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, shown, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : fit('news', (n) => renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, Math.max(0, heightNow() - navHeight), homeChosen(state, homeCursor), n), latelyShown);
+          : homeScreen();
   // The navigation bar, right under the title bar, on every page.
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.

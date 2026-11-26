@@ -40,7 +40,9 @@ import {
   speedText,
   pageTabsRow,
   shopKeys,
+  latelyShown,
 } from '../src/cli/screen';
+import { fitRows } from '../src/cli/fit';
 import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, rule, scrollMarks, spreadHeight, titleBar, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
@@ -348,11 +350,25 @@ describe('shop popup', () => {
   it('covers only its own height of a home screen as tall as the game, so LATELY stays in sight', () => {
     const s = started();
     noteLately(s, 'word', ['HELLO']);
-    const home = plain(renderScreen(s, '', null, 80, -1, 0)).split('\n');
+    const home = plain(spreadHeight(renderScreen(s, '', null, 80, -1, 0), 60)).split('\n'); // spread to the game's height, as on screen
     const shop = plain(renderScreen(s, '', 'staff', 80, -1, 60)).split('\n');
     expect(home).toContain(' LATELY');
     expect(shop).toHaveLength(60);
     expect(shop.slice(0, home.indexOf(' LATELY') + 2)).toEqual(home.slice(0, home.indexOf(' LATELY') + 2));
+  });
+
+  it('lays the shop over the home screen as it is without it (fitted and spread), so opening the shop moves nothing', () => {
+    const s = started();
+    noteLately(s, 'word', ['HELLO']);
+    const height = 45;
+    const { rows: n } = fitRows((k) => renderScreen(s, '', null, 100, -1, height, -1, k), latelyShown, height, latelyShown);
+    const home = plain(spreadHeight(renderScreen(s, '', null, 100, -1, height, -1, n), height)).split('\n');
+    const shop = plain(renderScreen(s, '', 'typewriters', 100, -1, height, -1, n)).split('\n');
+    const border = shop.findIndex((l) => /^ ={20,}$/.test(l));
+    expect(border).toBeGreaterThan(0);
+    expect(shop).toHaveLength(height);
+    expect(home).not.toEqual(plain(renderScreen(s, '', null, 100, -1, height, -1, n)).split('\n')); // spread: there was room to
+    expect(shop.slice(0, border)).toEqual(home.slice(0, border));
   });
 
   it('shades a highlighted row, keeping its colours (green for something you can buy)', () => {
