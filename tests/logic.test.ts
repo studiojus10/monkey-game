@@ -1939,8 +1939,8 @@ describe('shop unlocks', () => {
       s.sentences = 1e15;
       expect(hatsForSale(s).map((h) => h.id)).toEqual(['baseball']);
       expect(wearHat(s, 0, 'beanie')).toBe(false); // locked
-      expect(unlockNeeds(s, { scenes: 1 })).toBe('finish 1 scene more');
-      expect(unlockNeeds(s, { acts: 2, texts: 1 })).toBe('finish 2 acts and 1 whole text more');
+      expect(unlockNeeds(s, { scenes: 1 })).toBe('finish 1 more scene');
+      expect(unlockNeeds(s, { acts: 2, texts: 1 })).toBe('finish 2 more acts and 1 more whole text');
       s.scenesDone = ['x:1.1'];
       expect(unlocked(s, { scenes: 1 })).toBe(true);
       expect(unlockNeeds(s, { scenes: 1 })).toBe('');

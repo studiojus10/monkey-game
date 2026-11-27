@@ -568,15 +568,15 @@ export function unlocked(state: GameState, u?: Unlock): boolean {
   return !u || (state.scenesDone.length >= (u.scenes ?? 0) && state.actsDone.length >= (u.acts ?? 0) && state.playsDone.length >= (u.texts ?? 0));
 }
 
-/** What an Unlock still needs, as "finish 2 more scenes and 1 act", or '' when it's met. */
+/** What an Unlock still needs, as "finish 2 more scenes and 1 more act", or '' when it's met. */
 export function unlockNeeds(state: GameState, u?: Unlock): string {
   if (!u) return '';
   const left = (need: number | undefined, have: number, word: string) => {
     const n = (need ?? 0) - have;
-    return n > 0 ? `${n} ${word}${n === 1 ? '' : 's'}` : '';
+    return n > 0 ? `${n} more ${word}${n === 1 ? '' : 's'}` : '';
   };
   const parts = [left(u.scenes, state.scenesDone.length, 'scene'), left(u.acts, state.actsDone.length, 'act'), left(u.texts, state.playsDone.length, 'whole text')].filter(Boolean);
-  return parts.length ? `finish ${parts.join(' and ')} more` : '';
+  return parts.length ? `finish ${parts.join(' and ')}` : '';
 }
 
 /** Hats sold now: the rest unlock as scenes, acts and texts are finished. */

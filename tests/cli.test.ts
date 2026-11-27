@@ -1084,7 +1084,7 @@ describe('hats on screen', () => {
       const store = squash(plain(renderScreen(s, '', 'hats')));
       expect(store).toContain('Baseball cap');
       expect(store).not.toContain('] Beanie');
-      expect(store).toContain('7 more unlock as you finish scenes, acts and whole texts. Next: Beanie, finish 1 scene more.');
+      expect(store).toContain('7 more unlock as you finish scenes, acts and whole texts. Next: Beanie, finish 1 more scene.');
     });
   });
 
