@@ -47,6 +47,9 @@ import {
   swapFurniture,
   buyRoom,
   expandRoom,
+  sellSquare,
+  sellSquareBlocker,
+  squareRefund,
   bestExpansion,
   expansionSquares,
   furnishOffice,
@@ -1567,6 +1570,34 @@ describe('office space', () => {
     expect(expansionSquares(s, room).some(([x, y]) => x === -2 && y === 0)).toBe(true);
     s.sentences = 0;
     expect(expandRoom(s, room.id)).toBe(false);
+  });
+
+  it('sells back squares bought onto a room, never below the size it came in', () => {
+    const s = startedGame(0);
+    const room = s.office[0];
+    s.sentences = 1e9;
+    const base = room.cells.length;
+    const free = room.cells.find(([x, y]) => cellAt(s, room.id, x, y) === 'floor')!;
+    expect(sellSquareBlocker(s, room.id, ...free)).toMatch(/size it came in/); // nothing bought yet
+    expect(expandRoom(s, room.id, [2, 0])).toBe(true);
+    expect(expandRoom(s, room.id, [3, 0])).toBe(true);
+    expect(room.bought).toBe(2);
+    expect(sellSquare(s, room.id, 2, 0)).toBe(false); // that would cut [3, 0] off
+    const paid = s.sentences;
+    const refund = squareRefund(s);
+    const before = squareCost(s);
+    expect(sellSquare(s, room.id, 3, 0)).toBe(true);
+    expect(s.sentences).toBe(paid + refund);
+    expect(squareCost(s)).toBe(refund); // the next square costs what this one gave back
+    expect(squareCost(s)).toBeLessThan(before);
+    expect(room.cells).toHaveLength(base + 1);
+    s.furniture.push({ kind: 'plant', room: room.id, x: 2, y: 0 });
+    expect(sellSquareBlocker(s, room.id, 2, 0)).toMatch(/Clear that square/);
+    s.furniture.pop();
+    expect(sellSquare(s, room.id, 2, 0)).toBe(true);
+    expect(room.bought).toBeUndefined();
+    expect(room.cells).toHaveLength(base);
+    expect(sellSquare(s, room.id, ...free)).toBe(false); // the room is back to its own size
   });
 
   it('gives each department its own room, where its monkeys get desks', () => {

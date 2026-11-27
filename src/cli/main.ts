@@ -41,6 +41,9 @@ import {
   rotateFurniture,
   buyRoom,
   expandRoom,
+  sellSquare,
+  sellSquareBlocker,
+  squareRefund,
   roomlessDepartments,
   roomCost,
   squareCost,
@@ -2072,6 +2075,12 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'f' && !holding && !officeGrowing) {
       officeShop = lastOfficeStore;
       shopCursor = 0;
+    } else if (str === 'v' && officeGrowing) {
+      const room = state.office.find((r) => r.id === officeGrowing);
+      const refund = squareRefund(state);
+      const why = !room || here !== room ? 'Put the cursor on a square of the room you are growing to sell it.' : sellSquareBlocker(state, room.id, c.x, c.y);
+      if (why) message = why;
+      else if (sellSquare(state, room!.id, c.x, c.y)) message = `Sold the square for ${formatPrice(refund)} Sentences.`;
     } else if ((str === 's' || str === 'v') && !holding && !officeGrowing) {
       const here = roomAt(state, c.x, c.y);
       const spot = here ? cellAt(state, here.id, c.x, c.y) : null;

@@ -79,6 +79,7 @@ export interface Room {
   kind: 'department' | 'break' | 'office' | 'lab' | 'hr' | 'marketing' | 'codebreaking' | 'library' | 'records'; // an office is a department's manager's office; the lab is R&D's; hr is HR's office; marketing is Marketing's; codebreaking is Codebreaking's; library is the Library
   department: string; // genre of a department room; empty = the first department
   cells: [number, number][];
+  bought?: number; // squares bought onto it (expandRoom) and not sold back: only these can be sold (sellSquare), so a room never shrinks below the size it came in
 }
 
 export type Side = 'n' | 'e' | 's' | 'w';

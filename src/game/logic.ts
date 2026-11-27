@@ -1343,11 +1343,71 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   state.sentences -= cost;
   const touched = touchingRooms(state, room);
   room.cells.push([x, y]);
+  room.bought = (room.bought ?? 0) + 1;
   state.squaresBought++;
   doorToTouching(state, room, touched); // a door into a room it has just grown against
   tidyDoors(state); // a window in the wall it grew through is gone
   addWindow(state, room);
   seatWaiting(state);
+  return true;
+}
+
+/** Sentences back for selling a square: what the last square bought cost, so buying and selling it again come out even. */
+export function squareRefund(state: GameState): number {
+  return state.squaresBought > 0 ? Math.ceil(officeRules.squareBaseCost * Math.pow(officeRules.squareCostGrowth, state.squaresBought - 1) * (1 - researchBonus(state, 'squares'))) : 0;
+}
+
+/** Whether squares are all joined to each other, side by side. */
+function joinedUp(cells: Square[]): boolean {
+  if (cells.length === 0) return false;
+  const left = new Set(cells.map(([x, y]) => `${x},${y}`));
+  const queue: Square[] = [cells[0]];
+  left.delete(`${cells[0][0]},${cells[0][1]}`);
+  while (queue.length > 0) {
+    const [x, y] = queue.pop()!;
+    for (const [nx, ny] of [[x, y - 1], [x - 1, y], [x + 1, y], [x, y + 1]] as Square[]) {
+      if (left.delete(`${nx},${ny}`)) queue.push([nx, ny]);
+    }
+  }
+  return left.size === 0;
+}
+
+/**
+ * Why a room's square can't be sold, or '' if it can: only squares bought onto
+ * a room (room.bought) sell, so it never gets smaller than it came; the square
+ * must be free floor, and the room must stay in one piece (and a manager's
+ * office beside its department's room).
+ */
+export function sellSquareBlocker(state: GameState, roomId: string, x: number, y: number): string {
+  const room = state.office.find((r) => r.id === roomId);
+  const spot = room ? cellAt(state, room.id, x, y) : null;
+  if (!room || spot === null) return 'That square is not part of the room.';
+  if (!room.bought || state.squaresBought <= 0) return 'Only squares you bought onto a room sell: it keeps the size it came in.';
+  if (typeof spot === 'number') return 'Clear that square first: move, store or sell what stands on it.';
+  const cells = room.cells.filter(([cx, cy]) => cx !== x || cy !== y);
+  if (!joinedUp(cells)) return 'That would cut the room in two.';
+  if (room.kind === 'office') {
+    const dept = departmentRoom(state, room.department as Genre);
+    if (dept && !touches(cells, dept.cells)) return "A manager's office must stay beside its department's room.";
+  }
+  const office = room.kind === 'department' ? officeOf(state, room.department as Genre) : undefined;
+  if (office && !touches(cells, office.cells)) return "The department's room must stay beside its manager's office.";
+  return '';
+}
+
+/** Sells one square bought onto a room back for squareRefund (see sellSquareBlocker); the room keeps a way in. */
+export function sellSquare(state: GameState, roomId: string, x: number, y: number): boolean {
+  if (sellSquareBlocker(state, roomId, x, y)) return false;
+  const room = state.office.find((r) => r.id === roomId)!;
+  state.sentences += squareRefund(state);
+  room.cells = room.cells.filter(([cx, cy]) => cx !== x || cy !== y);
+  room.bought = room.bought! - 1;
+  if (room.bought === 0) delete room.bought;
+  state.squaresBought--;
+  tidyDoors(state); // doors and windows in its walls go with it
+  autoConnect(state); // a new door or hallway if that was the way in
+  tidyDoors(state);
+  for (const r of state.office) addWindow(state, r);
   return true;
 }
 
