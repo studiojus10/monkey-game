@@ -223,6 +223,7 @@ let savePath = profilePath(basePath, profiles.active);
 let storage = fileStorage(savePath);
 let state: GameState = createInitialState();
 let achievementsSeen = 0; // achievements unlocked by now; newer ones get a message
+let freeLettersSeen = 0; // free letters already shown in the picker; only more than this pops it up
 
 /** Monkey lines run to the screen's edge, then start over. Returns the screen's width. */
 function fitLines(): number {
@@ -291,7 +292,6 @@ function typingOut(): boolean {
   return !!state.manuscript && !state.manuscriptNote && !manuscriptTyped(state, Date.now() - manuscriptStart, process.stdout.columns || 80);
 }
 let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
-let freeLettersSeen = 0; // free letters already shown in the picker; only more than this pops it up
 let showingScript = false;
 let scriptCursor = 0;
 let contents: '' | 'plays' | 'scenes' = ''; // the script's table of contents, when open
