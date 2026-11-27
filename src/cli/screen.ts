@@ -515,7 +515,6 @@ function latelyLines(state: GameState, message: string, columns = 0, news = late
     ...(recorders(state).length > 0 ? [`${records.name}: ${recordsStatus(state)}`] : []),
     ...(lastRecorded(state).length > 0 && recorders(state).length > 0 ? [sentence('Last recorded', lastRecorded(state))] : []),
     ...(royalties(state) > 0 ? [`${marketing.name}: royalties ${formatNumber(royalties(state))} ${theme.currency}/s`] : []),
-    ...(state.researchOpen ? [`${research.name}: ${researchStatus(state)}`] : []),
     ...(message ? [bold(message)] : []),
   ];
   return rows.length === 0 ? [] : ['', dim(' LATELY'), ...rows.map((r) => `   ${r}`)];
@@ -712,6 +711,8 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
     // Only an alphabet still to finish (Justin, 2026-10-17): Greek and Latin monkeys have all their letters from the start.
     ...(state.letters.length < Object.keys(letterValues).length ? [`${label('Letters')} ${letterRow(state)}`] : []),
     ...(state.owned.length === 0 ? [] : [`${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`]),
+    // Research under the script line, not in LATELY (Justin, 2026-11-27).
+    ...(state.researchOpen ? [`${label('Research')} ${researchStatus(state)}`] : []),
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
     ...latelyLines(state, message, columns, news),
     ...pinnedText(state),

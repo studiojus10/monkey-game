@@ -1569,6 +1569,15 @@ describe('home department tabs', () => {
     expect(homeView(s)).toBe('comedy');
     expect(rosterOrder(s)).toHaveLength(2);
   });
+
+  it('shows research right under the script line, not in LATELY', () => {
+    const s = started();
+    s.researchOpen = true;
+    const rows = plain(renderScreen(s, '', null, 120)).split('\n');
+    const script = rows.findIndex((r) => r.trimStart().startsWith('Script '));
+    expect(script).toBeGreaterThan(-1);
+    expect(rows[script + 1].trimStart()).toMatch(/^Research +No project under way/);
+  });
 });
 
 describe('monkey table columns', () => {
