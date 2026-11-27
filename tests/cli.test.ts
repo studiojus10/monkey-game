@@ -1084,7 +1084,7 @@ describe('hats on screen', () => {
       const store = squash(plain(renderScreen(s, '', 'hats')));
       expect(store).toContain('Baseball cap');
       expect(store).not.toContain('] Beanie');
-      expect(store).toContain('7 more unlock as you finish scenes, acts and whole texts. Next: Beanie, finish 1 scene more.');
+      expect(store).toContain('7 more unlock as you finish scenes, acts and whole texts. Next: Beanie, finish 1 more scene.');
     });
   });
 
@@ -1568,6 +1568,15 @@ describe('home department tabs', () => {
     expect(homeViews(s)).toEqual(['comedy']);
     expect(homeView(s)).toBe('comedy');
     expect(rosterOrder(s)).toHaveLength(2);
+  });
+
+  it('shows research right under the script line, not in LATELY', () => {
+    const s = started();
+    s.researchOpen = true;
+    const rows = plain(renderScreen(s, '', null, 120)).split('\n');
+    const script = rows.findIndex((r) => r.trimStart().startsWith('Script '));
+    expect(script).toBeGreaterThan(-1);
+    expect(rows[script + 1].trimStart()).toMatch(/^Research +No project under way/);
   });
 });
 
