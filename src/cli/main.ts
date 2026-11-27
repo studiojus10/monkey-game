@@ -2441,8 +2441,8 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
   } else if (state.letters.length === 0) {
     if (str) chooseFirstLetter(state, str);
-  } else if (str && '<>,.'.includes(str) && !shop && homeViews(state).length > 1) {
-    // < and > (or , and .) step through the departments (Justin, 2026-10-21).
+  } else if (str && '<>,.'.includes(str) && homeViews(state).length > 1) {
+    // < and > (or , and .) step through the departments (Justin, 2026-10-21), the shop open or not (2026-11-27).
     const views = homeViews(state);
     state.settings.homeDepartment = views[(views.indexOf(homeView(state)!) + ('<,'.includes(str) ? views.length - 1 : 1)) % views.length];
     homeCursor = 0;
@@ -2471,12 +2471,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     shopCursor = 0;
   } else if (str === 'd') {
     if (state.monkeys.length > 0) startMove(homeChosen(state, homeCursor));
-  } else if (str && /^[1-9]$/.test(str) && !shop && homeViews(state).length > 1) {
-    const v = homeViews(state)[Number(str) - 1];
-    if (v) {
-      state.settings.homeDepartment = v;
-      homeCursor = 0;
-    }
   } else if (str === 'n') {
     startNaming(homeChosen(state, homeCursor));
   } else if (key.name === 'p') {
