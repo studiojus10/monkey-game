@@ -1060,7 +1060,7 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'promote' ? 'Promote which monkey to manager?' : upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = confirmQuestion ? confirmBox(confirmQuestion.question, confirmQuestion.yes, confirmCursor) : state.applicants.length > 0 && !placingRoom ? renderApplicants(state, menuCursor) : state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = confirmQuestion ? confirmBox(confirmQuestion.question, confirmQuestion.yes, confirmCursor) : state.applicants.length > 0 && !placingRoom ? renderApplicants(state, menuCursor) : state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor, undefined, 'Restart: a new game') : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   // The popup's message wraps inside the popup's indent (see overlay).
   const box = popup && [...popup, ...(message && !pickerOpen() ? ['', ...wrapAnsi(` ${bold(message)}`, Math.max(20, columns - 4))] : [])];
   const full = wrapped(withNav);
@@ -1537,13 +1537,17 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   // The [tab] menu (Justin, 2026-10-21: "a popup or dropdown menu button" instead of arrows between pages; "tab opens the menu"): pick a page by number, arrows and [enter], or a click.
   if (pageMenu) {
     const pages = pagesFor(state);
+    // Its last row, [0], restarts the game (Justin, 2026-11-27: moved here from [r], too easy to press by accident).
     if (key.name === 'up' || key.name === 'down') {
-      pageMenuCursor = (Math.max(0, pageMenuCursor) + (key.name === 'up' ? pages.length - 1 : 1)) % pages.length;
+      pageMenuCursor = (Math.max(0, pageMenuCursor) + (key.name === 'up' ? pages.length : 1)) % (pages.length + 1);
       return draw();
     }
     pageMenu = null;
-    const row = key.name === 'return' || key.name === 'enter' ? pageMenuCursor : str && /^[1-9]$/.test(str) ? Number(str) - 1 : -1;
-    if (pages[row]) goTo(pages[row]);
+    const row = key.name === 'return' || key.name === 'enter' ? pageMenuCursor : str === '0' ? pages.length : str && /^[1-9]$/.test(str) ? Number(str) - 1 : -1;
+    if (row === pages.length) {
+      confirmingReset = true;
+      ask('Erase all progress and start a new game?', 'Yes, erase everything');
+    } else if (pages[row]) goTo(pages[row]);
     return draw();
   }
   if (!busy && key.name === 'tab') {
@@ -2505,9 +2509,6 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;
-  } else if (key.name === 'r') {
-    confirmingReset = true;
-    ask('Erase all progress?', 'Yes, erase everything');
   }
   draw();
 }

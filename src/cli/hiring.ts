@@ -195,8 +195,9 @@ export function overlay(screen: string, box: string[], columns = 0): string {
  * A popup menu: a title, numbered rows ([1]-[9] for the first nine, which a
  * click presses too) and the cursor's row in inverse.
  */
-export function menuBox(title: string, rows: string[], cursor = -1, empty = 'Nothing here.'): string[] {
-  const items = rows.map((r, i) => `${i < 9 ? `[${i + 1}]` : '   '} ${r}`);
+export function menuBox(title: string, rows: string[], cursor = -1, empty = 'Nothing here.', zero = ''): string[] {
+  // `zero`: a last row on [0], set apart below the others (the [tab] menu's restart).
+  const items = [...rows.map((r, i) => `${i < 9 ? `[${i + 1}]` : '   '} ${r}`), ...(zero ? [`[0] ${zero}`] : [])];
   const footer = `${rows.length > 0 ? `[1-${Math.min(9, rows.length)}] pick   ` : ''}[esc] cancel`;
   const width = Math.max(title.length, footer.length, empty.length, ...items.map((r) => plainText(r).length)) + 2;
   const line = (text: string) => `|${text}${' '.repeat(Math.max(0, width - plainText(text).length))}|`;
@@ -204,7 +205,7 @@ export function menuBox(title: string, rows: string[], cursor = -1, empty = 'Not
     `+${'-'.repeat(width)}+`,
     line(` ${bold(title)}`),
     line(''),
-    ...(items.length > 0 ? items.map((r, i) => line(isCursor(i, cursor) ? highlight(` ${r}`) : ` ${r}`)) : [line(dim(` ${empty}`))]),
+    ...(items.length > 0 ? items.flatMap((r, i) => [...(zero && i === rows.length ? [line('')] : []), line(isCursor(i, cursor) ? highlight(` ${r}`) : ` ${r}`)]) : [line(dim(` ${empty}`))]),
     line(''),
     line(dim(` ${footer}`)),
     `+${'-'.repeat(width)}+`,
