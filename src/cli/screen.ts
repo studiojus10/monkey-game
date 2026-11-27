@@ -2,7 +2,6 @@ import { GAME_VERSION } from '../version';
 import { records, lately as latelyRules, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, type Unlock, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo, opening } from '../game/config';
 import {
   availableKeys,
-  flipChance,
   canPublishFolio,
   folioMultiplier,
   folioMultiplierAfter,
@@ -114,7 +113,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow, highlight } from './style';
+import { shortKeyRow, flipChanceText, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow, highlight } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -1298,7 +1297,7 @@ export function renderCoinFlip(state: GameState, asking: boolean, message: strin
     ...(asking
       ? [
           ` Bet all ${bold(formatAmount(state.currency))} ${theme.currency} on a coin flip?`,
-          ` Heads (a ${(flipChance(state) * 100).toFixed(1)}% chance) doubles them; tails loses them all.`,
+          ` Heads (a ${flipChanceText(state)} chance) doubles them; tails loses them all.`,
         ]
       : [` ${bold(message)}`]),
     '',

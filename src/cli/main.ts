@@ -206,7 +206,7 @@ import {
   viewName,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { askBackground, bold, dim, fillUnderList, forLightBackground, inverseSpan, lightShade, screenTop, showCursors, spreadHeight, terminalBackground, terminalFrame, wrapAnsi } from './style';
+import { askBackground, flipChanceText, bold, dim, fillUnderList, forLightBackground, inverseSpan, lightShade, screenTop, showCursors, spreadHeight, terminalBackground, terminalFrame, wrapAnsi } from './style';
 import { fitPage, fitRows } from './fit';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
@@ -1245,7 +1245,7 @@ function pickerOpen(): boolean {
 function openFlip() {
   flipping = state.currency > 0 ? 'ask' : 'done';
   flipMessage = state.currency > 0 ? '' : `You have no ${theme.currency} to bet.`;
-  if (flipping === 'ask') ask(`Bet all ${formatPrice(state.currency)} ${theme.currency} on the coin? Heads doubles them, tails loses them.`, 'Flip the coin');
+  if (flipping === 'ask') ask(`Bet all ${formatPrice(state.currency)} ${theme.currency} on the coin? Heads (a ${flipChanceText(state)} chance) doubles them, tails loses them.`, 'Flip the coin');
 }
 
 /** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */

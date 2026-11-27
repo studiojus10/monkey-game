@@ -1329,7 +1329,8 @@ describe('coin flip any time', () => {
   it('has a [?] button on every title bar while it fits, and its own screen', () => {
     const s = started();
     s.currency = 500;
-    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\?\] coin flip$/);
+    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\?\] coin flip \d+\.\d%$/); // its chance on every page
+    expect(plain(titleBar(s, 'Shop', 120)).match(/coin flip .*%/)?.[0]).toBe(plain(titleBar(s, 'Home', 120)).match(/coin flip .*%/)?.[0]);
     expect(plain(titleBar(s, 'Shop', 80)).length).toBeLessThan(80);
     s.currency = s.sentences = 1e9;
     expect(plain(titleBar(s, 'Typewriter keys', 80))).not.toContain('[?]'); // too tight: totals stay in full instead

@@ -140,6 +140,11 @@ export function cropVisible(s: string, width: number): string {
 /** Each currency's colour, wherever its total or a price in it shows. */
 export const currencyColors = { currency: yellow, words: cyan, sentences: magenta, lines: blue };
 
+/** The coin flip's chance of heads as the game shows it everywhere: 1.5%. */
+export function flipChanceText(state: GameState): string {
+  return `${(flipChance(state) * 100).toFixed(1)}%`;
+}
+
 /**
  * The bar across the top of a screen: the game's name (and the screen's), then
  * every currency in its colour, in full up to 10 digits (1,234,567,890). On
@@ -159,8 +164,8 @@ export function titleBar(state: GameState, screen = '', columns = 0): string {
   let totals = render();
   let name = ` ${theme.title.toUpperCase()}${screen ? ` > ${screen.toUpperCase()}` : ''} `;
   // The coin flip, on every screen's title bar: a button the mouse can click any time ([?] works on every screen too).
-  // Justin, 2026-10-21: "coin flip", with its chance on the home screen.
-  let flip = screen === 'Home' ? `[?] coin flip ${(flipChance(state) * 100).toFixed(1)}%` : '[?] coin flip';
+  // Justin, 2026-10-21: "coin flip", with its chance; 2026-11-27: the chance the same on every page.
+  let flip = `[?] coin flip ${flipChanceText(state)}`;
   // The menu button (Justin, 2026-10-21): [tab] opens the popup of every page, from any screen.
   let menu = '[tab] menu';
   let gap = 4; // spaces after the name
@@ -168,7 +173,7 @@ export function titleBar(state: GameState, screen = '', columns = 0): string {
   // Too wide: shorter labels first, keeping the coin flip's chance longest.
   if (columns > 0 && !fits()) menu = '[tab]';
   if (screen && columns > 0 && !fits()) name = ` ${screen.toUpperCase()} `;
-  if (columns > 0 && !fits()) flip = '[?] coin flip';
+  if (columns > 0 && !fits()) flip = `[?] ${flipChanceText(state)}`;
   if (columns > 0 && !fits()) flip = '[?]';
   if (columns > 0 && !fits()) flip = ''; // too narrow: the button goes before the totals turn scientific
   if (!screen && columns > 0 && !fits()) name = ' MONKEYS ';
