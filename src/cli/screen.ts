@@ -572,7 +572,7 @@ export function renderHomeKeys(state: GameState): string {
     ...group('GAME', [
       ...(canPublishFolio(state) ? [['f', 'publish a Folio and start over'] as [string, string]] : []),
       ['s', 'save now (the game also saves on its own)'],
-      ['r', 'reset: start a new game'],
+      ['tab 0', 'restart: start a new game (in the [tab] menu)'],
       ['`', 'dev tools'],
       ['q', 'quit'],
     ]),

@@ -219,7 +219,7 @@ describe('terminal screen', () => {
   it('lists every key on the [/] page', () => {
     const s = started();
     const keys = plain(renderHomeKeys(s));
-    for (const k of ['[space]', '[p]', '[o]', '[t]', '[a]', '[w]', '[c]', '[enter]', '[n]', '[d]', '[s]', '[r]', '[`]', '[q]']) expect(keys).toContain(k);
+    for (const k of ['[space]', '[p]', '[o]', '[t]', '[a]', '[w]', '[c]', '[enter]', '[n]', '[d]', '[s]', '[tab 0]', '[`]', '[q]']) expect(keys).toContain(k);
     expect(plain(renderScreen(s))).not.toContain('[`]'); // the home screen keeps to the everyday keys
   });
 
@@ -308,6 +308,12 @@ describe('the Research page', () => {
     const page = plain(renderScreen(s, '', 'research'));
     expect(page).toContain(' INFINITE MONKEYS > RESEARCH ');
     expect(page).not.toContain('Typewriters'); // no store tabs
+  });
+
+  it('puts the restart on [0] at the bottom of a menu, set apart', async () => {
+    const { menuBox } = await import('../src/cli/hiring');
+    const box = plain(menuBox('Go to', ['Home', 'Shop'], -1, undefined, 'Restart: a new game').join('\n'));
+    expect(box).toMatch(/\[2\] Shop *\|\n\| *\|\n\| \[0\] Restart: a new game/);
   });
 
   it('asks yes-or-no questions in a popup', async () => {
