@@ -312,7 +312,7 @@ describe('the Research page', () => {
 });
 
 describe('the roster', () => {
-  it('lists monkeys by department then hire order, and shows the chosen one in detail', () => {
+  it('lists monkeys by department then hire order, and shows the chosen one in detail', async () => {
     const s = started();
     s.departments = ['comedy', 'tragedy'];
     s.monkeys.push({ ...createMonkey(), department: 'tragedy', name: 'Yorick' }, { ...createMonkey(), department: 'comedy', name: 'Puck' });
@@ -327,9 +327,13 @@ describe('the roster', () => {
     expect(text).not.toContain('Trait');
     s.managerBook = true;
     expect(plain(renderRoster(s, 2))).toContain('Loner');
-    expect(plain(renderRoster(s, 2))).toContain('unknown (an HR Department would find out)');
+    expect(plain(renderRoster(s, 2))).toContain('unknown (a monkey at work in HR would find out)');
     Object.assign(s.monkeys[1], { speedStat: 1.12, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'unsuited', research: 'detests', marketing: 'good' } });
-    s.office.push({ id: 'r9', kind: 'hr', department: '', cells: [[9, 9]] });
+    const hrRoom = (await import('../src/game/logic')).addRoom(s, 'hr', '', 3, 3);
+    expect(plain(renderRoster(s, 2))).toContain('would find out'); // an empty HR Department finds out nothing
+    s.monkeys.push({ ...createMonkey(), department: 'hr', name: 'Clerk' });
+    s.furniture.push({ kind: 'desk', room: hrRoom.id, x: hrRoom.cells[4][0], y: hrRoom.cells[4][1] });
+    expect(rosterOrder(s).indexOf(1)).toBe(2);
     const shown = renderRoster(s, 2);
     expect(plain(shown)).toContain('speed 112%   stamina 90%');
     expect(plain(shown)).toContain('Typing loves, Managing fine, HR unsuited, Marketing good, Research detests');

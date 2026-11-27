@@ -29,7 +29,7 @@ import {
   sellHat,
   fireBlocker,
   fireMonkey,
-  hrRoom,
+  hrAtWork,
   isTemp,
   cellAt,
   pieceSize,
@@ -411,7 +411,7 @@ function startHire(managers = false): void {
   }
   hiringManager = managers;
   message = '';
-  if (hrRoom(state)) {
+  if (hrAtWork(state)) {
     hiring = true;
     menuCursor = 0;
   } else {

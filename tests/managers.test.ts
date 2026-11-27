@@ -363,6 +363,8 @@ describe('hidden stats and job feelings', () => {
     expect(L.statsShown(s)).toBe(false);
     s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
+    expect(L.statsShown(s)).toBe(false); // nobody in HR yet
+    expect(L.hireHR(s)).toBe(true);
     expect(L.statsShown(s)).toBe(true);
   });
 });
@@ -399,9 +401,15 @@ describe('hiring through HR', () => {
     hireManager(s, 'comedy');
     s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
+    L.drawCandidates(s, 1, () => 0.5);
+    expect(s.candidates).toEqual([]); // nobody in HR yet
+    expect(L.hrHappiness(s)).toBe(0);
+    expect(L.hrDiscount(s)).toBe(0);
+    expect(L.hireHR(s)).toBe(true);
+    s.candidates = [];
     let r = 0;
     L.drawCandidates(s, 1, () => ((r += 0.37) % 1));
-    expect(s.candidates).toHaveLength(hr.candidatesBase);
+    expect(s.candidates).toHaveLength(hr.candidatesBase + 1); // one more for the HR monkey
     expect(s.candidatesIn).toBe(hr.refreshHours * 3600);
     const best = { trait: 'loner', speedStat: 1.2, stamina: 1.2, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' }, tempLeft: 0 };
     const worst = { ...best, speedStat: 0.8, stamina: 0.8, jobs: { ...best.jobs, typing: 'detests' } };
@@ -416,7 +424,7 @@ describe('hiring through HR', () => {
     expect(s.candidates).toEqual([worst]); // taken off the list
     expect(deserialize(serialize(s)).candidates).toEqual([worst]);
     L.drawCandidates(s, hr.refreshHours * 3600, () => 0.5); // a new list after refreshHours
-    expect(s.candidates).toHaveLength(hr.candidatesBase);
+    expect(s.candidates).toHaveLength(hr.candidatesBase + 1);
   });
 });
 
@@ -540,6 +548,7 @@ describe('temps', () => {
     hireManager(s, 'comedy');
     s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
+    L.hireHR(s);
     L.drawCandidates(s, 1, () => 0); // rng 0: every candidate a temp
     expect(s.candidates.every((c) => c.tempLeft === hr.tempHours * 3600)).toBe(true);
     const c = s.candidates[0];

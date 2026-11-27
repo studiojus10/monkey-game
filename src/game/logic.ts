@@ -442,9 +442,18 @@ export function jobBonus(m: MonkeyState): number {
   return jobFeeling(m, jobOf(m)).bonus;
 }
 
-/** Whether the hidden stats show: once an HR office is built. */
+/** Whether the hidden stats show: while HR is at work (hrAtWork). */
 export function statsShown(state: GameState): boolean {
-  return !!hrRoom(state);
+  return hrAtWork(state);
+}
+
+/**
+ * Whether HR is at work: at least one HR monkey at a desk it can reach.
+ * Justin, 2026-11-27: no department works without monkeys in it, built or
+ * not, so an empty HR Department shows no stats and no candidates.
+ */
+export function hrAtWork(state: GameState): boolean {
+  return hrWorking(state) > 0;
 }
 
 /** The room a monkey works in: a manager's office, else its department's room. */
@@ -3131,9 +3140,9 @@ export function candidateCount(state: GameState): number {
   return Math.min(hr.maxCandidates, hr.candidatesBase + hrStaff(state).length);
 }
 
-/** Draws a new list of candidates every refreshHours while an HR office stands (the first right away). */
+/** Draws a new list of candidates every refreshHours while HR is at work (the first right away). */
 export function drawCandidates(state: GameState, seconds: number, rng: Rng): void {
-  if (!hrRoom(state)) return;
+  if (!hrAtWork(state)) return;
   state.candidatesIn -= seconds;
   if (state.candidatesIn > 0) return;
   const pool = { ...state, monkeys: Array.from({ length: candidateCount(state) }, createMonkey) };

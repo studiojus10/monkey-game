@@ -67,7 +67,7 @@ import {
   canBuildHR,
   canBuildMarketing,
   royalties,
-  hrRoom,
+  hrAtWork,
   labRoom,
   projectOf,
   projectsLeft,
@@ -905,7 +905,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       const hireItem: ShopItem = {
         id: 'hire',
         text: 'Hire a monkey',
-        effect: hrRoom(state) ? `from ${hr.name}'s candidates, you have ${state.monkeys.length}` : `random stats and trait, you have ${state.monkeys.length}`,
+        effect: hrAtWork(state) ? `from ${hr.name}'s candidates, you have ${state.monkeys.length}` : `random stats and trait, you have ${state.monkeys.length}`,
       };
       // Until a department could take a manager, a note says what it takes.
       const managerNote = open.some((g) => !managerOf(state, g)) && !posts(state).some((p) => p.job === 'managing' && p.have === 0);
