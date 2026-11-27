@@ -1635,7 +1635,7 @@ describe('office space', () => {
       s.departments.push('tragedy');
       const before = s.monkeys.length;
       const hire = nextMonkeyCost(s);
-      expect(roomHireCost(s, 'department', 'tragedy')).toBe(Math.ceil(hire * monkeyShop.departmentHire)); // a little more than a hire
+      expect(roomHireCost(s, 'department', 'tragedy')).toBe(Math.ceil(hire * monkeyShop.departmentHire)); // a little less than a hire: the room costs Sentences too
       s.currency = 0;
       expect(buyRoom(s, 'department', 'tragedy')).toBe(false); // it costs Bananas too
       const room = genreRoom(s, 'tragedy');

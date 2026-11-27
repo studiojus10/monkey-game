@@ -155,8 +155,9 @@ export const monkeyShop = {
   costGrowth: 15, // placeholder (2026-10-21): one price for every department; 20 until 2026-11-27 (Justin: slightly cheaper)
   // A new department's room brings a free first monkey (picked from applicants)
   // and costs, besides the room's Sentences, departmentHire x the next hire's
-  // Bananas (Justin, 2026-11-27: a little more than hiring one monkey). It counts as a hire.
-  departmentHire: 1.25,
+  // Bananas (Justin, 2026-11-27: less than hiring one monkey, since the room
+  // costs Sentences too, so expanding pays). It counts as a hire.
+  departmentHire: 0.9,
 };
 
 /**
