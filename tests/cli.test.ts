@@ -310,6 +310,14 @@ describe('the Research page', () => {
     expect(page).not.toContain('Typewriters'); // no store tabs
   });
 
+  it('asks yes-or-no questions in a popup', async () => {
+    const { confirmBox } = await import('../src/cli/hiring');
+    const box = plain(confirmBox('Erase all progress?', 'Yes, erase everything', 1).join('\n'));
+    expect(box).toContain('Erase all progress?');
+    expect(box).toContain('[y] Yes, erase everything');
+    expect(box).toContain('[n] No');
+  });
+
   it("offers three applicants for the lab's free researcher in a popup", async () => {
     const { renderApplicants } = await import('../src/cli/hiring');
     const s = started();
@@ -718,10 +726,10 @@ describe('office space on screen', () => {
     s.currency = s.sentences = 1e30;
     s.departments = ['comedy', 'tragedy'];
     buyRoom(s, 'department', 'tragedy');
-    expect(squash(renderScreen(s, '', 'staff'))).toContain('[2] Hire a monkey random stats and trait, you have 1 * from 1,000,000 Bananas');
+    expect(squash(renderScreen(s, '', 'staff'))).toContain('[2] Hire a monkey random stats and trait, you have 1 * from 15,000,000 Bananas'); // the new department's room paid for a hire
     const popup = squash(renderPostPopup(s, 'x', posts(s), -1, true).map(plain).join('\n'));
-    expect(popup).toContain('[1] Comedies (1/5) * 1,000,000 Bananas');
-    expect(popup).toContain('[2] Tragedies (0/5) * 1,000,000 Bananas');
+    expect(popup).toContain('[1] Comedies (1/5) * 15,000,000 Bananas');
+    expect(popup).toContain('[2] Tragedies (0/5) * 15,000,000 Bananas');
   });
 
   it('draws the office on one grid: rooms, their desks and who sits at them', () => {
@@ -1170,7 +1178,7 @@ describe('publishing a Folio on screen', () => {
     const text = plain(renderScreen(s));
     expect(text).toContain('* You can publish a Folio: [f] start over with 4 more pages, bananas x1.00 for good.');
     expect(text).toContain('[f] publish a Folio');
-    expect(folioPrompt(s)).toContain('bananas x1.00 for good (each Folio multiplies the last). Press y to publish');
+    expect(folioPrompt(s)).toContain('bananas x1.00 for good (each Folio multiplies the last).');
     s.folios = 1;
     s.folioPages = 500;
     s.folioBoost = 1.5;
@@ -1229,7 +1237,7 @@ describe('hiring screen', () => {
     s.candidatesIn = 600;
     const text = plain(renderCandidates(s, '', 80));
     expect(text).toContain('HIRING A MONKEY');
-    expect(squash(text)).toContain(`[1] 110% 90% loves typing ? for good ${squash(plain(formatPrice(cheapestHire(s, 0))))}`);
+    expect(squash(text)).toContain(`[1] 110% 90% loves typing ? ${squash(plain(formatPrice(cheapestHire(s, 0))))}`);
     expect(squash(text)).toContain(`[0] someone unseen: random stats and trait from ${formatPrice(cheapestHire(s))} Bananas`);
     expect(text).toContain('New candidates in 10m');
     s.managerBook = true;
@@ -1321,7 +1329,8 @@ describe('coin flip any time', () => {
   it('has a [?] button on every title bar while it fits, and its own screen', () => {
     const s = started();
     s.currency = 500;
-    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\?\] coin flip$/);
+    expect(plain(titleBar(s, 'Shop', 120))).toMatch(/\[\?\] coin flip \d+\.\d%$/); // its chance on every page
+    expect(plain(titleBar(s, 'Shop', 120)).match(/coin flip .*%/)?.[0]).toBe(plain(titleBar(s, 'Home', 120)).match(/coin flip .*%/)?.[0]);
     expect(plain(titleBar(s, 'Shop', 80)).length).toBeLessThan(80);
     s.currency = s.sentences = 1e9;
     expect(plain(titleBar(s, 'Typewriter keys', 80))).not.toContain('[?]'); // too tight: totals stay in full instead

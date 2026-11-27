@@ -49,6 +49,7 @@ import {
   roomCost,
   expandRoom,
   sellSquare,
+  roomHireCost,
   takeApplicant,
   sellRoom,
   sellRoomBlocker,
@@ -476,10 +477,6 @@ describe('monkeys', () => {
     s.freeLetters = 26 - s.letters.length;
     expect(buyMonkey(s)).toBe(true);
     expect(s.freeLetters).toBe(26 - s.letters.length); // letters and free letters already make the alphabet
-    s.freeLetters = 0;
-    s.candidates = [{ trait: 'loner', speedStat: 1.1, stamina: 0.9, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' }, tempLeft: 100 }];
-    expect(buyMonkey(s, undefined, 0)).toBe(true);
-    expect(s.freeLetters).toBe(0); // temps bring no letter
   });
 
   it('buying a monkey costs points and raises the next price', () => {
@@ -1637,7 +1634,12 @@ describe('office space', () => {
       expect(openDepartment(s, 'comedy')).toBe(true);
       s.departments.push('tragedy');
       const before = s.monkeys.length;
+      const hire = nextMonkeyCost(s);
+      expect(roomHireCost(s, 'department', 'tragedy')).toBe(Math.ceil(hire * monkeyShop.departmentHire)); // a little less than a hire: the room costs Sentences too
+      s.currency = 0;
+      expect(buyRoom(s, 'department', 'tragedy')).toBe(false); // it costs Bananas too
       const room = genreRoom(s, 'tragedy');
+      expect(nextMonkeyCost(s)).toBeGreaterThan(hire); // and counts as a hire
       expect(s.applicants).toHaveLength(3);
       expect(s.applicantsFor).toBe('tragedy');
       expect(takeApplicant(s, 0)).toBe(true);
@@ -1647,6 +1649,7 @@ describe('office space', () => {
       // Sold empty and built again: no second free monkey.
       expect(moveMonkey(s, before)).toBe(true);
       expect(sellRoom(s, room.id)).toBe(true);
+      expect(roomHireCost(s, 'department', 'tragedy')).toBe(0);
       genreRoom(s, 'tragedy');
       expect(s.applicants).toEqual([]);
     } finally {

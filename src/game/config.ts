@@ -152,7 +152,12 @@ export const letterGifts: string[] = ['first-hire', 'first-typewriter', 'pets-10
  */
 export const monkeyShop = {
   baseCost: 1_000_000, // scripts/simulate.ts (2026-10-20): 2nd monkey after about 2h
-  costGrowth: 20, // placeholder (2026-10-21): one price for every department
+  costGrowth: 15, // placeholder (2026-10-21): one price for every department; 20 until 2026-11-27 (Justin: slightly cheaper)
+  // A new department's room brings a free first monkey (picked from applicants)
+  // and costs, besides the room's Sentences, departmentHire x the next hire's
+  // Bananas (Justin, 2026-11-27: less than hiring one monkey, since the room
+  // costs Sentences too, so expanding pays). It counts as a hire.
+  departmentHire: 0.9,
 };
 
 /**
@@ -547,7 +552,7 @@ export const research = {
   // Justin, 2026-11-27: the lab costs more than another room but comes with a
   // free researcher (not counted in the hire price), so a player who can
   // build it can start a project right away. Placeholder.
-  labCostFactor: 3,
+  labCostFactor: 1, // 3 until 2026-11-27, when every department's room came to cost a hire (monkeyShop.departmentHire)
   projects: [
     // Departments (Justin, 2026-11-25): R&D opens first, with the first
     // manager; every other staff department's unlock makes its research
@@ -598,14 +603,21 @@ export const hr = {
   refreshHours: 1,
   // Temps (step 4; Justin, 2026-10-14: "temp employees... expire after a
   // while, can't be upgraded, but have higher base stats/positive traits"):
-  // each candidate is a temp with tempChance. A temp has stats from
-  // tempStats, a trait from tempTraits, and feels good about or loves every
-  // job; it costs tempPrice of a candidate's price, leaves after tempHours
-  // (its desk free, its hats into storage), and can't get faster typing, a
-  // typewriter or a manager upgrade. Placeholders.
-  tempChance: 1 / 3,
-  tempHours: 8,
-  tempPrice: 0.25,
+  // a list of their own (Justin, 2026-11-27: hired from their own menu),
+  // tempsOffered of them, drawn with HR's candidates. A temp types in a
+  // department, with stats from tempStats, a trait from tempTraits, feels
+  // good about or loves every job, brings a typewriter (see
+  // tempSecondTypewriter) and the best typing skill it allows (up to the
+  // office's best). It stays tempHours, then leaves (its desk free, its hats
+  // into storage), and can't be upgraded. Its price is tempShare of the
+  // Bananas it should make while it stays, at the office's recent rate per
+  // letter (state.bananaRate), so a temp is a short, clear win: a final push
+  // to an upgrade (Justin, 2026-11-27). At least tempMinPrice. Not a hire:
+  // temps don't raise the hire price or bring a letter.
+  tempsOffered: 3,
+  tempHours: 1,
+  tempShare: 0.4,
+  tempMinPrice: 1000,
   tempStats: { min: 1.1, max: 1.4 },
   tempTraits: ['cheerleader', 'motivator', 'social', 'greenthumb', 'bookworm', 'couchpotato'],
   tempFeelings: ['good', 'loves'],

@@ -2,7 +2,6 @@ import { GAME_VERSION } from '../version';
 import { records, lately as latelyRules, energyColors, maxMonkeyNameLength, fengShui, hatColors, hats, monkeyIcon, type Hat, type Unlock, furnitureKinds, type FurnitureKind, typing, letterValues, managers, maxPinnedLines, sonnetRewards, startingLetters, theme, traits, typewriterKeys, wordSlots, managerOffice, codebreaking, safe, research, hr, marketing, combo, opening } from '../game/config';
 import {
   availableKeys,
-  flipChance,
   canPublishFolio,
   folioMultiplier,
   folioMultiplierAfter,
@@ -68,6 +67,7 @@ import {
   canBuildMarketing,
   royalties,
   hrAtWork,
+  tempPrice,
   labRoom,
   projectOf,
   projectsLeft,
@@ -113,7 +113,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow, highlight } from './style';
+import { shortKeyRow, flipChanceText, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow, highlight } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -910,7 +910,18 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       // Until a department could take a manager, a note says what it takes.
       const managerNote = open.some((g) => !managerOf(state, g)) && !posts(state).some((p) => p.job === 'managing' && p.have === 0);
       // Items that show up later go after the ones already there (Justin, 2026-10-21), and stay once they show.
+      const tempPrices = state.temps.map((_, i) => tempPrice(state, i));
       const later: ShopItem[] = [
+        ...(hrAtWork(state)
+          ? [
+              {
+                id: 'temp',
+                text: 'Hire a temp',
+                effect: `${hr.tempHours}h of a strong typist, priced at ${pct(hr.tempShare)} of what it should make; can't be upgraded`,
+                ...(tempPrices.length > 0 ? { star: state.currency >= Math.min(...tempPrices), cost: [[Math.min(...tempPrices), 'currency']] as [number, Currency][], costFrom: tempPrices.length > 1 } : { blocked: 'none right now' }),
+              } as ShopItem,
+            ]
+          : []),
         ...(chairs.length > 0
           ? [
               {
@@ -1286,7 +1297,7 @@ export function renderCoinFlip(state: GameState, asking: boolean, message: strin
     ...(asking
       ? [
           ` Bet all ${bold(formatAmount(state.currency))} ${theme.currency} on a coin flip?`,
-          ` Heads (a ${(flipChance(state) * 100).toFixed(1)}% chance) doubles them; tails loses them all.`,
+          ` Heads (a ${flipChanceText(state)} chance) doubles them; tails loses them all.`,
         ]
       : [` ${bold(message)}`]),
     '',
@@ -1535,7 +1546,7 @@ export function folioPrompt(state: GameState): string {
   return (
     `Publish a Folio? Everything starts over: monkeys, letters, office, script and currencies. ` +
     `You keep achievements and statistics, and the Folio gains ${count(pages)} pages (one per line written, finished plays twice): ` +
-    `bananas ${formatMultiplier(folioMultiplierAfter(state))} for good (each Folio multiplies the last). Press y to publish, any other key to keep playing.`
+    `bananas ${formatMultiplier(folioMultiplierAfter(state))} for good (each Folio multiplies the last).`
   );
 }
 
