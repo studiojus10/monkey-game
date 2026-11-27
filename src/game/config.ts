@@ -544,21 +544,25 @@ export const research = {
   id: 'research', // a researcher's department
   name: 'R&D',
   maxResearchers: 10,
+  // Justin, 2026-11-27: the lab costs more than another room but comes with a
+  // free researcher (not counted in the hire price), so a player who can
+  // build it can start a project right away. Placeholder.
+  labCostFactor: 3,
   projects: [
     // Departments (Justin, 2026-11-25): R&D opens first, with the first
     // manager; every other staff department's unlock makes its research
     // project show up, and finishing that lets its room be built.
-    { id: 'dept-hr', name: 'Human resources', text: 'Opens the HR Department.', hours: 8, cost: 1e9, opens: 'hr' },
+    { id: 'dept-hr', name: 'Human resources', text: 'Opens the HR Department.', hours: 8, cost: 10_000_000, opens: 'hr' },
     { id: 'dept-marketing', name: 'Marketing', text: 'Opens the Marketing Department.', hours: 24, cost: 1e11, opens: 'marketing', needs: 'hr' },
     { id: 'dept-codebreaking', name: 'Codebreaking', text: 'Opens the Codebreaking Department.', hours: 12, cost: 1e10, opens: 'codebreaking', needs: 'safe' },
     { id: 'dept-records', name: 'Records', text: 'Opens the Records Department.', hours: 24, cost: 1e12, opens: 'records', needs: 'library' },
-    { id: 'chairs', name: 'Ergonomic chairs', text: 'Monkeys tire 10% slower.', hours: 1, cost: 100_000, drain: 0.1 },
-    { id: 'snacks', name: 'Banana snacks', text: 'Recovers 20% faster.', hours: 3, cost: 1_000_000, rest: 0.2 },
-    { id: 'spelling', name: 'Spelling theory', text: '+10% bananas.', hours: 8, cost: 10_000_000, points: 0.1 },
-    { id: 'ribbons', name: 'Carbon ribbons', text: 'Monkeys type 10% faster.', hours: 16, cost: 100_000_000, speed: 0.1 },
-    { id: 'floorplans', name: 'Open floor plans', text: 'Room squares cost 25% less.', hours: 24, cost: 1_000_000_000, squares: 0.25 },
-    { id: 'rhythm', name: 'Typing rhythm', text: 'Combo cap +1.', hours: 48, cost: 10_000_000_000, combo: 1 },
-    { id: 'tenfinger', name: 'Ten-finger typing', text: 'Monkeys type 20% faster.', hours: 72, cost: 1e11, speed: 0.2 },
+    { id: 'chairs', name: 'Ergonomic chairs', text: 'Monkeys tire 10% slower.', hours: 1, cost: 10_000, drain: 0.1 },
+    { id: 'snacks', name: 'Banana snacks', text: 'Recovers 20% faster.', hours: 3, cost: 100_000, rest: 0.2 },
+    { id: 'spelling', name: 'Spelling theory', text: '+10% bananas.', hours: 8, cost: 1_000_000, points: 0.1 },
+    { id: 'ribbons', name: 'Carbon ribbons', text: 'Monkeys type 10% faster.', hours: 16, cost: 10_000_000, speed: 0.1 },
+    { id: 'floorplans', name: 'Open floor plans', text: 'Room squares cost 25% less.', hours: 24, cost: 100_000_000, squares: 0.25 },
+    { id: 'rhythm', name: 'Typing rhythm', text: 'Combo cap +1.', hours: 48, cost: 1_000_000_000, combo: 1 },
+    { id: 'tenfinger', name: 'Ten-finger typing', text: 'Monkeys type 20% faster.', hours: 72, cost: 1e10, speed: 0.2 },
     // Marketing tactics (Justin, 2026-10-14: "marketing tactics researched in R&D boost it").
     { id: 'posters', name: 'Posters', text: 'Royalties +50%.', hours: 4, cost: 10_000_000, marketing: 0.5, needs: 'marketing' },
     { id: 'radio', name: 'Radio ads', text: 'Royalties +100%.', hours: 24, cost: 1_000_000_000, marketing: 1, needs: 'marketing' },

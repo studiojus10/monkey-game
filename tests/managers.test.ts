@@ -263,10 +263,14 @@ describe('R&D', () => {
     expect(buyRoom(s, 'lab')).toBe(false);
     s.monkeys.push({ ...createMonkey(), department: 'comedy', manager: true });
     expect(L.researcherBlocker(s)).toBe('lab needed');
+    expect(L.roomCost(s, 'lab')).toBe(L.roomCost(s) * research.labCostFactor);
+    const hirePrice = L.researcherCost(s);
     expect(buyRoom(s, 'lab')).toBe(true); // building the lab opens R&D
     expect(s.researchOpen).toBe(true);
+    expect(L.researchers(s)).toHaveLength(1); // with a free researcher at a desk
+    expect(L.deskOf(s, L.researchers(s)[0])).toBeDefined();
+    expect(L.researcherCost(s)).toBe(hirePrice); // that doesn't raise the hire price
     expect(buyRoom(s, 'lab')).toBe(false); // one lab
-    expect(L.hireResearcher(s)).toBe(true);
     expect(L.hireResearcher(s)).toBe(true);
     const r = L.researchers(s);
     expect(r).toHaveLength(2);
@@ -285,6 +289,12 @@ describe('R&D', () => {
     expect(back.researched).toEqual([p.id]);
     expect(back.researchOpen).toBe(true);
     expect(L.researchers(back)).toHaveLength(2);
+    // No researchers, no progress.
+    s.monkeys = s.monkeys.filter((m) => !L.isResearcher(m));
+    expect(L.startResearch(s, 'snacks')).toBe(true);
+    L.advanceResearch(s, 3600);
+    expect(s.researchProgress).toBe(0);
+    expect(L.researchSecondsLeft(s)).toBe(Infinity);
   });
 });
 

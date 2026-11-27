@@ -1194,9 +1194,9 @@ function seatWaiting(state: GameState): void {
   while (state.unassignedMonkeys > 0 && departmentsWithRoom(state).length <= 1 && assignMonkey(state));
 }
 
-/** Points for a new 3x3 room. */
-export function roomCost(state: GameState): number {
-  return Math.ceil(officeRules.roomBaseCost * Math.pow(officeRules.roomCostGrowth, Math.max(0, state.office.length - 1)));
+/** Sentences for a new room (the R&D lab costs labCostFactor times as much, and comes with a researcher). */
+export function roomCost(state: GameState, kind?: Room['kind']): number {
+  return Math.ceil(officeRules.roomBaseCost * Math.pow(officeRules.roomCostGrowth, Math.max(0, state.office.length - 1)) * (kind === 'lab' ? research.labCostFactor : 1));
 }
 
 /**
@@ -1205,7 +1205,7 @@ export function roomCost(state: GameState): number {
  * manager's desk, beside the department's room with a door between).
  */
 export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square): boolean {
-  const cost = roomCost(state);
+  const cost = roomCost(state, kind);
   if (state.sentences < cost) return false;
   if (at && !roomFitsAt(state, kind, genre ?? '', newRoomCells(kind, at))) return false;
   if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
@@ -1222,7 +1222,14 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
-  if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
+  if (kind === 'lab') {
+    state.researchOpen = true; // building the lab opens R&D
+    // with a free researcher at a desk (Justin, 2026-11-27): no hire, so the next hire's price stays
+    addMonkey(state, { department: research.id });
+    const lab = labRoom(state)!;
+    const square = bestSquares(state, lab, true)[0];
+    if (square) state.furniture.push({ kind: desk.id, room: lab.id, x: square[0], y: square[1] });
+  }
   if (kind === 'library') {
     state.galleries = Math.max(1, state.galleries); // the first gallery comes with the room
     shelveBooks(state);

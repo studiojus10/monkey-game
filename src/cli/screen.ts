@@ -1053,7 +1053,7 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
           if (state.researching === p.id) return { ...item, blocked: 'under way' };
           return busy ? { ...item, blocked: 'one at a time' } : { ...item, star: state.currency >= p.cost, cost: [[p.cost, 'currency']] };
         }),
-        ...(rate === 0 ? [{ text: 'Nobody is researching: hire researchers in the Staff store.' }] : []),
+        ...(rate === 0 ? [{ text: 'Nobody is researching, so no project moves: hire a researcher ([space] shop, Staff).' }] : []),
       ];
     }
     case 'script': {
