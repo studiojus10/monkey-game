@@ -709,14 +709,14 @@ describe('office space on screen', () => {
     s.monkeys[0].name = 'Clown';
     s.monkeys.push({ ...createMonkey(), department: 'tragedy', name: 'Mourner' });
     const first = renderScreen(s);
-    expect(first).toContain(bold(inverse(' [1] Comedies '))); // the shown department's tab
-    expect(plain(first)).toContain('\n [1] Comedies  [2] Tragedies \n');
+    expect(first).toContain(bold(inverse(' Comedies '))); // the shown department's tab
+    expect(plain(first)).toContain('\n Comedies  Tragedies \n');
     expect(first).toContain('Clown');
     expect(first).not.toContain('Mourner');
     expect(plain(first)).toContain('[<>] department');
     s.settings.homeDepartment = 'tragedy';
     const second = renderScreen(s);
-    expect(second).toContain(bold(inverse(' [2] Tragedies ')));
+    expect(second).toContain(bold(inverse(' Tragedies ')));
     expect(second).toContain('Mourner');
     expect(second).not.toContain('Clown');
     s.departments = ['comedy'];

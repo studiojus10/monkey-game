@@ -561,7 +561,7 @@ export function renderHomeKeys(state: GameState): string {
       ['c', 'options'],
     ]),
     ...group('MONKEYS', [
-      ...(homeViews(state).length > 1 ? [['1-9', "show that department's monkeys (the tabs above the table)"] as [string, string], ['<>', "show the department before or after (, and . too)"] as [string, string]] : []),
+      ...(homeViews(state).length > 1 ? [['<>', "show the department before or after (the tabs above the table; , and . too)"] as [string, string]] : []),
       ['up/down', 'choose a monkey (its name is highlighted)'],
       ['enter', "the chosen monkey's details"],
       ['h', theme.pokeAction],
@@ -673,10 +673,11 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   return [...homeLines(state, message, columns, chosen, news), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
 
-/** The home screen's department tabs: each department's number key and name, the shown one inverse; they wrap to the screen. */
+/** The home screen's department tabs: each department's name, the shown one inverse; they wrap to the screen. */
 function departmentTabs(state: GameState, views: string[], view: string, columns: number): string[] {
-  const tabs = views.map((v, i) => {
-    const name = `${i < 9 ? `[${i + 1}] ` : ''}${viewName(state, v)}`;
+  // No numbers: < and > switch them (Justin, 2026-11-27).
+  const tabs = views.map((v) => {
+    const name = viewName(state, v);
     return v === view ? bold(inverse(` ${name} `)) : ` ${name} `;
   });
   const rows = [''];
@@ -700,7 +701,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
   const lines = [
     titleBar(state, 'Home', columns),
     '',
-    // With several departments, one at a time, picked on a row of tabs (Justin, 2026-10-18): [1]-[9] or < >.
+    // With several departments, one at a time, picked on a row of tabs (Justin, 2026-10-18): < > (no numbers since 2026-11-27).
     ...(views.length > 1 && view ? [...departmentTabs(state, views, view, columns), ''] : []),
     monkeyHeadings(state),
     // Alone at the typewriter before the first hire (Justin, 2026-10-26).
