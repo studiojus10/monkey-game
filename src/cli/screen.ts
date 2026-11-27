@@ -36,6 +36,7 @@ import {
   keysUnlocked,
   letterCost,
   letterWordsCost,
+  lettersHeld,
   canAffordLetter,
   monkeySpeed,
   currentSpeed,
@@ -195,8 +196,8 @@ export function renderLetterPicker(state: GameState, free: boolean, cursor: numb
     .map((l) => (state.letters.includes(l) ? dim(l) : isCursor(l, chosen) ? highlight(l) : bold(l)))
     .join(' ');
   const title = free
-    ? `A free letter${state.letterGiftFor ? ` for ${state.letterGiftFor}` : ''}! Choose one.${state.freeLetters > 1 ? `  (${state.freeLetters} free letters)` : ''}`
-    : `Buy a letter for ${priceNamed(letterCost(state.letters.length), state.currency)}${letterWordsCost(state.letters.length) > 0 ? ` and ${priceNamed(letterWordsCost(state.letters.length), state.words, 'words')}` : ''}.`;
+    ? `${state.letterGiftFor ? `A free letter for ${state.letterGiftFor}!` : 'A new letter key!'} Choose one.${state.freeLetters > 1 ? `  (${state.freeLetters} letters to choose)` : ''}`
+    : `Buy a letter for ${priceNamed(letterCost(lettersHeld(state)), state.currency)}${letterWordsCost(lettersHeld(state)) > 0 ? ` and ${priceNamed(letterWordsCost(lettersHeld(state)), state.words, 'words')}` : ''}.`;
   return [
     titleBar(state, 'Letters', columns),
     '',
@@ -205,10 +206,11 @@ export function renderLetterPicker(state: GameState, free: boolean, cursor: numb
     `   ${letters}`,
     '',
     ` ${dim('Dimmed letters are yours already.')}`,
+    ...(free ? [` ${dim('Not sure yet? [esc] saves it: choose it from the shop any time.')}`] : []),
     ...(message ? ['', ` ${bold(message)}`] : []),
     '',
     rule(columns),
-    keyRow([['left/right', 'choose'], ['enter', free ? 'take' : 'buy'], ['A-Z', free ? 'take' : 'buy'], ...(free ? [] : [['esc', 'done'] as [string, string]])], columns),
+    keyRow([['left/right', 'choose'], ['enter', free ? 'take' : 'buy'], ['A-Z', free ? 'take' : 'buy'], ['esc', free ? 'save for later' : 'done']], columns),
   ].join('\n');
 }
 
@@ -982,11 +984,18 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       ];
     }
     case 'typewriters': {
-      const nextLetter = letterCost(state.letters.length);
-      const nextLetterWords = letterWordsCost(state.letters.length);
+      const nextLetter = letterCost(lettersHeld(state));
+      const nextLetterWords = letterWordsCost(lettersHeld(state));
       return [
         // Kept once every letter is owned, so the items under it don't move.
-        unownedLetters(state).length > 0
+        unownedLetters(state).length > 0 && state.freeLetters > 0
+          ? {
+              id: 'letter',
+              star: true,
+              text: `Choose a letter key (${state.freeLetters} saved)`,
+              effect: `free, you choose ${state.freeLetters === 1 ? 'it' : 'them'} (${unownedLetters(state).length} left)`,
+            }
+          : unownedLetters(state).length > 0
           ? {
               id: 'letter',
               star: canAffordLetter(state),

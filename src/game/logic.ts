@@ -956,22 +956,38 @@ export function letterWordsCost(owned: number): number {
   return Math.floor(letterShop.wordsCostFactor * owned ** letterShop.wordsCostPower);
 }
 
-/** Whether you have the points and Words for your next letter. */
-export function canAffordLetter(state: GameState): boolean {
-  return state.currency >= letterCost(state.letters.length) && state.words >= letterWordsCost(state.letters.length);
+/** Letters you own plus the ones saved to choose later (state.freeLetters): what the next letter's price counts. */
+export function lettersHeld(state: GameState): number {
+  return state.letters.length + state.freeLetters;
 }
 
-/** Buys a letter you don't own yet for points and Words, or with `free` takes it for one of your free letters (letterGifts). */
+/** Whether you have the points and Words for your next letter. */
+export function canAffordLetter(state: GameState): boolean {
+  const held = lettersHeld(state);
+  return state.currency >= letterCost(held) && state.words >= letterWordsCost(held);
+}
+
+/**
+ * Buys a letter key without choosing it yet: pays for it and saves it with the
+ * free letters (state.freeLetters), to be chosen now or any time later.
+ */
+export function bankLetter(state: GameState): boolean {
+  const held = lettersHeld(state);
+  if (state.letters.length === 0 || held >= alphabetSize || !canAffordLetter(state)) return false;
+  state.words -= letterWordsCost(held);
+  state.currency -= letterCost(held);
+  state.freeLetters++;
+  state.letterGiftFor = '';
+  return true;
+}
+
+/** Buys a letter you don't own yet for points and Words, or with `free` takes it for one of your free or saved letters (letterGifts, bankLetter). */
 export function buyLetter(state: GameState, letter: string, free = false): boolean {
   const l = letter.toUpperCase();
-  const cost = letterCost(state.letters.length);
   if (state.letters.length === 0 || !/^[A-Z]$/.test(l) || state.letters.includes(l)) return false;
-  if (free ? state.freeLetters <= 0 : !canAffordLetter(state)) return false;
-  if (free) state.freeLetters--;
-  else {
-    state.words -= letterWordsCost(state.letters.length);
-    state.currency -= cost;
-  }
+  if (!free && !bankLetter(state)) return false;
+  if (state.freeLetters <= 0) return false;
+  state.freeLetters--;
   state.letters.push(l);
   return true;
 }

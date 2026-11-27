@@ -429,15 +429,25 @@ describe('letter picking', () => {
     expect(text).toContain('esc');
   });
 
-  it('offers a free letter with no way out', () => {
+  it('offers a free letter that can be saved for later', () => {
     const s = startedGame(0);
     chooseFirstLetter(s, 'a');
     s.freeLetters = 2;
     s.letterGiftFor = '"Company"';
     const text = plainText(renderLetterPicker(s, true, 0));
     expect(text).toContain('A free letter for "Company"');
-    expect(text).toContain('2 free letters');
-    expect(text).not.toContain('esc');
+    expect(text).toContain('2 letters to choose');
+    expect(text).toContain('[esc] save for later');
+  });
+
+  it('labels the shop item with the letters saved for later', () => {
+    const s = startedGame(0);
+    chooseFirstLetter(s, 'a');
+    const item = () => storeItems(s, 'typewriters').find((i) => i.id === 'letter')!;
+    expect(item().text).toBe('Buy a letter key');
+    s.freeLetters = 2;
+    expect(item().text).toBe('Choose a letter key (2 saved)');
+    expect(item().cost).toBeUndefined(); // free
   });
 });
 
