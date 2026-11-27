@@ -29,7 +29,7 @@ import {
   sellHat,
   fireBlocker,
   fireMonkey,
-  hrRoom,
+  hrAtWork,
   isTemp,
   cellAt,
   pieceSize,
@@ -411,7 +411,7 @@ function startHire(managers = false): void {
   }
   hiringManager = managers;
   message = '';
-  if (hrRoom(state)) {
+  if (hrAtWork(state)) {
     hiring = true;
     menuCursor = 0;
   } else {
@@ -1978,7 +1978,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         if (placingRoom) {
           const { kind, genre, at } = placingRoom;
           if (!roomSpotOk()) message = roomSpotPrompt();
-          else if (state.sentences < roomCost(state)) {
+          else if (state.sentences < roomCost(state, kind)) {
             placingRoom = null;
             message = noSentences;
           } else if (buyRoom(state, kind, genre, at)) {
@@ -2009,7 +2009,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       buyingRoom = false;
       const choice = roomChoices()[Number(str) - 1];
       if (str !== 'b' && !choice) message = 'No room bought.';
-      else if (state.sentences < roomCost(state)) message = noSentences;
+      else if (state.sentences < roomCost(state, choice?.kind ?? 'break')) message = noSentences;
       else {
         const kind = choice?.kind ?? 'break';
         placingRoom = { kind, genre: choice?.genre, at: suggestRoomSpot(state, kind, choice?.genre ?? '') };
@@ -2094,7 +2094,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `the ${records.name} Department` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `the ${codebreaking.name} Department` : c.kind === 'marketing' ? `the ${marketing.name} Department` : c.kind === 'hr' ? `the ${hr.name} Department` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `the ${departmentName(state, c.genre!)} Office, for its manager` : `the ${departmentName(state, c.genre!)} Department`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `the ${records.name} Department` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `the ${codebreaking.name} Department` : c.kind === 'marketing' ? `the ${marketing.name} Department` : c.kind === 'hr' ? `the ${hr.name} Department` : c.kind === 'lab' ? `a lab for ${research.name}, with a researcher (${formatPrice(roomCost(state, 'lab'))} Sentences)` : c.kind === 'office' ? `the ${departmentName(state, c.genre!)} Office, for its manager` : `the ${departmentName(state, c.genre!)} Department`}`,
       );
       message = `Buy a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {

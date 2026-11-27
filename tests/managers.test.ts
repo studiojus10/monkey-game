@@ -263,10 +263,14 @@ describe('R&D', () => {
     expect(buyRoom(s, 'lab')).toBe(false);
     s.monkeys.push({ ...createMonkey(), department: 'comedy', manager: true });
     expect(L.researcherBlocker(s)).toBe('lab needed');
+    expect(L.roomCost(s, 'lab')).toBe(L.roomCost(s) * research.labCostFactor);
+    const hirePrice = L.researcherCost(s);
     expect(buyRoom(s, 'lab')).toBe(true); // building the lab opens R&D
     expect(s.researchOpen).toBe(true);
+    expect(L.researchers(s)).toHaveLength(1); // with a free researcher at a desk
+    expect(L.deskOf(s, L.researchers(s)[0])).toBeDefined();
+    expect(L.researcherCost(s)).toBe(hirePrice); // that doesn't raise the hire price
     expect(buyRoom(s, 'lab')).toBe(false); // one lab
-    expect(L.hireResearcher(s)).toBe(true);
     expect(L.hireResearcher(s)).toBe(true);
     const r = L.researchers(s);
     expect(r).toHaveLength(2);
@@ -285,6 +289,12 @@ describe('R&D', () => {
     expect(back.researched).toEqual([p.id]);
     expect(back.researchOpen).toBe(true);
     expect(L.researchers(back)).toHaveLength(2);
+    // No researchers, no progress.
+    s.monkeys = s.monkeys.filter((m) => !L.isResearcher(m));
+    expect(L.startResearch(s, 'snacks')).toBe(true);
+    L.advanceResearch(s, 3600);
+    expect(s.researchProgress).toBe(0);
+    expect(L.researchSecondsLeft(s)).toBe(Infinity);
   });
 });
 
@@ -353,6 +363,8 @@ describe('hidden stats and job feelings', () => {
     expect(L.statsShown(s)).toBe(false);
     s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
+    expect(L.statsShown(s)).toBe(false); // nobody in HR yet
+    expect(L.hireHR(s)).toBe(true);
     expect(L.statsShown(s)).toBe(true);
   });
 });
@@ -389,9 +401,15 @@ describe('hiring through HR', () => {
     hireManager(s, 'comedy');
     s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
+    L.drawCandidates(s, 1, () => 0.5);
+    expect(s.candidates).toEqual([]); // nobody in HR yet
+    expect(L.hrHappiness(s)).toBe(0);
+    expect(L.hrDiscount(s)).toBe(0);
+    expect(L.hireHR(s)).toBe(true);
+    s.candidates = [];
     let r = 0;
     L.drawCandidates(s, 1, () => ((r += 0.37) % 1));
-    expect(s.candidates).toHaveLength(hr.candidatesBase);
+    expect(s.candidates).toHaveLength(hr.candidatesBase + 1); // one more for the HR monkey
     expect(s.candidatesIn).toBe(hr.refreshHours * 3600);
     const best = { trait: 'loner', speedStat: 1.2, stamina: 1.2, jobs: { typing: 'loves', managing: 'fine', hr: 'fine', research: 'fine' }, tempLeft: 0 };
     const worst = { ...best, speedStat: 0.8, stamina: 0.8, jobs: { ...best.jobs, typing: 'detests' } };
@@ -406,7 +424,7 @@ describe('hiring through HR', () => {
     expect(s.candidates).toEqual([worst]); // taken off the list
     expect(deserialize(serialize(s)).candidates).toEqual([worst]);
     L.drawCandidates(s, hr.refreshHours * 3600, () => 0.5); // a new list after refreshHours
-    expect(s.candidates).toHaveLength(hr.candidatesBase);
+    expect(s.candidates).toHaveLength(hr.candidatesBase + 1);
   });
 });
 
@@ -530,6 +548,7 @@ describe('temps', () => {
     hireManager(s, 'comedy');
     s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
+    L.hireHR(s);
     L.drawCandidates(s, 1, () => 0); // rng 0: every candidate a temp
     expect(s.candidates.every((c) => c.tempLeft === hr.tempHours * 3600)).toBe(true);
     const c = s.candidates[0];

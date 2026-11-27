@@ -163,6 +163,6 @@ function detailsOf(state: GameState, i: number, exact = true): string[] {
                 })
                 .join(dim(', '))}`,
             ]
-          : [`${label('Stats')} ${dim(`unknown (an ${hr.name} Department would find out)`)}`]),
+          : [`${label('Stats')} ${dim(`unknown (a monkey at work in ${hr.name} would find out)`)}`]),
       ];
 }
