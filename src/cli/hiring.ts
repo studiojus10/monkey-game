@@ -1,5 +1,5 @@
 import { hr, monkeyStats, opening, theme } from '../game/config';
-import { getPlay, hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
+import { applicantJob, getPlay, hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
 import { lettersTyped, priceNamed, promptChoices, typeOut, viewName, wrapWords } from './screen';
@@ -72,20 +72,22 @@ export function renderCandidates(state: GameState, message = '', columns = 0, cu
 }
 
 /**
- * The popup of applicants for the R&D lab's free first researcher, shown as
+ * The popup of applicants for a new department's free first monkey, shown as
  * HR's list shows candidates: speed, stamina, the job each likes best, and
  * its trait once the manager's book is read.
  */
-export function renderLabApplicants(state: GameState, cursor = -1): string[] {
-  const rows = state.labApplicants.map((c) => {
+export function renderApplicants(state: GameState, cursor = -1): string[] {
+  const rows = state.applicants.map((c) => {
     const monkey = { ...createMonkey(), ...c };
     const best = monkeyStats.jobs.map((j) => ({ j, f: jobFeeling(monkey, j.id) })).sort((a, b) => b.f.bonus - a.f.bonus)[0];
     const likes = best.f.bonus > 0 ? green(`${best.f.name} ${best.j.name.toLowerCase()}`) : 'nothing much';
-    const researching = jobFeeling(monkey, 'research');
+    const job = monkeyStats.jobs.find((j) => j.id === applicantJob(state.applicantsFor)) ?? monkeyStats.jobs[0];
+    const feeling = jobFeeling(monkey, job.id);
     const trait = traitOf(monkey)?.name ?? '?';
-    return [`speed ${padVisible(percent(c.speedStat), 4)}`, `stamina ${padVisible(percent(c.stamina), 4)}`, `research ${padVisible(researching.name, 8)}`, ...(state.managerBook ? [`trait ${padVisible(trait, 10)}`] : []), `likes ${likes}`].join(' ');
+    return [`speed ${padVisible(percent(c.speedStat), 4)}`, `stamina ${padVisible(percent(c.stamina), 4)}`, `${job.name.toLowerCase()} ${padVisible(feeling.name, 8)}`, ...(state.managerBook ? [`trait ${padVisible(trait, 10)}`] : []), `likes ${likes}`].join(' ');
   });
-  return menuBox('The lab comes with a free researcher. Who gets the job?', rows, cursor).map((line) => line.replace('   [esc] cancel', ' '.repeat(15))); // no way out: someone gets the job
+  const where = viewName(state, state.applicantsFor);
+  return menuBox(`The new ${where ? `${where} department` : 'department'} comes with a free monkey. Who gets the job?`, rows, cursor).map((line) => line.replace('   [esc] cancel', ' '.repeat(15))); // no way out: someone gets the job
 }
 
 /** A post's name in the department popup: its department, or "<department> manager". */

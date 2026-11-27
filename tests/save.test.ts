@@ -229,5 +229,6 @@ describe('migrations', () => {
     const back = deserialize(JSON.stringify(raw));
     expect(back.office[0].bought).toBe(3);
     expect(back.office.find((r) => r.id === 'r9')?.bought).toBeUndefined(); // no squares bought left for it
+    expect(back.freeHires).toEqual([raw.state.office[0].department]); // departments built already had their free monkey
   });
 });

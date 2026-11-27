@@ -311,13 +311,14 @@ describe('the Research page', () => {
   });
 
   it("offers three applicants for the lab's free researcher in a popup", async () => {
-    const { renderLabApplicants } = await import('../src/cli/hiring');
+    const { renderApplicants } = await import('../src/cli/hiring');
     const s = started();
     s.monkeys.push({ ...createMonkey(), manager: true });
     s.currency = s.sentences = 1e12;
     expect(buyRoom(s, 'lab', undefined, undefined, () => 0.3)).toBe(true);
-    const box = plain(renderLabApplicants(s, 0).join('\n'));
-    expect(box).toContain('free researcher');
+    const box = plain(renderApplicants(s, 0).join('\n'));
+    expect(box).toContain('new R&D department comes with a free monkey');
+    expect(box).toMatch(/\[1\] speed .* research /);
     expect(box).toMatch(/\[3\] speed/);
     expect(box).not.toContain('esc');
   });

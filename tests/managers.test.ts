@@ -268,11 +268,11 @@ describe('R&D', () => {
     expect(buyRoom(s, 'lab', undefined, undefined, () => 0.5)).toBe(true); // building the lab opens R&D
     expect(s.researchOpen).toBe(true);
     expect(L.researchers(s)).toHaveLength(0);
-    expect(s.labApplicants).toHaveLength(3); // with a free researcher, picked from three
-    expect(deserialize(serialize(s)).labApplicants).toEqual(s.labApplicants); // still waiting after a reload
-    const pick = s.labApplicants[1];
-    expect(L.takeLabApplicant(s, 1)).toBe(true);
-    expect(s.labApplicants).toEqual([]);
+    expect(s.applicants).toHaveLength(3); // with a free researcher, picked from three
+    expect(deserialize(serialize(s)).applicants).toEqual(s.applicants); // still waiting after a reload
+    const pick = s.applicants[1];
+    expect(L.takeApplicant(s, 1)).toBe(true);
+    expect(s.applicants).toEqual([]);
     expect(L.researchers(s)).toHaveLength(1);
     expect(s.monkeys[L.researchers(s)[0]].speedStat).toBe(pick.speedStat);
     expect(L.deskOf(s, L.researchers(s)[0])).toBeDefined();

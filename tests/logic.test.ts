@@ -49,6 +49,7 @@ import {
   roomCost,
   expandRoom,
   sellSquare,
+  takeApplicant,
   sellRoom,
   sellRoomBlocker,
   roomRefund,
@@ -1627,6 +1628,30 @@ describe('office space', () => {
     expect(s.squaresBought).toBe(0); // its bought square went with it
     expect(s.stored.furniture.plant).toBe(1);
     expect(s.furniture.some((f) => f.room === lounge.id)).toBe(false);
+  });
+
+  it("a new department's room comes with a free monkey, picked from three, once per department", () => {
+    try {
+      setPlays([comedy, tragedy]);
+      const s = startedGame(0);
+      expect(openDepartment(s, 'comedy')).toBe(true);
+      s.departments.push('tragedy');
+      const before = s.monkeys.length;
+      const room = genreRoom(s, 'tragedy');
+      expect(s.applicants).toHaveLength(3);
+      expect(s.applicantsFor).toBe('tragedy');
+      expect(takeApplicant(s, 0)).toBe(true);
+      expect(s.monkeys).toHaveLength(before + 1);
+      expect(s.monkeys[before].department).toBe('tragedy');
+      expect(roomDesks(s, room)).toHaveLength(1);
+      // Sold empty and built again: no second free monkey.
+      expect(moveMonkey(s, before)).toBe(true);
+      expect(sellRoom(s, room.id)).toBe(true);
+      genreRoom(s, 'tragedy');
+      expect(s.applicants).toEqual([]);
+    } finally {
+      setPlays([]);
+    }
   });
 
   it('gives each department its own room, where its monkeys get desks', () => {

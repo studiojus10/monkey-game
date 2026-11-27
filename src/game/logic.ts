@@ -1231,10 +1231,14 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
-  if (kind === 'lab') {
-    state.researchOpen = true; // building the lab opens R&D
-    // with a free researcher (Justin, 2026-11-27), picked from a few applicants (takeLabApplicant)
-    state.labApplicants = newCandidates(state, hr.candidatesBase, rng);
+  if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
+  // Every new department comes with a free first monkey (Justin, 2026-11-27),
+  // picked from a few applicants (takeApplicant); once per department.
+  const post = kind === 'department' ? (genre ?? '') : roomPost[kind];
+  if (post && !state.freeHires.includes(post)) {
+    state.freeHires.push(post);
+    state.applicants = newCandidates(state, hr.candidatesBase, rng);
+    state.applicantsFor = post;
   }
   if (kind === 'library') {
     state.galleries = Math.max(1, state.galleries); // the first gallery comes with the room
@@ -3261,19 +3265,30 @@ export function newCandidates(state: GameState, n: number, rng: Rng): Candidate[
   return pool.monkeys.map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs, tempLeft: 0 }));
 }
 
+/** The staff department that works in a kind of room. */
+const roomPost: Partial<Record<Room['kind'], string>> = { lab: research.id, hr: hr.id, marketing: marketing.id, codebreaking: codebreaking.id, records: records.id };
+
+/** The job a post's applicants are for (a monkeyStats.jobs id): a staff department's own, else typing. */
+export function applicantJob(post: string): string {
+  return Object.values(roomPost).includes(post) ? post : 'typing';
+}
+
 /**
- * Takes applicant `i` of the lab's (state.labApplicants) as its free first
- * researcher, at a desk: no hire, so the next hire's price stays.
+ * Takes applicant `i` (of state.applicants) as the free first monkey of the
+ * department they're for, at a desk in its room: no hire, so the next hire's
+ * price stays.
  */
-export function takeLabApplicant(state: GameState, i: number): boolean {
-  const c = state.labApplicants[i];
-  const lab = labRoom(state);
-  if (!c || !lab) return false;
+export function takeApplicant(state: GameState, i: number): boolean {
+  const c = state.applicants[i];
+  const post = state.applicantsFor;
+  const room = applicantJob(post) === 'typing' ? departmentRoom(state, post as Genre) : staffRoom(state, post);
+  if (!c || !room) return false;
   const { trait, speedStat, stamina, jobs } = c;
-  addMonkey(state, { trait, speedStat, stamina, jobs: { ...jobs }, department: research.id });
-  const square = bestSquares(state, lab, true)[0];
-  if (square) state.furniture.push({ kind: desk.id, room: lab.id, x: square[0], y: square[1] });
-  state.labApplicants = [];
+  addMonkey(state, { trait, speedStat, stamina, jobs: { ...jobs }, department: post });
+  seatAtNewDesk(state, state.monkeys.length - 1, room);
+  noteManagerChairs(state);
+  state.applicants = [];
+  state.applicantsFor = '';
   return true;
 }
 
