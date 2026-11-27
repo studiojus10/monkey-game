@@ -330,10 +330,16 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
       telegramWait: Math.max(0, num(s.telegramWait, 0)),
       researching: research.projects.some((p) => p.id === s.researching) ? str(s.researching) : '',
       researchProgress: Math.max(0, num(s.researchProgress, 0)),
+      // Temps once came in HR's list of candidates; now they have their own (temps).
       candidates: (Array.isArray(s.candidates) ? (s.candidates as Partial<MonkeyState>[]) : [])
+        .map((c) => monkey(c))
+        .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0 && !(c.tempLeft > 0))
+        .map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs, tempLeft: 0 })),
+      temps: (Array.isArray(s.temps) ? (s.temps as Partial<MonkeyState>[]) : [])
         .map((c) => ({ ...monkey(c), luck: num((c as { luck?: unknown }).luck, 0) }))
-        .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
-        .map(({ trait, speedStat, stamina, jobs, tempLeft, luck }) => ({ trait, speedStat, stamina, jobs, tempLeft, ...(tempLeft > 0 ? { luck } : {}) })),
+        .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0 && c.tempLeft > 0)
+        .map(({ trait, speedStat, stamina, jobs, tempLeft, luck }) => ({ trait, speedStat, stamina, jobs, tempLeft, luck })),
+      bananaRate: Math.max(0, num(s.bananaRate, 0)),
       applicants: (Array.isArray(s.applicants) ? (s.applicants as Partial<MonkeyState>[]) : [])
         .map((c) => monkey(c))
         .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)

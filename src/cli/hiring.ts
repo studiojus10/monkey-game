@@ -1,5 +1,5 @@
 import { hr, monkeyStats, opening, theme } from '../game/config';
-import { applicantJob, getPlay, hirePrice, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
+import { applicantJob, getPlay, hirePrice, tempEarnings, tempMonkey, tempPrice, typewriterName, jobFeeling, postCost, posts, traitOf, type Post } from '../game/logic';
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
 import { lettersTyped, priceNamed, promptChoices, typeOut, viewName, wrapWords } from './screen';
@@ -43,7 +43,6 @@ export function renderCandidates(state: GameState, message = '', columns = 0, cu
       padVisible(percent(c.stamina), 8),
       padVisible(likes, 19),
       padVisible(trait, 15),
-      padVisible(c.tempLeft > 0 ? `temp ${formatDuration(c.tempLeft)}` : 'for good', 11),
       Number.isFinite(price) ? bold(state.currency >= price ? yellow(formatPrice(price)) : formatPrice(price)) : red('no room'),
     ].join(' ');
   }).map((r, i) => (isCursor(i, cursor) ? highlight(r) : r));
@@ -55,13 +54,10 @@ export function renderCandidates(state: GameState, message = '', columns = 0, cu
     dim(` ${hr.name} found these monkeys, priced by speed, stamina and feeling about the job.`),
     dim(` Lowest price in ${theme.currency} of any department; pick the department next.`),
     '',
-    dim(['    ', 'SPEED ', 'STAMINA ', 'LIKES BEST         ', 'TRAIT          ', 'STAYS      ', 'PRICE FROM'].join(' ')),
+    dim(['    ', 'SPEED ', 'STAMINA ', 'LIKES BEST         ', 'TRAIT          ', 'PRICE FROM'].join(' ')),
     ...(rows.length > 0 ? rows : [dim('     Nobody right now.')]),
     '',
     isCursor(cursor, state.candidates.length) ? highlight(unseen) : unseen,
-    ...(state.candidates.some((c) => c.tempLeft > 0)
-      ? ['', dim(` Temps cost less and work better, but leave in time and can't be upgraded.`)]
-      : []),
     '',
     dim(` New candidates in ${formatDuration(state.candidatesIn)}.`),
     ...(message ? ['', ` ${bold(message)}`] : []),
@@ -88,6 +84,61 @@ export function renderApplicants(state: GameState, cursor = -1): string[] {
   });
   const where = viewName(state, state.applicantsFor);
   return menuBox(`The new ${where ? `${where} department` : 'department'} comes with a free monkey. Who gets the job?`, rows, cursor).map((line) => line.replace('   [esc] cancel', ' '.repeat(15))); // no way out: someone gets the job
+}
+
+/**
+ * HR's list of temps (Justin, 2026-11-27: a menu of their own): each one's
+ * stats, the Bananas it should make while it stays, and its price, a share of
+ * that. The department comes next.
+ */
+export function renderTemps(state: GameState, message = '', columns = 0, cursor = -1): string {
+  const rows = state.temps.map((c, i) => {
+    const m = tempMonkey(state, i);
+    const trait = state.managerBook ? (traitOf({ ...createMonkey(), ...c })?.name ?? '?') : dim('?');
+    const price = tempPrice(state, i);
+    return [
+      ` [${i + 1}]`,
+      padVisible(percent(c.speedStat), 6),
+      padVisible(percent(c.stamina), 8),
+      padVisible(trait, 15),
+      padVisible(m ? typewriterName(m.typewriter) : '', 12),
+      padVisible(formatPrice(tempEarnings(state, i)), 12),
+      bold(state.currency >= price ? yellow(formatPrice(price)) : formatPrice(price)),
+    ].join(' ');
+  }).map((r, i) => (isCursor(i, cursor) ? highlight(r) : r));
+  return [
+    titleBar(state, 'Hiring a temp', columns),
+    '',
+    dim(` ${hr.name} found these temps: strong typists for ${formatDuration(hr.tempHours * 3600)}, who bring their own typewriter.`),
+    dim(` Each costs ${Math.round(hr.tempShare * 100)}% of the ${theme.currency} it should make at today's rate; temps can't be upgraded.`),
+    '',
+    dim(['    ', 'SPEED ', 'STAMINA ', 'TRAIT          ', 'TYPEWRITER  ', 'SHOULD MAKE ', 'PRICE'].join(' ')),
+    ...(rows.length > 0 ? rows : [dim('     Nobody right now.')]),
+    '',
+    dim(` New temps in ${formatDuration(state.candidatesIn)}.`),
+    ...(message ? ['', ` ${bold(message)}`] : []),
+    '',
+    rule(columns),
+    keyRow([['up/down', 'choose'], ['enter', 'hire'], ...(rows.length > 0 ? [[`1-${rows.length}`, 'hire'] as [string, string]] : []), ['esc', 'back']], columns),
+  ].join('\n');
+}
+
+/**
+ * A yes-or-no question as a popup (Justin, 2026-11-27: every confirmation in
+ * a popup): the question, then [y] and [n] rows; arrows and enter work too.
+ */
+export function confirmBox(question: string, yes: string, cursor = -1): string[] {
+  const text = wrapWords(question, 60);
+  const rows = [`[y] ${yes}`, '[n] No'];
+  const width = Math.max(...text.map((t) => plainText(t).length), ...rows.map((r) => r.length)) + 2;
+  const line = (t: string) => `|${t}${' '.repeat(Math.max(0, width - plainText(t).length))}|`;
+  return [
+    `+${'-'.repeat(width)}+`,
+    ...text.map((t) => line(` ${bold(t)}`)),
+    line(''),
+    ...rows.map((r, i) => line(isCursor(i, cursor) ? highlight(` ${r}`) : ` ${r}`)),
+    `+${'-'.repeat(width)}+`,
+  ];
 }
 
 /** A post's name in the department popup: its department, or "<department> manager". */

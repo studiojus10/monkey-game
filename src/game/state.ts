@@ -173,6 +173,8 @@ export interface GameState {
   researched: string[]; // finished projects
   researchersHired: number; // researchers hired, for their price
   candidates: Candidate[]; // monkeys HR could hire now (see hr in config.ts)
+  temps: Candidate[]; // temps HR could hire now, on their own list (each with luck: its typewriter)
+  bananaRate: number; // Bananas a second the monkeys have typed lately (a moving average), to price temps by
   applicants: Candidate[]; // the monkeys offered as a new department's free first monkey, from building its room until one is picked (takeApplicant)
   applicantsFor: string; // the post (a genre or a staff department's id) the applicants are for
   freeHires: string[]; // posts that have had their free first monkey, so a room sold and built again brings none
@@ -360,6 +362,8 @@ export function createInitialState(now = Date.now()): GameState {
     researched: [],
     researchersHired: 0,
     candidates: [],
+    temps: [],
+    bananaRate: 0,
     applicants: [],
     applicantsFor: '',
     freeHires: [],

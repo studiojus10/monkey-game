@@ -276,7 +276,7 @@ describe('R&D', () => {
     expect(L.researchers(s)).toHaveLength(1);
     expect(s.monkeys[L.researchers(s)[0]].speedStat).toBe(pick.speedStat);
     expect(L.deskOf(s, L.researchers(s)[0])).toBeDefined();
-    expect(L.researcherCost(s)).toBe(hirePrice); // that doesn't raise the hire price
+    expect(L.researcherCost(s)).toBeGreaterThan(hirePrice); // a hire, paid for with the room
     expect(buyRoom(s, 'lab')).toBe(false); // one lab
     expect(L.hireResearcher(s)).toBe(true);
     const r = L.researchers(s);
@@ -546,7 +546,7 @@ describe('old saves', () => {
 });
 
 describe('temps', () => {
-  it('come in HR lists with better stats, cost less, cannot be upgraded, and leave when their time is up', async () => {
+  it('come in their own HR list with better stats, priced by what they should make, cannot be upgraded, and leave when their time is up', async () => {
     const L = await import('../src/game/logic');
     const s = department(4);
     s.currency = s.sentences = 1e15;
@@ -556,15 +556,27 @@ describe('temps', () => {
     s.researched.push('dept-hr'); // R&D opens it
     buyRoom(s, 'hr');
     L.hireHR(s);
-    L.drawCandidates(s, 1, () => 0); // rng 0: every candidate a temp
-    expect(s.candidates.every((c) => c.tempLeft === hr.tempHours * 3600)).toBe(true);
-    const c = s.candidates[0];
+    L.drawCandidates(s, 1, () => 0);
+    expect(s.candidates.every((c) => c.tempLeft === 0)).toBe(true); // candidates are for good
+    expect(s.temps).toHaveLength(hr.tempsOffered);
+    expect(s.temps.every((c) => c.tempLeft === hr.tempHours * 3600)).toBe(true);
+    const c = s.temps[0];
     expect(c.speedStat).toBeGreaterThanOrEqual(hr.tempStats.min);
     expect(hr.tempTraits).toContain(c.trait);
     expect(Object.values(c.jobs).every((f) => hr.tempFeelings.includes(f))).toBe(true);
-    const base = L.nextMonkeyCost(s, 'comedy');
-    expect(L.hirePrice(s, base, 'typing', 0)).toBe(Math.ceil(base * L.candidateFactor(c, 'typing') * hr.tempPrice));
-    expect(L.buyMonkey(s, 'comedy', 0)).toBe(true);
+    // Priced at tempShare of what it should make at the office's recent rate.
+    s.bananaRate = 1e6;
+    const earns = L.tempEarnings(s, 0);
+    expect(earns).toBeGreaterThan(0);
+    expect(L.tempPrice(s, 0)).toBe(Math.max(hr.tempMinPrice, Math.ceil(earns * hr.tempShare * (1 - L.hrDiscount(s)))));
+    expect(L.tempPrice(s, 0)).toBeLessThan(earns / 2); // a clear win
+    const hirePrice = L.nextMonkeyCost(s);
+    const money = s.currency;
+    const price = L.tempPrice(s, 0);
+    expect(L.hireTemp(s, 0, 'comedy')).toBe(true);
+    expect(s.currency).toBe(money - price);
+    expect(L.nextMonkeyCost(s)).toBe(hirePrice); // not a hire
+    expect(s.temps).toHaveLength(hr.tempsOffered - 1);
     const i = s.monkeys.length - 1;
     const temp = s.monkeys[i];
     expect(L.isTemp(temp)).toBe(true);
@@ -580,7 +592,9 @@ describe('temps', () => {
     expect(s.furniture.filter((f) => f.kind === 'desk')).toHaveLength(desks - 1);
     expect(s.monkeys.map((_, k) => s.furniture[L.deskOf(s, k)!])).toEqual(seats);
     expect(s.stored.hats[hats[0].id]).toBe(1);
-    expect(deserialize(serialize(s)).candidates.every((x) => x.tempLeft > 0)).toBe(true);
+    const back = deserialize(serialize(s));
+    expect(back.temps).toEqual(s.temps);
+    expect(back.bananaRate).toBe(1e6);
   });
 
   it('never leave the office without a typing monkey: the last permanent one cannot be fired', async () => {

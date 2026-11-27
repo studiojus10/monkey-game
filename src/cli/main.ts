@@ -44,6 +44,9 @@ import {
   sellSquare,
   takeApplicant,
   sellRoom,
+  hireTemp,
+  tempPrice,
+  roomHireCost,
   sellRoomBlocker,
   roomRefund,
   sellSquareBlocker,
@@ -208,7 +211,7 @@ import { fitPage, fitRows } from './fit';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderApplicants, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
+import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderTemps, confirmBox, renderApplicants, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder, rosterPageRows } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -284,6 +287,15 @@ function loadGame(): string {
 let message = loadGame();
 let confirmingReset = false;
 let confirmingFolio = false;
+/** The yes-or-no question open as a popup (see ask), answered by the next key. */
+let confirmQuestion: { question: string; yes: string } | null = null;
+let confirmCursor = -1;
+/** Asks a yes-or-no question in a popup: [y] (or enter on its row) means yes, any other key no. */
+function ask(question: string, yes: string): void {
+  confirmQuestion = { question, yes };
+  confirmCursor = -1;
+  message = '';
+}
 let flipping: '' | 'ask' | 'done' = ''; // the coin flip screen ([?] from anywhere): asking, or showing how it went
 let flipMessage = '';
 let newsCursor = 0; // the newspaper's chosen monkey
@@ -394,6 +406,7 @@ function loadPlays(): PlayData[] {
 
 /** Choosing who to hire on HR's list of candidates, before the department popup. */
 let hiring = false;
+let hiringTemps = false; // HR's list of temps, open (Justin, 2026-11-27: a menu of its own)
 let hiringManager = false; // the hire (HR's candidates, then the popup) is for a manager's chair
 let bossMenu = -1; // 'Promote or hire a manager': the popup asking which, open (its cursor) when 0 or more
 let keyMenu: { title: string; keys: [string, string][] } | null = null; // a popup of keys: a page's every key ([/]) or the roster's actions ([enter])
@@ -401,11 +414,12 @@ let keyMenuCursor = -1;
 let pageMenu: Page | null = null; // the [tab] menu (a popup of every page), open: the page it was opened from
 let pageMenuCursor = -1;
 /** The department popup (Justin, 2026-10-18): for a hire (from: the candidate on HR's list, if one), or to move monkey `monkey`. */
-let choosingPost: { kind: 'hire'; from?: number } | { kind: 'move'; monkey: number } | null = null;
+let choosingPost: { kind: 'hire'; from?: number } | { kind: 'temp'; from: number } | { kind: 'move'; monkey: number } | null = null;
 let postCursor = 0;
 
 /** The departments the popup offers: all of them for a hire, the others (no manager's chair) for a move. */
 function postList(): Post[] {
+  if (choosingPost?.kind === 'temp') return hirePosts(state, false).filter((p) => p.job === 'typing');
   if (choosingPost?.kind !== 'move') return hirePosts(state, hiringManager);
   const m = state.monkeys[choosingPost.monkey];
   return posts(state, false).filter((p) => !m || p.id !== postOf(state, m));
@@ -454,7 +468,7 @@ function bossChoices(): string[] {
 /** The department popup's lines. */
 function postPopup(): string[] {
   const c = choosingPost!;
-  const title = c.kind === 'hire' ? `Which department gets the new ${hiringManager ? 'manager' : 'monkey'}?` : `Move ${monkeyName(state, c.monkey)} to which department?`;
+  const title = c.kind === 'temp' ? `Which department gets the temp (${formatPrice(tempPrice(state, c.from))} ${theme.currency})?` : c.kind === 'hire' ? `Which department gets the new ${hiringManager ? 'manager' : 'monkey'}?` : `Move ${monkeyName(state, c.monkey)} to which department?`;
   return renderPostPopup(state, title, postList(), postCursor, c.kind === 'hire', c.kind === 'hire' ? c.from : undefined);
 }
 
@@ -471,6 +485,14 @@ function pickPost(p: Post): void {
     // The roster's cursor stays on the monkey that moved.
     rosterCursor = Math.max(0, rosterOrder(state).indexOf(c.monkey));
     choosingPost = null;
+    return;
+  }
+  if (c.kind === 'temp') {
+    if (hireTemp(state, c.from, p.genre)) {
+      choosingPost = null;
+      hiringTemps = false;
+      welcome(state.monkeys.length - 1);
+    } else message = `Not enough ${theme.currency}.`;
     return;
   }
   if (hireFor(state, p, c.from)) {
@@ -506,6 +528,10 @@ function buyItem(id: string): void {
     }
   } else if (id === 'hire') {
     startHire();
+  } else if (id === 'temp') {
+    hiringTemps = true;
+    menuCursor = 0;
+    message = '';
   } else if (id === 'boss') {
     bossMenu = 0;
     message = '';
@@ -718,7 +744,7 @@ function goHome(): void {
   showingScript = showingKeys = showingHelp = showingDev = showingStats = showingRoster = showingAchievements = false;
   showingOffice = showingOptions = showingDictionary = showingSlots = showingInventory = showingLibrary = showingProfiles = false;
   namingProfile = deletingProfile = -1;
-  readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = hiringManager = false;
+  readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = hiringTemps = hiringManager = false;
   bossMenu = -1;
   pickingDyeColor = pickingDepartment = buyingRoom = false;
   upgrading = null;
@@ -742,7 +768,7 @@ function goHome(): void {
  */
 function currentPage(drawn = false): Page | null {
   const over = upgrading || bossMenu >= 0 || picker || choosingPost || keyMenu || pageMenu || pickerOpen() || namingMonkey >= 0 || confirmingFire;
-  if ((over && !drawn) || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring) return null;
+  if ((over && !drawn) || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || hiringTemps) return null;
   if (confirmingReset || confirmingFolio || showingHelp || showingDev || showingKeys || showingSlots) return null;
   if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
   if (showingInventory || showingRoster) return 'monkeys';
@@ -983,6 +1009,8 @@ function draw() {
     ? renderMonkeyPicker(state, pick.title, pick.notes, menuCursor, shown, columns)
     : showingInventory
     ? renderInventory(state, invRow, invCol, invHeld, shown, columns)
+    : hiringTemps
+    ? renderTemps(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor)
     : hiring
     ? renderCandidates(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor, hiringManager)
     : showingScript && contents
@@ -1028,7 +1056,7 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'promote' ? 'Promote which monkey to manager?' : upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.applicants.length > 0 && !placingRoom ? renderApplicants(state, menuCursor) : state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = confirmQuestion ? confirmBox(confirmQuestion.question, confirmQuestion.yes, confirmCursor) : state.applicants.length > 0 && !placingRoom ? renderApplicants(state, menuCursor) : state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   // The popup's message wraps inside the popup's indent (see overlay).
   const box = popup && [...popup, ...(message && !pickerOpen() ? ['', ...wrapAnsi(` ${bold(message)}`, Math.max(20, columns - 4))] : [])];
   const full = wrapped(withNav);
@@ -1110,7 +1138,7 @@ function toFirstChoice(): boolean {
   else if (pickingLetter) letterCursor = 0;
   else if (flipping || readingTelegrams || readingShelf || namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire) return false;
   else if (showingLibrary) libraryCursor = 0;
-  else if (giving || hiring || showingOptions || showingDev || showingKeys) menuCursor = 0;
+  else if (giving || hiring || hiringTemps || showingOptions || showingDev || showingKeys) menuCursor = 0;
   else if (showingInventory) invRow = invCol = 0;
   else if (showingOffice) {
     if (!officeShop) return false;
@@ -1217,6 +1245,7 @@ function pickerOpen(): boolean {
 function openFlip() {
   flipping = state.currency > 0 ? 'ask' : 'done';
   flipMessage = state.currency > 0 ? '' : `You have no ${theme.currency} to bet.`;
+  if (flipping === 'ask') ask(`Bet all ${formatPrice(state.currency)} ${theme.currency} on the coin? Heads doubles them, tails loses them.`, 'Flip the coin');
 }
 
 /** Up/down move the open menu's cursor over `n` rows; enter returns the chosen row, any other key -1. */
@@ -1231,6 +1260,19 @@ function menuKey(key: { name?: string }, n: number): number {
 
 function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean }): void {
   if (key.ctrl && key.name === 'c') return quit();
+  // A yes-or-no popup: arrows choose, enter answers as [y] or [n]; the next key answers it either way.
+  if (confirmQuestion) {
+    if (key.name === 'up' || key.name === 'down') {
+      confirmCursor = confirmCursor === 0 ? 1 : 0;
+      return draw();
+    }
+    if ((key.name === 'return' || key.name === 'enter') && confirmCursor >= 0) {
+      str = confirmCursor === 0 ? 'y' : 'n';
+      key = { name: str };
+    }
+    if (str === 'n') key = { name: 'n' };
+    confirmQuestion = null;
+  }
 
   // The intro: any key types out the rest of a page, then [enter] turns it.
   if (!state.introSeen) {
@@ -1422,7 +1464,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       else if (profileList[chosen]?.empty) message = 'That profile is already empty.';
       else {
         deletingProfile = chosen;
-        message = `Delete ${profiles.names[chosen]} for good? Press y to confirm, any other key to cancel.`;
+        ask(`Delete ${profiles.names[chosen]} for good?`, 'Delete it');
       }
     }
     return draw();
@@ -1668,6 +1710,21 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       choosingPost = null;
       message = '';
     } else if (p && str !== '0') pickPost(p);
+    return draw();
+  }
+
+  if (hiringTemps) {
+    const row = menuKey(key, state.temps.length);
+    if (row >= 0) str = String(row + 1);
+    const n = Number(str);
+    if (key.name === 'escape' || key.name === 'q') {
+      hiringTemps = false;
+      message = '';
+    } else if (str && /^[1-9]$/.test(str) && n <= state.temps.length) {
+      choosingPost = { kind: 'temp', from: n - 1 };
+      postCursor = 0;
+      message = '';
+    }
     return draw();
   }
 
@@ -2012,6 +2069,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
           else if (state.sentences < roomCost(state, kind)) {
             placingRoom = null;
             message = noSentences;
+          } else if (state.currency < roomHireCost(state, kind, genre)) {
+            placingRoom = null;
+            message = `Not enough ${theme.currency}: a new department's room costs its first monkey too.`;
           } else if (buyRoom(state, kind, genre, at)) {
             placingRoom = null;
             const room = state.office[state.office.length - 1];
@@ -2041,6 +2101,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const choice = roomChoices()[Number(str) - 1];
       if (str !== 'b' && !choice) message = 'No room bought.';
       else if (state.sentences < roomCost(state, choice?.kind ?? 'break')) message = noSentences;
+      else if (state.currency < roomHireCost(state, choice?.kind ?? 'break', choice?.genre)) message = `Not enough ${theme.currency}: a new department's room costs its first monkey too.`;
       else {
         const kind = choice?.kind ?? 'break';
         placingRoom = { kind, genre: choice?.genre, at: suggestRoomSpot(state, kind, choice?.genre ?? '') };
@@ -2118,7 +2179,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
         if (why) message = why;
         else {
           sellingRoom = here.id;
-          message = `Sell the ${roomName(state, here)} for ${formatPrice(roomRefund(state, here.id))} Sentences? Its furniture goes to your inventory. [y] sell, any other key keeps it.`;
+          ask(`Sell the ${roomName(state, here)} for ${formatPrice(roomRefund(state, here.id))} Sentences? Its furniture goes to your inventory.`, 'Sell it');
         }
       } else if (typeof spot !== 'number') message = 'No furniture there.';
       else if (!canRemoveFurniture(state, spot)) message = 'Desks stay: monkeys work at them.';
@@ -2138,8 +2199,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
     } else if (str === 'r' && !officeGrowing) {
       buyingRoom = true;
+      const withHire = (c: { kind: RoomKind; genre?: Genre }) => (roomHireCost(state, c.kind, c.genre) > 0 ? `, with its first monkey (+${formatPrice(roomHireCost(state, c.kind, c.genre))} ${theme.currency})` : '');
       const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `the ${records.name} Department` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `the ${codebreaking.name} Department` : c.kind === 'marketing' ? `the ${marketing.name} Department` : c.kind === 'hr' ? `the ${hr.name} Department` : c.kind === 'lab' ? `a lab for ${research.name}, with a researcher (${formatPrice(roomCost(state, 'lab'))} Sentences)` : c.kind === 'office' ? `the ${departmentName(state, c.genre!)} Office, for its manager` : `the ${departmentName(state, c.genre!)} Department`}`,
+        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `the ${records.name} Department` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `the ${codebreaking.name} Department` : c.kind === 'marketing' ? `the ${marketing.name} Department` : c.kind === 'hr' ? `the ${hr.name} Department` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `the ${departmentName(state, c.genre!)} Office, for its manager` : `the ${departmentName(state, c.genre!)} Department`}${withHire(c)}`,
       );
       message = `Buy a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
@@ -2257,7 +2319,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       if (blocked) message = `You can't fire ${monkeyName(state, i)}: ${blocked}.`;
       else {
         confirmingFire = true;
-        message = `Fire ${monkeyName(state, i)}? It leaves for good; its hat goes into your inventory. [y] fire   (any other key: no)`;
+        ask(`Fire ${monkeyName(state, i)}? It leaves for good; its hat goes into your inventory.`, 'Fire it');
       }
     } else if (str === 'h' && i !== undefined) {
       picker = { kind: 'hat', monkey: i };
@@ -2428,13 +2490,13 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     dictionaryRow = 0;
   } else if (str === 'f' && canPublishFolio(state)) {
     confirmingFolio = true;
-    message = folioPrompt(state);
+    ask(folioPrompt(state), 'Publish the Folio');
   } else if (key.name === 's') {
     save(state, storage);
     message = `Saved to ${savePath}.`;
   } else if (key.name === 'r') {
     confirmingReset = true;
-    message = 'Erase all progress? Press y to confirm, any other key to cancel.';
+    ask('Erase all progress?', 'Yes, erase everything');
   }
   draw();
 }

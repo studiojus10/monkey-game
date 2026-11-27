@@ -68,6 +68,7 @@ import {
   canBuildMarketing,
   royalties,
   hrAtWork,
+  tempPrice,
   labRoom,
   projectOf,
   projectsLeft,
@@ -910,7 +911,18 @@ export function storeItems(state: GameState, store: Store, at?: ScriptSpot): Sho
       // Until a department could take a manager, a note says what it takes.
       const managerNote = open.some((g) => !managerOf(state, g)) && !posts(state).some((p) => p.job === 'managing' && p.have === 0);
       // Items that show up later go after the ones already there (Justin, 2026-10-21), and stay once they show.
+      const tempPrices = state.temps.map((_, i) => tempPrice(state, i));
       const later: ShopItem[] = [
+        ...(hrAtWork(state)
+          ? [
+              {
+                id: 'temp',
+                text: 'Hire a temp',
+                effect: `${hr.tempHours}h of a strong typist, priced at ${pct(hr.tempShare)} of what it should make; can't be upgraded`,
+                ...(tempPrices.length > 0 ? { star: state.currency >= Math.min(...tempPrices), cost: [[Math.min(...tempPrices), 'currency']] as [number, Currency][], costFrom: tempPrices.length > 1 } : { blocked: 'none right now' }),
+              } as ShopItem,
+            ]
+          : []),
         ...(chairs.length > 0
           ? [
               {
@@ -1535,7 +1547,7 @@ export function folioPrompt(state: GameState): string {
   return (
     `Publish a Folio? Everything starts over: monkeys, letters, office, script and currencies. ` +
     `You keep achievements and statistics, and the Folio gains ${count(pages)} pages (one per line written, finished plays twice): ` +
-    `bananas ${formatMultiplier(folioMultiplierAfter(state))} for good (each Folio multiplies the last). Press y to publish, any other key to keep playing.`
+    `bananas ${formatMultiplier(folioMultiplierAfter(state))} for good (each Folio multiplies the last).`
   );
 }
 

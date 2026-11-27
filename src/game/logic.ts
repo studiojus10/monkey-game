@@ -1215,7 +1215,8 @@ export function roomCost(state: GameState, kind?: Room['kind']): number {
  */
 export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square, rng: Rng = Math.random): boolean {
   const cost = roomCost(state, kind);
-  if (state.sentences < cost) return false;
+  const hire = roomHireCost(state, kind, genre);
+  if (state.sentences < cost || state.currency < hire) return false;
   if (at && !roomFitsAt(state, kind, genre ?? '', newRoomCells(kind, at))) return false;
   if (kind === 'department' && (!genre || !roomlessDepartments(state).includes(genre))) return false;
   if (kind === 'office' && (!genre || !officelessDepartments(state).includes(genre))) return false;
@@ -1226,6 +1227,7 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
   if (kind === 'library' && !canBuildLibrary(state)) return false;
   if (kind === 'records' && !canBuildRecords(state)) return false;
   state.sentences -= cost;
+  state.currency -= hire;
   if (kind === 'office') {
     const room = addRoom(state, kind, genre!, managerOffice.width, managerOffice.height, at);
     const square = bestSquares(state, room, true)[0];
@@ -1237,6 +1239,8 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
   const post = kind === 'department' ? (genre ?? '') : roomPost[kind];
   if (post && !state.freeHires.includes(post)) {
     state.freeHires.push(post);
+    state.monkeysBought[post] = (state.monkeysBought[post] ?? 0) + 1; // a hire, paid with the room
+    giveHireLetter(state);
     state.applicants = newCandidates(state, hr.candidatesBase, rng);
     state.applicantsFor = post;
   }
@@ -1924,6 +1928,8 @@ function dueSlot(state: GameState, m: MonkeyState, dict: Dictionary): string {
  */
 /** Points paid for words (not line bonuses) since the module loaded; tick() uses the difference. */
 let wordEarnings = 0;
+/** How far back state.bananaRate looks, roughly, in seconds. */
+const bananaRateSeconds = 600;
 
 export function typeLetter(state: GameState, index: number, rng: Rng = Math.random): void {
   const m = state.monkeys[index];
@@ -2587,11 +2593,16 @@ export function tick(state: GameState, seconds: number, rng: Rng = Math.random, 
     for (let k = 0; k < typed; k++) typeLetter(state, i, rng);
   });
   // Letters past the budget earn what the simulated ones did for words, on average.
+  let typed = wordEarnings - before;
   if (share < 1) {
     const extra = total / Math.max(1, due.reduce((a, n) => a + Math.round(n * share), 0)) - 1;
     earn(state, (wordEarnings - before) * extra);
+    typed *= 1 + extra;
     state.wordsTyped += Math.round((state.wordsTyped - wordsBefore) * extra);
   }
+  // The recent rate, over about bananaRateSeconds (temps are priced by it).
+  const k = 1 - Math.exp(-seconds / bananaRateSeconds);
+  state.bananaRate += (typed / seconds - state.bananaRate) * k;
   checkAchievements(state);
 }
 
@@ -3265,6 +3276,16 @@ export function newCandidates(state: GameState, n: number, rng: Rng): Candidate[
   return pool.monkeys.map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs, tempLeft: 0 }));
 }
 
+/**
+ * Bananas a new room costs besides its Sentences: for a department's first
+ * room, which brings its first monkey, departmentHire x the next hire's price
+ * (Justin, 2026-11-27); else nothing.
+ */
+export function roomHireCost(state: GameState, kind: Room['kind'], genre?: string): number {
+  const post = kind === 'department' ? (genre ?? '') : roomPost[kind];
+  return post && !state.freeHires.includes(post) ? Math.ceil(nextMonkeyCost(state) * monkeyShop.departmentHire) : 0;
+}
+
 /** The staff department that works in a kind of room. */
 const roomPost: Partial<Record<Room['kind'], string>> = { lab: research.id, hr: hr.id, marketing: marketing.id, codebreaking: codebreaking.id, records: records.id };
 
@@ -3275,8 +3296,8 @@ export function applicantJob(post: string): string {
 
 /**
  * Takes applicant `i` (of state.applicants) as the free first monkey of the
- * department they're for, at a desk in its room: no hire, so the next hire's
- * price stays.
+ * department they're for, at a desk in its room (paid for with the room:
+ * see roomHireCost).
  */
 export function takeApplicant(state: GameState, i: number): boolean {
   const c = state.applicants[i];
@@ -3292,28 +3313,61 @@ export function takeApplicant(state: GameState, i: number): boolean {
   return true;
 }
 
-/** Draws a new list of candidates every refreshHours while HR is at work (the first right away). */
+/** Draws new lists of candidates and temps every refreshHours while HR is at work (the first right away). */
 export function drawCandidates(state: GameState, seconds: number, rng: Rng): void {
   if (!hrAtWork(state)) return;
   state.candidatesIn -= seconds;
   if (state.candidatesIn > 0) return;
-  const pool = { ...state, monkeys: Array.from({ length: candidateCount(state) }, createMonkey) };
-  giveTraits(pool, rng);
-  state.candidates = pool.monkeys.map(({ trait, speedStat, stamina, jobs }) => {
-    if (rng() >= hr.tempChance) return { trait, speedStat, stamina, jobs, tempLeft: 0 };
-    // A temp: better stats, a helpful trait, happy in any job.
-    const pick = <T>(list: T[]) => list[Math.min(list.length - 1, Math.floor(rng() * list.length))];
-    const stat = () => Math.round((hr.tempStats.min + rng() * (hr.tempStats.max - hr.tempStats.min)) * 100) / 100;
-    return {
-      trait: pick(hr.tempTraits),
-      speedStat: stat(),
-      stamina: stat(),
-      jobs: Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, pick(hr.tempFeelings)])),
-      tempLeft: hr.tempHours * 3600,
-      luck: rng(),
-    };
-  });
+  state.candidates = newCandidates(state, candidateCount(state), rng);
+  // Temps: better stats, a helpful trait, happy in any job.
+  const pick = <T>(list: T[]) => list[Math.min(list.length - 1, Math.floor(rng() * list.length))];
+  const stat = () => Math.round((hr.tempStats.min + rng() * (hr.tempStats.max - hr.tempStats.min)) * 100) / 100;
+  state.temps = Array.from({ length: hr.tempsOffered }, () => ({
+    trait: pick(hr.tempTraits),
+    speedStat: stat(),
+    stamina: stat(),
+    jobs: Object.fromEntries(monkeyStats.jobs.map((j) => [j.id, pick(hr.tempFeelings)])),
+    tempLeft: hr.tempHours * 3600,
+    luck: rng(),
+  }));
   state.candidatesIn = hr.refreshHours * 3600;
+}
+
+/** Temp `i` (of state.temps) as the monkey it would be at work: its typewriter, and the best skill that allows, up to the office's best. */
+export function tempMonkey(state: GameState, i: number, genre?: Genre): MonkeyState | undefined {
+  const c = state.temps[i];
+  if (!c) return undefined;
+  const { luck, ...stats } = c;
+  const m: MonkeyState = { ...createMonkey(), ...stats, jobs: { ...stats.jobs }, typewriter: tempTypewriter(state, luck ?? 0), department: genre ?? departmentGenres(state)[0] ?? '' };
+  const best = Math.max(0, ...state.monkeys.filter((o) => isTypist(o) && !isTemp(o)).map((o) => o.skill));
+  m.skill = Math.min(best, skillCap(m));
+  return m;
+}
+
+/** Bananas temp `i` should make while it stays: the office's recent Bananas per letter, times the letters it types at full energy. */
+export function tempEarnings(state: GameState, i: number): number {
+  const m = tempMonkey(state, i);
+  if (!m) return 0;
+  const letters = state.monkeys.reduce((n, o) => n + (isTypist(o) && canReachDesk(state, o) ? monkeySpeed(state, o) : 0), 0);
+  return letters > 0 ? (state.bananaRate / letters) * monkeySpeed(state, m) * m.tempLeft : 0;
+}
+
+/** A temp's price: tempShare of what it should make, less HR's discount, and at least tempMinPrice. */
+export function tempPrice(state: GameState, i: number): number {
+  return Math.max(hr.tempMinPrice, Math.ceil(tempEarnings(state, i) * hr.tempShare * (1 - hrDiscount(state))));
+}
+
+/** Hires temp `i` into a typing department with room for it: not a hire, so the next hire's price stays, and no letter. */
+export function hireTemp(state: GameState, i: number, genre?: Genre): boolean {
+  const dept = placeFor(state, genre);
+  const m = tempMonkey(state, i, (dept || undefined) as Genre | undefined);
+  if (dept === null || !m || state.currency < tempPrice(state, i)) return false;
+  state.currency -= tempPrice(state, i);
+  const { number: _, name: __, ...fields } = m;
+  addMonkey(state, { ...fields, department: dept });
+  placeDesk(state, (dept || undefined) as Genre | undefined);
+  state.temps.splice(i, 1);
+  return true;
 }
 
 /**
@@ -3329,7 +3383,7 @@ export function candidateFactor(c: Candidate, job: string): number {
 /** A hire's price: the job's price, times the candidate's factor when hiring one (from: its index in state.candidates). */
 export function hirePrice(state: GameState, base: number, job: string, from?: number): number {
   const c = from === undefined ? undefined : state.candidates[from];
-  return c ? Math.ceil(base * candidateFactor(c, job) * (c.tempLeft > 0 ? hr.tempPrice : 1)) : base;
+  return c ? Math.ceil(base * candidateFactor(c, job)) : base;
 }
 
 /** A job a monkey can be hired for (a monkeyStats.jobs id). */
@@ -3472,10 +3526,10 @@ export function giveHireLetter(state: GameState): boolean {
 
 /** Takes a candidate off the list, for a hire (every hire for Bananas goes through here): its trait and stats (nothing for an unseen hire). */
 function takeCandidate(state: GameState, from?: number): Partial<MonkeyState> {
-  if (!(state.candidates[from ?? -1]?.tempLeft > 0)) giveHireLetter(state); // temps bring no letter
+  giveHireLetter(state);
   if (from === undefined || !state.candidates[from]) return {};
-  const { luck, ...c } = state.candidates.splice(from, 1)[0];
-  return c.tempLeft > 0 ? { ...c, typewriter: tempTypewriter(state, luck ?? 0) } : c;
+  const { luck: _, ...c } = state.candidates.splice(from, 1)[0];
+  return c;
 }
 
 /**
