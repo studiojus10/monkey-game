@@ -300,14 +300,14 @@ export function renderOffice(
     ...lines,
     '',
     ...roomTable(state, columns),
-    ...roomlessDepartments(state).map((g) => red(` The ${departmentName(state, g)} department needs a room: press [r] to buy one.`)),
+    ...roomlessDepartments(state).map((g) => red(` The ${departmentName(state, g)} department needs a room: press [n] to open it.`)),
     '',
     ` ${label(`New room ${bold(formatPrice(roomCost(state)))} Sentences`, roomCost(state), state.sentences)}   ${label(`One more square ${bold(formatPrice(squareCost(state)))} Sentences`, squareCost(state), state.sentences)}`,
     '',
     ...(doing ? [` ${doing}`] : where ? [dim(` ${where}`)] : []),
     ...(message ? [` ${bold(message)}`] : []),
     rule(columns),
-    ...(keys.length > 0 ? keys.map((k) => keyRow(k, columns)) : [shortKeyRow(officeKeys(state), ['arrows', 'space', 'f', 'r', 'esc'], columns, 'all keys and help')]),
+    ...(keys.length > 0 ? keys.map((k) => keyRow(k, columns)) : [shortKeyRow(officeKeys(state), ['arrows', 'space', 'f', 'r', 'n', 'esc'], columns, 'all keys and help')]),
   ].join('\n');
 }
 
@@ -315,7 +315,7 @@ export function renderOffice(
 export function officeKeys(state: GameState): [string, string][] {
   return [
     ['arrows', 'move'], ['<>', 'room'], ['space', 'pick up'], ['l', 'legend'], ['f', 'furniture'], ['p', 'put out'], ['s', 'store'], ['v', 'sell'], ['i', 'inspect'], ['x', 'grow'],
-    ['r', 'buy a room'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'],
+    ['r', 'build a room'], ['n', 'open a department'], ['m', 'move room'], ['d', 'door'], ['w', 'window'], ['h', 'hallway'],
     ...(state.fengShuiBook ? [['b', 'book'] as [string, string]] : []), ...(state.managerBook ? [['e', 'employees'] as [string, string]] : []),
     ['esc', 'back'],
   ];
@@ -427,7 +427,8 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     '   [v] on an empty square sells the whole room, if no monkeys work there',
     '   (departments and break rooms). Furniture on a square or room you sell',
     '   goes to your inventory.',
-    '   A new room ([r]) goes where you put it: arrows, then [enter].',
+    "   [r] builds a room (a break room, a manager's office, the library);",
+    '   [n] opens a department, with its room. Both go where you put them: arrows, then [enter].',
     '   [m] picks up the room under the cursor, with everything in it, to move it.',
     '   Windows (: or ===) go in walls that face outside.',
     '',
@@ -504,7 +505,7 @@ export function safeText(state: GameState, index: number): string {
     ? state.codebreakFocus === Object.keys(state.safes).find((g) => state.safes[g] === s)
       ? `${codebreaking.name} is on it: ${formatNumber(Math.floor(s.tries))} combinations tried.`
       : `${codebreaking.name} is working on another safe ([space] shop, Staff store, to switch).`
-    : `Perhaps a ${codebreaking.name} Department could crack it (office map, [r]).`;
+    : `Perhaps a ${codebreaking.name} Department could crack it (office map, [n]).`;
   return `${safes.found} Its lock: ${lockOf(s.level).name} (${formatAmount(lockCombinations(s.level))} combinations). ${at}`;
 }
 

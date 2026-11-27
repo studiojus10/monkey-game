@@ -739,7 +739,8 @@ describe('office space on screen', () => {
     expect(text).toContain(' INFINITE MONKEYS > OFFICE ');
     expect(text).toContain('\n\n+-C-----+\n|[@]  . :\n|       |\n| .   . |\n+-------+');
     expect(squash(text)).toContain('\n C Comedies Department 4 none - Bobo\n');
-    expect(text).toContain('[r] buy a room');
+    expect(text).toContain('[r] build a room');
+    expect(text).toContain('[n] open a department');
     expect(text).not.toContain('Each monkey gets a desk'); // how rooms work is on the [/] page
     expect(plain(renderOfficeHelp(s))).toContain("Each monkey gets a desk in its department's room.");
   });
