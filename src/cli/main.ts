@@ -167,6 +167,7 @@ import {
   trainees,
   renderDevMenu,
   contentsPageSize,
+  latelyShown,
   renderSlotsMenu,
   scriptPageSize,
   renderOptions,
@@ -192,13 +193,14 @@ import {
   type Tab,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
-import { askBackground, bold, dim, fillHeight, forLightBackground, inverseSpan, lightShade, screenTop, showCursors, terminalBackground, terminalFrame, wrapAnsi } from './style';
+import { askBackground, bold, dim, fillUnderList, forLightBackground, inverseSpan, lightShade, screenTop, showCursors, spreadHeight, terminalBackground, terminalFrame, wrapAnsi } from './style';
+import { fitPage, fitRows } from './fit';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
 import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
-import { renderRoster, rosterActions, rosterKeys, rosterOrder } from './roster';
+import { renderRoster, rosterActions, rosterKeys, rosterOrder, rosterPageRows } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
 import { legendSize, renderFurniturePicker, sideName, furnitureName, inspectSquare, libraryBooks, renderFengShuiBook, renderManagerBook, renderOffice, renderOfficeHelp, roomName, type Cell } from './office';
 import { cycleDoor, cycleWindow, doorBetween, loungeOf, officeBounds, placeDoor, roomAt, servedBy, takeDoor, toggleHall, touchingRooms } from '../game/layout';
@@ -672,13 +674,26 @@ function newRoomMessage(room: Room): string {
 /** The office map's furniture shop: under the map when the screen is tall enough for both, else on its own. */
 function officeShopScreen(columns: number): string {
   const both = renderOffice(state, '', officeCursor, -1, false, null, columns, renderShop(state, officeShop!, shopCursor, message, columns, true, undefined, true));
-  const rows = process.stdout.rows || 0;
-  return rows > 0 && both.split('\n').length > rows ? renderShop(state, officeShop!, shopCursor, message, columns, false, undefined, true) : both;
+  const height = process.stdout.rows ? heightNow() : 0;
+  return height > 0 && both.split('\n').length > height ? renderShop(state, officeShop!, shopCursor, message, columns, false, undefined, true) : both;
 }
+
+/** How many rows each scrolling list shows when the window's size isn't known. */
+const defaultRows = {
+  roster: rosterPageRows,
+  dictionary: dictionaryPageRows,
+  achievements: achievementPageRows,
+  contents: contentsPageSize,
+  script: scriptPageSize,
+  news: latelyShown,
+  book: 22,
+};
+/** How many rows each scrolling list showed in the last draw (sized to the window), for paging between draws. */
+const shownRows = { ...defaultRows };
 
 /** Rows of a book the screen has room for. */
 function bookHeight(): number {
-  return Math.max(5, (process.stdout.rows || 30) - 8);
+  return shownRows.book;
 }
 
 /** Opens the office map with the cursor in the top-left corner of the first room. */
@@ -703,10 +718,16 @@ function goHome(): void {
   message = '';
 }
 
-/** The page open now, for the navigation bar, or null on a screen inside one (a book, a picker, help, a question). */
-function currentPage(): Page | null {
-  if (upgrading || bossMenu >= 0 || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring || picker || choosingPost || keyMenu || pageMenu || pickerOpen()) return null;
-  if (namingMonkey >= 0 || confirmingReset || confirmingFolio || confirmingFire || showingHelp || showingDev || showingKeys || showingSlots) return null;
+/**
+ * The page open now, for the navigation bar, or null on a screen inside one
+ * (a book, a picker, help, a question). `drawn`: the page as drawn, under a
+ * popup or a question on the message line, which keeps its tabs row so
+ * nothing under them moves.
+ */
+function currentPage(drawn = false): Page | null {
+  const over = upgrading || bossMenu >= 0 || picker || choosingPost || keyMenu || pageMenu || pickerOpen() || namingMonkey >= 0 || confirmingFire;
+  if ((over && !drawn) || flipping || readingTelegrams || readingShelf || showingLibrary || pickingLetter || giving || hiring) return null;
+  if (confirmingReset || confirmingFolio || showingHelp || showingDev || showingKeys || showingSlots) return null;
   if (showingOffice) return readingBook || readingManagerBook || officeHelp ? null : 'office';
   if (showingInventory || showingRoster) return 'monkeys';
   if (showingScript) return 'texts';
@@ -840,7 +861,7 @@ function shopKey(store: Store, str: string | undefined, key: { name?: string }):
   return store;
 }
 
-/** The game's height: the tallest screen seen or measured this session (see tallestPage). */
+/** The game's height when the terminal doesn't say how tall it is: the tallest screen seen or measured this session (see tallestPage). */
 let gameHeight = 0;
 let measuredAt = 0;
 
@@ -863,10 +884,10 @@ function tallestPage(columns: number): number {
   return Math.max(...pages.map((p) => p.split('\n').length));
 }
 
-/** The game's height on screen: the tallest page's, but no taller than the terminal. */
+/** The game's height on screen: the terminal's (less a line, for the prompt), or the tallest page's when the terminal doesn't say. */
 function heightNow(): number {
   const rows = process.stdout.rows || 0;
-  return rows > 0 ? Math.min(gameHeight, rows - 1) : gameHeight;
+  return rows > 0 ? rows - 1 : gameHeight;
 }
 
 function draw() {
@@ -893,9 +914,37 @@ function draw() {
   // A picker is a popup (promptBox), not a line on the screen.
   const shown = pickerOpen() ? '' : message;
   const pick = giving && (giving.kind === 'hat' ? hatPick(state, giving.id) : dyePick(state, giving.color));
-  const page = currentPage();
+  const page = currentPage(true);
   const nav = page ? pageTabsRow(page, currentTab()) : [];
   const navHeight = nav.length;
+  const rows = process.stdout.rows || 0;
+  // Any line still wider than the terminal wraps at the end of a word rather than mid-word.
+  const wrapped = (screen: string) => screen.split('\n').flatMap((l) => wrapAnsi(l, columns)).join('\n');
+  // Lists as long as the page has room for (at their defaults when the terminal doesn't say its size),
+  // each page brought to its height so nothing moves as its cursor moves or a message shows (see fitPage).
+  const pageHeight = rows > 0 ? heightNow() - navHeight : 0;
+  let scrolls = false;
+  const fit = (list: keyof typeof shownRows, render: (n: number, message: string) => string, total: number, panel = '') => {
+    const fitted = fitPage(render, { base: defaultRows[list], total, height: pageHeight, columns, message: shown, panel });
+    shownRows[list] = fitted.rows;
+    scrolls = fitted.scrolls;
+    return fitted.screen;
+  };
+  shownRows.book = Math.max(5, (rows > 0 ? heightNow() : 30) - 8);
+  // The home screen's LATELY is fitted as it is without the shop (the home under the shop has no
+  // message or cursor), and the shop goes over that same screen, so opening the shop moves nothing.
+  // Its floor is latelyShown, not minListRows: the news shows at least as many items as it always did.
+  const homeScreen = () => {
+    const homeRows = Math.max(0, heightNow() - navHeight);
+    const chosen = homeChosen(state, homeCursor);
+    if (shop === 'research') return renderScreen(state, shown, shop, columns, shopCursor, homeRows, chosen);
+    const home = fitRows((n) => wrapped(renderScreen(state, shop ? '' : shown, null, columns, shop ? -1 : menuCursor, homeRows, chosen, n)), latelyShown, pageHeight, latelyShown);
+    shownRows.news = home.rows;
+    return shop ? renderScreen(state, shown, shop, columns, shopCursor, homeRows, chosen, shownRows.news) : home.screen;
+  };
+  const play = availablePlays()[scriptPlay];
+  const scriptPage = (panel = '') => fit('script', (n, m) => renderScript(state, play?.id ?? '', scriptCursor, m, columns, '', n), play?.lines.length ?? 0, panel);
+  const contentsPlay = contents === 'scenes' ? (play ?? null) : null;
   if (!state.introSeen && introStart === 0) introStart = Date.now();
   if (state.newspaper.length > 0 && !state.newspaperNote && newsStart === 0) newsStart = Date.now();
   if (state.manuscript && !state.manuscriptNote && manuscriptStart === 0) manuscriptStart = Date.now();
@@ -918,7 +967,7 @@ function draw() {
     : hiring
     ? renderCandidates(state, choosingPost ? '' : shown, columns, choosingPost ? -1 : menuCursor, hiringManager)
     : showingScript && contents
-    ? renderContents(state, contents === 'scenes' ? (availablePlays()[scriptPlay]?.id ?? null) : null, contentsCursor, shown, columns, contentsTab)
+    ? fit('contents', (n, m) => renderContents(state, contentsPlay?.id ?? null, contentsCursor, m, columns, contentsTab, n), contentsPlay ? contentsPlay.scenes.length : contentsTab === 'codes' ? 0 : tabPlays(contentsTab).length)
     : showingOptions && showingProfiles
     ? renderProfiles(state, profileList, profiles.active, menuCursor, message, columns)
     : showingOptions
@@ -934,17 +983,17 @@ function draw() {
     : showingOffice
     ? renderOffice(officeView(), shown, roomCursor(), heldFurniture, officeGrowing, heldDoor?.side ?? null, columns, '', officeLegend)
     : showingAchievements
-    ? renderAchievements(state, achievementRow, columns)
+    ? fit('achievements', (n) => renderAchievements(state, achievementRow, columns, n), achievements.length)
     : showingRoster
-    ? renderRoster(state, rosterCursor, shown, columns)
+    ? fit('roster', (n, m) => renderRoster(state, rosterCursor, m, columns, n), state.monkeys.length)
     : showingStats
     ? renderStats(state, columns)
     : showingDictionary
-      ? renderDictionary(state, dictionaryRow, columns)
+      ? fit('dictionary', (n) => renderDictionary(state, dictionaryRow, columns, n), Math.ceil(dictionaryWords(state).length / dictionaryColumns))
       : showingScript && scriptShop
-    ? renderScript(state, scriptSpot().play, scriptCursor, '', columns, renderShop(state, 'script', shopCursor, shown, columns, true, scriptSpot()))
+    ? scriptPage(renderShop(state, 'script', shopCursor, shown, columns, true, scriptSpot()))
     : showingScript
-    ? renderScript(state, availablePlays()[scriptPlay]?.id ?? '', scriptCursor, shown, columns)
+    ? scriptPage()
     : showingDev
       ? renderDevMenu(state, shown, columns, menuCursor)
       : showingKeys
@@ -953,7 +1002,7 @@ function draw() {
         ? renderSlotsMenu(state, departmentGenres(state)[slotDept], selectedSlot, slotWordDraft, shown, columns)
         : showingHelp
           ? renderHomeKeys(state)
-          : renderScreen(state, shown, shop, columns, shop ? shopCursor : menuCursor, Math.max(0, heightNow() - navHeight), homeChosen(state, homeCursor));
+          : homeScreen();
   // The navigation bar, right under the title bar, on every page.
   const withNav = page ? ((lines) => [lines[0], ...nav, ...lines.slice(1)].join('\n'))(under.split('\n')) : under;
   // The department popup over whatever screen it was opened from, with any message under it.
@@ -961,19 +1010,21 @@ function draw() {
   const upgradeTitle = upgrading?.kind === 'promote' ? 'Promote which monkey to manager?' : upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
   const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
-  const rows = process.stdout.rows || 0;
-  // Any line still wider than the terminal wraps at the end of a word rather than mid-word.
-  const shownNow = (popup ? overlay(withNav, [...popup, ...(message && !pickerOpen() ? ['', ` ${bold(message)}`] : [])], columns) : withNav)
-    .split('\n')
-    .flatMap((l) => wrapAnsi(l, columns))
-    .join('\n');
-  // Every screen as tall as the tallest, so nothing moves between them; the game still sits at the bottom of the window.
-  gameHeight = Math.max(gameHeight, shownNow.split('\n').length);
-  if (Date.now() - measuredAt > 2000) {
-    measuredAt = Date.now();
-    gameHeight = Math.max(gameHeight, tallestPage(columns));
+  // The popup's message wraps inside the popup's indent (see overlay).
+  const box = popup && [...popup, ...(message && !pickerOpen() ? ['', ...wrapAnsi(` ${bold(message)}`, Math.max(20, columns - 4))] : [])];
+  const full = wrapped(withNav);
+  // Every screen as tall as the window (or, when the terminal doesn't say, the tallest page), so nothing moves between them.
+  if (rows === 0) {
+    gameHeight = Math.max(gameHeight, full.split('\n').length, box ? box.length + 2 : 0);
+    if (Date.now() - measuredAt > 2000) {
+      measuredAt = Date.now();
+      gameHeight = Math.max(gameHeight, tallestPage(columns));
+    }
   }
-  const screen = fillHeight(shownNow, heightNow());
+  // Spread before the popup goes over it, so the popup isn't split by the spacing (a fitted page is
+  // the page's height already, unless the terminal doesn't say its size).
+  const filled = (scrolls ? fillUnderList : spreadHeight)(full, heightNow());
+  const screen = box ? overlay(filled, box, columns) : filled;
   drawn = { lines: screen.split('\n'), top: screenTop(screen, rows, state.settings.screenAtTop) };
   // Whatever the mouse is over is highlighted, as the menus' cursor is.
   const lines = [...drawn.lines];
@@ -1671,9 +1722,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (key.name === 'down' || key.name === 'j') {
       contentsCursor = Math.min(size - 1, contentsCursor + 1);
     } else if (key.name === 'pageup') {
-      contentsCursor = Math.max(0, contentsCursor - contentsPageSize);
+      contentsCursor = Math.max(0, contentsCursor - shownRows.contents);
     } else if (key.name === 'pagedown') {
-      contentsCursor = Math.min(size - 1, contentsCursor + contentsPageSize);
+      contentsCursor = Math.min(size - 1, contentsCursor + shownRows.contents);
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'right') {
       if (contents === 'plays') {
         const chosen = listed[contentsCursor];
@@ -1714,9 +1765,9 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (key.name === 'down' || key.name === 'j') {
       scriptCursor = Math.min(last, scriptCursor + 1);
     } else if (key.name === 'pageup') {
-      scriptCursor = Math.max(0, scriptCursor - scriptPageSize);
+      scriptCursor = Math.max(0, scriptCursor - shownRows.script);
     } else if (key.name === 'pagedown') {
-      scriptCursor = Math.min(last, scriptCursor + scriptPageSize);
+      scriptCursor = Math.min(last, scriptCursor + shownRows.script);
     } else if (key.name === 'left' && play) {
       // Start of this scene, or of the previous one if already there.
       let i = scriptCursor;
@@ -2168,7 +2219,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
   }
 
   if (showingStats || showingDictionary || showingAchievements) {
-    const maxRow = Math.max(0, Math.ceil(dictionaryWords(state).length / dictionaryColumns) - dictionaryPageRows);
+    const maxRow = Math.max(0, Math.ceil(dictionaryWords(state).length / dictionaryColumns) - shownRows.dictionary);
     const turnTo = (page: 't' | 'w' | 'a') => {
       showingStats = page === 't';
       showingDictionary = page === 'w';
@@ -2181,16 +2232,16 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (showingDictionary && str === 't') {
       turnTo(str);
     } else if (showingAchievements && (key.name === 'up' || key.name === 'down')) {
-      const last = Math.max(0, achievements.length - achievementPageRows);
+      const last = Math.max(0, achievements.length - shownRows.achievements);
       achievementRow = Math.max(0, Math.min(last, achievementRow + (key.name === 'up' ? -1 : 1)));
     } else if (showingDictionary && key.name === 'up') {
       dictionaryRow = Math.max(0, Math.min(dictionaryRow, maxRow) - 1);
     } else if (showingDictionary && key.name === 'down') {
       dictionaryRow = Math.min(maxRow, dictionaryRow + 1);
     } else if (showingDictionary && key.name === 'pageup') {
-      dictionaryRow = Math.max(0, Math.min(dictionaryRow, maxRow) - dictionaryPageRows);
+      dictionaryRow = Math.max(0, Math.min(dictionaryRow, maxRow) - shownRows.dictionary);
     } else if (showingDictionary && key.name === 'pagedown') {
-      dictionaryRow = Math.min(maxRow, dictionaryRow + dictionaryPageRows);
+      dictionaryRow = Math.min(maxRow, dictionaryRow + shownRows.dictionary);
     } else if (showingDictionary && str && /^[a-z]$/i.test(str)) {
       dictionaryRow = Math.min(maxRow, dictionaryRowFor(state, str));
     }
@@ -2379,4 +2430,6 @@ setInterval(() => {
   if (typingOut()) draw();
 }, openingRules.msPerLetter);
 process.on('SIGTERM', quit);
+// A resized window gets the new size at once, not at the next frame.
+process.stdout.on('resize', draw);
 draw();

@@ -112,7 +112,7 @@ import { devTools } from '../game/dev';
 import type { GameState, MonkeyState, Pin } from '../game/state';
 import { formatAmount, formatDuration, formatMultiplier, formatNumber, formatPrice } from '../format';
 import { inGroups, rotorNames } from '../game/enigma';
-import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, titleBar, yellow, highlight } from './style';
+import { shortKeyRow, affordable, coverBottom, fillHeight, blue, bold, currencyColors, dim, furnitureColor, green, inverse, cursorsOn, isCursor, keyRow, padVisible, plainText, red, rule, scrollMarks, spreadHeight, titleBar, wrapAnsi, yellow, highlight } from './style';
 
 /**
  * A monkey's current line, all capitals: scored words and skipped letters,
@@ -482,8 +482,11 @@ function letterRow(state: GameState): string {
   return alphabet.map((l) => (state.letters.includes(l) ? bold(l) : dim('_'))).join(' ') + dim(`   (${state.letters.length} of ${alphabet.length})`);
 }
 
-/** What happened lately: the last word, line and milestone (dim), anything waiting for you, then the newest message in bold. */
-function latelyLines(state: GameState, message: string, columns = 0): string[] {
+/** How many news items LATELY shows when the screen's height isn't known. */
+export const latelyShown = 3;
+
+/** What happened lately: the last word, line and milestone (dim), the newest `news` items, anything waiting for you, then the newest message in bold. */
+function latelyLines(state: GameState, message: string, columns = 0, news = latelyShown): string[] {
   const l = state.lately;
   const room = (columns > 0 ? columns : 80) - 4;
   /** A sentence's words after its label, cut short with ... to fit the line. */
@@ -497,7 +500,7 @@ function latelyLines(state: GameState, message: string, columns = 0): string[] {
     ...(l.lastSentence.length > 0 ? [sentence('Last sentence', l.lastSentence)] : []),
     ...(l.longSentence.length > 0 ? [sentence(`Longest sentence lately (${l.longSentence.length} words)`, l.longSentence)] : []),
     ...[...lastLineText(state), ...lastMilestoneText(state)].map((t) => dim(t.replace(/^\* /, ''))),
-    ...l.news.filter((n) => state.stats.secondsTyping - n.at <= latelyRules.windowSeconds).map((n) => `* ${n.text}`),
+    ...l.news.filter((n) => state.stats.secondsTyping - n.at <= latelyRules.windowSeconds).filter((_, i, all) => i >= all.length - news).map((n) => `* ${n.text}`),
     ...folioOffer(state),
     ...(departmentPicks(state) > 0 && departmentGenres(state).length > 0 ? ['* You can open a new department in the Staff store.'] : []),
     ...(canBuildLab(state) ? ['* You can build an R&D lab on the office map ([o], then [r]).'] : []),
@@ -622,8 +625,16 @@ export function shopKeys(state: GameState, store: Store, onMap = false): [string
   return [['up/down', 'choose'], ['enter', 'buy'], ['1-9', 'buy'], ...(openStores(state, store, onMap).length > 1 ? [['[/]', 'store'] as [string, string]] : []), ['i', 'inspect'], ['esc', 'back']];
 }
 
+/** A screen with each line wider than `columns` wrapped at the end of a word (wrapAnsi), as the terminal front end draws it; 0 columns: unchanged. */
+function wrapLines(screen: string, columns: number): string {
+  return screen
+    .split('\n')
+    .flatMap((l) => wrapAnsi(l, columns))
+    .join('\n');
+}
+
 /** Renders the whole game screen as plain text. `rows` is the game's height, for the shop popup over the home screen (0: no padding). */
-export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0, chosen = -1): string {
+export function renderScreen(state: GameState, message = '', shop: Store | null = null, columns = 0, cursor = -1, rows = 0, chosen = -1, news = latelyShown): string {
   const starter = starterGenre(state);
   if (starter) {
     const choices = starterPlays(state);
@@ -654,8 +665,10 @@ export function renderScreen(state: GameState, message = '', shop: Store | null 
   if (shop === 'research') return renderShop(state, shop, cursor, message, columns);
   // The home screen is first made as tall as the game (`rows`), its keys at the bottom, so the shop
   // covers only its own height and as much of LATELY as fits stays in sight (Justin, 2026-10-22).
-  if (shop) return coverBottom(fillHeight(renderScreen(state, '', null, columns, -1, rows, chosen), rows), renderShop(state, shop, cursor, message, columns, true), columns);
-  return [...homeLines(state, message, columns, chosen), '', rule(columns), ...homeKeys(state, columns)].join('\n');
+  // It's spread as the home screen is without the shop, so opening the shop moves nothing above it.
+  // Both are wrapped to the screen first, as the front end wraps them, so a line that wraps still counts.
+  if (shop) return coverBottom(spreadHeight(wrapLines(renderScreen(state, '', null, columns, -1, rows, chosen, news), columns), rows), wrapLines(renderShop(state, shop, cursor, message, columns, true), columns), columns);
+  return [...homeLines(state, message, columns, chosen, news), '', rule(columns), ...homeKeys(state, columns)].join('\n');
 }
 
 /** The home screen's department tabs: each department's number key and name, the shown one inverse; they wrap to the screen. */
@@ -674,7 +687,7 @@ function departmentTabs(state: GameState, views: string[], view: string, columns
 }
 
 /** The home screen above its keys: the monkey table, letters, script, LATELY and pins. */
-function homeLines(state: GameState, message: string, columns: number, chosen = -1): string[] {
+function homeLines(state: GameState, message: string, columns: number, chosen = -1, news = latelyShown): string[] {
   const [written, ownedLines] = ownedProgress(state);
   const ownedScenes = scenesOwned(state);
   const room = columns > 0 ? lineRoom(state, columns) : Infinity;
@@ -697,7 +710,7 @@ function homeLines(state: GameState, message: string, columns: number, chosen = 
     ...(state.letters.length < Object.keys(letterValues).length ? [`${label('Letters')} ${letterRow(state)}`] : []),
     ...(state.owned.length === 0 ? [] : [`${label('Script')} ${count(written)} / ${count(ownedLines)} lines written${dim(`   ${count(ownedScenes)} scene${ownedScenes === 1 ? '' : 's'} owned`)}`]),
     ...milestoneSummary(state).map((b) => `${label('Bonuses')} ${b}`),
-    ...latelyLines(state, message, columns),
+    ...latelyLines(state, message, columns, news),
     ...pinnedText(state),
   ];
   return lines;
@@ -1194,11 +1207,11 @@ export function renderShop(state: GameState, store: Store, cursor = -1, message 
   const glyphWidth = width((x) => x.glyph);
   const elementWidth = numbered.some((x) => x.element) ? Math.max('ELEMENT'.length, width((x) => x.element)) : 0;
   const costWidth = Math.max('PRICE'.length, width((x) => (x.cost ? `* ${costText(x)}` : (x.blocked ?? ''))));
-  // Columns are two spaces apart, or one when that's what fits the screen; an effect too long for what's left wraps.
+  // Columns are up to four spaces apart on a wide screen, two when its width isn't known, one when that's what fits; an effect too long for what's left wraps.
   const others = [5 + nameWidth, glyphWidth, elementWidth, costWidth].filter((w) => w > 0);
   const fullEffect = width((x) => x.effect);
   const total = (gapWidth: number) => others.reduce((a, b) => a + b, 0) + fullEffect + gapWidth * others.length;
-  const gap = columns > 0 && total(2) >= columns ? ' ' : '  ';
+  const gap = ' '.repeat(columns > 0 ? ([4, 3, 2].find((g) => total(g) < columns) ?? 1) : 2);
   const effectWidth = columns > 0 ? Math.max(12, Math.min(fullEffect, fullEffect + columns - 1 - total(gap.length))) : fullEffect;
   const row = (num: string, name: string, glyph: string, element: string, effect: string, cost: string) => {
     const parts = plainText(effect).length <= effectWidth ? [effect] : wrapWords(effect, effectWidth);
@@ -1666,14 +1679,14 @@ export function wrapWords(text: string, width: number): string[] {
  * letters each line still needs. Lines too long for the screen wrap. Under
  * them, prices to buy the play (or a sonnet or a foreign text's section or book) under the cursor.
  */
-export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0, shop = ''): string {
-  if (shop) return coverBottom(renderScript(state, playId, cursor, '', columns), shop, columns);
+export function renderScript(state: GameState, playId: string, cursor: number, message = '', columns = 0, shop = '', pageRows = scriptPageSize): string {
+  if (shop) return coverBottom(renderScript(state, playId, cursor, '', columns, '', pageRows), shop, columns);
   const play = getPlay(playId);
   if (!play) return 'No plays loaded.';
   const done = state.completed[play.id] ?? [];
   const at = Math.max(0, Math.min(cursor, play.lines.length - 1));
-  const first = Math.max(0, Math.min(at - Math.floor(scriptPageSize / 2), play.lines.length - scriptPageSize));
-  const shown = Array.from({ length: Math.min(scriptPageSize, play.lines.length - first) }, (_, k) => first + k);
+  const first = Math.max(0, Math.min(at - Math.floor(pageRows / 2), play.lines.length - pageRows));
+  const shown = Array.from({ length: Math.min(pageRows, play.lines.length - first) }, (_, k) => first + k);
   const pinned = (i: number) => state.pinned.some((p) => p.play === play.id && p.index === i);
   const scriptMarks = scrollMarks(first, play.lines.length - first - shown.length, 'lines');
   const speakerWidth = 13;
@@ -1696,7 +1709,8 @@ export function renderScript(state: GameState, playId: string, cursor: number, m
         ? `${count(w)} / ${count(total)} written${w === total ? ` ${green('finished')}` : ''}`
         : dim(`${count(total)} line${total === 1 ? '' : 's'}, not owned`);
       const heading = ` ${dim(sceneName(sc.act, sc.scene, play.genre).toUpperCase())}   ${status}`;
-      rows.push(...(rows.length > 0 ? [''] : []), padVisible(heading, Math.max(rowWidth - needsWidth, plainText(heading).length + 2)) + dim('NEEDS'));
+      // A space between scenes, not '', so spreadHeight doesn't push the list apart (as scrollMarks).
+      rows.push(...(rows.length > 0 ? [' '] : []), padVisible(heading, Math.max(rowWidth - needsWidth, plainText(heading).length + 2)) + dim('NEEDS'));
     }
     const written = done.includes(i);
     const owned = ownsScene(state, play.id, sc);
@@ -1803,7 +1817,7 @@ export function tabPlays(tab: TextsTab): Play[] {
  * play's acts and scenes. `cursor` indexes availablePlays() or play.scenes.
  * The cursor's row is inverse; locked plays and scenes you don't own are dim.
  */
-export function renderContents(state: GameState, playId: string | null, cursor: number, message = '', columns = 0, tab: TextsTab = 'plays'): string {
+export function renderContents(state: GameState, playId: string | null, cursor: number, message = '', columns = 0, tab: TextsTab = 'plays', pageRows = contentsPageSize): string {
   const play = playId ? getPlay(playId) : undefined;
   const tabs = textsTabs(state);
   const tabRow = tabs.length > 1 && !play ? [tabs.map((t) => (t === tab ? bold(inverse(` ${textsTabNames[t]} `)) : dim(` ${textsTabNames[t]} `))).join(' '), ''] : [];
@@ -1842,9 +1856,9 @@ export function renderContents(state: GameState, playId: string | null, cursor: 
   const right = (c: number) => (play ? c === 1 : c >= 2);
   const line = (mark: string, cols: string[]) => ` ${mark} ` + cols.map((t, c) => (right(c) ? t.padStart(widths[c]) : t.padEnd(widths[c]))).join('   ');
   const at = Math.max(0, Math.min(cursor, items.length - 1));
-  const first = Math.max(0, Math.min(at - Math.floor(contentsPageSize / 2), items.length - contentsPageSize));
-  const contentsMarks = scrollMarks(first, items.length - first - contentsPageSize);
-  const rows = items.slice(first, first + contentsPageSize).flatMap((item, k) => {
+  const first = Math.max(0, Math.min(at - Math.floor(pageRows / 2), items.length - pageRows));
+  const contentsMarks = scrollMarks(first, items.length - first - pageRows);
+  const rows = items.slice(first, first + pageRows).flatMap((item, k) => {
     const text = line(first + k === at ? '>' : ' ', item.cols) + (item.finished ? '   finished' : '');
     return [
       ...(item.header ? [dim(` ${item.header}`)] : []),

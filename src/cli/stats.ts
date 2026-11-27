@@ -118,12 +118,12 @@ export function dictionaryRowFor(state: GameState, letter: string): number {
 }
 
 /** The dictionary page: every word spelled so far, alphabetically, with how often (dim). */
-export function renderDictionary(state: GameState, row: number, columns = 0): string {
+export function renderDictionary(state: GameState, row: number, columns = 0, pageRows = dictionaryPageRows): string {
   const words = dictionaryWords(state);
   const rows = Math.ceil(words.length / dictionaryColumns);
-  const top = Math.max(0, Math.min(row, rows - dictionaryPageRows));
+  const top = Math.max(0, Math.min(row, rows - pageRows));
   const width = Math.max(14, ...words.map(([w, c]) => w.length + formatNumber(c).length + 4));
-  const page = Array.from({ length: Math.min(dictionaryPageRows, rows - top) }, (_, r) =>
+  const page = Array.from({ length: Math.min(pageRows, rows - top) }, (_, r) =>
     ' ' +
     words
       .slice((top + r) * dictionaryColumns, (top + r + 1) * dictionaryColumns)
@@ -131,7 +131,7 @@ export function renderDictionary(state: GameState, row: number, columns = 0): st
       .join(''),
   );
   const first = top * dictionaryColumns + 1;
-  const last = Math.min(words.length, (top + dictionaryPageRows) * dictionaryColumns);
+  const last = Math.min(words.length, (top + pageRows) * dictionaryColumns);
   return [
     titleBar(state, 'Dictionary', columns),
     '',
@@ -158,7 +158,7 @@ const measure = (n: number) => (n < 1e6 ? Math.floor(n).toLocaleString('en-US') 
  * locked ones dim with progress toward counts; secret ones show as ??? until
  * unlocked. (Milestones are on the statistics page.)
  */
-export function renderAchievements(state: GameState, row: number, columns = 0): string {
+export function renderAchievements(state: GameState, row: number, columns = 0, pageRows = achievementPageRows): string {
   const nameWidth = Math.max(...achievements.map((a) => a.name.length)) + 2;
   const all = achievements.map((a) => {
     const done = state.achievements.includes(a.id);
@@ -169,16 +169,16 @@ export function renderAchievements(state: GameState, row: number, columns = 0): 
     const progress = a.at > 2 ? `   ${measure(Math.min(a.at, achievementValue(state, a.stat)))} / ${measure(a.at)}` : '';
     return dim(` [ ] ${a.name.padEnd(nameWidth)}${a.text}`) + progress + reward;
   });
-  const top = Math.max(0, Math.min(row, all.length - achievementPageRows));
-  const pages = all.length > achievementPageRows;
+  const top = Math.max(0, Math.min(row, all.length - pageRows));
+  const pages = all.length > pageRows;
   return [
     titleBar(state, 'Achievements', columns),
     '',
     ` ${state.achievements.length} of ${achievements.length} unlocked`,
     '',
-    ...scrollMarks(top, all.length - top - achievementPageRows)[0],
-    ...all.slice(top, top + achievementPageRows),
-    ...scrollMarks(top, all.length - top - achievementPageRows)[1],
+    ...scrollMarks(top, all.length - top - pageRows)[0],
+    ...all.slice(top, top + pageRows),
+    ...scrollMarks(top, all.length - top - pageRows)[1],
     '',
     rule(columns),
     keyRow([...(pages ? [['up/down', 'scroll'] as [string, string]] : []), ['t', 'stats'], ['w', 'dictionary'], ['esc', 'back']], columns),

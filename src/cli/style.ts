@@ -130,6 +130,13 @@ export function padVisible(s: string, width: number, align: 'left' | 'right' = '
   return align === 'left' ? s + ' '.repeat(room) : ' '.repeat(room) + s;
 }
 
+/** Text cut to `width` visible columns; its ANSI codes all stay, so the styles it opens are still closed. */
+export function cropVisible(s: string, width: number): string {
+  if (plainText(s).length <= width) return s;
+  let shown = 0;
+  return s.replace(/\x1b\[[0-9;]*m|[^\x1b]/g, (t) => (t.length > 1 ? t : shown++ < width ? t : ''));
+}
+
 /** Each currency's colour, wherever its total or a price in it shows. */
 export const currencyColors = { currency: yellow, words: cyan, sentences: magenta, lines: blue };
 
@@ -199,16 +206,71 @@ export function fillHeight(screen: string, height: number): string {
   const lines = screen.split('\n');
   const missing = height - lines.length;
   if (missing <= 0) return screen;
-  // Above a popup over the bottom (coverBottom's border), else above the keys.
+  lines.splice(bottomStart(lines), 0, ...Array<string>(missing).fill(''));
+  return lines.join('\n');
+}
+
+/** Where a screen's bottom starts: a popup over the bottom (coverBottom's border), else the keys (the last rule), else its end. */
+function bottomStart(lines: string[]): number {
   const border = lines.findIndex((l, i) => i > 0 && /^ ={20,}$/.test(plainText(l)));
-  let at = border > 0 ? border : lines.length;
-  for (let i = lines.length - 1; border < 0 && i > 0; i--) {
-    if (/^ -{20,}$/.test(plainText(lines[i]))) {
-      at = i;
-      break;
+  if (border > 0) return border;
+  for (let i = lines.length - 1; i > 0; i--) {
+    if (/^ -{20,}$/.test(plainText(lines[i]))) return i;
+  }
+  return lines.length;
+}
+
+/**
+ * A screen with a scrolling list, `height` lines tall: its spare lines go
+ * right under the list (after its bottom mark, see scrollMarks), so a list a
+ * line shorter at one cursor than at the next (a heading, a row that wraps)
+ * moves nothing, under it or over it. With no list mark it's fillHeight.
+ */
+export function fillUnderList(screen: string, height: number): string {
+  const lines = screen.split('\n');
+  const missing = height - lines.length;
+  if (missing <= 0) return screen;
+  const end = bottomStart(lines);
+  let mark = -1;
+  for (let i = end - 1; i > 0 && mark < 0; i--) if (/^ (v [\d,]+ .+ below)?$/.test(plainText(lines[i]))) mark = i;
+  if (mark < 0) return fillHeight(screen, height);
+  lines.splice(mark + 1, 0, ...Array<string>(missing).fill(''));
+  return lines.join('\n');
+}
+
+/**
+ * A screen `height` lines tall, its spare lines spread between its sections
+ * (the fill-terminal design: in a tall window the space goes "into spacing
+ * between its sections, not one big gap"). Each gap between sections (a run
+ * of empty lines between the title and the bottom, as fillHeight finds it)
+ * gets up to 2 more, one at a time from the top; the rest go above the keys
+ * as in fillHeight, so Justin's rule still holds: the title on top, the keys
+ * (or a popup over the bottom) at the bottom. The gap just above the bottom
+ * isn't counted, as that's where the rest go. Only lines that are exactly ''
+ * count, so a scrolling list's blank mark (' ', see scrollMarks) stays put.
+ */
+export function spreadHeight(screen: string, height: number): string {
+  const lines = screen.split('\n');
+  let spare = height - lines.length;
+  if (spare <= 0) return screen;
+  const at = bottomStart(lines);
+  const gaps: { start: number; extra: number }[] = [];
+  for (let i = 1; i < at; i++) {
+    if (lines[i] !== '' || (i > 1 && lines[i - 1] === '')) continue;
+    let end = i;
+    while (end + 1 < at && lines[end + 1] === '') end++;
+    if (end < at - 1) gaps.push({ start: i, extra: 0 });
+  }
+  for (let round = 0; round < 2; round++) {
+    for (const gap of gaps) {
+      if (spare <= 0) break;
+      gap.extra++;
+      spare--;
     }
   }
-  lines.splice(at, 0, ...Array<string>(missing).fill(''));
+  lines.splice(at, 0, ...Array<string>(spare).fill(''));
+  // Bottom-up, so the earlier gaps' places don't move.
+  for (const gap of gaps.reverse()) lines.splice(gap.start, 0, ...Array<string>(gap.extra).fill(''));
   return lines.join('\n');
 }
 
@@ -282,24 +344,29 @@ export function shortKeyRow(keys: [string, string][], main: string[], columns = 
  */
 export function coverBottom(screen: string, panel: string, columns = 0): string {
   const lines = screen.split('\n');
-  const box = [bold(' ' + '='.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90)))), ...panel.split('\n')];
+  const box = [bold(' ' + '='.repeat(dividerWidth(columns))), ...panel.split('\n')];
   return [...lines.slice(0, Math.max(1, lines.length - box.length)), ...box].join('\n');
 }
 
 /** A dim line across the screen, between a screen's content and its keys. */
 export function rule(columns = 0): string {
-  return dim(' ' + '-'.repeat(Math.max(20, Math.min(columns > 0 ? columns - 2 : 90, 90))));
+  return dim(' ' + '-'.repeat(dividerWidth(columns)));
 }
+
+/** How long a divider is: the screen's full width (the fill-terminal design), or 90 when the width isn't known. */
+const dividerWidth = (columns: number) => Math.max(20, columns > 0 ? columns - 2 : 90);
 
 /**
  * A scrolling list's marks (Justin, 2026-10-18: "an obvious indicator that
  * the menu can be scrolled to show more"): a line before it for what's above,
  * and one after for what's below. A list that fits shows neither; one that
  * scrolls always has both lines (blank at an end) so the screen doesn't jump.
+ * The blank one is a space, not '', so spreadHeight doesn't take it for a gap
+ * between sections and push the list apart.
  */
 export function scrollMarks(above: number, below: number, what = 'more'): [string[], string[]] {
   if (above <= 0 && below <= 0) return [[], []];
-  return [[above > 0 ? ` ${bold('^')} ${above.toLocaleString('en-US')} ${what} above` : ''], [below > 0 ? ` ${bold('v')} ${below.toLocaleString('en-US')} ${what} below` : '']];
+  return [[above > 0 ? ` ${bold('^')} ${above.toLocaleString('en-US')} ${what} above` : ' '], [below > 0 ? ` ${bold('v')} ${below.toLocaleString('en-US')} ${what} below` : ' ']];
 }
 
 /**
