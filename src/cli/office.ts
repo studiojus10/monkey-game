@@ -9,6 +9,7 @@ import {
   roomGenre,
   roomlessDepartments,
   squareCost,
+  squareRefund,
   footprint,
   pieceSize,
   drainCut,
@@ -274,7 +275,7 @@ export function renderOffice(
   const keys: [string, string][][] = legend !== null
     ? [[['arrows', 'choose'], ['l', 'close the legend'], ['esc', 'close']]]
     : grow
-    ? [[['arrows', 'move'], ['enter', 'buy this square'], ['x', 'done']]]
+    ? [[['arrows', 'move'], ['enter', 'buy this square'], ['v', 'sell this square'], ['x', 'done']]]
     : held >= 0
       ? (() => {
           const [w, h] = pieceSize(state.furniture[held].kind, state.furniture[held].turned);
@@ -284,7 +285,7 @@ export function renderOffice(
         ? [[['arrows', 'move'], ['space', 'put it in'], ['r', 'next wall'], ['esc', 'cancel']]]
         : [];
   const doing = grow
-    ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square.`
+    ? `Growing the ${roomName(state, grow)}: move to a + and press [enter] to buy that square${grow.bought ? `, or onto one of the ${grow.bought} bought ([v] sells it back for ${formatPrice(squareRefund(state))} Sentences)` : ''}.`
     : held >= 0
       ? (() => {
           const [w, h] = pieceSize(state.furniture[held].kind, state.furniture[held].turned);
@@ -421,6 +422,11 @@ export function renderOfficeHelp(state: GameState, columns = 0): string {
     '   Rooms are labelled on the map by their first letter (two when they share one).',
     '   [l] opens the legend beside the map: arrows choose an item to light it up on the map.',
     '   A room grows one square at a time ([x] on the map).',
+    '   While growing, [v] sells back a square you bought onto it, for what the',
+    '   last square cost. A room never gets smaller than it came.',
+    '   [v] on an empty square sells the whole room, if no monkeys work there',
+    '   (departments and break rooms). Furniture on a square or room you sell',
+    '   goes to your inventory.',
     '   A new room ([r]) goes where you put it: arrows, then [enter].',
     '   [m] picks up the room under the cursor, with everything in it, to move it.',
     '   Windows (: or ===) go in walls that face outside.',

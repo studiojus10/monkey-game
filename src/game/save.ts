@@ -1,4 +1,4 @@
-import { desk, folio, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
+import { desk, folio, managerOffice, office as officeRules, furnitureKinds, hatColors, hats, hr, monkeyStats, petting, research, traits, typing } from './config';
 import { earlyShopKeys, furnishOffice } from './logic';
 import { addWindow, layOutOffice, tidyDoors } from './layout';
 import { monkeyNameFor, createInitialState, createMonkey, type Door, type GameState, type MonkeyState, type Pin, type Room, type SafeState, type TelegramState, type Stats } from './state';
@@ -14,7 +14,7 @@ import { replacedTexts, textMap } from './replacedTexts';
  * Version 2 had one chosen play (`play`) and pins as line numbers in it; it
  * loads as owning that whole play.
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 interface SaveFile {
   version: number; // the save format (SAVE_VERSION)
@@ -110,6 +110,27 @@ export const migrations: Record<number, (s: RawState) => void> = {
     for (const p of research.projects) if (p.opens && kinds.has(p.opens) && !done.includes(p.id)) done.push(p.id);
     s.researched = done;
   },
+  // Format 8 (v0.25.0): rooms remember how many squares were bought onto them
+  // (room.bought), the only squares that can be sold back. Older saves count
+  // every square past the size a room comes in, up to the squares bought.
+  7: (s) => {
+    const rooms = (Array.isArray(s.office) ? s.office : []) as { kind?: unknown; cells?: unknown; bought?: number }[];
+    let left = typeof s.squaresBought === 'number' ? Math.max(0, Math.floor(s.squaresBought)) : 0;
+    rooms.forEach((r, i) => {
+      if (!r || !Array.isArray(r.cells)) return;
+      const size =
+        i === 0 ? officeRules.starterWidth * officeRules.starterHeight
+        : r.kind === 'office' ? managerOffice.width * managerOffice.height
+        : officeRules.newRoomWidth * officeRules.newRoomHeight;
+      const bought = Math.min(left, Math.max(0, r.cells.length - size));
+      if (bought > 0) r.bought = bought;
+      left -= bought;
+    });
+    // Every department gets a free first monkey when its room is built: not
+    // the ones built already, even if they are sold and built again.
+    const staff: Record<string, string> = { lab: research.id, hr: hr.id, marketing: 'marketing', codebreaking: 'codebreaking', records: 'records' };
+    s.freeHires = rooms.flatMap((r) => (r?.kind === 'department' && typeof (r as { department?: unknown }).department === 'string' ? [(r as { department: string }).department] : staff[r?.kind as string] ? [staff[r!.kind as string]] : []));
+  },
 };
 
 /** A save's versions (format and game), or null if it isn't a save. Saves from before game versions say ''. */
@@ -203,7 +224,7 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
     const isCell = (c: unknown): c is [number, number] => Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
     const rooms: Room[] = (Array.isArray(s.office) ? (s.office as Partial<Room>[]) : [])
       .filter((r) => r && typeof r.id === 'string' && (r.kind === 'department' || r.kind === 'break' || r.kind === 'office' || r.kind === 'lab' || r.kind === 'hr' || r.kind === 'marketing' || r.kind === 'codebreaking' || r.kind === 'library' || r.kind === 'records') && Array.isArray(r.cells))
-      .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]) }))
+      .map((r) => ({ id: r.id!, kind: r.kind!, department: str(r.department), cells: r.cells!.filter(isCell).map(([x, y]) => [x, y] as [number, number]), ...(num(r.bought, 0) >= 1 ? { bought: Math.floor(num(r.bought, 0)) } : {}) }))
       .filter((r) => r.cells.length > 0);
     const completed: Record<string, number[]> = {};
     if (s.completed && typeof s.completed === 'object') {
@@ -313,6 +334,12 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         .map((c) => ({ ...monkey(c), luck: num((c as { luck?: unknown }).luck, 0) }))
         .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
         .map(({ trait, speedStat, stamina, jobs, tempLeft, luck }) => ({ trait, speedStat, stamina, jobs, tempLeft, ...(tempLeft > 0 ? { luck } : {}) })),
+      applicants: (Array.isArray(s.applicants) ? (s.applicants as Partial<MonkeyState>[]) : [])
+        .map((c) => monkey(c))
+        .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
+        .map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs, tempLeft: 0 })),
+      applicantsFor: str(s.applicantsFor),
+      freeHires: strings(s.freeHires),
       candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
       stored: {
         furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),

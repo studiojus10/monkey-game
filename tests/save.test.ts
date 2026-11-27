@@ -217,4 +217,18 @@ describe('migrations', () => {
     raw.state.researched = ['chairs'];
     expect(deserialize(JSON.stringify(raw)).researched).toEqual(['chairs', 'dept-hr']);
   });
+
+  it('7 -> 8: squares past the size a room came in count as bought, up to the squares bought', () => {
+    const s = startedGame(0);
+    const raw = JSON.parse(serialize(s));
+    raw.version = 7;
+    raw.state.office[0].cells.push([2, 0], [2, 1], [3, 0]);
+    raw.state.office.push({ id: 'r9', kind: 'break', department: '', cells: [[0, 5], [1, 5], [2, 5], [0, 6], [1, 6], [2, 6], [3, 6]] });
+    raw.state.squaresBought = 3;
+    for (const r of raw.state.office) delete r.bought;
+    const back = deserialize(JSON.stringify(raw));
+    expect(back.office[0].bought).toBe(3);
+    expect(back.office.find((r) => r.id === 'r9')?.bought).toBeUndefined(); // no squares bought left for it
+    expect(back.freeHires).toEqual([raw.state.office[0].department]); // departments built already had their free monkey
+  });
 });

@@ -265,9 +265,16 @@ describe('R&D', () => {
     expect(L.researcherBlocker(s)).toBe('lab needed');
     expect(L.roomCost(s, 'lab')).toBe(L.roomCost(s) * research.labCostFactor);
     const hirePrice = L.researcherCost(s);
-    expect(buyRoom(s, 'lab')).toBe(true); // building the lab opens R&D
+    expect(buyRoom(s, 'lab', undefined, undefined, () => 0.5)).toBe(true); // building the lab opens R&D
     expect(s.researchOpen).toBe(true);
-    expect(L.researchers(s)).toHaveLength(1); // with a free researcher at a desk
+    expect(L.researchers(s)).toHaveLength(0);
+    expect(s.applicants).toHaveLength(3); // with a free researcher, picked from three
+    expect(deserialize(serialize(s)).applicants).toEqual(s.applicants); // still waiting after a reload
+    const pick = s.applicants[1];
+    expect(L.takeApplicant(s, 1)).toBe(true);
+    expect(s.applicants).toEqual([]);
+    expect(L.researchers(s)).toHaveLength(1);
+    expect(s.monkeys[L.researchers(s)[0]].speedStat).toBe(pick.speedStat);
     expect(L.deskOf(s, L.researchers(s)[0])).toBeDefined();
     expect(L.researcherCost(s)).toBe(hirePrice); // that doesn't raise the hire price
     expect(buyRoom(s, 'lab')).toBe(false); // one lab

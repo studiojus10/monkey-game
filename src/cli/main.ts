@@ -41,6 +41,13 @@ import {
   rotateFurniture,
   buyRoom,
   expandRoom,
+  sellSquare,
+  takeApplicant,
+  sellRoom,
+  sellRoomBlocker,
+  roomRefund,
+  sellSquareBlocker,
+  squareRefund,
   roomlessDepartments,
   roomCost,
   squareCost,
@@ -193,6 +200,7 @@ import {
   pageTabs,
   type Page,
   type Tab,
+  viewName,
 } from './screen';
 import { bookRows, renderBook, renderLibrary } from './library';
 import { askBackground, bold, dim, fillUnderList, forLightBackground, inverseSpan, lightShade, screenTop, showCursors, spreadHeight, terminalBackground, terminalFrame, wrapAnsi } from './style';
@@ -200,7 +208,7 @@ import { fitPage, fitRows } from './fit';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
+import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderApplicants, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder, rosterPageRows } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -312,6 +320,7 @@ let showingOffice = false;
 let officeLegend: number | null = null; // the office map's legend: null while hidden, else the item its cursor is on
 let officeCursor: Cell | null = null; // the selected cell on the office map
 let officeGrowing = ''; // id of the room whose new square is being chosen
+let sellingRoom = ''; // id of the room [v] offered to sell, waiting for [y]
 let buyingRoom = false; // choosing what room to buy on the office map
 let placingRoom: { kind: RoomKind; genre?: Genre; at: [number, number] } | null = null; // a new room being put in place with the arrows
 let movingRoom: { id: string; dx: number; dy: number } | null = null; // a room picked up to move
@@ -720,7 +729,7 @@ function goHome(): void {
   shop = officeShop = null;
   giving = picker = choosingPost = readingShelf = invHeld = null;
   officeLegend = null;
-  officeGrowing = '';
+  officeGrowing = sellingRoom = '';
   offeredBook = -1;
   message = '';
 }
@@ -781,7 +790,7 @@ function openOffice(): void {
   officeShop = null;
   officeLegend = null;
   heldFurniture = -1;
-  officeGrowing = '';
+  officeGrowing = sellingRoom = '';
   buyingRoom = false;
   placingRoom = movingRoom = null;
   message = '';
@@ -1019,7 +1028,7 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'promote' ? 'Promote which monkey to manager?' : upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = state.applicants.length > 0 && !placingRoom ? renderApplicants(state, menuCursor) : state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   // The popup's message wraps inside the popup's indent (see overlay).
   const box = popup && [...popup, ...(message && !pickerOpen() ? ['', ...wrapAnsi(` ${bold(message)}`, Math.max(20, columns - 4))] : [])];
   const full = wrapped(withNav);
@@ -1277,6 +1286,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       menuCursor = 0;
       message = `${name} takes the desk and the typewriter.`;
     }
+    return draw();
+  }
+
+  // The lab's free researcher: a popup until one of its applicants is picked.
+  if (state.applicants.length > 0 && !placingRoom) {
+    const n = state.applicants.length;
+    let row = menuKey(key, n);
+    if (row < 0 && str && /^[1-9]$/.test(str) && Number(str) <= n) row = Number(str) - 1;
+    const where = viewName(state, state.applicantsFor) ? `${viewName(state, state.applicantsFor)} department` : 'new department';
+    if (row >= 0 && takeApplicant(state, row)) {
+      menuCursor = 0;
+      message = `${monkeyName(state, state.monkeys.length - 1)} takes a desk in the ${where}.`;
+    } else if (key.name === 'escape' || key.name === 'q') message = 'Pick one: the job comes free with the lab.';
     return draw();
   }
 
@@ -1964,6 +1986,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       bookMenu = seen.choices?.length ? `Read which book? ${seen.choices.join('   ')}` : '';
       return draw();
     }
+    if (sellingRoom) {
+      const room = state.office.find((r) => r.id === sellingRoom);
+      const refund = roomRefund(state, sellingRoom);
+      const name = room ? roomName(state, room) : 'room';
+      if (str === 'y' && sellRoom(state, sellingRoom)) message = `Sold the ${name} for ${formatPrice(refund)} Sentences. Its furniture is in your inventory ([i]).`;
+      else message = `The ${name} stays.`;
+      sellingRoom = '';
+      return draw();
+    }
     if (placingRoom || movingRoom) {
       const step: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
       const move = step[key.name ?? ''];
@@ -2072,10 +2103,24 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'f' && !holding && !officeGrowing) {
       officeShop = lastOfficeStore;
       shopCursor = 0;
+    } else if (str === 'v' && officeGrowing) {
+      const room = state.office.find((r) => r.id === officeGrowing);
+      const refund = squareRefund(state);
+      const pieces = state.furniture.length;
+      const why = !room || here !== room ? 'Put the cursor on a square of the room you are growing to sell it.' : sellSquareBlocker(state, room.id, c.x, c.y);
+      if (why) message = why;
+      else if (sellSquare(state, room!.id, c.x, c.y)) message = `Sold the square for ${formatPrice(refund)} Sentences.${state.furniture.length < pieces ? ' What stood on it is in your inventory ([i]).' : ''}`;
     } else if ((str === 's' || str === 'v') && !holding && !officeGrowing) {
       const here = roomAt(state, c.x, c.y);
       const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
-      if (typeof spot !== 'number') message = 'No furniture there.';
+      if (typeof spot !== 'number' && str === 'v' && here) {
+        const why = sellRoomBlocker(state, here.id);
+        if (why) message = why;
+        else {
+          sellingRoom = here.id;
+          message = `Sell the ${roomName(state, here)} for ${formatPrice(roomRefund(state, here.id))} Sentences? Its furniture goes to your inventory. [y] sell, any other key keeps it.`;
+        }
+      } else if (typeof spot !== 'number') message = 'No furniture there.';
       else if (!canRemoveFurniture(state, spot)) message = 'Desks stay: monkeys work at them.';
       else {
         const name = furnitureName(state, spot);

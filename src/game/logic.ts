@@ -1213,7 +1213,7 @@ export function roomCost(state: GameState, kind?: Room['kind']): number {
  * office for a department that has a room and no office (it comes with a
  * manager's desk, beside the department's room with a door between).
  */
-export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square): boolean {
+export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square, rng: Rng = Math.random): boolean {
   const cost = roomCost(state, kind);
   if (state.sentences < cost) return false;
   if (at && !roomFitsAt(state, kind, genre ?? '', newRoomCells(kind, at))) return false;
@@ -1231,13 +1231,14 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
     const square = bestSquares(state, room, true)[0];
     if (square) state.furniture.push({ kind: managerDesk.id, room: room.id, x: square[0], y: square[1] });
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
-  if (kind === 'lab') {
-    state.researchOpen = true; // building the lab opens R&D
-    // with a free researcher at a desk (Justin, 2026-11-27): no hire, so the next hire's price stays
-    addMonkey(state, { department: research.id });
-    const lab = labRoom(state)!;
-    const square = bestSquares(state, lab, true)[0];
-    if (square) state.furniture.push({ kind: desk.id, room: lab.id, x: square[0], y: square[1] });
+  if (kind === 'lab') state.researchOpen = true; // building the lab opens R&D
+  // Every new department comes with a free first monkey (Justin, 2026-11-27),
+  // picked from a few applicants (takeApplicant); once per department.
+  const post = kind === 'department' ? (genre ?? '') : roomPost[kind];
+  if (post && !state.freeHires.includes(post)) {
+    state.freeHires.push(post);
+    state.applicants = newCandidates(state, hr.candidatesBase, rng);
+    state.applicantsFor = post;
   }
   if (kind === 'library') {
     state.galleries = Math.max(1, state.galleries); // the first gallery comes with the room
@@ -1343,11 +1344,128 @@ export function expandRoom(state: GameState, roomId: string, square?: [number, n
   state.sentences -= cost;
   const touched = touchingRooms(state, room);
   room.cells.push([x, y]);
+  room.bought = (room.bought ?? 0) + 1;
   state.squaresBought++;
   doorToTouching(state, room, touched); // a door into a room it has just grown against
   tidyDoors(state); // a window in the wall it grew through is gone
   addWindow(state, room);
   seatWaiting(state);
+  return true;
+}
+
+/** Sentences back for selling a square: what the last square bought cost, so buying and selling it again come out even. */
+export function squareRefund(state: GameState): number {
+  return state.squaresBought > 0 ? Math.ceil(officeRules.squareBaseCost * Math.pow(officeRules.squareCostGrowth, state.squaresBought - 1) * (1 - researchBonus(state, 'squares'))) : 0;
+}
+
+/** Whether squares are all joined to each other, side by side. */
+function joinedUp(cells: Square[]): boolean {
+  if (cells.length === 0) return false;
+  const left = new Set(cells.map(([x, y]) => `${x},${y}`));
+  const queue: Square[] = [cells[0]];
+  left.delete(`${cells[0][0]},${cells[0][1]}`);
+  while (queue.length > 0) {
+    const [x, y] = queue.pop()!;
+    for (const [nx, ny] of [[x, y - 1], [x - 1, y], [x + 1, y], [x, y + 1]] as Square[]) {
+      if (left.delete(`${nx},${ny}`)) queue.push([nx, ny]);
+    }
+  }
+  return left.size === 0;
+}
+
+/**
+ * Why a room's square can't be sold, or '' if it can: only squares bought onto
+ * a room (room.bought) sell, so it never gets smaller than it came; the square
+ * must be free floor, and the room must stay in one piece (and a manager's
+ * office beside its department's room).
+ */
+export function sellSquareBlocker(state: GameState, roomId: string, x: number, y: number): string {
+  const room = state.office.find((r) => r.id === roomId);
+  const spot = room ? cellAt(state, room.id, x, y) : null;
+  if (!room || spot === null) return 'That square is not part of the room.';
+  if (!room.bought || state.squaresBought <= 0) return 'Only squares you bought onto a room sell: it keeps the size it came in.';
+  const stays = state.furniture.find((f, i) => f.room === room.id && covers(f, x, y) && !canRemoveFurniture(state, i));
+  if (stays) return `The ${stays.kind === safe.id ? 'safe' : 'desk'} there stays: move it off this square first.`;
+  const cells = room.cells.filter(([cx, cy]) => cx !== x || cy !== y);
+  if (!joinedUp(cells)) return 'That would cut the room in two.';
+  if (room.kind === 'office') {
+    const dept = departmentRoom(state, room.department as Genre);
+    if (dept && !touches(cells, dept.cells)) return "A manager's office must stay beside its department's room.";
+  }
+  const office = room.kind === 'department' ? officeOf(state, room.department as Genre) : undefined;
+  if (office && !touches(cells, office.cells)) return "The department's room must stay beside its manager's office.";
+  return '';
+}
+
+/** Sells one square bought onto a room back for squareRefund (see sellSquareBlocker); the room keeps a way in. */
+export function sellSquare(state: GameState, roomId: string, x: number, y: number): boolean {
+  if (sellSquareBlocker(state, roomId, x, y)) return false;
+  const room = state.office.find((r) => r.id === roomId)!;
+  storeFurnitureIn(state, room.id, (f) => covers(f, x, y)); // what stood on it goes to the inventory
+  state.sentences += squareRefund(state);
+  room.cells = room.cells.filter(([cx, cy]) => cx !== x || cy !== y);
+  room.bought = room.bought! - 1;
+  if (room.bought === 0) delete room.bought;
+  state.squaresBought--;
+  tidyDoors(state); // doors and windows in its walls go with it
+  autoConnect(state); // a new door or hallway if that was the way in
+  tidyDoors(state);
+  for (const r of state.office) addWindow(state, r);
+  return true;
+}
+
+/** Puts the pieces in a room that match away in the inventory (see storeFurniture). */
+function storeFurnitureIn(state: GameState, roomId: string, which: (f: Furniture) => boolean = () => true): void {
+  for (let i = state.furniture.length - 1; i >= 0; i--) {
+    if (state.furniture[i].room === roomId && which(state.furniture[i])) storeFurniture(state, i);
+  }
+}
+
+/** Sentences back for selling a room: what the last room bought cost, plus every square bought onto it (see squareRefund). */
+export function roomRefund(state: GameState, roomId: string): number {
+  const room = state.office.find((r) => r.id === roomId);
+  if (!room) return 0;
+  let back = Math.ceil(officeRules.roomBaseCost * Math.pow(officeRules.roomCostGrowth, Math.max(0, state.office.length - 2)));
+  for (let n = 1; n <= (room.bought ?? 0); n++) {
+    back += Math.ceil(officeRules.squareBaseCost * Math.pow(officeRules.squareCostGrowth, state.squaresBought - n) * (1 - researchBonus(state, 'squares')));
+  }
+  return back;
+}
+
+/**
+ * Why a room can't be sold, or '' if it can (Justin, 2026-11-27): a
+ * department's room with no monkeys in its department, or a break room; not
+ * your first room, nor a department's room that still has a manager's office
+ * beside it. Desks and safes don't go to the inventory, so none may be in it.
+ */
+export function sellRoomBlocker(state: GameState, roomId: string): string {
+  const room = state.office.find((r) => r.id === roomId);
+  if (!room) return 'Put the cursor on a room to sell it.';
+  if (room === state.office[0]) return 'Your first room stays: it is the way into the office.';
+  if (room.kind !== 'department' && room.kind !== 'break') return "Only departments' rooms and break rooms can be sold.";
+  if (room.kind === 'department') {
+    const genre = roomGenre(state, room);
+    if (state.monkeys.some((m) => { const g = monkeyGenre(state, m); return !!g && departmentRoom(state, g) === room; })) return 'Monkeys work here: move them to another department first ([d] on the roster).';
+    if (officeOf(state, genre)) return "Its manager's office is beside it, so the department's room stays.";
+  }
+  const stays = state.furniture.find((f, i) => f.room === room.id && !canRemoveFurniture(state, i));
+  if (stays) return `The ${stays.kind === safe.id ? 'safe' : 'desk'} in it stays: move it to another room first.`;
+  return '';
+}
+
+/** Sells a room (see sellRoomBlocker) for roomRefund; its furniture goes to the inventory, and the rest of the office keeps a way in. */
+export function sellRoom(state: GameState, roomId: string): boolean {
+  if (sellRoomBlocker(state, roomId)) return false;
+  const refund = roomRefund(state, roomId);
+  const room = state.office.find((r) => r.id === roomId)!;
+  storeFurnitureIn(state, room.id);
+  state.squaresBought -= room.bought ?? 0;
+  state.office = state.office.filter((r) => r !== room);
+  state.sentences += refund;
+  tidyDoors(state);
+  autoConnect(state);
+  tidyDoors(state);
+  for (const r of state.office) addWindow(state, r);
   return true;
 }
 
@@ -3138,6 +3256,40 @@ export function flipChance(state: GameState): number {
 /** How many candidates HR shows: candidatesBase plus one per HR monkey, up to maxCandidates. */
 export function candidateCount(state: GameState): number {
   return Math.min(hr.maxCandidates, hr.candidatesBase + hrStaff(state).length);
+}
+
+/** `n` new monkeys to choose from, with their hidden stats and trait (none of them temps). */
+export function newCandidates(state: GameState, n: number, rng: Rng): Candidate[] {
+  const pool = { ...state, monkeys: Array.from({ length: n }, createMonkey) };
+  giveTraits(pool, rng);
+  return pool.monkeys.map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs, tempLeft: 0 }));
+}
+
+/** The staff department that works in a kind of room. */
+const roomPost: Partial<Record<Room['kind'], string>> = { lab: research.id, hr: hr.id, marketing: marketing.id, codebreaking: codebreaking.id, records: records.id };
+
+/** The job a post's applicants are for (a monkeyStats.jobs id): a staff department's own, else typing. */
+export function applicantJob(post: string): string {
+  return Object.values(roomPost).includes(post) ? post : 'typing';
+}
+
+/**
+ * Takes applicant `i` (of state.applicants) as the free first monkey of the
+ * department they're for, at a desk in its room: no hire, so the next hire's
+ * price stays.
+ */
+export function takeApplicant(state: GameState, i: number): boolean {
+  const c = state.applicants[i];
+  const post = state.applicantsFor;
+  const room = applicantJob(post) === 'typing' ? departmentRoom(state, post as Genre) : staffRoom(state, post);
+  if (!c || !room) return false;
+  const { trait, speedStat, stamina, jobs } = c;
+  addMonkey(state, { trait, speedStat, stamina, jobs: { ...jobs }, department: post });
+  seatAtNewDesk(state, state.monkeys.length - 1, room);
+  noteManagerChairs(state);
+  state.applicants = [];
+  state.applicantsFor = '';
+  return true;
 }
 
 /** Draws a new list of candidates every refreshHours while HR is at work (the first right away). */
