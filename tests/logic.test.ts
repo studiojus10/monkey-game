@@ -61,6 +61,7 @@ import {
   typewriterCost,
   typewriterName,
   buyLetter,
+  bankLetter,
   checkLetterGifts,
   buyComboStart,
   availableKeys,
@@ -343,6 +344,30 @@ describe('typing', () => {
     const next = publishFolio(Object.assign(s, { playsDone: ['test'] }))!;
     expect(next.letterGifts).toEqual(['first-hire']); // Folios keep them: each is given once, ever
     expect(next.freeLetters).toBe(1);
+  });
+});
+
+describe('saving letters for later', () => {
+  it('buys a letter now and lets it be chosen later, at the price of the letters held', () => {
+    const s = startedGame(0);
+    chooseFirstLetter(s, 'i');
+    const owned = s.letters.length;
+    s.currency = letterCost(owned) + letterCost(owned + 1);
+    s.words = 1e9;
+    const first = s.currency;
+    expect(bankLetter(s)).toBe(true);
+    expect(s.freeLetters).toBe(1);
+    expect(s.letters.length).toBe(owned); // not chosen yet
+    expect(first - s.currency).toBe(letterCost(owned));
+    const second = s.currency;
+    expect(bankLetter(s)).toBe(true); // a saved letter counts toward the next one's price
+    expect(second - s.currency).toBe(letterCost(owned + 1));
+    expect(s.currency).toBe(0);
+    expect(buyLetter(s, 'z', true)).toBe(true);
+    expect(buyLetter(s, 'q', true)).toBe(true);
+    expect(s.freeLetters).toBe(0);
+    s.freeLetters = 26 - s.letters.length;
+    expect(bankLetter(s)).toBe(false); // the alphabet is all owned or saved
   });
 });
 

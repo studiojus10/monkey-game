@@ -91,6 +91,8 @@ import {
   moveSlot,
   letterCost,
   letterWordsCost,
+  lettersHeld,
+  bankLetter,
   poke,
   playerPress,
   playerTyping,
@@ -255,6 +257,7 @@ function loadGame(): string {
   setScientific(state.settings.scientific);
   fitLines();
   achievementsSeen = state.achievements.length;
+  freeLettersSeen = state.freeLetters; // letters saved for later wait in the shop, no popup
   setHour(new Date().getHours());
   const tempsBefore = tempsNow();
   const offline = applyOfflineProgress(state, Date.now());
@@ -288,6 +291,7 @@ function typingOut(): boolean {
   return !!state.manuscript && !state.manuscriptNote && !manuscriptTyped(state, Date.now() - manuscriptStart, process.stdout.columns || 80);
 }
 let pickingLetter: boolean | 'free' = false; // picking a letter to buy, or to take for a free letter
+let freeLettersSeen = 0; // free letters already shown in the picker; only more than this pops it up
 let showingScript = false;
 let scriptCursor = 0;
 let contents: '' | 'plays' | 'scenes' = ''; // the script's table of contents, when open
@@ -479,14 +483,17 @@ function buyItem(id: string): void {
       message = '';
     }
   } else if (id === 'letter') {
-    if (state.currency < letterCost(state.letters.length)) {
-      message = `Not enough ${theme.currency}.`;
-    } else if (state.words < letterWordsCost(state.letters.length)) {
-      message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
-    } else {
-      pickingLetter = true;
+    // Saved letters first; otherwise buying pays now and the letter can be chosen now or saved for later.
+    if (unownedLetters(state).length === 0) message = 'Every letter is yours.';
+    else if (state.freeLetters > 0 || bankLetter(state)) {
+      freeLettersSeen = state.freeLetters;
+      pickingLetter = 'free';
       letterCursor = 0;
       message = '';
+    } else if (state.currency < letterCost(lettersHeld(state))) {
+      message = `Not enough ${theme.currency}.`;
+    } else if (state.words < letterWordsCost(lettersHeld(state))) {
+      message = 'Not enough Words. You earn a Word for each different word your monkeys spell.';
     }
   } else if (id === 'hire') {
     startHire();
@@ -895,7 +902,10 @@ function draw() {
   // Menu items showing now keep their places; ones that show up later go under them.
   noteRevealed(state, revealKeys(state));
   // A free letter pops up the letter picker, once nothing else is waiting on an answer.
-  if (!pickingLetter && state.freeLetters > 0 && unownedLetters(state).length > 0 && !pickerOpen() && !giving && namingMonkey < 0 && !confirmingFolio) {
+  // Only a new one: letters saved for later wait in the shop.
+  if (state.freeLetters < freeLettersSeen) freeLettersSeen = state.freeLetters;
+  if (!pickingLetter && state.freeLetters > freeLettersSeen && unownedLetters(state).length > 0 && !pickerOpen() && !giving && namingMonkey < 0 && !confirmingFolio) {
+    freeLettersSeen = state.freeLetters;
     pickingLetter = 'free';
     letterCursor = 0;
   }
@@ -1281,16 +1291,21 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     }
     const letter = key.name === 'return' || key.name === 'enter' ? open[Math.min(letterCursor, open.length - 1)] : (str ?? '').toUpperCase();
     if (!open.includes(letter)) {
-      if (free) message = /^[A-Z]$/.test(letter) ? `You have ${letter} already. Choose another letter.` : 'Choose a letter first.';
-      else {
+      if (free && /^[A-Z]$/.test(letter)) message = `You have ${letter} already. Choose another letter.`;
+      else if (free && key.name !== 'escape') message = 'Choose a letter first, or [esc] to save it for later.';
+      else if (free) {
+        pickingLetter = false;
+        message = `${state.freeLetters === 1 ? 'Letter' : `${state.freeLetters} letters`} saved for later: choose from the shop's Typewriters.`;
+      } else {
         pickingLetter = false;
         message = '';
       }
     } else if (buyLetter(state, letter, free)) {
       const done = `You ${free ? 'took' : 'bought'} ${letter}.`;
       pickingLetter = unownedLetters(state).length === 0 ? false : free ? (state.freeLetters > 0 ? 'free' : false) : canAffordLetter(state);
+      freeLettersSeen = state.freeLetters;
       letterCursor = 0;
-      message = pickingLetter && free ? `${done} Another free letter!` : done;
+      message = pickingLetter && free ? `${done} ${state.freeLetters} more to choose.` : done;
     } else {
       pickingLetter = false;
       message = 'Not enough to buy that letter.';
