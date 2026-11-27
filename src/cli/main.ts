@@ -333,7 +333,7 @@ let officeLegend: number | null = null; // the office map's legend: null while h
 let officeCursor: Cell | null = null; // the selected cell on the office map
 let officeGrowing = ''; // id of the room whose new square is being chosen
 let sellingRoom = ''; // id of the room [v] offered to sell, waiting for [y]
-let buyingRoom = false; // choosing what room to buy on the office map
+let buyingRoom: '' | 'room' | 'department' = ''; // choosing what to build on the office map: a room ([r]) or a department's room ([n]) (Justin, 2026-11-27: separate)
 let placingRoom: { kind: RoomKind; genre?: Genre; at: [number, number] } | null = null; // a new room being put in place with the arrows
 let movingRoom: { id: string; dx: number; dy: number } | null = null; // a room picked up to move
 let showingOptions = false;
@@ -642,16 +642,19 @@ function noSeatMessage(): string {
 }
 
 /** Rooms on offer by number on the office map: a room for each department without one, then a manager's office for each without one. */
-function roomChoices(): { kind: RoomKind; genre?: Genre }[] {
+function roomChoices(which = buyingRoom): { kind: RoomKind; genre?: Genre }[] {
+  if (which === 'department')
+    return [
+      ...roomlessDepartments(state).map((genre) => ({ kind: 'department' as const, genre })),
+      ...(canBuildLab(state) ? [{ kind: 'lab' as const }] : []),
+      ...(canBuildHR(state) ? [{ kind: 'hr' as const }] : []),
+      ...(canBuildMarketing(state) ? [{ kind: 'marketing' as const }] : []),
+      ...(canBuildCodebreaking(state) ? [{ kind: 'codebreaking' as const }] : []),
+      ...(canBuildRecords(state) ? [{ kind: 'records' as const }] : []),
+    ];
   return [
-    ...roomlessDepartments(state).map((genre) => ({ kind: 'department' as const, genre })),
     ...officelessDepartments(state).map((genre) => ({ kind: 'office' as const, genre })),
-    ...(canBuildLab(state) ? [{ kind: 'lab' as const }] : []),
-    ...(canBuildHR(state) ? [{ kind: 'hr' as const }] : []),
-    ...(canBuildMarketing(state) ? [{ kind: 'marketing' as const }] : []),
-    ...(canBuildCodebreaking(state) ? [{ kind: 'codebreaking' as const }] : []),
     ...(canBuildLibrary(state) ? [{ kind: 'library' as const }] : []),
-    ...(canBuildRecords(state) ? [{ kind: 'records' as const }] : []),
   ];
 }
 
@@ -746,7 +749,8 @@ function goHome(): void {
   namingProfile = deletingProfile = -1;
   readingBook = readingManagerBook = officeHelp = readingTelegrams = scriptShop = hiring = hiringTemps = hiringManager = false;
   bossMenu = -1;
-  pickingDyeColor = pickingDepartment = buyingRoom = false;
+  pickingDyeColor = pickingDepartment = false;
+  buyingRoom = '';
   upgrading = null;
   confirmingFire = false;
   contents = '';
@@ -817,7 +821,7 @@ function openOffice(): void {
   officeLegend = null;
   heldFurniture = -1;
   officeGrowing = sellingRoom = '';
-  buyingRoom = false;
+  buyingRoom = '';
   placingRoom = movingRoom = null;
   message = '';
   if (!officeCursor) {
@@ -2038,7 +2042,7 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       const first = Object.keys(state.safes).length === 0;
       const found = typeof spot === 'number' && findSafe(state, spot, Math.random);
       const seen = inspectSquare(state, c.x, c.y, heldFurniture);
-      message = found && first ? `${seen.text}  You can build a ${codebreaking.name} Department now (office map, [r]).` : seen.text;
+      message = found && first ? `${seen.text}  You can open a ${codebreaking.name} Department now (office map, [n]).` : seen.text;
       offeredBook = seen.book;
       bookMenu = seen.choices?.length ? `Read which book? ${seen.choices.join('   ')}` : '';
       return draw();
@@ -2097,9 +2101,10 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       return draw();
     }
     if (buyingRoom) {
-      buyingRoom = false;
-      const choice = roomChoices()[Number(str) - 1];
-      if (str !== 'b' && !choice) message = 'No room bought.';
+      const which = buyingRoom;
+      buyingRoom = '';
+      const choice = roomChoices(which)[Number(str) - 1];
+      if ((str !== 'b' || which !== 'room') && !choice) message = which === 'room' ? 'No room bought.' : 'No department opened.';
       else if (state.sentences < roomCost(state, choice?.kind ?? 'break')) message = noSentences;
       else if (state.currency < roomHireCost(state, choice?.kind ?? 'break', choice?.genre)) message = `Not enough ${theme.currency}: a new department's room costs its first monkey too.`;
       else {
@@ -2197,13 +2202,19 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       }
     } else if (str === 'h' && !holding && !officeGrowing) {
       if (!toggleHall(state, c.x, c.y)) message = 'That square is part of a room. Hallways go outside rooms.';
-    } else if (str === 'r' && !officeGrowing) {
-      buyingRoom = true;
+    } else if ((str === 'r' || str === 'n') && !officeGrowing) {
+      const which = str === 'r' ? 'room' : 'department';
       const withHire = (c: { kind: RoomKind; genre?: Genre }) => (roomHireCost(state, c.kind, c.genre) > 0 ? `, with its first monkey (+${formatPrice(roomHireCost(state, c.kind, c.genre))} ${theme.currency})` : '');
-      const choices = roomChoices().map(
-        (c, i) => `[${i + 1}] ${c.kind === 'records' ? `the ${records.name} Department` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `the ${codebreaking.name} Department` : c.kind === 'marketing' ? `the ${marketing.name} Department` : c.kind === 'hr' ? `the ${hr.name} Department` : c.kind === 'lab' ? `a lab for ${research.name}` : c.kind === 'office' ? `the ${departmentName(state, c.genre!)} Office, for its manager` : `the ${departmentName(state, c.genre!)} Department`}${withHire(c)}`,
-      );
-      message = `Buy a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`;
+      const name = (c: { kind: RoomKind; genre?: Genre }) => (c.kind === 'records' ? `the ${records.name} Department` : c.kind === 'library' ? 'a library for your books' : c.kind === 'codebreaking' ? `the ${codebreaking.name} Department` : c.kind === 'marketing' ? `the ${marketing.name} Department` : c.kind === 'hr' ? `the ${hr.name} Department` : c.kind === 'lab' ? `the ${research.name} lab` : c.kind === 'office' ? `the ${departmentName(state, c.genre!)} Office, for its manager` : `the ${departmentName(state, c.genre!)} Department`);
+      const choices = roomChoices(which).map((c, i) => `[${i + 1}] ${name(c)}${withHire(c)}`);
+      if (which === 'department' && choices.length === 0) message = 'No department is ready to open. New ones come with more monkeys and from R&D projects.';
+      else {
+        buyingRoom = which;
+        message =
+          which === 'room'
+            ? `Build a room (${formatPrice(roomCost(state))} Sentences): ${[...choices, '[b] a break room for furniture'].join('   ')}   (any other key cancels)`
+            : `Open a department (its room: ${formatPrice(roomCost(state))} Sentences): ${choices.join('   ')}   (any other key cancels)`;
+      }
     } else if (key.name === 'return' || key.name === 'enter' || key.name === 'space') {
       // Space (or enter) picks up and puts down: furniture first, else a door in the square's walls.
       if (officeGrowing) {
@@ -2541,7 +2552,7 @@ setInterval(() => {
   message = tempsGone(temps) || message;
   if (state.telegrams.length > telegrams) message = 'A knock at the door: a telegram, with no explanation. Read it in the Staff store.';
   else if (state.telegrams.filter((t) => t.read).length > read) message = `The Bombe found the key: the telegram is read (Staff store).`;
-  if (!greek && state.departments.includes('greek')) message = 'The scroll is in Greek! A Greek department can type it out and translate it: build its room on the office map ([o], [r]).';
+  if (!greek && state.departments.includes('greek')) message = 'The scroll is in Greek! A Greek department can type it out and translate it: open it on the office map ([o], [n]).';
   last = now;
   draw();
 }, FRAME_MS);
