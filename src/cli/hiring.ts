@@ -3,7 +3,7 @@ import { getPlay, hirePrice, jobFeeling, postCost, posts, traitOf, type Post } f
 import { createMonkey, type GameState } from '../game/state';
 import { formatDuration, formatPrice } from '../format';
 import { lettersTyped, priceNamed, promptChoices, typeOut, viewName, wrapWords } from './screen';
-import { affordable, bold, dim, green, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow, highlight } from './style';
+import { affordable, bold, cropVisible, dim, green, isCursor, keyRow, padVisible, plainText, red, rule, titleBar, yellow, highlight } from './style';
 
 /** A stat as a percent: green above average, red below. */
 function percent(stat: number): string {
@@ -106,13 +106,18 @@ export function renderPostPopup(state: GameState, title: string, list: Post[], c
   ];
 }
 
-/** Lays a popup's lines over a screen, from its third line, a few columns in; the rows it covers are replaced. */
+/**
+ * Lays a popup's lines over a screen, from its third line, a few columns in;
+ * the rows it covers are replaced. On a screen `columns` wide a line too wide
+ * for it is cut short, as one that wrapped in the terminal would put every
+ * line under it a row lower than the mouse finds it.
+ */
 export function overlay(screen: string, box: string[], columns = 0): string {
   const lines = screen.split('\n');
   const boxWidth = Math.max(...box.map((b) => plainText(b).length));
   const indent = ' '.repeat(Math.max(1, Math.min(4, Math.floor(((columns || 80) - boxWidth) / 2))));
   while (lines.length < box.length + 2) lines.push('');
-  box.forEach((b, k) => (lines[2 + k] = indent + b));
+  box.forEach((b, k) => (lines[2 + k] = indent + (columns > 0 ? cropVisible(b, columns - indent.length) : b)));
   return lines.join('\n');
 }
 

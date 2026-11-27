@@ -40,17 +40,22 @@ import {
   speedText,
   pageTabsRow,
   shopKeys,
+  latelyShown,
+  scriptPageSize,
+  contentsPageSize,
 } from '../src/cli/screen';
-import { affordable, bold, coverBottom, fillHeight, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, scrollMarks, titleBar, yellow } from '../src/cli/style';
+import { fitPage, fitRows, type PageFit } from '../src/cli/fit';
+import { bookRows } from '../src/cli/library';
+import { affordable, bold, coverBottom, fillHeight, fillUnderList, highlight, inverseSpan, cyan, forLightBackground, green, lightShade, terminalBackground, inverse, plainText, placeScreen, red, rule, scrollMarks, spreadHeight, terminalFrame, titleBar, wrapAnsi, yellow } from '../src/cli/style';
 import { labelPress } from '../src/cli/mouse';
 import { officeKeys, inspectSquare, officeMapWidth, renderOffice, renderOfficeHelp, renderFengShuiBook, renderManagerBook } from '../src/cli/office';
-import { renderRoster, rosterActions, rosterKeys, rosterOrder } from '../src/cli/roster';
+import { renderRoster, rosterActions, rosterKeys, rosterOrder, rosterPageRows } from '../src/cli/roster';
 import { columnBox, promptBox, keyBox, cheapestHire, hirePosts, overlay, renderCandidates, renderPostPopup } from '../src/cli/hiring';
 import { inventoryRows, renderInventory, renderMonkeyPicker } from '../src/cli/inventory';
-import { dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
+import { achievementPageRows, dictionaryRowFor, renderAchievements, renderDictionary, renderStats } from '../src/cli/stats';
 import { achievements, lately, monkeyNames } from '../src/game/config';
 import { greekLetters, type PlayData } from '../src/game/plays';
-import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, promoteMonkey, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately } from '../src/game/logic';
+import { drainCut, fitsAt, restBoost, posts, postCost, poke, typeLetter, buyRoom, hireManager, promoteMonkey, chooseFirstLetter, chooseStarterPlay, renameMonkey, setPlays, togglePin, openDepartment, noteLately, announce } from '../src/game/logic';
 import { deserialize, load, save, serialize } from '../src/game/save';
 import { createMonkey } from '../src/game/state';
 import { startedGame } from './start';
@@ -331,6 +336,22 @@ describe('the roster', () => {
     expect(shown).toContain(bold(green('Typing loves'))); // its own job, in bold
     expect(plain(renderHomeKeys(s))).toContain('[m]');
   });
+
+  it('is as tall whichever monkey is chosen, so its rules and keys stay put and its list keeps its size', () => {
+    const s = started();
+    s.monkeys.push({ ...createMonkey(), department: 'comedy', manager: true, name: 'Boss' }); // a manager's details are a line shorter than a typist's
+    const order = rosterOrder(s);
+    const [manager, typist] = [order.indexOf(1), order.indexOf(0)];
+    for (const columns of [100, 60]) {
+      // Wrapped as main.ts wraps every screen (the manager's Slots line wraps at 60).
+      const lines = (k: number, n = 12) => plain(renderRoster(s, k, '', columns, n).split('\n').flatMap((l) => wrapAnsi(l, columns)).join('\n')).split('\n');
+      const rules = (l: string[]) => l.flatMap((x, k) => (/^ -{20,}$/.test(x) ? [k] : []));
+      expect(lines(manager)).toHaveLength(lines(typist).length);
+      expect(rules(lines(manager))).toEqual(rules(lines(typist)));
+      const fitted = (k: number) => fitRows((n) => lines(k, n).join('\n'), rosterPageRows, 40).rows;
+      expect(fitted(manager)).toBe(fitted(typist));
+    }
+  });
 });
 
 const roomTagLike = '\x1b[44mX\x1b[49m';
@@ -348,11 +369,42 @@ describe('shop popup', () => {
   it('covers only its own height of a home screen as tall as the game, so LATELY stays in sight', () => {
     const s = started();
     noteLately(s, 'word', ['HELLO']);
-    const home = plain(renderScreen(s, '', null, 80, -1, 0)).split('\n');
+    const home = plain(spreadHeight(renderScreen(s, '', null, 80, -1, 0), 60)).split('\n'); // spread to the game's height, as on screen
     const shop = plain(renderScreen(s, '', 'staff', 80, -1, 60)).split('\n');
     expect(home).toContain(' LATELY');
     expect(shop).toHaveLength(60);
     expect(shop.slice(0, home.indexOf(' LATELY') + 2)).toEqual(home.slice(0, home.indexOf(' LATELY') + 2));
+  });
+
+  it('lays the shop over the home screen as it is without it (fitted and spread), so opening the shop moves nothing', () => {
+    const s = started();
+    noteLately(s, 'word', ['HELLO']);
+    const height = 45;
+    const { rows: n } = fitRows((k) => renderScreen(s, '', null, 100, -1, height, -1, k), latelyShown, height, latelyShown);
+    const home = plain(spreadHeight(renderScreen(s, '', null, 100, -1, height, -1, n), height)).split('\n');
+    const shop = plain(renderScreen(s, '', 'typewriters', 100, -1, height, -1, n)).split('\n');
+    const border = shop.findIndex((l) => /^ ={20,}$/.test(l));
+    expect(border).toBeGreaterThan(0);
+    expect(shop).toHaveLength(height);
+    expect(home).not.toEqual(plain(renderScreen(s, '', null, 100, -1, height, -1, n)).split('\n')); // spread: there was room to
+    expect(shop.slice(0, border)).toEqual(home.slice(0, border));
+  });
+
+  it('counts a home line that wraps, so the home with the shop is still exactly the game\'s height once wrapped', () => {
+    const s = started();
+    noteLately(s, 'word', ['HELLO']);
+    const columns = 50;
+    const height = 45;
+    // Wrapped as main.ts wraps every screen before it's drawn.
+    const wrap = (x: string) => x.split('\n').flatMap((l) => wrapAnsi(l, columns)).join('\n');
+    expect(plain(renderScreen(s, '', null, columns, -1, height)).split('\n').some((l) => l.length > columns)).toBe(true); // a line that wraps
+    const { rows: n } = fitRows((k) => wrap(renderScreen(s, '', null, columns, -1, height, -1, k)), latelyShown, height, latelyShown);
+    const home = plain(spreadHeight(wrap(renderScreen(s, '', null, columns, -1, height, -1, n)), height)).split('\n');
+    const shop = plain(wrap(renderScreen(s, '', 'typewriters', columns, -1, height, -1, n))).split('\n');
+    const border = shop.findIndex((l) => /^ ={20,}$/.test(l));
+    expect(shop).toHaveLength(height);
+    expect(border).toBeGreaterThan(0);
+    expect(shop.slice(0, border)).toEqual(home.slice(0, border));
   });
 
   it('shades a highlighted row, keeping its colours (green for something you can buy)', () => {
@@ -1200,6 +1252,44 @@ describe('screen position', () => {
   });
 });
 
+describe('terminal frame', () => {
+  const sync = '\x1b[?2026h';
+  const unsync = '\x1b[?2026l';
+
+  it('draws over the last frame instead of erasing the screen first, inside synchronized output', () => {
+    const out = terminalFrame('a\nb', 4, 10, false);
+    expect(out).not.toContain('\x1b[2J');
+    expect(out.startsWith(`${sync}\x1b[H`)).toBe(true);
+    expect(out.endsWith(unsync)).toBe(true);
+  });
+
+  it("clears the rest of each line it writes, blank lines above the screen too", () => {
+    expect(terminalFrame('a\nb', 4, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n\x1b[K\na\x1b[K\nb\x1b[K${unsync}`);
+  });
+
+  it('leaves a line that fills the width alone, so its last character is not erased', () => {
+    expect(terminalFrame(`${'x'.repeat(10)}\nb`, 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n${'x'.repeat(10)}\nb\x1b[K${unsync}`);
+    expect(terminalFrame(bold('x'.repeat(10)), 2, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n${bold('x'.repeat(10))}${unsync}`);
+    expect(terminalFrame('x'.repeat(20), 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n\x1b[K\n${'x'.repeat(20)}${unsync}`); // wrapped onto two rows
+  });
+
+  it('clears below a screen shorter than the terminal at the top', () => {
+    expect(terminalFrame('a\nb', 5, 10, true)).toBe(`${sync}\x1b[Ha\x1b[K\nb\x1b[K\n\x1b[J${unsync}`);
+  });
+
+  it('clears the rest of the last row of a line too long for one row', () => {
+    expect(terminalFrame('x'.repeat(15), 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\n\x1b[K\n${'x'.repeat(15)}\x1b[K${unsync}`);
+  });
+
+  it('clears only to the end of the line after a blank last line at the bottom', () => {
+    expect(terminalFrame('a\n', 3, 10, false)).toBe(`${sync}\x1b[H\x1b[K\na\x1b[K\n\x1b[K${unsync}`);
+  });
+
+  it('clears below a screen taller than the terminal, which starts at the top', () => {
+    expect(terminalFrame('a\nb\nc', 2, 10, false)).toBe(`${sync}\x1b[Ha\x1b[K\nb\x1b[K\nc\x1b[K\n\x1b[J${unsync}`);
+  });
+});
+
 describe('coin flip any time', () => {
   it('has a [?] button on every title bar while it fits, and its own screen', () => {
     const s = started();
@@ -1220,7 +1310,7 @@ describe('scrolling lists', () => {
   it('mark what is above and below the part shown, and nothing when the list fits', () => {
     expect(scrollMarks(0, 0)).toEqual([[], []]);
     const [above, below] = scrollMarks(0, 12, 'more lines');
-    expect(above).toEqual(['']);
+    expect(above).toEqual([' ']); // a space, not '', so spreading doesn't take it for a gap between sections
     expect(plain(below[0])).toBe(' v 12 more lines below');
     expect(plain(scrollMarks(3, 0)[0][0])).toBe(' ^ 3 more above');
   });
@@ -1239,6 +1329,144 @@ describe('scrolling lists', () => {
     const text = plain(renderScript(s, 'long', 20, '', 80));
     expect(text).toMatch(/\^ \d+ lines above/);
     expect(text).toMatch(/v \d+ lines below/);
+  });
+
+  it('show as many rows as they are given', () => {
+    const line = (i: number) => [1, 1, 'A', `Line ${i}.`] as [number, number, string, string];
+    const many = Array.from({ length: 12 }, (_, p) => ({ id: `p${p}`, title: `Play ${p}`, genre: 'comedy' as const, lines: Array.from({ length: 40 }, (_, i) => line(i)) }));
+    setPlays(many);
+    const s = startedGame(0);
+    s.monkeys = Array.from({ length: 30 }, (_, i) => ({ ...createMonkey(), department: 'comedy', number: i + 1 }));
+    expect(plain(renderRoster(s, 0, '', 100, 20))).toContain('v 10 more monkeys below');
+    expect(plain(renderRoster(s, 0, '', 100))).toContain('v 18 more monkeys below'); // default: 12
+    expect(plain(renderAchievements(s, 0, 100, 5))).toContain(`v ${achievements.length - 5} more below`);
+    s.stats.words = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`W${String(i).padStart(2, '0')}`, 1]));
+    expect(plain(renderDictionary(s, 0, 100, 5))).toContain(`v ${40 - 5 * 4} more words below`);
+    expect(plain(renderContents(s, null, 0, '', 100, 'plays', 5))).toContain('v 7 more below');
+    expect(plain(renderContents(s, null, 0, '', 100))).not.toMatch(/more below/); // default: 20
+    expect(plain(renderScript(s, 'p0', 0, '', 100, '', 30))).toContain('v 10 lines below');
+    expect(plain(renderScript(s, 'p0', 0, '', 100, 'SHOP', 30))).toContain('v 10 lines below');
+    expect(plain(renderScript(s, 'p0', 0, '', 100))).toContain('v 25 lines below'); // default: 15
+  });
+});
+
+describe('LATELY news', () => {
+  it('home shows as many news items as it is given, newest last', () => {
+    const s = started();
+    for (let i = 0; i < 12; i++) announce(s, `News ${i}`);
+    expect(s.lately.news).toHaveLength(12);
+    const shown = plain(renderScreen(s, '', null, 100, -1, 0, -1, 5));
+    expect(shown).toContain('News 11');
+    expect(shown).toContain('News 7');
+    expect(shown).not.toContain('News 6');
+    expect(shown.indexOf('News 7')).toBeLessThan(shown.indexOf('News 11'));
+    const fewer = plain(renderScreen(s, '', null, 100));
+    expect(fewer).toContain('News 9');
+    expect(fewer).not.toContain('News 8'); // default: 3
+    expect(plain(renderScreen(s, '', 'staff', 100, -1, 60, -1, 5))).toContain('News 7'); // under the shop too
+  });
+
+  it('keeps the newest 12 news items, dropping the oldest', () => {
+    const s = started();
+    for (let i = 0; i < 13; i++) announce(s, `News ${i}`);
+    expect(s.lately.news).toHaveLength(lately.maxNews);
+    expect(s.lately.news.map((n) => n.text)).toEqual(Array.from({ length: 12 }, (_, i) => `News ${i + 1}`));
+  });
+});
+
+describe('fitted pages', () => {
+  // A play of 3 acts of 4 scenes of 5 lines: scene headings scroll by as the cursor moves.
+  const scenes = { id: 'scenes', title: 'Scenes', genre: 'comedy' as const, lines: Array.from({ length: 60 }, (_, i) => [Math.floor(i / 20) + 1, Math.floor(i / 5) % 4 + 1, 'A', `Line ${i}.`] as [number, number, string, string]) };
+  function withScenes() {
+    setPlays([scenes]);
+    const s = startedGame(0);
+    s.departments = ['comedy'];
+    s.owned = ['scenes'];
+    chooseFirstLetter(s, 'i');
+    return s;
+  }
+  /** A page as main.ts draws it (fitted, wrapped, brought to the page's height), in plain lines. */
+  const fitted = (render: (n: number, message: string) => string, fit: Omit<PageFit, 'height'> & { height?: number }) => plain(fitPage(render, { height: 38, ...fit }).screen).split('\n');
+  const lastRule = (l: string[]) => l.length - 1 - [...l].reverse().findIndex((x) => /^ -{20,}$/.test(x));
+  const firstRule = (l: string[]) => l.findIndex((x) => /^ -{20,}$/.test(x));
+  const topMark = (l: string[], what: string) => l.findIndex((x) => x === ' ' || new RegExp(`^ \\^ [\\d,]+ ${what} above$`).test(x));
+
+  it("keeps the script's title, its list's first line, what's under the list and its keys put across scene headings and with a message", () => {
+    const s = withScenes();
+    const page = (cursor: number, message: string) => fitted((n, m) => renderScript(s, 'scenes', cursor, m, 120, '', n), { base: scriptPageSize, total: 60, columns: 120, message });
+    const spots = (l: string[]) => ({ length: l.length, title: l.findIndex((x) => x.startsWith(' Scenes ')), first: topMark(l, 'lines'), legend: l.findIndex((x) => x.startsWith(' + written')), keys: lastRule(l) });
+    const first = spots(page(0, ''));
+    expect(first.first).toBe(first.title + 2);
+    for (let c = 0; c < 60; c++) {
+      for (const m of ['', 'You pinned a line.']) expect({ c, m, ...spots(page(c, m)) }).toEqual({ c, m, ...first });
+    }
+  });
+
+  it("keeps the roster's list and its dividers put whichever monkey is chosen, with or without a message", () => {
+    const s = started();
+    s.departments = ['comedy', 'tragedy'];
+    s.monkeys = Array.from({ length: 30 }, (_, i) => ({ ...createMonkey(), department: i % 3 === 0 ? 'tragedy' : 'comedy', number: i + 1 }));
+    s.monkeys[0].manager = true;
+    const page = (cursor: number, message: string) => fitted((n, m) => renderRoster(s, cursor, m, 100, n), { base: rosterPageRows, total: 30, columns: 100, message });
+    const spots = (l: string[]) => ({ length: l.length, first: topMark(l, 'more monkeys'), divider: firstRule(l), keys: lastRule(l) });
+    const first = spots(page(0, ''));
+    expect(first.first).toBe(2);
+    for (let c = 0; c < 30; c++) {
+      for (const m of ['', 'Renamed M1 to Bob.']) expect({ c, m, ...spots(page(c, m)) }).toEqual({ c, m, ...first });
+    }
+  });
+
+  it('folds a roster message into its padding, so a message adds no lines', () => {
+    const s = started();
+    expect(renderRoster(s, 0, 'Renamed M1 to Bob.', 100).split('\n')).toHaveLength(renderRoster(s, 0, '', 100).split('\n').length);
+  });
+
+  it('keeps the achievements header and keys put while scrolling rows that wrap at 80 columns', () => {
+    const s = started();
+    const unwrapped = plain(renderAchievements(s, 0, 80, achievements.length)).split('\n');
+    expect(unwrapped.some((l) => l.length > 80)).toBe(true); // some rows wrap
+    const page = (row: number) => fitted((n) => renderAchievements(s, row, 80, n), { base: achievementPageRows, total: achievements.length, columns: 80 });
+    const spots = (l: string[]) => ({ length: l.length, header: l.findIndex((x) => / of \d+ unlocked$/.test(x)), first: topMark(l, 'more'), keys: lastRule(l) });
+    const first = spots(page(0));
+    expect(first.first).toBe(first.header + 2);
+    for (let row = 0; row < achievements.length; row++) expect({ row, ...spots(page(row)) }).toEqual({ row, ...first });
+  });
+
+  it("keeps the table of contents put with or without a message", () => {
+    const s = withScenes();
+    const page = (cursor: number, message: string) => fitted((n, m) => renderContents(s, 'scenes', cursor, m, 120, 'plays', n), { base: contentsPageSize, total: 12, columns: 120, message });
+    const spots = (l: string[]) => ({ length: l.length, title: l.indexOf(' Scenes'), columns: l.findIndex((x) => /^ {3}SCENE +WRITTEN/.test(x)), act: l.indexOf(' ACT 1'), keys: lastRule(l) });
+    const first = spots(page(0, ''));
+    for (let c = 0; c < 12; c++) {
+      for (const m of ['', 'Something happened.']) expect({ c, m, ...spots(page(c, m)) }).toEqual({ c, m, ...first });
+    }
+  });
+
+  it("opens the script's shop over the script as it is without it, so nothing above the shop moves", () => {
+    const s = withScenes();
+    for (const columns of [120, 60]) {
+      for (const cursor of [0, 25, 59]) {
+        const render = (n: number, m: string) => renderScript(s, 'scenes', cursor, m, columns, '', n);
+        const fit = { base: scriptPageSize, total: 60, columns };
+        const page = fitted(render, { ...fit, message: 'You pinned a line.' });
+        const shop = fitted(render, { ...fit, message: 'You pinned a line.', panel: renderShop(s, 'script', 0, 'Bought.', columns, true, { play: 'scenes', line: cursor }) });
+        const border = shop.findIndex((l) => /^ ={20,}$/.test(l));
+        expect(border).toBeGreaterThan(5);
+        expect(shop).toHaveLength(38);
+        expect(shop.slice(0, border)).toEqual(page.slice(0, border));
+        expect(shop.slice(0, border)).toEqual(fitted(render, fit).slice(0, border));
+      }
+    }
+  });
+});
+
+describe('shop columns', () => {
+  it("widens the shop's column gaps on a wide screen", () => {
+    const s = started();
+    const header = (cols: number) => plain(renderShop(s, 'staff', -1, '', cols)).split('\n').find((l) => l.includes('ITEM') && l.includes('PRICE'))!;
+    // No width known keeps 2 spaces; a wide screen gets 4, so PRICE moves right 2 spaces per gap.
+    expect(header(250).indexOf('PRICE') - header(0).indexOf('PRICE')).toBeGreaterThanOrEqual(4);
+    expect(plain(renderShop(s, 'staff', -1, '', 0)).split('\n').length).toBe(plain(renderShop(s, 'staff', -1, '', 250)).split('\n').length);
   });
 });
 
@@ -1372,6 +1600,61 @@ describe('screen height', () => {
     expect(fillHeight(`T\n b\n ${'-'.repeat(30)}\n [q] quit`, 7).split('\n')).toEqual(['T', ' b', '', '', '', ` ${'-'.repeat(30)}`, ' [q] quit']);
     expect(fillHeight(`T\n b\n ${'='.repeat(30)}\n shop\n ${'-'.repeat(30)}\n keys`, 8).split('\n')[4]).toBe(` ${'='.repeat(30)}`);
     expect(fillHeight('a\nb\nc', 3)).toBe('a\nb\nc'); // tall enough already
+  });
+
+  it('spreads a short screen between its sections, top first, at most 2 per gap, the rest above the keys', () => {
+    const rule = ` ${'-'.repeat(30)}`;
+    const page = ['T', '', 'a', '', 'b', '', rule, ' [q] quit'].join('\n');
+    // 2 gaps above the last one before the rule; 3 spare lines: +1 each top-down, then +1 to the first.
+    expect(spreadHeight(page, 11).split('\n')).toEqual(['T', '', '', '', 'a', '', '', 'b', '', rule, ' [q] quit']);
+    // 10 spare: both gaps get 2, the other 6 go above the rule.
+    const tall = spreadHeight(page, 18).split('\n');
+    expect(tall).toHaveLength(18);
+    expect(tall.slice(0, 4)).toEqual(['T', '', '', '']);
+    expect(tall[tall.length - 2]).toBe(rule);
+    expect(spreadHeight(page, 5)).toBe(page); // too tall already: unchanged
+  });
+
+  it('leaves popups over the bottom and scroll placeholders alone when spreading', () => {
+    const page = ['T', '', 'a', ' ', 'b', ` ${'='.repeat(30)}`, ' shop', '', ' item', ` ${'-'.repeat(30)}`, ' keys'].join('\n');
+    const out = spreadHeight(page, 13).split('\n');
+    expect(out.slice(-6)).toEqual([` ${'='.repeat(30)}`, ' shop', '', ' item', ` ${'-'.repeat(30)}`, ' keys']);
+    expect(out.slice(0, 4)).toEqual(['T', '', '', '']); // the gap after the title grew, ' ' did not
+  });
+
+  it('pads a page with a scrolling list right under the list, so nothing under it moves', () => {
+    const rule = ` ${'-'.repeat(30)}`;
+    const [above, below] = scrollMarks(3, 4, 'lines');
+    const page = ['T', '', ...above, ' x', ' ', ' y', ...below, '', ' 4 of 9', rule, ' keys'].join('\n');
+    expect(fillUnderList(page, 13).split('\n')).toEqual(['T', '', ...above, ' x', ' ', ' y', ...below, '', '', '', ' 4 of 9', rule, ' keys']);
+    const atEnd = ['T', '', ...scrollMarks(3, 0)[0], ' x', ...scrollMarks(3, 0)[1], '', rule, ' keys'].join('\n');
+    expect(fillUnderList(atEnd, 9).split('\n').slice(4)).toEqual([' ', '', '', rule, ' keys']); // the blank mark at the end
+    expect(fillUnderList(['T', ' a', rule, ' keys'].join('\n'), 6)).toBe(fillHeight(['T', ' a', rule, ' keys'].join('\n'), 6)); // no list: above the keys
+  });
+
+  it('keeps blank lines inside lists from being spread: scene breaks and bibliography entries are a space', () => {
+    const s = started();
+    const script = plain(renderScript(s, 'test', 0, '', 100)).split('\n');
+    expect(script[script.findIndex((l) => /SCENE 2/.test(l)) - 1]).toBe(' ');
+    expect(bookRows(s, 'test')).not.toContain('');
+    expect(bookRows(s, 'test')).toContain(' ');
+    expect(bookRows(s, 'bibliography')).not.toContain('');
+  });
+
+  it('crops a popup line too wide for the screen, so it does not wrap in the terminal', () => {
+    const box = ['+' + '-'.repeat(70) + '+', `|${bold(' A title')}${' '.repeat(62)}|`];
+    const screen = overlay('a\nb\nc\nd\ne', box, 50).split('\n');
+    expect(screen).toHaveLength(5);
+    expect(screen.every((l) => plainText(l).length <= 50)).toBe(true);
+    expect(plain(screen[3])).toMatch(/^ \| A title +$/);
+    expect(screen[3]).toContain('\x1b[22m'); // its styles still closed
+    expect(overlay('a\nb\nc\nd', ['|ok|'], 80).split('\n')[2]).toMatch(/\|ok\|$/); // a box that fits: whole
+  });
+
+  it('draws dividers the full width of the screen', () => {
+    expect(plain(rule(200))).toBe(` ${'-'.repeat(198)}`);
+    expect(plain(coverBottom('a\nb\nc\nd\ne', 'X', 150)).split('\n')[3]).toBe(` ${'='.repeat(148)}`);
+    expect(plain(rule())).toBe(` ${'-'.repeat(90)}`); // no width known: as before
   });
 });
 

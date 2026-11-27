@@ -73,7 +73,8 @@ export function renderLibrary(state: GameState, cursor: number, message = '', co
 /** Rows of a shelved book: a play's lines with their speakers, a foreign text in English where it's written (else as found), a Folio's (placeholder) pages. */
 export function bookRows(state: GameState, id: string, columns = 0): string[] {
   const width = Math.max(30, (columns > 0 ? Math.min(columns, 100) : 80) - 4);
-  if (id === 'bibliography') return bibliography.flatMap((entry, k) => [...(k > 0 ? [''] : []), ...wrapWords(entry, width).map((r, j) => (j === 0 ? `  ${r}` : `    ${r}`))]);
+  // Breaks between entries and scenes are a space, not '', so spreadHeight doesn't push the book apart.
+  if (id === 'bibliography') return bibliography.flatMap((entry, k) => [...(k > 0 ? [' '] : []), ...wrapWords(entry, width).map((r, j) => (j === 0 ? `  ${r}` : `    ${r}`))]);
   const book = /^records-(\d+)$/.exec(id);
   if (book) return (state.recordBooks[Number(book[1]) - 1] ?? []).flatMap((s, k) => wrapWords(`${k + 1}. ${s}`, width).map((r, j) => (j === 0 ? `  ${r}` : `     ${r}`)));
   const play = getPlay(id);
@@ -81,7 +82,7 @@ export function bookRows(state: GameState, id: string, columns = 0): string[] {
   const rows: string[] = [];
   play.lines.forEach((line, i) => {
     const prev = play.lines[i - 1];
-    if (!prev || prev.act !== line.act || prev.scene !== line.scene) rows.push(...(rows.length > 0 ? [''] : []), ` ${dim(sceneName(line.act, line.scene, play.genre).toUpperCase())}`);
+    if (!prev || prev.act !== line.act || prev.scene !== line.scene) rows.push(...(rows.length > 0 ? [' '] : []), ` ${dim(sceneName(line.act, line.scene, play.genre).toUpperCase())}`);
     const written = (state.shelved.includes(id) && id !== translation.latinText) || state.playsDone.includes(id) || (state.completed[id] ?? []).includes(i);
     const text = (written && play.english[i]) || line.text;
     const lead = line.speaker ? `${line.speaker}: ` : '';
