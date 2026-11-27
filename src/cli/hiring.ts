@@ -71,6 +71,23 @@ export function renderCandidates(state: GameState, message = '', columns = 0, cu
   ].join('\n');
 }
 
+/**
+ * The popup of applicants for the R&D lab's free first researcher, shown as
+ * HR's list shows candidates: speed, stamina, the job each likes best, and
+ * its trait once the manager's book is read.
+ */
+export function renderLabApplicants(state: GameState, cursor = -1): string[] {
+  const rows = state.labApplicants.map((c) => {
+    const monkey = { ...createMonkey(), ...c };
+    const best = monkeyStats.jobs.map((j) => ({ j, f: jobFeeling(monkey, j.id) })).sort((a, b) => b.f.bonus - a.f.bonus)[0];
+    const likes = best.f.bonus > 0 ? green(`${best.f.name} ${best.j.name.toLowerCase()}`) : 'nothing much';
+    const researching = jobFeeling(monkey, 'research');
+    const trait = traitOf(monkey)?.name ?? '?';
+    return [`speed ${padVisible(percent(c.speedStat), 4)}`, `stamina ${padVisible(percent(c.stamina), 4)}`, `research ${padVisible(researching.name, 8)}`, ...(state.managerBook ? [`trait ${padVisible(trait, 10)}`] : []), `likes ${likes}`].join(' ');
+  });
+  return menuBox('The lab comes with a free researcher. Who gets the job?', rows, cursor).map((line) => line.replace('   [esc] cancel', ' '.repeat(15))); // no way out: someone gets the job
+}
+
 /** A post's name in the department popup: its department, or "<department> manager". */
 export function postName(state: GameState, p: Post): string {
   return p.job === 'managing' ? `${viewName(state, p.genre!)} manager` : viewName(state, p.genre ?? p.id) || 'The office';

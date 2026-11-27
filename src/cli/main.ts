@@ -42,6 +42,7 @@ import {
   buyRoom,
   expandRoom,
   sellSquare,
+  takeLabApplicant,
   sellRoom,
   sellRoomBlocker,
   roomRefund,
@@ -206,7 +207,7 @@ import { fitPage, fitRows } from './fit';
 import { labelPress, mouseOff, mouseOn, mousePress, parseMouse, targetAt, type MouseEvent } from './mouse';
 import { devTools } from '../game/dev';
 import { setLexicon } from '../game/grammar';
-import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
+import { cheapestHire, columnBox, hirePosts, keyBox, promptBox, menuBox, overlay, postName, renderCandidates, renderLabApplicants, renderNewspaper, renderNote, newspaperTyped, renderManuscript, manuscriptTyped, renderPostPopup } from './hiring';
 import { hatChoices, inventoryRows, itemName, renderHatPicker, renderInventory, renderMonkeyPicker, type Holder, type Item } from './inventory';
 import { renderRoster, rosterActions, rosterKeys, rosterOrder, rosterPageRows } from './roster';
 import { achievementPageRows, dictionaryColumns, dictionaryPageRows, dictionaryRowFor, dictionaryWords, renderAchievements, renderDictionary, renderStats } from './stats';
@@ -1026,7 +1027,7 @@ function draw() {
   const upgrade = upgrading && upgradeColumns(state, upgrading.kind);
   const upgradeTitle = upgrading?.kind === 'promote' ? 'Promote which monkey to manager?' : upgrading?.kind === 'manager' ? 'Upgrade which manager?' : upgrading?.kind === 'typewriter' ? 'Better typewriter for which monkey?' : 'Faster typing for which monkey?';
   // The newspaper covers everything until a monkey is hired from it.
-  const popup = state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
+  const popup = state.labApplicants.length > 0 && !placingRoom ? renderLabApplicants(state, menuCursor) : state.newspaper.length > 0 && state.newspaperNote ? renderNote(openingRules.newspaper.note) : state.manuscript && state.manuscriptNote ? renderNote(openingRules.manuscript.note) : state.newspaper.length > 0 ? renderNewspaper(state, newsCursor, Date.now() - newsStart, columns) : state.manuscript ? renderManuscript(state, Date.now() - manuscriptStart, columns) : linePicker() ? promptBox(linePicker(), pickCursor) : upgrade ? columnBox(upgradeTitle, upgrade.cols, upgrading, `[arrows] choose   [enter] ${upgrading?.kind === 'promote' ? 'promote' : 'buy'}   [esc] done`, columns) : bossMenu >= 0 ? menuBox('Promote or hire a manager', bossChoices(), bossMenu) : pageMenu ? menuBox('Go to', pagesFor(state).map((p) => (p === pageMenu ? `${pageNames[p]}  ${dim('(here)')}` : pageNames[p])), pageMenuCursor) : keyMenu ? keyBox(keyMenu.title, keyMenu.keys, keyMenuCursor) : choosingPost ? postPopup() : picker?.kind === 'hat' ? renderHatPicker(state, picker.monkey, pickerCursor) : picker ? renderFurniturePicker(state, picker.room, pickerCursor) : null;
   // The popup's message wraps inside the popup's indent (see overlay).
   const box = popup && [...popup, ...(message && !pickerOpen() ? ['', ...wrapAnsi(` ${bold(message)}`, Math.max(20, columns - 4))] : [])];
   const full = wrapped(withNav);
@@ -1284,6 +1285,18 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       menuCursor = 0;
       message = `${name} takes the desk and the typewriter.`;
     }
+    return draw();
+  }
+
+  // The lab's free researcher: a popup until one of its applicants is picked.
+  if (state.labApplicants.length > 0 && !placingRoom) {
+    const n = state.labApplicants.length;
+    let row = menuKey(key, n);
+    if (row < 0 && str && /^[1-9]$/.test(str) && Number(str) <= n) row = Number(str) - 1;
+    if (row >= 0 && takeLabApplicant(state, row)) {
+      menuCursor = 0;
+      message = `${monkeyName(state, state.monkeys.length - 1)} takes a desk in the lab. Choose its first project on the Research page ([tab]).`;
+    } else if (key.name === 'escape' || key.name === 'q') message = 'Pick one: the job comes free with the lab.';
     return draw();
   }
 

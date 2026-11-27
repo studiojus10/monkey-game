@@ -1213,7 +1213,7 @@ export function roomCost(state: GameState, kind?: Room['kind']): number {
  * office for a department that has a room and no office (it comes with a
  * manager's desk, beside the department's room with a door between).
  */
-export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square): boolean {
+export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?: Square, rng: Rng = Math.random): boolean {
   const cost = roomCost(state, kind);
   if (state.sentences < cost) return false;
   if (at && !roomFitsAt(state, kind, genre ?? '', newRoomCells(kind, at))) return false;
@@ -1233,11 +1233,8 @@ export function buyRoom(state: GameState, kind: Room['kind'], genre?: Genre, at?
   } else addRoom(state, kind, genre ?? '', officeRules.newRoomWidth, officeRules.newRoomHeight, at);
   if (kind === 'lab') {
     state.researchOpen = true; // building the lab opens R&D
-    // with a free researcher at a desk (Justin, 2026-11-27): no hire, so the next hire's price stays
-    addMonkey(state, { department: research.id });
-    const lab = labRoom(state)!;
-    const square = bestSquares(state, lab, true)[0];
-    if (square) state.furniture.push({ kind: desk.id, room: lab.id, x: square[0], y: square[1] });
+    // with a free researcher (Justin, 2026-11-27), picked from a few applicants (takeLabApplicant)
+    state.labApplicants = newCandidates(state, hr.candidatesBase, rng);
   }
   if (kind === 'library') {
     state.galleries = Math.max(1, state.galleries); // the first gallery comes with the room
@@ -3255,6 +3252,29 @@ export function flipChance(state: GameState): number {
 /** How many candidates HR shows: candidatesBase plus one per HR monkey, up to maxCandidates. */
 export function candidateCount(state: GameState): number {
   return Math.min(hr.maxCandidates, hr.candidatesBase + hrStaff(state).length);
+}
+
+/** `n` new monkeys to choose from, with their hidden stats and trait (none of them temps). */
+export function newCandidates(state: GameState, n: number, rng: Rng): Candidate[] {
+  const pool = { ...state, monkeys: Array.from({ length: n }, createMonkey) };
+  giveTraits(pool, rng);
+  return pool.monkeys.map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs, tempLeft: 0 }));
+}
+
+/**
+ * Takes applicant `i` of the lab's (state.labApplicants) as its free first
+ * researcher, at a desk: no hire, so the next hire's price stays.
+ */
+export function takeLabApplicant(state: GameState, i: number): boolean {
+  const c = state.labApplicants[i];
+  const lab = labRoom(state);
+  if (!c || !lab) return false;
+  const { trait, speedStat, stamina, jobs } = c;
+  addMonkey(state, { trait, speedStat, stamina, jobs: { ...jobs }, department: research.id });
+  const square = bestSquares(state, lab, true)[0];
+  if (square) state.furniture.push({ kind: desk.id, room: lab.id, x: square[0], y: square[1] });
+  state.labApplicants = [];
+  return true;
 }
 
 /** Draws a new list of candidates every refreshHours while HR is at work (the first right away). */

@@ -330,6 +330,10 @@ export function deserialize(raw: string | null, now = Date.now()): GameState {
         .map((c) => ({ ...monkey(c), luck: num((c as { luck?: unknown }).luck, 0) }))
         .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
         .map(({ trait, speedStat, stamina, jobs, tempLeft, luck }) => ({ trait, speedStat, stamina, jobs, tempLeft, ...(tempLeft > 0 ? { luck } : {}) })),
+      labApplicants: (Array.isArray(s.labApplicants) ? (s.labApplicants as Partial<MonkeyState>[]) : [])
+        .map((c) => monkey(c))
+        .filter((c) => c.trait && c.speedStat && c.stamina && Object.keys(c.jobs).length > 0)
+        .map(({ trait, speedStat, stamina, jobs }) => ({ trait, speedStat, stamina, jobs, tempLeft: 0 })),
       candidatesIn: Math.max(0, num(s.candidatesIn, 0)),
       stored: {
         furniture: storedCounts((s.stored as { furniture?: unknown } | undefined)?.furniture, (id) => furnitureKinds.some((k) => k.id === id)),

@@ -173,6 +173,7 @@ export interface GameState {
   researched: string[]; // finished projects
   researchersHired: number; // researchers hired, for their price
   candidates: Candidate[]; // monkeys HR could hire now (see hr in config.ts)
+  labApplicants: Candidate[]; // the monkeys offered as the R&D lab's free first researcher, from building the lab until one is picked (takeLabApplicant)
   stored: { furniture: Record<string, number>; hats: Record<string, number> }; // the player's inventory: furniture off the map, hats nobody wears (hatKey: kind and dye); used again for free
   candidatesIn: number; // seconds until HR draws a new list of candidates (0: at the next tick)
   squaresBought: number; // squares added to rooms, which raises the price of the next
@@ -357,6 +358,7 @@ export function createInitialState(now = Date.now()): GameState {
     researched: [],
     researchersHired: 0,
     candidates: [],
+    labApplicants: [],
     stored: { furniture: {}, hats: {} },
     candidatesIn: 0,
     squaresBought: 0,
