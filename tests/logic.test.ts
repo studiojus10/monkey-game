@@ -46,8 +46,12 @@ import {
   moveFurniture,
   swapFurniture,
   buyRoom,
+  roomCost,
   expandRoom,
   sellSquare,
+  sellRoom,
+  sellRoomBlocker,
+  roomRefund,
   sellSquareBlocker,
   squareRefund,
   bestExpansion,
@@ -1591,13 +1595,38 @@ describe('office space', () => {
     expect(squareCost(s)).toBe(refund); // the next square costs what this one gave back
     expect(squareCost(s)).toBeLessThan(before);
     expect(room.cells).toHaveLength(base + 1);
-    s.furniture.push({ kind: 'plant', room: room.id, x: 2, y: 0 });
-    expect(sellSquareBlocker(s, room.id, 2, 0)).toMatch(/Clear that square/);
+    s.furniture.push({ kind: 'desk', room: room.id, x: 2, y: 0 });
+    expect(sellSquareBlocker(s, room.id, 2, 0)).toMatch(/desk there stays/);
     s.furniture.pop();
+    s.furniture.push({ kind: 'plant', room: room.id, x: 2, y: 0 });
+    const stored = s.stored.furniture.plant ?? 0;
     expect(sellSquare(s, room.id, 2, 0)).toBe(true);
+    expect(s.stored.furniture.plant).toBe(stored + 1); // what stood on it goes to the inventory
+    expect(s.furniture.some((f) => f.room === room.id && f.x === 2 && f.y === 0)).toBe(false);
     expect(room.bought).toBeUndefined();
     expect(room.cells).toHaveLength(base);
     expect(sellSquare(s, room.id, ...free)).toBe(false); // the room is back to its own size
+  });
+
+  it('sells a room with no monkeys in it, its furniture going to the inventory', () => {
+    const s = startedGame(0);
+    s.sentences = 1e12;
+    expect(sellRoomBlocker(s, s.office[0].id)).toMatch(/first room/);
+    expect(buyRoom(s, 'break')).toBe(true);
+    const lounge = s.office[s.office.length - 1];
+    expect(expandRoom(s, lounge.id)).toBe(true);
+    s.furniture.push({ kind: 'plant', room: lounge.id, x: lounge.cells[0][0], y: lounge.cells[0][1] });
+    const rooms = s.office.length;
+    const refund = roomRefund(s, lounge.id);
+    const paid = s.sentences;
+    const nextRoom = roomCost(s);
+    expect(sellRoom(s, lounge.id)).toBe(true);
+    expect(s.office).toHaveLength(rooms - 1);
+    expect(s.sentences).toBe(paid + refund);
+    expect(roomCost(s)).toBeLessThan(nextRoom);
+    expect(s.squaresBought).toBe(0); // its bought square went with it
+    expect(s.stored.furniture.plant).toBe(1);
+    expect(s.furniture.some((f) => f.room === lounge.id)).toBe(false);
   });
 
   it('gives each department its own room, where its monkeys get desks', () => {

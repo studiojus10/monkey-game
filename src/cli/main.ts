@@ -42,6 +42,9 @@ import {
   buyRoom,
   expandRoom,
   sellSquare,
+  sellRoom,
+  sellRoomBlocker,
+  roomRefund,
   sellSquareBlocker,
   squareRefund,
   roomlessDepartments,
@@ -315,6 +318,7 @@ let showingOffice = false;
 let officeLegend: number | null = null; // the office map's legend: null while hidden, else the item its cursor is on
 let officeCursor: Cell | null = null; // the selected cell on the office map
 let officeGrowing = ''; // id of the room whose new square is being chosen
+let sellingRoom = ''; // id of the room [v] offered to sell, waiting for [y]
 let buyingRoom = false; // choosing what room to buy on the office map
 let placingRoom: { kind: RoomKind; genre?: Genre; at: [number, number] } | null = null; // a new room being put in place with the arrows
 let movingRoom: { id: string; dx: number; dy: number } | null = null; // a room picked up to move
@@ -723,7 +727,7 @@ function goHome(): void {
   shop = officeShop = null;
   giving = picker = choosingPost = readingShelf = invHeld = null;
   officeLegend = null;
-  officeGrowing = '';
+  officeGrowing = sellingRoom = '';
   offeredBook = -1;
   message = '';
 }
@@ -784,7 +788,7 @@ function openOffice(): void {
   officeShop = null;
   officeLegend = null;
   heldFurniture = -1;
-  officeGrowing = '';
+  officeGrowing = sellingRoom = '';
   buyingRoom = false;
   placingRoom = movingRoom = null;
   message = '';
@@ -1967,6 +1971,15 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
       bookMenu = seen.choices?.length ? `Read which book? ${seen.choices.join('   ')}` : '';
       return draw();
     }
+    if (sellingRoom) {
+      const room = state.office.find((r) => r.id === sellingRoom);
+      const refund = roomRefund(state, sellingRoom);
+      const name = room ? roomName(state, room) : 'room';
+      if (str === 'y' && sellRoom(state, sellingRoom)) message = `Sold the ${name} for ${formatPrice(refund)} Sentences. Its furniture is in your inventory ([i]).`;
+      else message = `The ${name} stays.`;
+      sellingRoom = '';
+      return draw();
+    }
     if (placingRoom || movingRoom) {
       const step: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
       const move = step[key.name ?? ''];
@@ -2078,13 +2091,21 @@ function handleKey(str: string | undefined, key: { name?: string; ctrl?: boolean
     } else if (str === 'v' && officeGrowing) {
       const room = state.office.find((r) => r.id === officeGrowing);
       const refund = squareRefund(state);
+      const pieces = state.furniture.length;
       const why = !room || here !== room ? 'Put the cursor on a square of the room you are growing to sell it.' : sellSquareBlocker(state, room.id, c.x, c.y);
       if (why) message = why;
-      else if (sellSquare(state, room!.id, c.x, c.y)) message = `Sold the square for ${formatPrice(refund)} Sentences.`;
+      else if (sellSquare(state, room!.id, c.x, c.y)) message = `Sold the square for ${formatPrice(refund)} Sentences.${state.furniture.length < pieces ? ' What stood on it is in your inventory ([i]).' : ''}`;
     } else if ((str === 's' || str === 'v') && !holding && !officeGrowing) {
       const here = roomAt(state, c.x, c.y);
       const spot = here ? cellAt(state, here.id, c.x, c.y) : null;
-      if (typeof spot !== 'number') message = 'No furniture there.';
+      if (typeof spot !== 'number' && str === 'v' && here) {
+        const why = sellRoomBlocker(state, here.id);
+        if (why) message = why;
+        else {
+          sellingRoom = here.id;
+          message = `Sell the ${roomName(state, here)} for ${formatPrice(roomRefund(state, here.id))} Sentences? Its furniture goes to your inventory. [y] sell, any other key keeps it.`;
+        }
+      } else if (typeof spot !== 'number') message = 'No furniture there.';
       else if (!canRemoveFurniture(state, spot)) message = 'Desks stay: monkeys work at them.';
       else {
         const name = furnitureName(state, spot);

@@ -1383,7 +1383,8 @@ export function sellSquareBlocker(state: GameState, roomId: string, x: number, y
   const spot = room ? cellAt(state, room.id, x, y) : null;
   if (!room || spot === null) return 'That square is not part of the room.';
   if (!room.bought || state.squaresBought <= 0) return 'Only squares you bought onto a room sell: it keeps the size it came in.';
-  if (typeof spot === 'number') return 'Clear that square first: move, store or sell what stands on it.';
+  const stays = state.furniture.find((f, i) => f.room === room.id && covers(f, x, y) && !canRemoveFurniture(state, i));
+  if (stays) return `The ${stays.kind === safe.id ? 'safe' : 'desk'} there stays: move it off this square first.`;
   const cells = room.cells.filter(([cx, cy]) => cx !== x || cy !== y);
   if (!joinedUp(cells)) return 'That would cut the room in two.';
   if (room.kind === 'office') {
@@ -1399,6 +1400,7 @@ export function sellSquareBlocker(state: GameState, roomId: string, x: number, y
 export function sellSquare(state: GameState, roomId: string, x: number, y: number): boolean {
   if (sellSquareBlocker(state, roomId, x, y)) return false;
   const room = state.office.find((r) => r.id === roomId)!;
+  storeFurnitureIn(state, room.id, (f) => covers(f, x, y)); // what stood on it goes to the inventory
   state.sentences += squareRefund(state);
   room.cells = room.cells.filter(([cx, cy]) => cx !== x || cy !== y);
   room.bought = room.bought! - 1;
@@ -1406,6 +1408,61 @@ export function sellSquare(state: GameState, roomId: string, x: number, y: numbe
   state.squaresBought--;
   tidyDoors(state); // doors and windows in its walls go with it
   autoConnect(state); // a new door or hallway if that was the way in
+  tidyDoors(state);
+  for (const r of state.office) addWindow(state, r);
+  return true;
+}
+
+/** Puts the pieces in a room that match away in the inventory (see storeFurniture). */
+function storeFurnitureIn(state: GameState, roomId: string, which: (f: Furniture) => boolean = () => true): void {
+  for (let i = state.furniture.length - 1; i >= 0; i--) {
+    if (state.furniture[i].room === roomId && which(state.furniture[i])) storeFurniture(state, i);
+  }
+}
+
+/** Sentences back for selling a room: what the last room bought cost, plus every square bought onto it (see squareRefund). */
+export function roomRefund(state: GameState, roomId: string): number {
+  const room = state.office.find((r) => r.id === roomId);
+  if (!room) return 0;
+  let back = Math.ceil(officeRules.roomBaseCost * Math.pow(officeRules.roomCostGrowth, Math.max(0, state.office.length - 2)));
+  for (let n = 1; n <= (room.bought ?? 0); n++) {
+    back += Math.ceil(officeRules.squareBaseCost * Math.pow(officeRules.squareCostGrowth, state.squaresBought - n) * (1 - researchBonus(state, 'squares')));
+  }
+  return back;
+}
+
+/**
+ * Why a room can't be sold, or '' if it can (Justin, 2026-11-27): a
+ * department's room with no monkeys in its department, or a break room; not
+ * your first room, nor a department's room that still has a manager's office
+ * beside it. Desks and safes don't go to the inventory, so none may be in it.
+ */
+export function sellRoomBlocker(state: GameState, roomId: string): string {
+  const room = state.office.find((r) => r.id === roomId);
+  if (!room) return 'Put the cursor on a room to sell it.';
+  if (room === state.office[0]) return 'Your first room stays: it is the way into the office.';
+  if (room.kind !== 'department' && room.kind !== 'break') return "Only departments' rooms and break rooms can be sold.";
+  if (room.kind === 'department') {
+    const genre = roomGenre(state, room);
+    if (state.monkeys.some((m) => { const g = monkeyGenre(state, m); return !!g && departmentRoom(state, g) === room; })) return 'Monkeys work here: move them to another department first ([d] on the roster).';
+    if (officeOf(state, genre)) return "Its manager's office is beside it, so the department's room stays.";
+  }
+  const stays = state.furniture.find((f, i) => f.room === room.id && !canRemoveFurniture(state, i));
+  if (stays) return `The ${stays.kind === safe.id ? 'safe' : 'desk'} in it stays: move it to another room first.`;
+  return '';
+}
+
+/** Sells a room (see sellRoomBlocker) for roomRefund; its furniture goes to the inventory, and the rest of the office keeps a way in. */
+export function sellRoom(state: GameState, roomId: string): boolean {
+  if (sellRoomBlocker(state, roomId)) return false;
+  const refund = roomRefund(state, roomId);
+  const room = state.office.find((r) => r.id === roomId)!;
+  storeFurnitureIn(state, room.id);
+  state.squaresBought -= room.bought ?? 0;
+  state.office = state.office.filter((r) => r !== room);
+  state.sentences += refund;
+  tidyDoors(state);
+  autoConnect(state);
   tidyDoors(state);
   for (const r of state.office) addWindow(state, r);
   return true;
